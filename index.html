@@ -15,6 +15,8 @@
   input,button{font-family:'IBM Plex Sans Thai',sans-serif}
   @keyframes mpPulse{0%,100%{opacity:1}50%{opacity:.35}}
 </style>
+<script src="./config.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script crossorigin src="https://unpkg.com/react@18.3.1/umd/react.production.min.js"></script>
 <script crossorigin src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js"></script>
 <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js"></script>
@@ -52,6 +54,11 @@ class App extends React.Component {
   }
 
   componentDidMount(){
+    // เชื่อมฐานข้อมูลกลาง (Supabase) ถ้าตั้งค่าไว้ใน config.js
+    const cfg = window.MP_CONFIG || {};
+    if (cfg.SUPABASE_URL && cfg.SUPABASE_ANON_KEY && window.supabase) {
+      this.db = window.supabase.createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY);
+    }
     try {
       const u = JSON.parse(localStorage.getItem('mp_user') || 'null');
       if (u && u.fname) this.setState({ user: u, phone: u.phone || '' });
@@ -104,6 +111,53 @@ class App extends React.Component {
 
   fmtTime(d){ return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); }
 
+  // บันทึกออเดอร์ + อัปโหลดไฟล์ขึ้นฐานข้อมูลกลาง (ให้เจ้าของเห็นในหน้าหลังบ้าน)
+  async saveOrder(id, c, t0){
+    const s = this.state;
+    try {
+      const files = [];
+      for (let i = 0; i < s.files.length; i++) {
+        const f = s.files[i];
+        let path = null;
+        if (f.file) {
+          const safe = f.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+          path = id.replace('#', '') + '/f' + i + '_' + safe;
+          const { error } = await this.db.storage.from('uploads').upload(path, f.file, { upsert: true });
+          if (error) { console.error('upload:', error); path = null; }
+        }
+        files.push({ name: f.name, pages: f.pages, path });
+      }
+      const u = s.user || {};
+      const { error } = await this.db.from('orders').insert({
+        id,
+        customer_fname: u.fname || '', customer_lname: u.lname || '',
+        customer_phone: u.phone || '', customer_email: u.email || '',
+        files, color: s.color, paper: s.paper, sides: s.sides, bind: s.bind, copies: s.copies,
+        point: s.point, addr: s.addr, phone: s.phone, time: s.time, express: s.express, night: this.isNight(),
+        print_cost: c.printCost, bind_cost: c.bindCost, delivery_cost: c.deliveryCost,
+        night_fee: this.isNight() ? (CONFIG.nightFee ?? 25) : 0,
+        total: c.grandTotal, status: 1, times: [t0, '', '', '']
+      });
+      if (error) throw error;
+    } catch (e) {
+      console.error('saveOrder:', e);
+      this.showToast('⚠️ บันทึกออนไลน์ไม่สำเร็จ — ติดต่อร้านทาง LINE');
+    }
+  }
+
+  // ติดตามสถานะจริงจากฐานข้อมูล (เจ้าของกดอัปเดตจากหน้าหลังบ้าน)
+  startPolling(id){
+    clearInterval(this.trackTimer);
+    this.trackTimer = setInterval(async () => {
+      try {
+        const { data } = await this.db.from('orders').select('status,times').eq('id', id).single();
+        if (data) this.setState(st => st.order && st.order.id === id
+          ? { trackStep: data.status, order: { ...st.order, times: data.times || st.order.times } }
+          : null);
+      } catch (e) {}
+    }, 8000);
+  }
+
   vals(){
     const s = this.state, c = this.calc(), night = this.isNight();
     const set = (k) => (v) => this.setState({ [k]: v });
@@ -141,7 +195,7 @@ class App extends React.Component {
       goTrack: () => this.setState({ screen: 'track' }),
       pickFiles: () => this.fileRef.current && this.fileRef.current.click(),
       onFiles: (e) => {
-        const add = Array.from(e.target.files || []).map(f => ({ name: f.name, pages: 10 }));
+        const add = Array.from(e.target.files || []).map(f => ({ name: f.name, pages: 10, file: f }));
         if (add.length) this.setState(st => ({ files: st.files.concat(add) }));
         e.target.value = '';
       },
@@ -183,13 +237,20 @@ class App extends React.Component {
         const t0 = this.fmtTime(new Date());
         this.setState({ order: { id, total: c.grandTotal, times: [t0, '', '', ''] }, trackStep: 1, screen: 'track' });
         clearInterval(this.trackTimer);
-        this.trackTimer = setInterval(() => {
-          this.setState(st => {
-            if (!st.order || st.trackStep >= 4) { clearInterval(this.trackTimer); return null; }
-            const times = st.order.times.slice(); times[st.trackStep] = this.fmtTime(new Date());
-            return { trackStep: st.trackStep + 1, order: { ...st.order, times } };
-          });
-        }, 7000);
+        if (this.db) {
+          // โหมดออนไลน์: บันทึกเข้าฐานข้อมูล + ติดตามสถานะจริงจากหลังบ้าน
+          this.saveOrder(id, c, t0);
+          this.startPolling(id);
+        } else {
+          // โหมดออฟไลน์: จำลองสถานะเดินเอง
+          this.trackTimer = setInterval(() => {
+            this.setState(st => {
+              if (!st.order || st.trackStep >= 4) { clearInterval(this.trackTimer); return null; }
+              const times = st.order.times.slice(); times[st.trackStep] = this.fmtTime(new Date());
+              return { trackStep: st.trackStep + 1, order: { ...st.order, times } };
+            });
+          }, 7000);
+        }
         this.showToast('รับออเดอร์แล้ว! 🎉');
       },
       hasOrder: !!s.order, noOrder: !s.order,

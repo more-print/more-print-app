@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MORE PRINT — หลังบ้าน (Owner)</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Montserrat:wght@700;800&display=swap" rel="stylesheet">
+<style>
+  body{margin:0;background:var(--bg);font-family:'IBM Plex Sans Thai',sans-serif;
+  --bg:#f4f4f2;--card:#ffffff;--ink:#111111;--sub:#8a8a84;--line:#e4e4e0;--soft:#efefec;
+  --acc:#00b368;--accBright:#00d97e;--accSoft:#e6f7ef;--head:#111111;--warnBg:#fff7e0;--warnLine:#f0dfa6;--warnInk:#8a6d1a;--shadow:0 2px 10px rgba(0,0,0,.06)}
+  a{color:#00b368}a:hover{color:#008a50}
+  input,button,select{font-family:'IBM Plex Sans Thai',sans-serif}
+  @keyframes mpPulse{0%,100%{opacity:1}50%{opacity:.35}}
+</style>
+<script src="./config.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script crossorigin src="https://unpkg.com/react@18.3.1/umd/react.production.min.js"></script>
+<script crossorigin src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js"></script>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel" data-presets="react">
+const CFG = window.MP_CONFIG || {};
+const DB = (CFG.SUPABASE_URL && CFG.SUPABASE_ANON_KEY && window.supabase)
+  ? window.supabase.createClient(CFG.SUPABASE_URL, CFG.SUPABASE_ANON_KEY) : null;
+
+const STEPS = ['รับออเดอร์', 'กำลังปริ้น', 'กำลังจัดส่ง', 'ส่งแล้ว'];
+const STEP_COLORS = ['#8a6d1a', '#0b7285', '#9c36b5', '#00b368'];
+const STEP_BG = ['#fff7e0', '#e3fafc', '#f8f0fc', '#e6f7ef'];
+
+// ข้อมูลตัวอย่าง — โชว์เมื่อยังไม่เชื่อมฐานข้อมูล
+const DEMO_ORDERS = [
+  { id: '#MP-4512', created_at: new Date(Date.now() - 25*60000).toISOString(),
+    customer_fname: 'สมชาย', customer_lname: 'ใจดี', customer_phone: '081-234-5678', customer_email: '',
+    files: [{ name: 'รายงานสรุปวิชา.pdf', pages: 24, path: null }, { name: 'slides-present.pptx', pages: 12, path: null }],
+    color: false, paper: 'A4', sides: 2, bind: 'corner', copies: 2,
+    point: 'คณะวิศวกรรมฯ', addr: 'ตึก EN ชั้น 2 หน้าลิฟต์', phone: '081-234-5678', time: '14:30', express: true, night: false,
+    print_cost: 72, bind_cost: 10, delivery_cost: 30, night_fee: 0, total: 112, status: 2, times: ['13:02', '13:10', '', ''] },
+  { id: '#MP-4511', created_at: new Date(Date.now() - 2*3600000).toISOString(),
+    customer_fname: 'มินตรา', customer_lname: 'พาเพลิน', customer_phone: '095-888-1122', customer_email: 'mintra@kku.ac.th',
+    files: [{ name: 'thesis-chapter3.pdf', pages: 45, path: null }],
+    color: true, paper: 'A4', sides: 1, bind: 'book', copies: 1,
+    point: 'หอใน มข.', addr: 'หอ 9 ล็อบบี้', phone: '095-888-1122', time: '18:00', express: false, night: false,
+    print_cost: 225, bind_cost: 40, delivery_cost: 10, night_fee: 0, total: 275, status: 4, times: ['10:45', '11:02', '11:30', '11:52'] },
+  { id: '#MP-4510', created_at: new Date(Date.now() - 5*3600000).toISOString(),
+    customer_fname: 'ต้นกล้า', customer_lname: 'เรียนดี', customer_phone: '062-345-9900', customer_email: '',
+    files: [{ name: 'ชีทสอบ-final.pdf', pages: 30, path: null }],
+    color: false, paper: 'A4', sides: 1, bind: 'none', copies: 5,
+    point: 'โรงชาย มข.', addr: '', phone: '062-345-9900', time: '21:00', express: false, night: true,
+    print_cost: 150, bind_cost: 0, delivery_cost: 10, night_fee: 25, total: 185, status: 1, times: ['20:15', '', '', ''] }
+];
+
+function css(str){
+  const o = {};
+  String(str).split(';').forEach(decl => {
+    const i = decl.indexOf(':');
+    if (i < 0) return;
+    const prop = decl.slice(0, i).trim();
+    if (!prop) return;
+    o[prop.startsWith('--') ? prop : prop.replace(/-([a-z])/g, (_, c) => c.toUpperCase())] = decl.slice(i + 1).trim();
+  });
+  return o;
+}
+const fmtTime = (d) => String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0');
+const fmtWhen = (iso) => {
+  const d = new Date(iso), now = new Date();
+  const sameDay = d.toDateString() === now.toDateString();
+  return (sameDay ? 'วันนี้ ' : d.getDate() + '/' + (d.getMonth()+1) + ' ') + fmtTime(d);
+};
+const fileUrl = (path) => path && CFG.SUPABASE_URL ? CFG.SUPABASE_URL + '/storage/v1/object/public/uploads/' + path : null;
+const optionsLabel = (o) => [
+  o.color ? 'สี' : 'ขาวดำ', o.paper, o.sides === 2 ? 'สองหน้า' : 'หน้าเดียว',
+  o.bind === 'book' ? 'เข้าเล่ม' : o.bind === 'corner' ? 'เย็บมุม' : 'ไม่เข้าเล่ม',
+  o.copies + ' ชุด'
+].join(' · ');
+
+function PinGate({ onOk }){
+  const [pin, setPin] = React.useState('');
+  const [err, setErr] = React.useState(false);
+  const submit = () => {
+    if (pin === String(CFG.ADMIN_PIN || '2468')) { sessionStorage.setItem('mp_admin_ok', '1'); onOk(); }
+    else { setErr(true); setPin(''); }
+  };
+  return (
+    <div style={css("min-height:100vh;display:flex;align-items:center;justify-content:center;background:var(--bg)")}>
+      <div style={css("background:var(--card);border:1px solid var(--line);border-radius:18px;padding:30px 26px;width:300px;box-shadow:var(--shadow);display:flex;flex-direction:column;gap:14px;align-items:center")}>
+        <img src="assets/logo-icon.png" alt="" style={css("width:56px;height:auto")}/>
+        <div style={css("font-family:'Montserrat',sans-serif;font-weight:800;font-size:17px;letter-spacing:1px")}><span style={css("color:var(--acc)")}>MORE</span> PRINT</div>
+        <div style={css("font-size:13px;color:var(--sub)")}>🔒 หน้าหลังบ้าน — สำหรับเจ้าของร้าน</div>
+        <input type="password" inputMode="numeric" value={pin} onChange={e => setPin(e.target.value)}
+          onKeyDown={e => e.key === 'Enter' && submit()} placeholder="ใส่รหัส PIN" autoFocus
+          style={css("width:100%;box-sizing:border-box;height:48px;border:1px solid var(--line);border-radius:12px;background:var(--soft);color:var(--ink);padding:0 14px;font-size:18px;text-align:center;letter-spacing:6px;outline:none;font-family:'IBM Plex Mono',monospace")}/>
+        {err && <div style={css("font-size:12px;color:#d9480f")}>รหัสไม่ถูกต้อง ลองใหม่ครับ</div>}
+        <button onClick={submit} style={css("width:100%;height:46px;border:none;border-radius:12px;background:var(--acc);color:#fff;font-size:14px;font-weight:700;cursor:pointer")}>เข้าสู่หลังบ้าน →</button>
+      </div>
+    </div>
+  );
+}
+
+function StatusBadge({ status }){
+  const i = Math.min(Math.max(status, 1), 4) - 1;
+  return <span style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: '11px', fontWeight: 600,
+    color: STEP_COLORS[i], background: STEP_BG[i], padding: '3px 10px', borderRadius: '99px', whiteSpace: 'nowrap' }}>{STEPS[i]}</span>;
+}
+
+function OrderCard({ o, onAdvance, busy }){
+  const [open, setOpen] = React.useState(o.status < 4);
+  const canAdvance = o.status < 4;
+  return (
+    <div style={css("background:var(--card);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);overflow:hidden")}>
+      <div onClick={() => setOpen(v => !v)} style={css("padding:13px 16px;display:flex;justify-content:space-between;align-items:center;cursor:pointer;gap:10px")}>
+        <div style={css("min-width:0")}>
+          <div style={css("display:flex;align-items:center;gap:8px;flex-wrap:wrap")}>
+            <span style={css("font-family:'IBM Plex Mono',monospace;font-size:13px;font-weight:600")}>{o.id}</span>
+            <StatusBadge status={o.status}/>
+            {o.express && <span style={css("font-size:10.5px;font-weight:600;color:#c92a2a;background:#fff0f0;padding:2px 8px;border-radius:99px")}>🛵 ด่วน</span>}
+            {o.night && <span style={css("font-size:10.5px;font-weight:600;color:var(--warnInk);background:var(--warnBg);padding:2px 8px;border-radius:99px")}>🌙 กลางคืน</span>}
+          </div>
+          <div style={css("margin-top:4px;font-size:12px;color:var(--sub);overflow:hidden;text-overflow:ellipsis;white-space:nowrap")}>
+            {fmtWhen(o.created_at)} · คุณ{o.customer_fname} {o.customer_lname} · {o.point}
+          </div>
+        </div>
+        <div style={css("display:flex;align-items:center;gap:10px;flex:none")}>
+          <span style={css("font-family:'IBM Plex Mono',monospace;font-size:16px;font-weight:600;color:var(--acc)")}>฿{o.total}</span>
+          <span style={css("color:var(--sub);font-size:12px")}>{open ? '▲' : '▼'}</span>
+        </div>
+      </div>
+      {open && (
+        <div style={css("border-top:1px dashed var(--line);padding:14px 16px;display:flex;flex-direction:column;gap:12px")}>
+          <div>
+            <div style={css("font-size:11px;font-weight:600;color:var(--sub);letter-spacing:.5px")}>👤 ลูกค้า</div>
+            <div style={css("margin-top:4px;font-size:13px")}>คุณ{o.customer_fname} {o.customer_lname} · <a href={'tel:' + (o.customer_phone || '').replace(/[^0-9+]/g,'')} style={css("font-family:'IBM Plex Mono',monospace;font-size:12.5px")}>{o.customer_phone}</a>{o.customer_email ? <span style={css("color:var(--sub)")}> · {o.customer_email}</span> : null}</div>
+          </div>
+          <div>
+            <div style={css("font-size:11px;font-weight:600;color:var(--sub);letter-spacing:.5px")}>📄 ไฟล์เอกสาร ({(o.files || []).length})</div>
+            <div style={css("margin-top:6px;display:flex;flex-direction:column;gap:6px")}>
+              {(o.files || []).map((f, i) => (
+                <div key={i} style={css("display:flex;align-items:center;gap:8px;background:var(--soft);border-radius:10px;padding:8px 12px")}>
+                  <span>📄</span>
+                  <span style={css("flex:1;min-width:0;font-size:12.5px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap")}>{f.name}</span>
+                  <span style={css("font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--sub);flex:none")}>{f.pages} หน้า</span>
+                  {fileUrl(f.path)
+                    ? <a href={fileUrl(f.path)} target="_blank" rel="noreferrer" style={css("flex:none;font-size:11.5px;font-weight:600;background:var(--accSoft);color:var(--acc);padding:4px 10px;border-radius:8px;text-decoration:none")}>⬇ เปิดไฟล์</a>
+                    : <span style={css("flex:none;font-size:11px;color:var(--sub)")}>—</span>}
+                </div>
+              ))}
+            </div>
+          </div>
+          <div>
+            <div style={css("font-size:11px;font-weight:600;color:var(--sub);letter-spacing:.5px")}>🖨️ คำสั่งปริ้น</div>
+            <div style={css("margin-top:4px;font-size:13px;font-weight:600")}>{optionsLabel(o)}</div>
+            <div style={css("margin-top:2px;font-size:12px;color:var(--sub)")}>ค่าปริ้น ฿{o.print_cost} · เข้าเล่ม ฿{o.bind_cost} · ค่าส่ง ฿{o.delivery_cost}{o.night_fee ? ' · กลางคืน ฿' + o.night_fee : ''}</div>
+          </div>
+          <div>
+            <div style={css("font-size:11px;font-weight:600;color:var(--sub);letter-spacing:.5px")}>📍 จัดส่ง</div>
+            <div style={css("margin-top:4px;font-size:13px")}>{o.point}{o.addr ? ' · ' + o.addr : ''}</div>
+            <div style={css("font-size:12px;color:var(--sub)")}>เวลารับ: <span style={css("font-family:'IBM Plex Mono',monospace")}>{o.express ? 'ด่วน ~45 นาที' : (o.time || '-') + ' น.'}</span> · โทร <span style={css("font-family:'IBM Plex Mono',monospace")}>{o.phone}</span></div>
+          </div>
+          <div style={css("display:flex;gap:6px;flex-wrap:wrap")}>
+            {STEPS.map((sName, i) => {
+              const done = o.status > i, cur = o.status === i + 1;
+              return <span key={i} style={{ fontSize: '11px', fontWeight: 600, padding: '4px 10px', borderRadius: '99px',
+                background: done || cur ? 'var(--accSoft)' : 'var(--soft)', color: done || cur ? 'var(--acc)' : 'var(--sub)',
+                border: cur ? '1.5px solid var(--acc)' : '1.5px solid transparent' }}>
+                {done && !cur ? '✓ ' : (i + 1) + '. '}{sName}{(o.times || [])[i] ? ' ' + o.times[i] : ''}
+              </span>;
+            })}
+          </div>
+          {canAdvance && (
+            <button disabled={busy} onClick={() => onAdvance(o)}
+              style={css("height:44px;border:none;border-radius:12px;background:var(--acc);color:#fff;font-size:14px;font-weight:700;cursor:pointer" + (busy ? ";opacity:.6" : ""))}>
+              {busy ? 'กำลังบันทึก…' : '→ อัปเดตเป็น "' + STEPS[o.status] + '"'}
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function AdminApp(){
+  const [authed, setAuthed] = React.useState(() => sessionStorage.getItem('mp_admin_ok') === '1');
+  const [tab, setTab] = React.useState('orders');
+  const [orders, setOrders] = React.useState(DB ? [] : DEMO_ORDERS);
+  const [loading, setLoading] = React.useState(!!DB);
+  const [busyId, setBusyId] = React.useState(null);
+  const [lastSync, setLastSync] = React.useState(null);
+  const [filter, setFilter] = React.useState('all');
+
+  const refresh = React.useCallback(async () => {
+    if (!DB) return;
+    try {
+      const { data, error } = await DB.from('orders').select('*').order('created_at', { ascending: false }).limit(200);
+      if (!error && data) { setOrders(data); setLastSync(new Date()); }
+    } catch (e) { console.error(e); }
+    setLoading(false);
+  }, []);
+
+  React.useEffect(() => {
+    if (!authed || !DB) return;
+    refresh();
+    const t = setInterval(refresh, 15000);
+    return () => clearInterval(t);
+  }, [authed, refresh]);
+
+  if (!authed) return <PinGate onOk={() => setAuthed(true)}/>;
+
+  const advance = async (o) => {
+    const next = Math.min(o.status + 1, 4);
+    const times = (o.times || ['', '', '', '']).slice();
+    times[next - 1] = fmtTime(new Date());
+    if (DB) {
+      setBusyId(o.id);
+      try { await DB.from('orders').update({ status: next, times }).eq('id', o.id); await refresh(); }
+      catch (e) { console.error(e); }
+      setBusyId(null);
+    } else {
+      setOrders(list => list.map(x => x.id === o.id ? { ...x, status: next, times } : x));
+    }
+  };
+
+  // สถิติ
+  const today = new Date().toDateString();
+  const todayOrders = orders.filter(o => new Date(o.created_at).toDateString() === today);
+  const revenue = todayOrders.reduce((a, o) => a + (o.total || 0), 0);
+  const pending = orders.filter(o => o.status < 4).length;
+
+  // ลูกค้า (จัดกลุ่มตามเบอร์โทร)
+  const custMap = {};
+  orders.forEach(o => {
+    const k = o.customer_phone || o.phone || '?';
+    if (!custMap[k]) custMap[k] = { name: ('คุณ' + (o.customer_fname || '') + ' ' + (o.customer_lname || '')).trim(), phone: k, count: 0, total: 0, last: o.created_at };
+    custMap[k].count++; custMap[k].total += o.total || 0;
+    if (o.created_at > custMap[k].last) custMap[k].last = o.created_at;
+  });
+  const customers = Object.values(custMap).sort((a, b) => b.total - a.total);
+
+  const shown = filter === 'all' ? orders : filter === 'pending' ? orders.filter(o => o.status < 4) : orders.filter(o => o.status === 4);
+
+  return (
+    <div style={css("max-width:560px;margin:0 auto;min-height:100vh;display:flex;flex-direction:column;color:var(--ink)")}>
+      <div style={css("background:var(--head);color:#fff;padding:14px 20px;display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;z-index:10")}>
+        <div style={css("display:flex;align-items:center;gap:10px")}>
+          <div style={css("width:40px;height:40px;border-radius:50%;background:#fff;display:flex;align-items:center;justify-content:center;overflow:hidden;box-shadow:0 0 0 2px rgba(255,255,255,.15)")}><img src="assets/logo-icon.png" alt="" style={css("width:29px;height:auto;display:block")}/></div>
+          <div>
+            <div style={css("font-family:'Montserrat',sans-serif;font-weight:800;font-size:16px;letter-spacing:1.2px;line-height:1")}><span style={css("color:var(--accBright)")}>MORE</span> <span style={css("color:#fff")}>PRINT</span></div>
+            <div style={css("font-family:'IBM Plex Mono',monospace;font-size:9.5px;color:var(--accBright);margin-top:3px;letter-spacing:1.5px")}>OWNER DASHBOARD</div>
+          </div>
+        </div>
+        <div style={css("display:flex;align-items:center;gap:10px")}>
+          {DB && <button onClick={refresh} style={css("background:#2a2a2a;border:none;color:#fff;height:32px;padding:0 12px;border-radius:9px;font-size:12px;cursor:pointer")}>⟳ รีเฟรช</button>}
+          <div style={css("font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--accBright);display:flex;align-items:center;gap:5px")}>
+            <span style={css("animation:mpPulse 2s infinite")}>●</span>{DB ? (lastSync ? 'SYNC ' + fmtTime(lastSync) : 'ONLINE') : 'DEMO'}
+          </div>
+        </div>
+      </div>
+
+      {!DB && (
+        <div style={css("margin:14px 16px 0;background:var(--warnBg);border:1px solid var(--warnLine);border-radius:12px;padding:10px 14px;font-size:12px;color:var(--warnInk);line-height:1.5")}>
+          ⚠️ <b>โหมดตัวอย่าง</b> — ยังไม่ได้เชื่อมฐานข้อมูล ข้อมูลด้านล่างเป็นเพียงตัวอย่าง เชื่อม Supabase ใน <span style={css("font-family:'IBM Plex Mono',monospace")}>config.js</span> เพื่อเห็นออเดอร์จริงจากลูกค้า
+        </div>
+      )}
+
+      <div style={css("padding:16px 16px 0;display:flex;gap:10px")}>
+        <div style={css("flex:1;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 14px")}>
+          <div style={css("font-family:'IBM Plex Mono',monospace;font-size:20px;font-weight:600;color:var(--acc)")}>{todayOrders.length}</div>
+          <div style={css("font-size:11px;color:var(--sub);margin-top:2px")}>ออเดอร์วันนี้</div>
+        </div>
+        <div style={css("flex:1;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 14px")}>
+          <div style={css("font-family:'IBM Plex Mono',monospace;font-size:20px;font-weight:600;color:var(--acc)")}>฿{revenue}</div>
+          <div style={css("font-size:11px;color:var(--sub);margin-top:2px")}>ยอดขายวันนี้</div>
+        </div>
+        <div style={css("flex:1;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 14px")}>
+          <div style={css("font-family:'IBM Plex Mono',monospace;font-size:20px;font-weight:600;color:" + (pending ? "#c92a2a" : "var(--acc)"))}>{pending}</div>
+          <div style={css("font-size:11px;color:var(--sub);margin-top:2px")}>ยังไม่ส่ง</div>
+        </div>
+      </div>
+
+      <div style={css("padding:16px 16px 0;display:flex;gap:8px")}>
+        {[['orders', '📋 ออเดอร์'], ['customers', '👥 ลูกค้า (' + customers.length + ')']].map(([k, label]) => (
+          <button key={k} onClick={() => setTab(k)} style={{ flex: 1, height: '42px', borderRadius: '12px', fontSize: '13.5px', fontWeight: 700, cursor: 'pointer',
+            border: tab === k ? '1.5px solid var(--acc)' : '1px solid var(--line)',
+            background: tab === k ? 'var(--accSoft)' : 'var(--card)', color: tab === k ? 'var(--acc)' : 'var(--sub)' }}>{label}</button>
+        ))}
+      </div>
+
+      {tab === 'orders' && (
+        <div style={css("padding:14px 16px 40px;display:flex;flex-direction:column;gap:10px")}>
+          <div style={css("display:flex;gap:6px")}>
+            {[['all', 'ทั้งหมด'], ['pending', 'กำลังทำ'], ['done', 'ส่งแล้ว']].map(([k, label]) => (
+              <button key={k} onClick={() => setFilter(k)} style={{ padding: '6px 14px', borderRadius: '99px', fontSize: '12px', fontWeight: 600, cursor: 'pointer',
+                border: filter === k ? '1.5px solid var(--acc)' : '1px solid var(--line)',
+                background: filter === k ? 'var(--accSoft)' : 'var(--soft)', color: filter === k ? 'var(--acc)' : 'var(--ink)' }}>{label}</button>
+            ))}
+          </div>
+          {loading && <div style={css("text-align:center;color:var(--sub);font-size:13px;padding:30px 0")}>กำลังโหลด…</div>}
+          {!loading && shown.length === 0 && (
+            <div style={css("text-align:center;color:var(--sub);padding:50px 20px")}>
+              <div style={css("font-size:34px")}>🗒️</div>
+              <div style={css("margin-top:10px;font-size:14px")}>ยังไม่มีออเดอร์เข้ามา</div>
+            </div>
+          )}
+          {shown.map(o => <OrderCard key={o.id} o={o} onAdvance={advance} busy={busyId === o.id}/>)}
+        </div>
+      )}
+
+      {tab === 'customers' && (
+        <div style={css("padding:14px 16px 40px;display:flex;flex-direction:column;gap:10px")}>
+          {customers.length === 0 && <div style={css("text-align:center;color:var(--sub);font-size:14px;padding:40px 0")}>ยังไม่มีข้อมูลลูกค้า</div>}
+          {customers.map((cst, i) => (
+            <div key={i} style={css("background:var(--card);border:1px solid var(--line);border-radius:14px;padding:13px 16px;display:flex;align-items:center;gap:12px;box-shadow:var(--shadow)")}>
+              <div style={css("width:40px;height:40px;border-radius:50%;background:var(--accSoft);color:var(--acc);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:15px;flex:none")}>{(cst.name.replace('คุณ', '') || '?').trim().charAt(0)}</div>
+              <div style={css("flex:1;min-width:0")}>
+                <div style={css("font-size:13.5px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap")}>{cst.name || 'ไม่ระบุชื่อ'}</div>
+                <div style={css("font-size:11.5px;color:var(--sub)")}><a href={'tel:' + cst.phone.replace(/[^0-9+]/g,'')} style={css("font-family:'IBM Plex Mono',monospace")}>{cst.phone}</a> · ล่าสุด {fmtWhen(cst.last)}</div>
+              </div>
+              <div style={css("text-align:right;flex:none")}>
+                <div style={css("font-family:'IBM Plex Mono',monospace;font-size:14px;font-weight:600;color:var(--acc)")}>฿{cst.total}</div>
+                <div style={css("font-size:10.5px;color:var(--sub)")}>{cst.count} ออเดอร์</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<AdminApp/>);
+</script>
+</body>
+</html>
