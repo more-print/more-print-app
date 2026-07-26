@@ -45,9 +45,10 @@ class App extends React.Component {
   constructor(props){
     super(props);
     this.fileRef = React.createRef();
+    this.slipRef = React.createRef();
     this.state = {
       screen: 'home', files: [], color: false, paper: 'A4', sides: 1, bind: 'none', copies: 1,
-      point: '', addr: '', phone: '', time: '', express: false,
+      point: '', addr: '', phone: '', time: '', express: false, slip: null,
       order: null, trackStep: 1, toast: '', now: new Date(),
       user: null, fname: '', lname: '', phoneIn: '', emailIn: ''
     };
@@ -127,9 +128,17 @@ class App extends React.Component {
         }
         files.push({ name: f.name, pages: f.pages, path });
       }
+      // อัปโหลดสลิปโอนเงิน
+      let slip_path = null;
+      if (s.slip) {
+        const ext = (s.slip.name.split('.').pop() || 'jpg').replace(/[^a-zA-Z0-9]/g, '').slice(0, 5) || 'jpg';
+        slip_path = id.replace('#', '') + '/slip.' + ext;
+        const { error: se } = await this.db.storage.from('uploads').upload(slip_path, s.slip, { upsert: true });
+        if (se) { console.error('slip:', se); slip_path = null; }
+      }
       const u = s.user || {};
       const { error } = await this.db.from('orders').insert({
-        id,
+        id, slip_path,
         customer_fname: u.fname || '', customer_lname: u.lname || '',
         customer_phone: u.phone || '', customer_email: u.email || '',
         files, color: s.color, paper: s.paper, sides: s.sides, bind: s.bind, copies: s.copies,
@@ -232,7 +241,15 @@ class App extends React.Component {
       destLabel: s.point + (s.addr ? ' · ' + s.addr : ''),
       timeLabel: (s.express ? 'ด่วน ~45 นาที' : s.time + ' น.'),
       deliveryLabel: s.express ? '(ด่วน)' : '',
+      slipName: s.slip ? s.slip.name : '',
+      pickSlip: () => this.slipRef.current && this.slipRef.current.click(),
+      onSlip: (e) => {
+        const f = (e.target.files || [])[0];
+        if (f) this.setState({ slip: f });
+        e.target.value = '';
+      },
       confirmPay: () => {
+        if (this.db && !s.slip) return this.showToast('แนบสลิปโอนเงินก่อนยืนยันนะครับ 🧾');
         const id = '#MP-' + (1000 + Math.floor(Math.random() * 9000));
         const t0 = this.fmtTime(new Date());
         this.setState({ order: { id, total: c.grandTotal, times: [t0, '', '', ''] }, trackStep: 1, screen: 'track' });
@@ -268,7 +285,7 @@ class App extends React.Component {
           tt: { fontSize: '13px', fontWeight: done || active ? 700 : 500, color: done || active ? 'var(--ink)' : 'var(--sub)' }
         };
       }),
-      newOrder: () => this.setState({ screen: 'order', files: [], copies: 1 }),
+      newOrder: () => this.setState({ screen: 'order', files: [], copies: 1, slip: null }),
       toast: s.toast,
       navItems: [
         { icon: '🏠', label: 'หน้าแรก', k: 'home' }, { icon: '🧾', label: 'สั่งปริ้น', k: 'order' },
@@ -471,7 +488,14 @@ class App extends React.Component {
             </div>
             <div style={css("background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px;display:flex;flex-direction:column;align-items:center;gap:10px")}>
               <div style={css("width:180px;height:180px;border-radius:8px;background:repeating-linear-gradient(45deg,var(--soft) 0 8px,var(--card) 8px 16px);border:1px solid var(--line);display:flex;align-items:center;justify-content:center")}><div style={css("font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--sub);background:var(--card);padding:4px 8px;border-radius:6px")}>PromptPay QR</div></div>
-              <div style={css("font-size:12px;color:var(--sub)")}>สแกนจ่ายด้วยแอปธนาคาร แล้วกดยืนยัน</div>
+              <div style={css("font-size:12px;color:var(--sub)")}>สแกนจ่ายด้วยแอปธนาคาร แล้วแนบสลิปด้านล่าง</div>
+            </div>
+            <input type="file" accept="image/*" ref={this.slipRef} onChange={v.onSlip} style={css("display:none")}/>
+            <div onClick={v.pickSlip} style={css("border:2px dashed " + (v.slipName ? "var(--acc)" : "var(--line)") + ";border-radius:14px;background:var(--card);padding:14px 16px;display:flex;align-items:center;gap:12px;cursor:pointer")}>
+              <div style={css("width:42px;height:42px;border-radius:10px;background:var(--accSoft);display:flex;align-items:center;justify-content:center;font-size:20px")}>🧾</div>
+              {v.slipName
+                ? <div style={css("flex:1;min-width:0")}><div style={css("font-weight:600;font-size:13.5px;color:var(--acc);overflow:hidden;text-overflow:ellipsis;white-space:nowrap")}>✓ แนบแล้ว: {v.slipName}</div><div style={css("font-size:11px;color:var(--sub)")}>แตะเพื่อเปลี่ยนรูป</div></div>
+                : <div><div style={css("font-weight:600;font-size:14px;color:var(--acc)")}>แนบสลิปโอนเงิน *</div><div style={css("font-size:11px;color:var(--sub)")}>ถ่ายรูป / เลือกรูปสลิปจากแอปธนาคาร</div></div>}
             </div>
             <button onClick={v.confirmPay} style={css("width:100%;height:50px;border:none;border-radius:14px;background:var(--acc);color:#fff;font-size:15px;font-weight:700;cursor:pointer")}>✓ โอนแล้ว — ยืนยันออเดอร์</button>
           </div>
