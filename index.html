@@ -18,6 +18,7 @@
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="./config.js"></script>
+<script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script crossorigin src="https://unpkg.com/react@18.3.1/umd/react.production.min.js"></script>
 <script crossorigin src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js"></script>
@@ -107,6 +108,17 @@ class App extends React.Component {
         .then(({ data }) => { if (data && data.length) this.setState({ banners: data }); })
         .catch(() => {});
     }
+    // LINE Login (LIFF) — เชื่อมกับ LINE OA ของร้าน
+    if (cfg.LIFF_ID && window.liff) {
+      window.liff.init({ liffId: cfg.LIFF_ID })
+        .then(() => {
+          this._liffReady = true;
+          // กลับมาจากหน้า authorize ของ LINE → ล็อกอินอัตโนมัติ
+          const hasUser = (() => { try { return !!JSON.parse(localStorage.getItem('mp_user') || 'null'); } catch (e) { return false; } })();
+          if (window.liff.isLoggedIn() && !hasUser) this.finishLineLogin();
+        })
+        .catch((e) => { console.error('liff init:', e); });
+    }
     try {
       const u = JSON.parse(localStorage.getItem('mp_user') || 'null');
       if (u && u.fname) this.setState({ user: u, phone: u.phone || '' });
@@ -175,6 +187,20 @@ class App extends React.Component {
       this.setState({ searching: false, searchResults: j.map(x => ({ name: x.display_name.split(',').slice(0, 3).join(','), lat: +x.lat, lng: +x.lon })) });
       if (!j.length) this.showToast('ไม่พบสถานที่ ลองพิมพ์คำอื่นครับ 🔍');
     } catch (e) { this.setState({ searching: false }); this.showToast('ค้นหาไม่สำเร็จ ลองอีกครั้งครับ'); }
+  }
+
+  // ล็อกอินด้วยโปรไฟล์ LINE (หลัง authorize ผ่าน LINE OA)
+  async finishLineLogin(){
+    try {
+      const p = await window.liff.getProfile();
+      const user = { fname: p.displayName || 'ลูกค้า LINE', lname: '', phone: '', email: '', line_uid: p.userId || '' };
+      try { localStorage.setItem('mp_user', JSON.stringify(user)); } catch (e) {}
+      this.setState({ user, screen: 'home' });
+      this.showToast('ยินดีต้อนรับ คุณ' + user.fname + ' 💚');
+    } catch (e) {
+      console.error('line profile:', e);
+      this.showToast('ดึงข้อมูล LINE ไม่สำเร็จ ลองอีกครั้งครับ');
+    }
   }
 
   syncNight(){ document.body.classList.toggle('night', this.isNight()); }
@@ -311,7 +337,13 @@ class App extends React.Component {
       regEmailBad: s.regEmail.trim() !== '' && !EMAIL_RE.test(s.regEmail.trim()),
       passShort: s.regPass1 !== '' && s.regPass1.length < 6,
       passMismatch: s.regPass2 !== '' && s.regPass1 !== s.regPass2,
-      lineLogin: () => this.showToast('LINE Login กำลังจะเปิดเร็ว ๆ นี้ 💬 ตอนนี้ใช้อีเมลก่อนนะครับ'),
+      lineLogin: () => {
+        const cfg = window.MP_CONFIG || {};
+        if (!cfg.LIFF_ID || !window.liff) return this.showToast('LINE Login กำลังจะเปิดเร็ว ๆ นี้ 💬 ตอนนี้ใช้อีเมลก่อนนะครับ');
+        if (!this._liffReady) return this.showToast('กำลังเชื่อมต่อ LINE… ลองกดอีกครั้งครับ');
+        if (window.liff.isLoggedIn()) return this.finishLineLogin();
+        window.liff.login({ redirectUri: location.origin + location.pathname });
+      },
       doEmailLogin: async () => {
         const email = s.emailIn.trim().toLowerCase();
         if (!EMAIL_RE.test(email)) return this.showToast('รูปแบบอีเมลไม่ถูกต้อง ❌');
@@ -358,6 +390,7 @@ class App extends React.Component {
       },
       doLogout: () => {
         if (this.auth) this.auth.auth.signOut();
+        try { if (this._liffReady && window.liff.isLoggedIn()) window.liff.logout(); } catch (e) {}
         try { localStorage.removeItem('mp_user'); } catch (e) {}
         this.setState({ user: null, emailIn: '', passIn: '', regFname: '', regLname: '', regEmail: '', regPass1: '', regPass2: '', authMode: 'login', screen: 'login' });
       },
@@ -486,7 +519,7 @@ class App extends React.Component {
         { icon: '🛵', label: 'ติดตาม', k: 'track' }, { icon: '💬', label: 'LINE', k: 'line' }
       ].map(n => ({
         ...n,
-        pick: () => n.k === 'line' ? this.showToast('เปิด LINE @moreprint 💬') : this.setState({ screen: n.k }),
+        pick: () => n.k === 'line' ? window.open((window.MP_CONFIG || {}).LINE_OA_URL || 'https://line.me/R/ti/p/@346kifvy', '_blank') : this.setState({ screen: n.k }),
         st: { textAlign: 'center', cursor: 'pointer', minWidth: '58px', padding: '4px 0', color: this.state.screen === n.k ? 'var(--acc)' : 'var(--sub)' }
       }))
     };
@@ -633,9 +666,9 @@ class App extends React.Component {
                 <span style={css("border:1px dashed var(--line);color:var(--sub);font-size:12px;padding:7px 12px;border-radius:99px")}>+ ทุกที่รอบ มข.</span>
               </div>
             </div>
-            <div style={css("margin:18px 20px 20px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 16px;display:flex;align-items:center;gap:12px")}>
+            <div onClick={() => window.open((window.MP_CONFIG || {}).LINE_OA_URL || 'https://line.me/R/ti/p/@346kifvy', '_blank')} style={css("margin:18px 20px 20px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 16px;display:flex;align-items:center;gap:12px;cursor:pointer")}>
               <div style={css("width:38px;height:38px;border-radius:10px;background:#06c755;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12px")}>LINE</div>
-              <div style={css("flex:1")}><div style={css("font-size:13px;font-weight:600")}>สอบถาม / สั่งด่วนทาง LINE</div><div style={css("font-size:11px;color:var(--sub)")}>@moreprint · โทร 08x-xxx-xxxx</div></div>
+              <div style={css("flex:1")}><div style={css("font-size:13px;font-weight:600")}>สอบถาม / สั่งด่วนทาง LINE</div><div style={css("font-size:11px;color:var(--sub)")}>LINE OA: @346kifvy — แตะเพื่อแชทกับร้าน</div></div>
               <div style={css("color:var(--sub)")}>›</div>
             </div>
           </React.Fragment>
@@ -791,7 +824,7 @@ class App extends React.Component {
                   <div style={css("background:#fff0f0;border:1px solid #ffc9c9;border-radius:14px;padding:14px 16px")}>
                     <div style={css("font-size:14.5px;font-weight:700;color:#c92a2a")}>❌ ออเดอร์ถูกยกเลิกโดยร้าน</div>
                     {v.cancelReason && <div style={css("margin-top:6px;font-size:13px;color:#a61e1e;line-height:1.5")}><b>เหตุผล:</b> {v.cancelReason}</div>}
-                    <div style={css("margin-top:8px;font-size:11.5px;color:#a61e1e")}>โอนเงินแล้ว? ติดต่อขอคืนเงิน/สั่งใหม่ทาง LINE @moreprint 💬</div>
+                    <div style={css("margin-top:8px;font-size:11.5px;color:#a61e1e")}>โอนเงินแล้ว? ติดต่อขอคืนเงิน/สั่งใหม่ทาง LINE OA @346kifvy 💬</div>
                   </div>
                 )}
                 <div style={css("background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px;box-shadow:var(--shadow)")}>

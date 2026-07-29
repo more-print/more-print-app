@@ -4,5 +4,8 @@
 window.MP_CONFIG = {
   SUPABASE_URL: 'https://plfghesoscfqdlthkzwq.supabase.co',
   SUPABASE_ANON_KEY: 'sb_publishable_iEj1XajKaIxwmM0t2smNLA_OQNgh06j',
-  ADMIN_PIN: '2468'        // รหัสเข้าหน้าหลังบ้าน (เปลี่ยนได้)
+  ADMIN_PIN: '2468',       // รหัสเข้าหน้าหลังบ้าน (เปลี่ยนได้)
+  LIFF_ID: '',             // LINE Login (LIFF) — ใส่แล้วปุ่ม LINE ใช้ได้จริง
+  LINE_OA_ID: '@346kifvy', // LINE OA ของร้าน
+  LINE_OA_URL: 'https://line.me/R/ti/p/@346kifvy'
 };
