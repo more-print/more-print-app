@@ -28,7 +28,32 @@
 
 <script type="text/babel" data-presets="react">
 // ── Config (mirrors the design's editable props) ──────────────────────────
-const CONFIG = { nightOverride: 'auto', nightFee: 25, expressFee: 20, deliveryBase: 10 };
+// ค่าส่งเหมา ฿39 · ช่วงกลางคืน (22:00–06:00) รวมเป็น ฿49
+const CONFIG = { nightOverride: 'auto', nightFee: 10, expressFee: 20, deliveryBase: 39 };
+
+// ── ประเภทงานปริ้น + เรทราคา (ตามป้ายราคาหน้าร้าน) ──
+const PRINT_TYPES = [
+  { k: 'bw', icon: '📄', label: 'เอกสารขาวดำ', desc: 'เริ่ม 33 สต./หน้า ยิ่งเยอะยิ่งถูก' },
+  { k: 'laser', icon: '⚫', label: 'ขาวดำเลเซอร์', desc: 'คมชัด ฿2/หน้า' },
+  { k: 'color', icon: '🎨', label: 'สีเลเซอร์', desc: '~฿5/หน้า ตามปริมาณสี' },
+  { k: 'portfolio', icon: '📁', label: 'Portfolio', desc: 'A4 ฿12 · A5 ฿8 /หน้า' },
+  { k: 'poster', icon: '🖼️', label: 'โปสเตอร์ / แผ่นใหญ่', desc: 'อาร์ตมัน–ด้าน A5–A0' }
+];
+const SIZE_BY_TYPE = { bw: ['A4'], laser: ['A4'], color: ['A4'], portfolio: ['A4', 'A5'], poster: ['A5', 'A4', 'A3', 'A2', 'A1', 'A0'] };
+const POSTER_PRICE = { A5: 10, A4: 15, A3: 30, A2: 130, A1: 250, A0: 500 };
+// เรทขาวดำตามจำนวนหน้ารวม: [หน้าเดียว, หน้าหลัง]
+function bwRate(totalPages, sides){
+  const t = totalPages > 20000 ? 3 : totalPages > 5000 ? 2 : totalPages > 100 ? 1 : 0;
+  return sides === 2 ? [0.40, 0.35, 0.30, 0.25][t] : [0.50, 0.40, 0.35, 0.33][t];
+}
+function pageRate(ptype, size, sides, totalPages){
+  if (ptype === 'bw') return bwRate(totalPages, sides);
+  if (ptype === 'laser') return 2;
+  if (ptype === 'color') return 5;
+  if (ptype === 'portfolio') return size === 'A5' ? 8 : 12;
+  if (ptype === 'poster') return POSTER_PRICE[size] || 15;
+  return 1;
+}
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 const FILE_BASE = (window.MP_CONFIG || {}).SUPABASE_URL ? (window.MP_CONFIG.SUPABASE_URL + '/storage/v1/object/public/uploads/') : '';
 const BANNER_THEMES = {
@@ -57,7 +82,7 @@ class App extends React.Component {
     this.fileRef = React.createRef();
     this.slipRef = React.createRef();
     this.state = {
-      screen: 'home', files: [], color: false, paper: 'A4', sides: 1, bind: 'none', copies: 1,
+      screen: 'home', files: [], ptype: 'bw', paper: 'A4', sides: 1, bind: 'none', copies: 1,
       point: '', addr: '', phone: '', time: '', express: false, slip: null,
       lat: null, lng: null, geoLabel: '', searchQ: '', searchResults: [], searching: false, locating: false,
       banners: [],
@@ -170,15 +195,16 @@ class App extends React.Component {
 
   calc(){
     const s = this.state;
-    const nightFee = this.isNight() ? (CONFIG.nightFee ?? 25) : 0;
+    const nightFee = this.isNight() ? (CONFIG.nightFee ?? 10) : 0;
     const expressFee = s.express ? (CONFIG.expressFee ?? 20) : 0;
-    const base = CONFIG.deliveryBase ?? 10;
+    const base = CONFIG.deliveryBase ?? 39;
     const pages = s.files.reduce((a, f) => a + f.pages, 0);
-    const perPage = (s.color ? 5 : 1) * (s.paper === 'A3' ? 2 : 1);
-    const printCost = pages * perPage * s.copies;
-    const bindCost = (s.bind === 'corner' ? 5 : s.bind === 'book' ? 40 : 0) * s.copies;
+    const totalPages = pages * s.copies;
+    const rate = pageRate(s.ptype, s.paper, s.sides, totalPages);
+    const printCost = Math.ceil(totalPages * rate);
+    const bindCost = (s.bind === 'corner' ? 5 : s.bind === 'book' ? 40 : s.bind === 'landscape' ? 60 : 0) * s.copies;
     const deliveryCost = base + expressFee;
-    return { pages, printCost, bindCost, printTotal: printCost + bindCost, deliveryCost, nightFee, grandTotal: printCost + bindCost + deliveryCost + nightFee };
+    return { pages, totalPages, rate, printCost, bindCost, printTotal: printCost + bindCost, deliveryCost, nightFee, grandTotal: printCost + bindCost + deliveryCost + nightFee };
   }
 
   seg(label, on, pick, grow){
@@ -216,17 +242,23 @@ class App extends React.Component {
         if (se) { console.error('slip:', se); slip_path = null; }
       }
       const u = s.user || {};
-      const { error } = await this.db.from('orders').insert({
+      const payload = {
         id, slip_path,
         customer_fname: u.fname || '', customer_lname: u.lname || '',
         customer_phone: u.phone || s.phone || '', customer_email: u.email || '',
-        files, color: s.color, paper: s.paper, sides: s.sides, bind: s.bind, copies: s.copies,
+        files, ptype: s.ptype, color: s.ptype === 'color', paper: s.paper, sides: s.sides, bind: s.bind, copies: s.copies,
         point: s.geoLabel || '', lat: s.lat, lng: s.lng,
         addr: s.addr, phone: s.phone, time: s.time, express: s.express, night: this.isNight(),
         print_cost: c.printCost, bind_cost: c.bindCost, delivery_cost: c.deliveryCost,
-        night_fee: this.isNight() ? (CONFIG.nightFee ?? 25) : 0,
+        night_fee: this.isNight() ? (CONFIG.nightFee ?? 10) : 0,
         total: c.grandTotal, status: 1, times: [t0, '', '', '']
-      });
+      };
+      let { error } = await this.db.from('orders').insert(payload);
+      if (error && (error.message || '').includes('ptype')) {
+        // ฐานข้อมูลยังไม่มีคอลัมน์ ptype — บันทึกแบบไม่มีไปก่อน ออเดอร์ต้องไม่หาย
+        const { ptype, ...rest } = payload;
+        ({ error } = await this.db.from('orders').insert(rest));
+      }
       if (error) throw error;
     } catch (e) {
       console.error('saveOrder:', e);
@@ -348,14 +380,29 @@ class App extends React.Component {
         dec: () => this.setState(st => ({ files: st.files.map((x, j) => j === i ? { ...x, pages: Math.max(1, x.pages - 1) } : x) })),
         del: () => this.setState(st => ({ files: st.files.filter((_, j) => j !== i) }))
       })),
-      colorOpts: [this.seg('ขาวดำ ฿1/หน้า', !s.color, () => this.setState({ color: false }), true), this.seg('สี ฿5/หน้า', s.color, () => this.setState({ color: true }), true)],
-      paperOpts: [this.seg('A4', s.paper === 'A4', () => this.setState({ paper: 'A4' }), true), this.seg('A3 (×2)', s.paper === 'A3', () => this.setState({ paper: 'A3' }), true)],
-      sidesOpts: [this.seg('หน้าเดียว', s.sides === 1, () => this.setState({ sides: 1 }), true), this.seg('สองหน้า', s.sides === 2, () => this.setState({ sides: 2 }), true)],
-      bindOpts: [this.seg('ไม่เข้าเล่ม', s.bind === 'none', () => this.setState({ bind: 'none' })), this.seg('เย็บมุม +฿5', s.bind === 'corner', () => this.setState({ bind: 'corner' })), this.seg('เข้าเล่ม +฿40', s.bind === 'book', () => this.setState({ bind: 'book' }))],
+      typeOpts: PRINT_TYPES.map(t => ({
+        icon: t.icon, label: t.label, desc: t.desc, on: s.ptype === t.k,
+        pick: () => this.setState({ ptype: t.k, paper: SIZE_BY_TYPE[t.k][0] })
+      })),
+      showSize: SIZE_BY_TYPE[s.ptype].length > 1,
+      sizeOpts: SIZE_BY_TYPE[s.ptype].map(sz => {
+        const label = s.ptype === 'portfolio' ? sz + ' ฿' + (sz === 'A5' ? 8 : 12)
+          : s.ptype === 'poster' ? sz + ' ฿' + POSTER_PRICE[sz] : sz;
+        return this.seg(label, s.paper === sz, () => this.setState({ paper: sz }));
+      }),
+      showSides: s.ptype === 'bw' || s.ptype === 'laser' || s.ptype === 'color',
+      sidesOpts: [this.seg('หน้าเดียว', s.sides === 1, () => this.setState({ sides: 1 }), true), this.seg('หน้า-หลัง' + (s.ptype === 'bw' ? ' (ถูกกว่า)' : ''), s.sides === 2, () => this.setState({ sides: 2 }), true)],
+      showBind: s.ptype !== 'poster',
+      bindOpts: [this.seg('ไม่เข้าเล่ม', s.bind === 'none', () => this.setState({ bind: 'none' })), this.seg('เย็บมุม +฿5', s.bind === 'corner', () => this.setState({ bind: 'corner' })), this.seg('เข้าเล่ม +฿40', s.bind === 'book', () => this.setState({ bind: 'book' })), this.seg('เล่มแนวนอน +฿60', s.bind === 'landscape', () => this.setState({ bind: 'landscape' }))],
       copies: s.copies,
       copyInc: () => this.setState(st => ({ copies: st.copies + 1 })),
       copyDec: () => this.setState(st => ({ copies: Math.max(1, st.copies - 1) })),
-      pageSummary: c.pages + ' หน้า × ' + s.copies + ' ชุด' + (s.color ? ' (สี)' : ' (ขาวดำ)') + (s.paper === 'A3' ? ' A3' : ''),
+      rateHint: s.ptype === 'bw'
+        ? 'เรทตอนนี้ ' + (c.rate < 1 ? (c.rate * 100) + ' สต.' : '฿' + c.rate) + '/หน้า' + (c.totalPages > 0 ? ' (รวม ' + c.totalPages + ' หน้า — ยิ่งเยอะยิ่งถูก)' : ' — ยิ่งเยอะยิ่งถูก')
+        : 'เรท ฿' + c.rate + '/' + (s.ptype === 'poster' ? 'แผ่น' : 'หน้า'),
+      colorNote: s.ptype === 'color' ? '* ราคาสีจริง ฿3–10/หน้า ตามปริมาณสีในงาน ร้านจะยืนยันราคาก่อนปริ้น' : s.ptype === 'poster' ? '* กระดาษอาร์ตมัน/ด้าน ราคาเท่ากัน' : '',
+      typeLabel: (PRINT_TYPES.find(t => t.k === s.ptype) || {}).label || '',
+      pageSummary: c.pages + ' หน้า × ' + s.copies + ' ชุด (' + ((PRINT_TYPES.find(t => t.k === s.ptype) || {}).label || '') + ' ' + s.paper + ')',
       printCost: c.printCost, bindCost: c.bindCost, printTotal: c.printTotal,
       deliveryCost: c.deliveryCost, grandTotal: c.grandTotal,
       toDelivery: () => { if (!s.files.length) return this.showToast('เพิ่มไฟล์ก่อนนะครับ 📄'); this.setState({ screen: 'delivery' }); },
@@ -463,7 +510,7 @@ class App extends React.Component {
         {/* ── Night banner ── */}
         {v.night && (
           <div style={css("margin:14px 20px 0;background:var(--warnBg);border:1px solid var(--warnLine);border-radius:12px;padding:10px 14px;display:flex;gap:10px;align-items:center")}>
-            <span style={css("font-size:16px")}>🌙</span><div style={css("font-size:12px;color:var(--warnInk);line-height:1.45")}>ตอนนี้ {v.clock} — ช่วงกลางคืน (22:00–06:00) คิดค่าบริการเพิ่ม <b>+{v.nightFee} บาท</b>/ออเดอร์</div>
+            <span style={css("font-size:16px")}>🌙</span><div style={css("font-size:12px;color:var(--warnInk);line-height:1.45")}>ตอนนี้ {v.clock} — ช่วงกลางคืน (22:00–06:00) ค่าส่ง <b>฿{v.deliveryBase + v.nightFee}</b> (ปกติ ฿{v.deliveryBase})</div>
           </div>
         )}
 
@@ -556,7 +603,7 @@ class App extends React.Component {
             )}
             <div style={css("padding:20px 20px 0")}>
               <div style={css("font-size:23px;font-weight:700;line-height:1.35;text-wrap:pretty")}>ส่งไฟล์ตอนนี้<br/>เอกสารถึงมือ ทุกที่รอบ มข.</div>
-              <div style={css("margin-top:6px;font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--sub)")}>B/W ฿1 · COLOR ฿5 · DELIVERY ฿{v.deliveryBase}+</div>
+              <div style={css("margin-top:6px;font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--sub)")}>B/W 50สต. · COLOR ฿5 · DELIVERY ฿{v.deliveryBase}</div>
               <div onClick={v.startOrder} style={css("margin-top:16px;border:2px dashed var(--line);border-radius:16px;background:var(--card);padding:22px 16px;display:flex;flex-direction:column;align-items:center;gap:8px;cursor:pointer;box-shadow:var(--shadow)")}>
                 <div style={css("width:56px;height:56px;border-radius:14px;background:#fff;border:1px solid var(--line);display:flex;align-items:center;justify-content:center;overflow:hidden")}><img src="assets/logo-icon.png" alt="MORE PRINT" style={css("width:46px;height:auto;display:block")}/></div>
                 <div style={css("font-weight:600;font-size:14px;color:var(--acc)")}>แตะเพื่ออัปโหลดไฟล์</div>
@@ -565,9 +612,9 @@ class App extends React.Component {
               <button onClick={v.startOrder} style={css("margin-top:12px;width:100%;height:50px;border:none;border-radius:14px;background:var(--acc);color:#fff;font-size:16px;font-weight:700;cursor:pointer")}>เริ่มสั่งปริ้น · คำนวณราคาทันที</button>
             </div>
             <div style={css("padding:18px 20px 0;display:flex;gap:10px")}>
-              <div style={css("flex:1;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 14px")}><div style={css("font-family:'IBM Plex Mono',monospace;font-size:18px;font-weight:600;color:var(--acc)")}>฿1</div><div style={css("font-size:11px;color:var(--sub);margin-top:2px")}>ขาวดำ / หน้า</div></div>
+              <div style={css("flex:1;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 14px")}><div style={css("font-family:'IBM Plex Mono',monospace;font-size:18px;font-weight:600;color:var(--acc)")}>50สต.</div><div style={css("font-size:11px;color:var(--sub);margin-top:2px")}>ขาวดำ / หน้า</div></div>
               <div style={css("flex:1;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 14px")}><div style={css("font-family:'IBM Plex Mono',monospace;font-size:18px;font-weight:600;color:var(--acc)")}>฿5</div><div style={css("font-size:11px;color:var(--sub);margin-top:2px")}>สี / หน้า</div></div>
-              <div style={css("flex:1;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 14px")}><div style={css("font-family:'IBM Plex Mono',monospace;font-size:18px;font-weight:600;color:var(--acc)")}>฿{v.deliveryBase}</div><div style={css("font-size:11px;color:var(--sub);margin-top:2px")}>ค่าส่งเริ่มต้น</div></div>
+              <div style={css("flex:1;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 14px")}><div style={css("font-family:'IBM Plex Mono',monospace;font-size:18px;font-weight:600;color:var(--acc)")}>฿{v.deliveryBase}</div><div style={css("font-size:11px;color:var(--sub);margin-top:2px")}>ค่าส่งเหมาทั่ว มข.</div></div>
             </div>
             {v.hasOrder && (
               <div onClick={v.goTrack} style={css("margin:16px 20px 0;background:var(--card);border:1px solid var(--line);border-radius:16px;padding:14px 16px;cursor:pointer;box-shadow:var(--shadow)")}>
@@ -616,10 +663,27 @@ class App extends React.Component {
               </div>
             ))}
             <div style={css("background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px;display:flex;flex-direction:column;gap:12px;box-shadow:var(--shadow)")}>
-              <div style={css("display:flex;flex-direction:column;gap:6px")}><div style={css("font-size:12px;font-weight:600;color:var(--sub)")}>สีที่พิมพ์</div><div style={css("display:flex;gap:8px")}>{v.colorOpts.map((o, i) => <button key={i} onClick={o.pick} style={o.st}>{o.label}</button>)}</div></div>
-              <div style={css("display:flex;flex-direction:column;gap:6px")}><div style={css("font-size:12px;font-weight:600;color:var(--sub)")}>ขนาดกระดาษ</div><div style={css("display:flex;gap:8px")}>{v.paperOpts.map((o, i) => <button key={i} onClick={o.pick} style={o.st}>{o.label}</button>)}</div></div>
-              <div style={css("display:flex;flex-direction:column;gap:6px")}><div style={css("font-size:12px;font-weight:600;color:var(--sub)")}>ด้านที่พิมพ์</div><div style={css("display:flex;gap:8px")}>{v.sidesOpts.map((o, i) => <button key={i} onClick={o.pick} style={o.st}>{o.label}</button>)}</div></div>
-              <div style={css("display:flex;flex-direction:column;gap:6px")}><div style={css("font-size:12px;font-weight:600;color:var(--sub)")}>การเข้าเล่ม</div><div style={css("display:flex;gap:8px;flex-wrap:wrap")}>{v.bindOpts.map((o, i) => <button key={i} onClick={o.pick} style={o.st}>{o.label}</button>)}</div></div>
+              <div style={css("display:flex;flex-direction:column;gap:6px")}>
+                <div style={css("font-size:12px;font-weight:600;color:var(--sub)")}>ประเภทงานปริ้น</div>
+                {v.typeOpts.map((t, i) => (
+                  <div key={i} onClick={t.pick} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '10px 12px', borderRadius: '12px', cursor: 'pointer',
+                    border: t.on ? '1.5px solid var(--acc)' : '1px solid var(--line)',
+                    background: t.on ? 'var(--accSoft)' : 'var(--soft)' }}>
+                    <div style={{ fontSize: '22px', flex: 'none' }}>{t.icon}</div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: '13.5px', fontWeight: 700, color: t.on ? 'var(--acc)' : 'var(--ink)' }}>{t.label}</div>
+                      <div style={{ fontSize: '11px', color: 'var(--sub)', marginTop: '1px' }}>{t.desc}</div>
+                    </div>
+                    <div style={{ width: '20px', height: '20px', borderRadius: '50%', flex: 'none', boxSizing: 'border-box',
+                      border: t.on ? '6px solid var(--acc)' : '2px solid var(--line)', background: '#fff' }}></div>
+                  </div>
+                ))}
+                <div style={css("font-size:11.5px;color:var(--acc);font-weight:600")}>💡 {v.rateHint}</div>
+                {v.colorNote && <div style={css("font-size:10.5px;color:var(--sub)")}>{v.colorNote}</div>}
+              </div>
+              {v.showSize && <div style={css("display:flex;flex-direction:column;gap:6px")}><div style={css("font-size:12px;font-weight:600;color:var(--sub)")}>ขนาด</div><div style={css("display:flex;gap:8px;flex-wrap:wrap")}>{v.sizeOpts.map((o, i) => <button key={i} onClick={o.pick} style={o.st}>{o.label}</button>)}</div></div>}
+              {v.showSides && <div style={css("display:flex;flex-direction:column;gap:6px")}><div style={css("font-size:12px;font-weight:600;color:var(--sub)")}>ด้านที่พิมพ์</div><div style={css("display:flex;gap:8px")}>{v.sidesOpts.map((o, i) => <button key={i} onClick={o.pick} style={o.st}>{o.label}</button>)}</div></div>}
+              {v.showBind && <div style={css("display:flex;flex-direction:column;gap:6px")}><div style={css("font-size:12px;font-weight:600;color:var(--sub)")}>การเข้าเล่ม</div><div style={css("display:flex;gap:8px;flex-wrap:wrap")}>{v.bindOpts.map((o, i) => <button key={i} onClick={o.pick} style={o.st}>{o.label}</button>)}</div></div>}
               <div style={css("display:flex;justify-content:space-between;align-items:center")}><div style={css("font-size:12px;font-weight:600;color:var(--sub)")}>จำนวนชุด (สำเนา)</div>
                 <div style={css("display:flex;align-items:center;gap:10px")}>
                   <button onClick={v.copyDec} style={css("width:30px;height:30px;border:1px solid var(--line);background:var(--soft);color:var(--ink);border-radius:9px;font-size:15px;cursor:pointer")}>−</button>

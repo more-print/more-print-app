@@ -78,11 +78,14 @@ const fmtWhen = (iso) => {
   return (sameDay ? 'วันนี้ ' : d.getDate() + '/' + (d.getMonth()+1) + ' ') + fmtTime(d);
 };
 const fileUrl = (path) => path && CFG.SUPABASE_URL ? CFG.SUPABASE_URL + '/storage/v1/object/public/uploads/' + path : null;
+const PTYPE_LABELS = { bw: 'เอกสารขาวดำ', laser: 'ขาวดำเลเซอร์', color: 'สีเลเซอร์', portfolio: 'Portfolio', poster: 'โปสเตอร์' };
 const optionsLabel = (o) => [
-  o.color ? 'สี' : 'ขาวดำ', o.paper, o.sides === 2 ? 'สองหน้า' : 'หน้าเดียว',
-  o.bind === 'book' ? 'เข้าเล่ม' : o.bind === 'corner' ? 'เย็บมุม' : 'ไม่เข้าเล่ม',
+  o.ptype ? (PTYPE_LABELS[o.ptype] || o.ptype) : (o.color ? 'สี' : 'ขาวดำ'),
+  o.paper,
+  o.ptype === 'poster' ? null : (o.sides === 2 ? 'หน้า-หลัง' : 'หน้าเดียว'),
+  o.bind === 'book' ? 'เข้าเล่ม' : o.bind === 'corner' ? 'เย็บมุม' : o.bind === 'landscape' ? 'เล่มแนวนอน' : 'ไม่เข้าเล่ม',
   o.copies + ' ชุด'
-].join(' · ');
+].filter(Boolean).join(' · ');
 
 function PinGate({ onOk }){
   const [pin, setPin] = React.useState('');
