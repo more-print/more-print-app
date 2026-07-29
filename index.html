@@ -49,7 +49,7 @@ class App extends React.Component {
     this.state = {
       screen: 'home', files: [], color: false, paper: 'A4', sides: 1, bind: 'none', copies: 1,
       point: '', addr: '', phone: '', time: '', express: false, slip: null,
-      order: null, trackStep: 1, toast: '', now: new Date(),
+      order: null, trackStep: 1, cancelReason: '', toast: '', now: new Date(),
       user: null, fname: '', lname: '', phoneIn: '', emailIn: ''
     };
   }
@@ -154,15 +154,18 @@ class App extends React.Component {
     }
   }
 
-  // ติดตามสถานะจริงจากฐานข้อมูล (เจ้าของกดอัปเดตจากหน้าหลังบ้าน)
+  // ติดตามสถานะจริงจากฐานข้อมูล (เจ้าของกดอัปเดต/ยกเลิกจากหน้าหลังบ้าน)
   startPolling(id){
     clearInterval(this.trackTimer);
     this.trackTimer = setInterval(async () => {
       try {
-        const { data } = await this.db.from('orders').select('status,times').eq('id', id).single();
-        if (data) this.setState(st => st.order && st.order.id === id
-          ? { trackStep: data.status, order: { ...st.order, times: data.times || st.order.times } }
-          : null);
+        const { data } = await this.db.from('orders').select('status,times,cancel_reason').eq('id', id).single();
+        if (data) {
+          this.setState(st => st.order && st.order.id === id
+            ? { trackStep: data.status, cancelReason: data.cancel_reason || '', order: { ...st.order, times: data.times || st.order.times } }
+            : null);
+          if (data.status === 0 || data.status >= 4) clearInterval(this.trackTimer);
+        }
       } catch (e) {}
     }, 8000);
   }
@@ -173,6 +176,7 @@ class App extends React.Component {
     const STEPS = ['รับออเดอร์', 'กำลังปริ้น', 'กำลังจัดส่ง', 'ส่งแล้ว'];
     const points = ['โรงชาย มข.', 'คณะบริหารธุรกิจฯ', 'คณะวิศวกรรมฯ', 'คณะศึกษาศาสตร์', 'คณะวิทยาศาสตร์', 'คณะมนุษยศาสตร์ฯ', 'คณะแพทยศาสตร์', 'หอใน มข.', 'คอมเพล็กซ์', 'อื่น ๆ'];
     const step = s.order ? s.trackStep : 0;
+    const cancelled = !!s.order && s.trackStep === 0;
     return {
       night, clock: this.fmtTime(s.now),
       rootSt: Object.assign(
@@ -252,7 +256,7 @@ class App extends React.Component {
         if (this.db && !s.slip) return this.showToast('แนบสลิปโอนเงินก่อนยืนยันนะครับ 🧾');
         const id = '#MP-' + (1000 + Math.floor(Math.random() * 9000));
         const t0 = this.fmtTime(new Date());
-        this.setState({ order: { id, total: c.grandTotal, times: [t0, '', '', ''] }, trackStep: 1, screen: 'track' });
+        this.setState({ order: { id, total: c.grandTotal, times: [t0, '', '', ''] }, trackStep: 1, cancelReason: '', screen: 'track' });
         clearInterval(this.trackTimer);
         if (this.db) {
           // โหมดออนไลน์: บันทึกเข้าฐานข้อมูล + ติดตามสถานะจริงจากหลังบ้าน
@@ -272,9 +276,12 @@ class App extends React.Component {
       },
       hasOrder: !!s.order, noOrder: !s.order,
       orderId: s.order ? s.order.id : '', paidTotal: s.order ? s.order.total : 0,
-      trackLabel: s.order ? STEPS[Math.min(step, 4) - 1] : '',
+      cancelled, cancelReason: s.cancelReason,
+      trackLabel: s.order ? (cancelled ? 'ยกเลิกแล้ว' : STEPS[Math.min(step, 4) - 1]) : '',
+      trackBadgeSt: { fontFamily: "'IBM Plex Mono',monospace", fontSize: '11px', fontWeight: 600, padding: '3px 8px', borderRadius: '99px',
+        color: cancelled ? '#c92a2a' : 'var(--acc)', background: cancelled ? '#ffe3e3' : 'var(--accSoft)' },
       trackBarSt: { height: '100%', background: 'var(--acc)', borderRadius: '99px', width: (step / 4 * 100) + '%' },
-      etaLabel: step >= 4 ? 'ส่งแล้ว เรียบร้อย ✓' : step === 3 ? 'ไรเดอร์กำลังไปหาคุณ · อีก ~12 นาที' : step === 2 ? 'กำลังปริ้นเอกสารของคุณ' : 'ร้านรับออเดอร์แล้ว',
+      etaLabel: cancelled ? '❌ ออเดอร์ถูกยกเลิก' : step >= 4 ? '🛵 ส่งแล้ว เรียบร้อย ✓' : step === 3 ? '🛵 ไรเดอร์กำลังไปหาคุณ · อีก ~12 นาที' : step === 2 ? '🛵 กำลังปริ้นเอกสารของคุณ' : '🛵 ร้านรับออเดอร์แล้ว',
       trackSteps: STEPS.map((label, i) => {
         const done = step > i, active = step === i + 1, last = i === 3;
         return {
@@ -368,7 +375,7 @@ class App extends React.Component {
             </div>
             {v.hasOrder && (
               <div onClick={v.goTrack} style={css("margin:16px 20px 0;background:var(--card);border:1px solid var(--line);border-radius:16px;padding:14px 16px;cursor:pointer;box-shadow:var(--shadow)")}>
-                <div style={css("display:flex;justify-content:space-between;align-items:center")}><div style={css("font-size:13px;font-weight:700")}>ออเดอร์ล่าสุด {v.orderId}</div><div style={css("font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:600;color:var(--acc);background:var(--accSoft);padding:3px 8px;border-radius:99px")}>{v.trackLabel}</div></div>
+                <div style={css("display:flex;justify-content:space-between;align-items:center")}><div style={css("font-size:13px;font-weight:700")}>ออเดอร์ล่าสุด {v.orderId}</div><div style={v.trackBadgeSt}>{v.trackLabel}</div></div>
                 <div style={css("margin-top:8px;height:6px;background:var(--soft);border-radius:99px;overflow:hidden")}><div style={v.trackBarSt}></div></div>
                 <div style={css("margin-top:6px;font-size:11px;color:var(--sub)")}>แตะเพื่อดูสถานะจัดส่ง →</div>
               </div>
@@ -506,9 +513,16 @@ class App extends React.Component {
           <div style={css("padding:18px 20px 110px;display:flex;flex-direction:column;gap:14px")}>
             {v.hasOrder && (
               <React.Fragment>
+                {v.cancelled && (
+                  <div style={css("background:#fff0f0;border:1px solid #ffc9c9;border-radius:14px;padding:14px 16px")}>
+                    <div style={css("font-size:14.5px;font-weight:700;color:#c92a2a")}>❌ ออเดอร์ถูกยกเลิกโดยร้าน</div>
+                    {v.cancelReason && <div style={css("margin-top:6px;font-size:13px;color:#a61e1e;line-height:1.5")}><b>เหตุผล:</b> {v.cancelReason}</div>}
+                    <div style={css("margin-top:8px;font-size:11.5px;color:#a61e1e")}>โอนเงินแล้ว? ติดต่อขอคืนเงิน/สั่งใหม่ทาง LINE @moreprint 💬</div>
+                  </div>
+                )}
                 <div style={css("background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px;box-shadow:var(--shadow)")}>
-                  <div style={css("display:flex;justify-content:space-between;align-items:center")}><div style={css("font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--sub)")}>ORDER {v.orderId}</div><div style={css("font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:600;color:var(--acc);background:var(--accSoft);padding:3px 8px;border-radius:99px")}>{v.trackLabel}</div></div>
-                  <div style={css("margin-top:6px;font-size:13px;font-weight:600")}>🛵 {v.etaLabel}</div>
+                  <div style={css("display:flex;justify-content:space-between;align-items:center")}><div style={css("font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--sub)")}>ORDER {v.orderId}</div><div style={v.trackBadgeSt}>{v.trackLabel}</div></div>
+                  <div style={css("margin-top:6px;font-size:13px;font-weight:600")}>{v.etaLabel}</div>
                   <div style={css("margin-top:14px;display:flex;flex-direction:column;gap:0")}>{v.trackSteps.map((sv, i) => (
                     <div key={i} style={css("display:flex;gap:12px")}>
                       <div style={css("display:flex;flex-direction:column;align-items:center")}><div style={sv.dot}>{sv.mark}</div><div style={sv.bar}></div></div>
