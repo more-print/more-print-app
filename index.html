@@ -203,7 +203,7 @@ class App extends React.Component {
   async finishLineLogin(){
     try {
       const p = await window.liff.getProfile();
-      const user = { fname: p.displayName || 'ลูกค้า LINE', lname: '', phone: '', email: '', line_uid: p.userId || '' };
+      const user = { fname: p.displayName || 'ลูกค้า LINE', lname: '', phone: '', email: '', line_uid: p.userId || '', picture: p.pictureUrl || '' };
       try { localStorage.setItem('mp_user', JSON.stringify(user)); } catch (e) {}
       this.setState({ user, screen: 'home' });
       this.showToast('ยินดีต้อนรับ คุณ' + user.fname + ' 💚');
@@ -405,6 +405,9 @@ class App extends React.Component {
         this.setState({ user: null, emailIn: '', passIn: '', regFname: '', regLname: '', regEmail: '', regPass1: '', regPass2: '', authMode: 'login', screen: 'login' });
       },
       userName: s.user ? s.user.fname + ' ' + s.user.lname : '',
+      userFirst: s.user ? s.user.fname : '',
+      userPic: (s.user && s.user.picture) || '',
+      userInitial: s.user ? ((s.user.fname || '?').trim().charAt(0) || '?') : '',
       banners: s.banners,
       isHome: s.screen === 'home', isOrder: s.screen === 'order', isDelivery: s.screen === 'delivery', isPay: s.screen === 'pay', isTrack: s.screen === 'track',
       showBack: s.screen === 'order' || s.screen === 'delivery' || s.screen === 'pay',
@@ -554,7 +557,15 @@ class App extends React.Component {
             <div style={css("width:44px;height:44px;border-radius:50%;background:#fff;display:flex;align-items:center;justify-content:center;overflow:hidden;box-shadow:0 0 0 2px rgba(255,255,255,.15)")}><img src="assets/logo-icon.png" alt="" style={css("width:32px;height:auto;display:block")}/></div>
             <div style={css("font-family:'Montserrat',sans-serif;font-weight:800;font-size:19px;letter-spacing:1.5px;line-height:1")}><span style={css("color:var(--accBright)")}>MORE</span> <span style={css("color:#fff")}>PRINT</span></div>
           </div>
-          <div style={css("font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:var(--accBright);display:flex;align-items:center;gap:6px")}><span style={css("animation:mpPulse 2s infinite")}>●</span>{v.headStatus}</div>
+          {v.userName
+            ? <div style={css("display:flex;align-items:center;gap:7px;background:#2a2a2a;padding:4px 11px 4px 5px;border-radius:99px;max-width:150px;flex:none")}>
+                {v.userPic
+                  ? <img src={v.userPic} alt="" referrerPolicy="no-referrer" style={css("width:26px;height:26px;border-radius:50%;object-fit:cover;display:block;flex:none;background:#444")}/>
+                  : <div style={css("width:26px;height:26px;border-radius:50%;background:var(--acc);color:#fff;display:flex;align-items:center;justify-content:center;font-size:12.5px;font-weight:700;flex:none")}>{v.userInitial}</div>}
+                <span style={css("font-size:11.5px;font-weight:600;color:#fff;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0")}>{v.userFirst}</span>
+                <span style={css("width:7px;height:7px;border-radius:50%;background:var(--accBright);flex:none")}></span>
+              </div>
+            : <div style={css("font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:var(--accBright);display:flex;align-items:center;gap:6px")}><span style={css("animation:mpPulse 2s infinite")}>●</span>{v.headStatus}</div>}
         </div>
 
         {/* ── Night banner ── */}
