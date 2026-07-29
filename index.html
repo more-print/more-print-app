@@ -108,8 +108,13 @@ class App extends React.Component {
         .then(({ data }) => { if (data && data.length) this.setState({ banners: data }); })
         .catch(() => {});
     }
+    // ⚠️ ด่านล็อกอินต้องมาก่อนเสมอ — ไม่มีบัญชี = หน้า login เท่านั้น
+    try {
+      const u0 = JSON.parse(localStorage.getItem('mp_user') || 'null');
+      if (!u0 || !u0.fname) this.setState({ screen: 'login' });
+    } catch (e) { this.setState({ screen: 'login' }); }
     // LINE Login (LIFF) — เชื่อมกับ LINE OA ของร้าน
-    // ถ้าเปิดจากเบราว์เซอร์ในแอป LINE (ไม่ใช่ LIFF) → เด้งไปเปิดแบบ LIFF จะได้ล็อกอินอัตโนมัติ ไม่เจอ 400
+    // ถ้าเปิดจากเบราว์เซอร์ในแอป LINE (ไม่ใช่ LIFF) → เด้งไปเปิดแบบ LIFF จะได้ล็อกอินอัตโนมัติ
     if (cfg.LIFF_ID && window.liff && /Line\//i.test(navigator.userAgent) && !window.liff.isInClient()) {
       location.replace('https://liff.line.me/' + cfg.LIFF_ID);
       return;
@@ -404,7 +409,10 @@ class App extends React.Component {
       isHome: s.screen === 'home', isOrder: s.screen === 'order', isDelivery: s.screen === 'delivery', isPay: s.screen === 'pay', isTrack: s.screen === 'track',
       showBack: s.screen === 'order' || s.screen === 'delivery' || s.screen === 'pay',
       goBack: () => this.setState({ screen: s.screen === 'pay' ? 'delivery' : s.screen === 'delivery' ? 'order' : 'home' }),
-      startOrder: () => this.setState({ screen: 'order' }),
+      startOrder: () => {
+        if (!s.user) { this.setState({ screen: 'login' }); return this.showToast('เข้าสู่ระบบก่อนสั่งปริ้นนะครับ 🙏'); }
+        this.setState({ screen: 'order' });
+      },
       goTrack: () => this.setState({ screen: 'track' }),
       pickFiles: () => this.fileRef.current && this.fileRef.current.click(),
       onFiles: (e) => {
@@ -524,7 +532,11 @@ class App extends React.Component {
         { icon: '🛵', label: 'ติดตาม', k: 'track' }, { icon: '💬', label: 'LINE', k: 'line' }
       ].map(n => ({
         ...n,
-        pick: () => n.k === 'line' ? window.open((window.MP_CONFIG || {}).LINE_OA_URL || 'https://line.me/R/ti/p/@346kifvy', '_blank') : this.setState({ screen: n.k }),
+        pick: () => {
+          if (n.k === 'line') return window.open((window.MP_CONFIG || {}).LINE_OA_URL || 'https://line.me/R/ti/p/@346kifvy', '_blank');
+          if ((n.k === 'order' || n.k === 'track') && !s.user) { this.setState({ screen: 'login' }); return this.showToast('เข้าสู่ระบบก่อนนะครับ 🙏'); }
+          this.setState({ screen: n.k });
+        },
         st: { textAlign: 'center', cursor: 'pointer', minWidth: '58px', padding: '4px 0', color: this.state.screen === n.k ? 'var(--acc)' : 'var(--sub)' }
       }))
     };
