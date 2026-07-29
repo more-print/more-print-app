@@ -15,6 +15,8 @@
   input,button{font-family:'IBM Plex Sans Thai',sans-serif}
   @keyframes mpPulse{0%,100%{opacity:1}50%{opacity:.35}}
 </style>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="./config.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script crossorigin src="https://unpkg.com/react@18.3.1/umd/react.production.min.js"></script>
@@ -49,6 +51,7 @@ class App extends React.Component {
     this.state = {
       screen: 'home', files: [], color: false, paper: 'A4', sides: 1, bind: 'none', copies: 1,
       point: '', addr: '', phone: '', time: '', express: false, slip: null,
+      lat: null, lng: null, geoLabel: '', searchQ: '', searchResults: [], searching: false, locating: false,
       order: null, trackStep: 1, cancelReason: '', toast: '', now: new Date(),
       user: null, fname: '', lname: '', phoneIn: '', emailIn: ''
     };
@@ -70,8 +73,65 @@ class App extends React.Component {
     this.clockTimer = setInterval(() => this.setState({ now: new Date() }), 30000);
     this.syncNight();
   }
-  componentDidUpdate(){ this.syncNight(); }
-  componentWillUnmount(){ clearInterval(this.clockTimer); clearInterval(this.trackTimer); clearTimeout(this.toastTimer); }
+  componentDidUpdate(){ this.syncNight(); this.syncMap(); }
+  componentWillUnmount(){
+    clearInterval(this.clockTimer); clearInterval(this.trackTimer);
+    clearTimeout(this.toastTimer); clearTimeout(this._revTimer);
+    if (this._map) { this._map.remove(); this._map = null; }
+  }
+
+  // ── แผนที่เลือกจุดส่ง (Leaflet + OpenStreetMap) ──
+  syncMap(){
+    const onDelivery = this.state.screen === 'delivery';
+    if (onDelivery && !this._map && window.L && document.getElementById('mpMap')) {
+      const start = [this.state.lat ?? 16.4746, this.state.lng ?? 102.8235]; // มข.
+      const m = window.L.map('mpMap').setView(start, this.state.lat != null ? 17 : 15);
+      window.L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap' }).addTo(m);
+      const mk = window.L.marker(start, { draggable: true }).addTo(m);
+      mk.on('dragend', () => { const p = mk.getLatLng(); this.setPin(p.lat, p.lng, false); });
+      m.on('click', (e) => { mk.setLatLng(e.latlng); this.setPin(e.latlng.lat, e.latlng.lng, false); });
+      this._map = m; this._marker = mk;
+      if (this.state.lat == null) this.locateMe(true);
+    } else if (!onDelivery && this._map) {
+      this._map.remove(); this._map = null; this._marker = null;
+    }
+  }
+  setPin(lat, lng, move){
+    this.setState({ lat, lng });
+    if (move && this._map && this._marker) { this._marker.setLatLng([lat, lng]); this._map.setView([lat, lng], 17); }
+    clearTimeout(this._revTimer);
+    this._revTimer = setTimeout(() => this.reverseGeocode(lat, lng), 600);
+  }
+  async reverseGeocode(lat, lng){
+    try {
+      const r = await fetch('https://nominatim.openstreetmap.org/reverse?format=json&accept-language=th&lat=' + lat + '&lon=' + lng);
+      const j = await r.json();
+      const a = j.address || {};
+      const label = [a.amenity || a.building || a.shop || a.office, a.road, a.suburb || a.village || a.neighbourhood]
+        .filter(Boolean).slice(0, 2).join(' · ') || (j.display_name || '').split(',').slice(0, 2).join(',');
+      this.setState({ geoLabel: label });
+    } catch (e) {}
+  }
+  locateMe(silent){
+    if (!navigator.geolocation) { if (!silent) this.showToast('เบราว์เซอร์ไม่รองรับระบุตำแหน่ง'); return; }
+    this.setState({ locating: true });
+    navigator.geolocation.getCurrentPosition(
+      (pos) => { this.setState({ locating: false }); this.setPin(pos.coords.latitude, pos.coords.longitude, true); },
+      () => { this.setState({ locating: false }); if (!silent) this.showToast('ระบุตำแหน่งไม่ได้ — แตะแผนที่ปักหมุดเองได้เลยครับ 📍'); },
+      { enableHighAccuracy: true, timeout: 8000 }
+    );
+  }
+  async doSearch(){
+    const q = this.state.searchQ.trim();
+    if (!q) return;
+    this.setState({ searching: true, searchResults: [] });
+    try {
+      const r = await fetch('https://nominatim.openstreetmap.org/search?format=json&accept-language=th&countrycodes=th&limit=5&q=' + encodeURIComponent(q));
+      const j = await r.json();
+      this.setState({ searching: false, searchResults: j.map(x => ({ name: x.display_name.split(',').slice(0, 3).join(','), lat: +x.lat, lng: +x.lon })) });
+      if (!j.length) this.showToast('ไม่พบสถานที่ ลองพิมพ์คำอื่นครับ 🔍');
+    } catch (e) { this.setState({ searching: false }); this.showToast('ค้นหาไม่สำเร็จ ลองอีกครั้งครับ'); }
+  }
 
   syncNight(){ document.body.classList.toggle('night', this.isNight()); }
 
@@ -142,7 +202,8 @@ class App extends React.Component {
         customer_fname: u.fname || '', customer_lname: u.lname || '',
         customer_phone: u.phone || '', customer_email: u.email || '',
         files, color: s.color, paper: s.paper, sides: s.sides, bind: s.bind, copies: s.copies,
-        point: s.point, addr: s.addr, phone: s.phone, time: s.time, express: s.express, night: this.isNight(),
+        point: s.geoLabel || '', lat: s.lat, lng: s.lng,
+        addr: s.addr, phone: s.phone, time: s.time, express: s.express, night: this.isNight(),
         print_cost: c.printCost, bind_cost: c.bindCost, delivery_cost: c.deliveryCost,
         night_fee: this.isNight() ? (CONFIG.nightFee ?? 25) : 0,
         total: c.grandTotal, status: 1, times: [t0, '', '', '']
@@ -174,7 +235,6 @@ class App extends React.Component {
     const s = this.state, c = this.calc(), night = this.isNight();
     const set = (k) => (v) => this.setState({ [k]: v });
     const STEPS = ['รับออเดอร์', 'กำลังปริ้น', 'กำลังจัดส่ง', 'ส่งแล้ว'];
-    const points = ['โรงชาย มข.', 'คณะบริหารธุรกิจฯ', 'คณะวิศวกรรมฯ', 'คณะศึกษาศาสตร์', 'คณะวิทยาศาสตร์', 'คณะมนุษยศาสตร์ฯ', 'คณะแพทยศาสตร์', 'หอใน มข.', 'คอมเพล็กซ์', 'อื่น ๆ'];
     const step = s.order ? s.trackStep : 0;
     const cancelled = !!s.order && s.trackStep === 0;
     return {
@@ -229,7 +289,16 @@ class App extends React.Component {
       printCost: c.printCost, bindCost: c.bindCost, printTotal: c.printTotal,
       deliveryCost: c.deliveryCost, grandTotal: c.grandTotal,
       toDelivery: () => { if (!s.files.length) return this.showToast('เพิ่มไฟล์ก่อนนะครับ 📄'); this.setState({ screen: 'delivery' }); },
-      pointOpts: points.map(p => this.seg(p, s.point === p, () => this.setState({ point: p }))),
+      searchQ: s.searchQ, setSearchQ: (e) => set('searchQ')(e.target.value),
+      doSearch: () => this.doSearch(),
+      onSearchKey: (e) => { if (e.key === 'Enter') this.doSearch(); },
+      searching: s.searching,
+      searchResults: s.searchResults.map(r => ({
+        name: r.name,
+        pick: () => { this.setState({ searchResults: [], searchQ: '' }); this.setPin(r.lat, r.lng, true); }
+      })),
+      locateMe: () => this.locateMe(false), locating: s.locating,
+      hasPin: s.lat != null, geoLabel: s.geoLabel,
       addr: s.addr, setAddr: (e) => set('addr')(e.target.value),
       phone: s.phone, setPhone: (e) => set('phone')(e.target.value),
       time: s.time, setTime: (e) => set('time')(e.target.value),
@@ -238,11 +307,12 @@ class App extends React.Component {
       expressKnob: { width: '21px', height: '21px', borderRadius: '50%', background: '#fff', position: 'absolute', top: '3px', left: s.express ? '22px' : '3px', transition: 'left .2s', boxShadow: '0 1px 3px rgba(0,0,0,.3)' },
       deliveryWarn: '',
       toPay: () => {
-        if (!s.point) return this.showToast('เลือกจุดส่งก่อนนะครับ 📍');
+        if (s.lat == null) return this.showToast('ปักหมุดตำแหน่งส่งบนแผนที่ก่อนนะครับ 📍');
+        if (!s.addr.trim()) return this.showToast('กรอกรายละเอียดที่อยู่ด้วยครับ 🏠');
         if (!s.phone) return this.showToast('ใส่เบอร์โทรผู้รับด้วยครับ 📞');
         this.setState({ screen: 'pay' });
       },
-      destLabel: s.point + (s.addr ? ' · ' + s.addr : ''),
+      destLabel: s.addr + (s.geoLabel ? ' · ' + s.geoLabel : ''),
       timeLabel: (s.express ? 'ด่วน ~45 นาที' : s.time + ' น.'),
       deliveryLabel: s.express ? '(ด่วน)' : '',
       slipName: s.slip ? s.slip.name : '',
@@ -449,11 +519,25 @@ class App extends React.Component {
           <div style={css("padding:18px 20px 110px;display:flex;flex-direction:column;gap:14px")}>
             <div style={css("font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:var(--sub);letter-spacing:1px")}>STEP 02 / 03 — จุดส่ง &amp; เวลารับงาน</div>
             <div style={css("background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px;box-shadow:var(--shadow)")}>
-              <div style={css("font-size:12px;font-weight:600;color:var(--sub);margin-bottom:8px")}>เลือกจุดส่งเอกสาร</div>
-              <div style={css("display:flex;gap:8px;flex-wrap:wrap")}>{v.pointOpts.map((o, i) => <button key={i} onClick={o.pick} style={o.st}>{o.label}</button>)}</div>
-              <div style={css("margin-top:12px;font-size:12px;font-weight:600;color:var(--sub)")}>รายละเอียด (ตึก / ชั้น / ห้อง / จุดนัด)</div>
-              <input value={v.addr} onChange={v.setAddr} placeholder="เช่น ตึก BS ชั้น 1 หน้าลิฟต์" style={css("margin-top:6px;width:100%;box-sizing:border-box;height:42px;border:1px solid var(--line);border-radius:10px;background:var(--soft);color:var(--ink);padding:0 12px;font-size:13px;outline:none")}/>
-              <div style={css("margin-top:10px;font-size:12px;font-weight:600;color:var(--sub)")}>เบอร์โทรผู้รับ</div>
+              <div style={css("font-size:12px;font-weight:600;color:var(--sub);margin-bottom:8px")}>📍 ปักหมุดตำแหน่งส่งเอกสาร <span style={css("color:#d9480f")}>*</span></div>
+              <div style={css("display:flex;gap:8px")}>
+                <input value={v.searchQ} onChange={v.setSearchQ} onKeyDown={v.onSearchKey} placeholder="🔍 ค้นหาสถานที่ เช่น หอ 9 มข., ตึกคอม" style={css("flex:1;min-width:0;box-sizing:border-box;height:42px;border:1px solid var(--line);border-radius:10px;background:var(--soft);color:var(--ink);padding:0 12px;font-size:13px;outline:none")}/>
+                <button onClick={v.doSearch} style={css("flex:none;height:42px;padding:0 14px;border:none;border-radius:10px;background:var(--acc);color:#fff;font-size:13px;font-weight:700;cursor:pointer")}>{v.searching ? '…' : 'ค้นหา'}</button>
+              </div>
+              {v.searchResults.length > 0 && (
+                <div style={css("margin-top:6px;border:1px solid var(--line);border-radius:10px;overflow:hidden")}>
+                  {v.searchResults.map((r, i) => (
+                    <div key={i} onClick={r.pick} style={css("padding:10px 12px;font-size:12.5px;cursor:pointer;background:var(--card);border-bottom:1px solid var(--line)")}>📍 {r.name}</div>
+                  ))}
+                </div>
+              )}
+              <button onClick={v.locateMe} style={css("margin-top:8px;width:100%;height:40px;border:1.5px solid var(--acc);border-radius:10px;background:var(--accSoft);color:var(--acc);font-size:13px;font-weight:700;cursor:pointer")}>{v.locating ? '⏳ กำลังหาตำแหน่งของคุณ…' : '🎯 ใช้ตำแหน่งปัจจุบันของฉัน'}</button>
+              <div id="mpMap" style={css("margin-top:10px;height:230px;border-radius:12px;border:1px solid var(--line);overflow:hidden;position:relative;z-index:0")}></div>
+              <div style={css("margin-top:6px;font-size:11px;color:var(--sub)")}>แตะบนแผนที่ หรือลากหมุด 📍 เพื่อเลือกจุดส่ง</div>
+              {v.hasPin && v.geoLabel && <div style={css("margin-top:6px;font-size:12px;color:var(--acc);font-weight:600")}>🗺️ {v.geoLabel}</div>}
+              <div style={css("margin-top:12px;font-size:12px;font-weight:600;color:var(--sub)")}>รายละเอียดที่อยู่ (หอ / คณะ / บ้านเลขที่ / ซอย / จุดนัด) <span style={css("color:#d9480f")}>*</span></div>
+              <input value={v.addr} onChange={v.setAddr} placeholder="เช่น หอ 9 ตึก B ชั้น 2, บ้านเลขที่ 123/4 ซอยมะลิวัลย์ 5" style={css("margin-top:6px;width:100%;box-sizing:border-box;height:42px;border:1px solid var(--line);border-radius:10px;background:var(--soft);color:var(--ink);padding:0 12px;font-size:13px;outline:none")}/>
+              <div style={css("margin-top:10px;font-size:12px;font-weight:600;color:var(--sub)")}>เบอร์โทรผู้รับ <span style={css("color:#d9480f")}>*</span></div>
               <input value={v.phone} onChange={v.setPhone} placeholder="08x-xxx-xxxx" inputMode="tel" style={css("margin-top:6px;width:100%;box-sizing:border-box;height:42px;border:1px solid var(--line);border-radius:10px;background:var(--soft);color:var(--ink);padding:0 12px;font-size:13px;outline:none")}/>
             </div>
             <div style={css("background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px;box-shadow:var(--shadow)")}>

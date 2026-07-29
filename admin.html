@@ -125,7 +125,7 @@ function OrderCard({ o, onAdvance, onCancel, busy }){
             {o.night && <span style={css("font-size:10.5px;font-weight:600;color:var(--warnInk);background:var(--warnBg);padding:2px 8px;border-radius:99px")}>🌙 กลางคืน</span>}
           </div>
           <div style={css("margin-top:4px;font-size:12px;color:var(--sub);overflow:hidden;text-overflow:ellipsis;white-space:nowrap")}>
-            {fmtWhen(o.created_at)} · คุณ{o.customer_fname} {o.customer_lname} · {o.point}
+            {fmtWhen(o.created_at)} · คุณ{o.customer_fname} {o.customer_lname} · {o.addr || o.point}
           </div>
         </div>
         <div style={css("display:flex;align-items:center;gap:10px;flex:none")}>
@@ -170,8 +170,13 @@ function OrderCard({ o, onAdvance, onCancel, busy }){
           </div>
           <div>
             <div style={css("font-size:11px;font-weight:600;color:var(--sub);letter-spacing:.5px")}>📍 จัดส่ง</div>
-            <div style={css("margin-top:4px;font-size:13px")}>{o.point}{o.addr ? ' · ' + o.addr : ''}</div>
-            <div style={css("font-size:12px;color:var(--sub)")}>เวลารับ: <span style={css("font-family:'IBM Plex Mono',monospace")}>{o.express ? 'ด่วน ~45 นาที' : (o.time || '-') + ' น.'}</span> · โทร <span style={css("font-family:'IBM Plex Mono',monospace")}>{o.phone}</span></div>
+            <div style={css("margin-top:4px;font-size:13px;font-weight:600")}>{o.addr || o.point || '-'}</div>
+            {o.point && o.addr && <div style={css("font-size:11.5px;color:var(--sub)")}>🗺️ {o.point}</div>}
+            <div style={css("font-size:12px;color:var(--sub);margin-top:2px")}>เวลารับ: <span style={css("font-family:'IBM Plex Mono',monospace")}>{o.express ? 'ด่วน ~45 นาที' : (o.time || '-') + ' น.'}</span> · โทร <span style={css("font-family:'IBM Plex Mono',monospace")}>{o.phone}</span></div>
+            {o.lat != null && o.lng != null && (
+              <a href={'https://www.google.com/maps?q=' + o.lat + ',' + o.lng} target="_blank" rel="noreferrer"
+                style={css("display:inline-block;margin-top:8px;padding:8px 14px;background:var(--accSoft);color:var(--acc);border:1.5px solid var(--acc);border-radius:10px;font-size:12.5px;font-weight:700;text-decoration:none")}>🧭 เปิดแผนที่นำทางไปหาลูกค้า</a>
+            )}
           </div>
           <div style={css("display:flex;gap:6px;flex-wrap:wrap")}>
             {STEPS.map((sName, i) => {
