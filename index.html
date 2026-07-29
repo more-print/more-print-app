@@ -199,6 +199,37 @@ class App extends React.Component {
     } catch (e) { this.setState({ searching: false }); this.showToast('ค้นหาไม่สำเร็จ ลองอีกครั้งครับ'); }
   }
 
+  // ── นับจำนวนหน้าอัตโนมัติ ──
+  loadPdfJs(){
+    if (this._pdfjsP) return this._pdfjsP;
+    this._pdfjsP = new Promise((res, rej) => {
+      const sc = document.createElement('script');
+      sc.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+      sc.onload = () => {
+        window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+        res(window.pdfjsLib);
+      };
+      sc.onerror = rej;
+      document.head.appendChild(sc);
+    });
+    return this._pdfjsP;
+  }
+  async countPages(f){
+    const name = (f.name || '').toLowerCase();
+    if ((f.type || '').startsWith('image/') || /\.(jpg|jpeg|png|gif|webp|heic|bmp)$/.test(name)) return { pages: 1, auto: true };
+    if (f.type === 'application/pdf' || /\.pdf$/.test(name)) {
+      try {
+        const lib = await this.loadPdfJs();
+        const buf = await f.arrayBuffer();
+        const doc = await lib.getDocument({ data: buf }).promise;
+        const n = doc.numPages;
+        doc.destroy();
+        return { pages: Math.max(1, n), auto: true };
+      } catch (e) { console.error('pdf count:', e); return { pages: 1, auto: false }; }
+    }
+    return { pages: 1, auto: false }; // DOCX/PPTX ฯลฯ — เว็บนับแม่นไม่ได้ ให้ลูกค้าระบุเอง
+  }
+
   // ล็อกอินด้วยโปรไฟล์ LINE (หลัง authorize ผ่าน LINE OA)
   async finishLineLogin(){
     try {
@@ -419,12 +450,23 @@ class App extends React.Component {
       goTrack: () => this.setState({ screen: 'track' }),
       pickFiles: () => this.fileRef.current && this.fileRef.current.click(),
       onFiles: (e) => {
-        const add = Array.from(e.target.files || []).map(f => ({ name: f.name, pages: 10, file: f }));
-        if (add.length) this.setState(st => ({ files: st.files.concat(add) }));
+        const MAX_MB = 50; // เพดานอัปโหลดของระบบไฟล์
+        const list = Array.from(e.target.files || []);
         e.target.value = '';
+        const ok = list.filter(f => f.size <= MAX_MB * 1024 * 1024);
+        const big = list.filter(f => f.size > MAX_MB * 1024 * 1024);
+        if (big.length) this.showToast('❌ "' + big[0].name.slice(0, 18) + (big[0].name.length > 18 ? '…' : '') + '" ใหญ่เกิน ' + MAX_MB + 'MB — สั่งไฟล์ใหญ่ทาง LINE ' + ((window.MP_CONFIG || {}).LINE_OA_ID || '@346kifvy') + ' 💬');
+        if (!ok.length) return;
+        const items = ok.map(f => ({ uid: Date.now() + '-' + Math.random().toString(36).slice(2), name: f.name, pages: 1, file: f, counting: true, auto: false }));
+        this.setState(st => ({ files: st.files.concat(items) }));
+        items.forEach(async (it) => {
+          const r = await this.countPages(it.file);
+          this.setState(st => ({ files: st.files.map(x => x.uid === it.uid ? { ...x, pages: r.pages, auto: r.auto, counting: false } : x) }));
+        });
       },
       files: s.files.map((f, i) => ({
         name: f.name, pages: f.pages,
+        sub: f.counting ? '⏳ กำลังนับหน้าอัตโนมัติ…' : (f.auto ? '✓ นับหน้าให้อัตโนมัติแล้ว (แก้ได้ถ้าไม่ตรง)' : '✏️ ระบุจำนวนหน้าเองด้วยปุ่ม + / −'),
         inc: () => this.setState(st => ({ files: st.files.map((x, j) => j === i ? { ...x, pages: x.pages + 1 } : x) })),
         dec: () => this.setState(st => ({ files: st.files.map((x, j) => j === i ? { ...x, pages: Math.max(1, x.pages - 1) } : x) })),
         del: () => this.setState(st => ({ files: st.files.filter((_, j) => j !== i) }))
@@ -709,12 +751,13 @@ class App extends React.Component {
             <input type="file" multiple ref={this.fileRef} onChange={v.onFiles} style={css("display:none")}/>
             <div onClick={v.pickFiles} style={css("border:2px dashed var(--line);border-radius:14px;background:var(--card);padding:16px;display:flex;align-items:center;gap:12px;cursor:pointer")}>
               <div style={css("width:42px;height:42px;border-radius:10px;background:var(--accSoft);display:flex;align-items:center;justify-content:center;font-size:20px")}>📤</div>
-              <div><div style={css("font-weight:600;font-size:14px;color:var(--acc)")}>+ เพิ่มไฟล์</div><div style={css("font-size:11px;color:var(--sub)")}>PDF / DOCX / PPTX / JPG</div></div>
+              <div><div style={css("font-weight:600;font-size:14px;color:var(--acc)")}>+ เพิ่มไฟล์</div><div style={css("font-size:11px;color:var(--sub)")}>PDF / DOCX / PPTX / รูปภาพ · สูงสุด 50MB/ไฟล์</div></div>
             </div>
+            <div onClick={() => window.open((window.MP_CONFIG || {}).LINE_OA_URL || 'https://line.me/R/ti/p/@346kifvy', '_blank')} style={css("margin-top:-6px;font-size:11px;color:var(--sub);cursor:pointer")}>📎 ไฟล์ใหญ่เกิน 50MB? <span style={css("color:#06c755;font-weight:700;text-decoration:underline")}>สั่งปริ้นทาง LINE {(window.MP_CONFIG || {}).LINE_OA_ID || '@346kifvy'}</span> ได้เลย</div>
             {v.files.map((f, i) => (
               <div key={i} style={css("background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px 14px;display:flex;align-items:center;gap:10px")}>
                 <div style={css("font-size:18px")}>📄</div>
-                <div style={css("flex:1;min-width:0")}><div style={css("font-size:12.5px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap")}>{f.name}</div><div style={css("font-size:10.5px;color:var(--sub)")}>ระบุจำนวนหน้าของไฟล์นี้</div></div>
+                <div style={css("flex:1;min-width:0")}><div style={css("font-size:12.5px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap")}>{f.name}</div><div style={css("font-size:10.5px;color:var(--sub)")}>{f.sub}</div></div>
                 <div style={css("display:flex;align-items:center;gap:8px")}>
                   <button onClick={f.dec} style={css("width:26px;height:26px;border:1px solid var(--line);background:var(--soft);color:var(--ink);border-radius:8px;cursor:pointer")}>−</button>
                   <div style={css("font-family:'IBM Plex Mono',monospace;font-size:13px;font-weight:600;min-width:34px;text-align:center")}>{f.pages} หน้า</div>
