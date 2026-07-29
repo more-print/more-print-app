@@ -342,7 +342,7 @@ class App extends React.Component {
         if (!cfg.LIFF_ID || !window.liff) return this.showToast('LINE Login กำลังจะเปิดเร็ว ๆ นี้ 💬 ตอนนี้ใช้อีเมลก่อนนะครับ');
         if (!this._liffReady) return this.showToast('กำลังเชื่อมต่อ LINE… ลองกดอีกครั้งครับ');
         if (window.liff.isLoggedIn()) return this.finishLineLogin();
-        window.liff.login({ redirectUri: location.origin + location.pathname });
+        window.liff.login(); // ให้ LIFF พากลับมาที่ endpoint เอง (ตรงกับที่ลงทะเบียนแน่นอน)
       },
       doEmailLogin: async () => {
         const email = s.emailIn.trim().toLowerCase();
