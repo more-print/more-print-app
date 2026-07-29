@@ -239,7 +239,7 @@ function AdminApp(){
   const refresh = React.useCallback(async () => {
     if (!DB) return;
     try {
-      const { data, error } = await DB.from('orders').select('*').order('created_at', { ascending: false }).limit(200);
+      const { data, error } = await DB.from('orders').select('*').order('created_at', { ascending: false }).limit(1000);
       if (!error && data) { setOrders(data); setLastSync(new Date()); }
     } catch (e) { console.error(e); }
     setLoading(false);
@@ -295,6 +295,39 @@ function AdminApp(){
   });
   const customers = Object.values(custMap).sort((a, b) => b.total - a.total);
 
+  // ── สถิติแดชบอร์ด ──
+  const now = new Date();
+  const THAI_MONTHS = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
+  const THAI_DAYS = ['อา', 'จ', 'อ', 'พ', 'พฤ', 'ศ', 'ส'];
+  const isToday = (iso) => new Date(iso).toDateString() === now.toDateString();
+  const isThisMonth = (iso) => { const d = new Date(iso); return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear(); };
+  const valid = orders.filter(o => o.status !== 0);
+  const vToday = valid.filter(o => isToday(o.created_at));
+  const vMonth = valid.filter(o => isThisMonth(o.created_at));
+  const revToday = vToday.reduce((a, o) => a + (o.total || 0), 0);
+  const revMonth = vMonth.reduce((a, o) => a + (o.total || 0), 0);
+  const avgOrder = vMonth.length ? Math.round(revMonth / vMonth.length) : 0;
+  const pagesMonth = vMonth.reduce((a, o) => a + ((o.files || []).reduce((x, f) => x + (f.pages || 0), 0) * (o.copies || 1)), 0);
+  const colorMonth = vMonth.filter(o => o.color).length;
+  const bwMonth = vMonth.length - colorMonth;
+  const expressMonth = vMonth.filter(o => o.express).length;
+  const nightMonth = vMonth.filter(o => o.night).length;
+  const doneMonth = vMonth.filter(o => o.status === 4).length;
+  const cancMonthList = orders.filter(o => o.status === 0 && isThisMonth(o.created_at));
+  const cancValue = cancMonthList.reduce((a, o) => a + (o.total || 0), 0);
+  const chartDays = [...Array(7)].map((_, i) => { const d = new Date(now); d.setDate(now.getDate() - (6 - i)); return d; });
+  const chart = chartDays.map(d => ({
+    label: THAI_DAYS[d.getDay()], date: d.getDate(),
+    value: valid.filter(o => new Date(o.created_at).toDateString() === d.toDateString()).reduce((a, o) => a + (o.total || 0), 0),
+    isToday: d.toDateString() === now.toDateString()
+  }));
+  const chartMax = Math.max(...chart.map(c => c.value), 1);
+  const ptMap = {};
+  vMonth.forEach(o => { if (o.point) ptMap[o.point] = (ptMap[o.point] || 0) + 1; });
+  const topPoints = Object.entries(ptMap).sort((a, b) => b[1] - a[1]).slice(0, 3);
+  const repeatCust = Object.values(custMap).filter(c => c.count >= 2).length;
+  const monthLabel = THAI_MONTHS[now.getMonth()];
+
   const shown = filter === 'all' ? orders
     : filter === 'pending' ? orders.filter(o => o.status >= 1 && o.status < 4)
     : filter === 'cancelled' ? orders.filter(o => o.status === 0)
@@ -340,7 +373,7 @@ function AdminApp(){
       </div>
 
       <div style={css("padding:16px 16px 0;display:flex;gap:8px")}>
-        {[['orders', '📋 ออเดอร์'], ['customers', '👥 ลูกค้า (' + customers.length + ')']].map(([k, label]) => (
+        {[['orders', '📋 ออเดอร์'], ['stats', '📊 สถิติ'], ['customers', '👥 ลูกค้า (' + customers.length + ')']].map(([k, label]) => (
           <button key={k} onClick={() => setTab(k)} style={{ flex: 1, height: '42px', borderRadius: '12px', fontSize: '13.5px', fontWeight: 700, cursor: 'pointer',
             border: tab === k ? '1.5px solid var(--acc)' : '1px solid var(--line)',
             background: tab === k ? 'var(--accSoft)' : 'var(--card)', color: tab === k ? 'var(--acc)' : 'var(--sub)' }}>{label}</button>
@@ -364,6 +397,95 @@ function AdminApp(){
             </div>
           )}
           {shown.map(o => <OrderCard key={o.id} o={o} onAdvance={advance} onCancel={cancel} busy={busyId === o.id}/>)}
+        </div>
+      )}
+
+      {tab === 'stats' && (
+        <div style={css("padding:14px 16px 40px;display:flex;flex-direction:column;gap:12px")}>
+
+          <div style={css("display:flex;gap:10px")}>
+            <div style={css("flex:1;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px;box-shadow:var(--shadow)")}>
+              <div style={css("font-size:11px;font-weight:600;color:var(--sub)")}>💰 รายได้วันนี้</div>
+              <div style={css("margin-top:4px;font-family:'IBM Plex Mono',monospace;font-size:26px;font-weight:600;color:var(--acc)")}>฿{revToday}</div>
+              <div style={css("font-size:10.5px;color:var(--sub);margin-top:2px")}>{vToday.length} ออเดอร์</div>
+            </div>
+            <div style={css("flex:1;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px;box-shadow:var(--shadow)")}>
+              <div style={css("font-size:11px;font-weight:600;color:var(--sub)")}>📅 รายได้เดือน {monthLabel}</div>
+              <div style={css("margin-top:4px;font-family:'IBM Plex Mono',monospace;font-size:26px;font-weight:600;color:var(--acc)")}>฿{revMonth}</div>
+              <div style={css("font-size:10.5px;color:var(--sub);margin-top:2px")}>{vMonth.length} ออเดอร์</div>
+            </div>
+          </div>
+
+          <div style={css("background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px;box-shadow:var(--shadow)")}>
+            <div style={css("font-size:12px;font-weight:700")}>รายได้ 7 วันล่าสุด</div>
+            <div style={css("margin-top:12px;display:flex;align-items:flex-end;gap:6px;height:118px;border-bottom:1px solid var(--line);padding-bottom:0")}>
+              {chart.map((c, i) => (
+                <div key={i} title={'฿' + c.value} style={css("flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:4px;height:100%")}>
+                  <div style={css("font-family:'IBM Plex Mono',monospace;font-size:9.5px;color:var(--sub)")}>{c.value > 0 ? '฿' + c.value : ''}</div>
+                  <div style={{ width: '68%', maxWidth: '34px', borderRadius: '4px 4px 0 0',
+                    height: Math.max(Math.round(c.value / chartMax * 78), c.value > 0 ? 5 : 2) + 'px',
+                    background: c.isToday ? 'var(--acc)' : '#8fd6b2' }}></div>
+                </div>
+              ))}
+            </div>
+            <div style={css("display:flex;gap:6px;margin-top:5px")}>
+              {chart.map((c, i) => (
+                <div key={i} style={{ flex: 1, textAlign: 'center', fontSize: '10px',
+                  fontWeight: c.isToday ? 700 : 500, color: c.isToday ? 'var(--acc)' : 'var(--sub)' }}>{c.label} {c.date}</div>
+              ))}
+            </div>
+          </div>
+
+          <div style={css("display:flex;gap:10px")}>
+            <div style={css("flex:1;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 14px")}>
+              <div style={css("font-family:'IBM Plex Mono',monospace;font-size:18px;font-weight:600")}>฿{avgOrder}</div>
+              <div style={css("font-size:10.5px;color:var(--sub);margin-top:2px")}>เฉลี่ย/ออเดอร์</div>
+            </div>
+            <div style={css("flex:1;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 14px")}>
+              <div style={css("font-family:'IBM Plex Mono',monospace;font-size:18px;font-weight:600")}>{pagesMonth}</div>
+              <div style={css("font-size:10.5px;color:var(--sub);margin-top:2px")}>หน้าที่ปริ้น (เดือนนี้)</div>
+            </div>
+            <div style={css("flex:1;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 14px")}>
+              <div style={css("font-family:'IBM Plex Mono',monospace;font-size:18px;font-weight:600")}>{doneMonth}</div>
+              <div style={css("font-size:10.5px;color:var(--sub);margin-top:2px")}>ส่งแล้ว (เดือนนี้)</div>
+            </div>
+          </div>
+
+          <div style={css("background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px")}>
+            <div style={css("font-size:12px;font-weight:700;margin-bottom:10px")}>สรุปเดือน {monthLabel}</div>
+            <div style={css("display:flex;flex-direction:column;gap:8px;font-size:12.5px")}>
+              <div style={css("display:flex;justify-content:space-between")}><span style={css("color:var(--sub)")}>⚫ ปริ้นขาวดำ</span><span style={css("font-family:'IBM Plex Mono',monospace;font-weight:600")}>{bwMonth} ออเดอร์</span></div>
+              <div style={css("display:flex;justify-content:space-between")}><span style={css("color:var(--sub)")}>🎨 ปริ้นสี</span><span style={css("font-family:'IBM Plex Mono',monospace;font-weight:600")}>{colorMonth} ออเดอร์</span></div>
+              <div style={css("display:flex;justify-content:space-between")}><span style={css("color:var(--sub)")}>🛵 ส่งด่วน (Express)</span><span style={css("font-family:'IBM Plex Mono',monospace;font-weight:600")}>{expressMonth} ออเดอร์</span></div>
+              <div style={css("display:flex;justify-content:space-between")}><span style={css("color:var(--sub)")}>🌙 ช่วงกลางคืน</span><span style={css("font-family:'IBM Plex Mono',monospace;font-weight:600")}>{nightMonth} ออเดอร์</span></div>
+              <div style={css("display:flex;justify-content:space-between;border-top:1px dashed var(--line);padding-top:8px")}><span style={css("color:#c92a2a")}>❌ ยกเลิก</span><span style={css("font-family:'IBM Plex Mono',monospace;font-weight:600;color:#c92a2a")}>{cancMonthList.length} ออเดอร์ (฿{cancValue})</span></div>
+            </div>
+          </div>
+
+          <div style={css("background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px")}>
+            <div style={css("font-size:12px;font-weight:700;margin-bottom:10px")}>📍 จุดส่งยอดนิยม (เดือนนี้)</div>
+            {topPoints.length === 0 && <div style={css("font-size:12px;color:var(--sub)")}>ยังไม่มีข้อมูล</div>}
+            <div style={css("display:flex;flex-direction:column;gap:8px")}>
+              {topPoints.map(([name, count], i) => (
+                <div key={i}>
+                  <div style={css("display:flex;justify-content:space-between;font-size:12px")}><span style={css("font-weight:600")}>{i + 1}. {name}</span><span style={css("font-family:'IBM Plex Mono',monospace;color:var(--sub)")}>{count} ออเดอร์</span></div>
+                  <div style={css("margin-top:4px;height:6px;background:var(--soft);border-radius:99px;overflow:hidden")}><div style={{ height: '100%', borderRadius: '99px', background: 'var(--acc)', width: Math.round(count / topPoints[0][1] * 100) + '%' }}></div></div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div style={css("display:flex;gap:10px")}>
+            <div style={css("flex:1;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 14px")}>
+              <div style={css("font-family:'IBM Plex Mono',monospace;font-size:18px;font-weight:600")}>{customers.length}</div>
+              <div style={css("font-size:10.5px;color:var(--sub);margin-top:2px")}>ลูกค้าทั้งหมด</div>
+            </div>
+            <div style={css("flex:1;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 14px")}>
+              <div style={css("font-family:'IBM Plex Mono',monospace;font-size:18px;font-weight:600;color:var(--acc)")}>{repeatCust}</div>
+              <div style={css("font-size:10.5px;color:var(--sub);margin-top:2px")}>ลูกค้าประจำ (สั่ง ≥2 ครั้ง)</div>
+            </div>
+          </div>
+
         </div>
       )}
 
