@@ -109,6 +109,11 @@ class App extends React.Component {
         .catch(() => {});
     }
     // LINE Login (LIFF) — เชื่อมกับ LINE OA ของร้าน
+    // ถ้าเปิดจากเบราว์เซอร์ในแอป LINE (ไม่ใช่ LIFF) → เด้งไปเปิดแบบ LIFF จะได้ล็อกอินอัตโนมัติ ไม่เจอ 400
+    if (cfg.LIFF_ID && window.liff && /Line\//i.test(navigator.userAgent) && !window.liff.isInClient()) {
+      location.replace('https://liff.line.me/' + cfg.LIFF_ID);
+      return;
+    }
     if (cfg.LIFF_ID && window.liff) {
       window.liff.init({ liffId: cfg.LIFF_ID })
         .then(() => {
