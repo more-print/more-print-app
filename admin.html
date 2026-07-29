@@ -25,7 +25,7 @@
 <script type="text/babel" data-presets="react">
 const CFG = window.MP_CONFIG || {};
 const DB = (CFG.SUPABASE_URL && CFG.SUPABASE_ANON_KEY && window.supabase)
-  ? window.supabase.createClient(CFG.SUPABASE_URL, CFG.SUPABASE_ANON_KEY) : null;
+  ? window.supabase.createClient(CFG.SUPABASE_URL, CFG.SUPABASE_ANON_KEY, { auth: { storageKey: 'mp-admin' } }) : null;
 
 const STEPS = ['รับออเดอร์', 'กำลังปริ้น', 'กำลังจัดส่ง', 'ส่งแล้ว'];
 const BANNER_THEMES = {
@@ -87,24 +87,69 @@ const optionsLabel = (o) => [
   o.copies + ' ชุด'
 ].filter(Boolean).join(' · ');
 
-function PinGate({ onOk }){
-  const [pin, setPin] = React.useState('');
-  const [err, setErr] = React.useState(false);
-  const submit = () => {
-    if (pin === String(CFG.ADMIN_PIN || '2468')) { sessionStorage.setItem('mp_admin_ok', '1'); onOk(); }
-    else { setErr(true); setPin(''); }
+function AdminLogin({ onOk }){
+  const [mode, setMode] = React.useState('login');
+  const [email, setEmail] = React.useState('');
+  const [pass, setPass] = React.useState('');
+  const [busy, setBusy] = React.useState(false);
+  const [msg, setMsg] = React.useState('');
+  const [uuid, setUuid] = React.useState('');
+
+  const verifyAdmin = async () => {
+    // เช็คสิทธิ์เจ้าของ — ถ้ายังไม่มีเจ้าของในระบบ คนแรกที่ล็อกอินจะได้สิทธิ์ (ครั้งแรกครั้งเดียว)
+    let r = await DB.rpc('is_admin');
+    let ok = !!r.data;
+    if (!ok && !r.error) { const c = await DB.rpc('claim_admin'); ok = !!c.data; }
+    if (ok) { onOk(); return; }
+    const { data } = await DB.auth.getUser();
+    setUuid((data && data.user && data.user.id) || '');
+    setMsg(r.error ? 'ระบบสิทธิ์ยังไม่พร้อม (ยังไม่ได้รัน SQL อัปเกรด)' : 'บัญชีนี้ไม่ใช่เจ้าของร้าน');
+    setBusy(false);
   };
+
+  React.useEffect(() => {
+    if (!DB) { onOk(); return; }
+    DB.auth.getSession().then(({ data }) => { if (data.session) { setBusy(true); verifyAdmin(); } });
+  }, []);
+
+  const submit = async () => {
+    if (!DB) return onOk();
+    if (!email.trim() || !pass) return setMsg('กรอกอีเมลและรหัสผ่านก่อนครับ');
+    setBusy(true); setMsg('');
+    const cred = { email: email.trim().toLowerCase(), password: pass };
+    const { error } = mode === 'login'
+      ? await DB.auth.signInWithPassword(cred)
+      : await DB.auth.signUp(cred);
+    if (error) {
+      setBusy(false);
+      const m = (error.message || '').toLowerCase();
+      if (m.includes('already registered')) return setMsg('อีเมลนี้มีบัญชีแล้ว — สลับไปแท็บ "เข้าสู่ระบบ"');
+      if (m.includes('at least 6') || m.includes('6 characters')) return setMsg('รหัสผ่านต้องยาวอย่างน้อย 6 ตัวอักษร');
+      return setMsg(mode === 'login' ? 'อีเมลหรือรหัสผ่านไม่ถูกต้อง ❌' : 'สมัครไม่สำเร็จ: ' + error.message);
+    }
+    await verifyAdmin();
+  };
+
   return (
-    <div style={css("min-height:100vh;display:flex;align-items:center;justify-content:center;background:var(--bg)")}>
-      <div style={css("background:var(--card);border:1px solid var(--line);border-radius:18px;padding:30px 26px;width:300px;box-shadow:var(--shadow);display:flex;flex-direction:column;gap:14px;align-items:center")}>
+    <div style={css("min-height:100vh;display:flex;align-items:center;justify-content:center;background:var(--bg);padding:20px")}>
+      <div style={css("background:var(--card);border:1px solid var(--line);border-radius:18px;padding:28px 24px;width:320px;box-shadow:var(--shadow);display:flex;flex-direction:column;gap:12px;align-items:center")}>
         <img src="assets/logo-icon.png" alt="" style={css("width:56px;height:auto")}/>
         <div style={css("font-family:'Montserrat',sans-serif;font-weight:800;font-size:17px;letter-spacing:1px")}><span style={css("color:var(--acc)")}>MORE</span> PRINT</div>
-        <div style={css("font-size:13px;color:var(--sub)")}>🔒 หน้าหลังบ้าน — สำหรับเจ้าของร้าน</div>
-        <input type="password" inputMode="numeric" value={pin} onChange={e => setPin(e.target.value)}
-          onKeyDown={e => e.key === 'Enter' && submit()} placeholder="ใส่รหัส PIN" autoFocus
-          style={css("width:100%;box-sizing:border-box;height:48px;border:1px solid var(--line);border-radius:12px;background:var(--soft);color:var(--ink);padding:0 14px;font-size:18px;text-align:center;letter-spacing:6px;outline:none;font-family:'IBM Plex Mono',monospace")}/>
-        {err && <div style={css("font-size:12px;color:#d9480f")}>รหัสไม่ถูกต้อง ลองใหม่ครับ</div>}
-        <button onClick={submit} style={css("width:100%;height:46px;border:none;border-radius:12px;background:var(--acc);color:#fff;font-size:14px;font-weight:700;cursor:pointer")}>เข้าสู่หลังบ้าน →</button>
+        <div style={css("font-size:13px;color:var(--sub)")}>🔐 หลังบ้าน — เข้าสู่ระบบเจ้าของร้าน</div>
+        <div style={css("display:flex;gap:8px;width:100%")}>
+          {[['login', 'เข้าสู่ระบบ'], ['register', 'สมัครครั้งแรก']].map(([k, label]) => (
+            <button key={k} onClick={() => { setMode(k); setMsg(''); }} style={{ flex: 1, height: '38px', borderRadius: '10px', fontSize: '12.5px', fontWeight: 700, cursor: 'pointer',
+              border: mode === k ? '1.5px solid var(--acc)' : '1px solid var(--line)',
+              background: mode === k ? 'var(--accSoft)' : 'var(--soft)', color: mode === k ? 'var(--acc)' : 'var(--sub)' }}>{label}</button>
+          ))}
+        </div>
+        <input value={email} onChange={e => setEmail(e.target.value)} placeholder="อีเมลเจ้าของร้าน" inputMode="email" autoComplete="email"
+          style={css("width:100%;box-sizing:border-box;height:46px;border:1px solid var(--line);border-radius:12px;background:var(--soft);color:var(--ink);padding:0 14px;font-size:14px;outline:none")}/>
+        <input type="password" value={pass} onChange={e => setPass(e.target.value)} onKeyDown={e => e.key === 'Enter' && submit()} placeholder="รหัสผ่าน" autoComplete="current-password"
+          style={css("width:100%;box-sizing:border-box;height:46px;border:1px solid var(--line);border-radius:12px;background:var(--soft);color:var(--ink);padding:0 14px;font-size:14px;outline:none")}/>
+        {msg && <div style={css("font-size:12px;color:#d9480f;text-align:center;line-height:1.5")}>{msg}</div>}
+        {uuid && <div style={css("font-size:10.5px;color:var(--sub);word-break:break-all;text-align:center")}>รหัสบัญชี (สำหรับผู้ดูแลระบบ): <span style={css("font-family:'IBM Plex Mono',monospace")}>{uuid}</span></div>}
+        <button onClick={submit} disabled={busy} style={css("width:100%;height:46px;border:none;border-radius:12px;background:var(--acc);color:#fff;font-size:14px;font-weight:700;cursor:pointer" + (busy ? ";opacity:.6" : ""))}>{busy ? 'กำลังตรวจสอบ…' : (mode === 'login' ? 'เข้าสู่หลังบ้าน →' : '✓ สมัครบัญชีเจ้าของ')}</button>
       </div>
     </div>
   );
@@ -243,7 +288,7 @@ function OrderCard({ o, onAdvance, onCancel, busy }){
 }
 
 function AdminApp(){
-  const [authed, setAuthed] = React.useState(() => sessionStorage.getItem('mp_admin_ok') === '1');
+  const [authed, setAuthed] = React.useState(!DB);
   const [tab, setTab] = React.useState('orders');
   const [orders, setOrders] = React.useState(DB ? [] : DEMO_ORDERS);
   const [loading, setLoading] = React.useState(!!DB);
@@ -310,7 +355,7 @@ function AdminApp(){
     return () => clearInterval(t);
   }, [authed, refresh]);
 
-  if (!authed) return <PinGate onOk={() => setAuthed(true)}/>;
+  if (!authed) return <AdminLogin onOk={() => setAuthed(true)}/>;
 
   const advance = async (o) => {
     const next = Math.min(o.status + 1, 4);
@@ -403,6 +448,7 @@ function AdminApp(){
         </div>
         <div style={css("display:flex;align-items:center;gap:10px")}>
           {DB && <button onClick={refresh} style={css("background:#2a2a2a;border:none;color:#fff;height:32px;padding:0 12px;border-radius:9px;font-size:12px;cursor:pointer")}>⟳ รีเฟรช</button>}
+          {DB && <button onClick={() => DB.auth.signOut().then(() => location.reload())} style={css("background:none;border:1px solid #444;color:#bbb;height:32px;padding:0 10px;border-radius:9px;font-size:11px;cursor:pointer")}>ออก</button>}
           <div style={css("font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--accBright);display:flex;align-items:center;gap:5px")}>
             <span style={css("animation:mpPulse 2s infinite")}>●</span>{DB ? (lastSync ? 'SYNC ' + fmtTime(lastSync) : 'ONLINE') : 'DEMO'}
           </div>

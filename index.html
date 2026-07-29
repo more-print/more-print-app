@@ -338,12 +338,20 @@ class App extends React.Component {
     clearInterval(this.trackTimer);
     this.trackTimer = setInterval(async () => {
       try {
-        const { data } = await this.db.from('orders').select('status,times,cancel_reason').eq('id', id).single();
-        if (data) {
+        // ช่องมองสถานะเฉพาะใบ (ต้องรู้รหัสออเดอร์เป๊ะ ๆ เท่านั้น)
+        let row = null;
+        const r1 = await this.db.rpc('get_order_status', { oid: id });
+        if (!r1.error && r1.data) row = Array.isArray(r1.data) ? r1.data[0] : r1.data;
+        if (r1.error) {
+          // ระบบเก่า (ช่วงเปลี่ยนผ่าน ก่อนรัน SQL อัปเกรด)
+          const r2 = await this.db.from('orders').select('status,times,cancel_reason').eq('id', id).single();
+          if (!r2.error) row = r2.data;
+        }
+        if (row) {
           this.setState(st => st.order && st.order.id === id
-            ? { trackStep: data.status, cancelReason: data.cancel_reason || '', order: { ...st.order, times: data.times || st.order.times } }
+            ? { trackStep: row.status, cancelReason: row.cancel_reason || '', order: { ...st.order, times: row.times || st.order.times } }
             : null);
-          if (data.status === 0 || data.status >= 4) clearInterval(this.trackTimer);
+          if (row.status === 0 || row.status >= 4) clearInterval(this.trackTimer);
         }
       } catch (e) {}
     }, 8000);
@@ -536,7 +544,7 @@ class App extends React.Component {
       },
       confirmPay: () => {
         if (this.db && !s.slip) return this.showToast('แนบสลิปโอนเงินก่อนยืนยันนะครับ 🧾');
-        const id = '#MP-' + (1000 + Math.floor(Math.random() * 9000));
+        const id = '#MP-' + Array.from(crypto.getRandomValues(new Uint8Array(8))).map(b => 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'[b % 31]).join('');
         const t0 = this.fmtTime(new Date());
         this.setState({ order: { id, total: c.grandTotal, times: [t0, '', '', ''] }, trackStep: 1, cancelReason: '', screen: 'track' });
         clearInterval(this.trackTimer);
