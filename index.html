@@ -29,6 +29,7 @@
 <script type="text/babel" data-presets="react">
 // ── Config (mirrors the design's editable props) ──────────────────────────
 const CONFIG = { nightOverride: 'auto', nightFee: 25, expressFee: 20, deliveryBase: 10 };
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
 // Copy an inline CSS string verbatim into a React style object.
 function css(str){
@@ -53,15 +54,21 @@ class App extends React.Component {
       point: '', addr: '', phone: '', time: '', express: false, slip: null,
       lat: null, lng: null, geoLabel: '', searchQ: '', searchResults: [], searching: false, locating: false,
       order: null, trackStep: 1, cancelReason: '', toast: '', now: new Date(),
-      user: null, fname: '', lname: '', phoneIn: '', emailIn: ''
+      user: null, authMode: 'login', authBusy: false,
+      emailIn: '', passIn: '',
+      regFname: '', regLname: '', regEmail: '', regPass1: '', regPass2: ''
     };
   }
 
   componentDidMount(){
     // เชื่อมฐานข้อมูลกลาง (Supabase) ถ้าตั้งค่าไว้ใน config.js
+    // แยกเป็น 2 client: this.db ใช้กับข้อมูล/ไฟล์ (สิทธิ์ anon เสมอ), this.auth ใช้กับระบบสมาชิก
     const cfg = window.MP_CONFIG || {};
     if (cfg.SUPABASE_URL && cfg.SUPABASE_ANON_KEY && window.supabase) {
-      this.db = window.supabase.createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY);
+      this.db = window.supabase.createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY,
+        { auth: { persistSession: false, autoRefreshToken: false, storageKey: 'mp-db' } });
+      this.auth = window.supabase.createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY,
+        { auth: { storageKey: 'mp-auth' } });
     }
     try {
       const u = JSON.parse(localStorage.getItem('mp_user') || 'null');
@@ -200,7 +207,7 @@ class App extends React.Component {
       const { error } = await this.db.from('orders').insert({
         id, slip_path,
         customer_fname: u.fname || '', customer_lname: u.lname || '',
-        customer_phone: u.phone || '', customer_email: u.email || '',
+        customer_phone: u.phone || s.phone || '', customer_email: u.email || '',
         files, color: s.color, paper: s.paper, sides: s.sides, bind: s.bind, copies: s.copies,
         point: s.geoLabel || '', lat: s.lat, lng: s.lng,
         addr: s.addr, phone: s.phone, time: s.time, express: s.express, night: this.isNight(),
@@ -247,19 +254,69 @@ class App extends React.Component {
       nightFee: CONFIG.nightFee ?? 25, expressFee: CONFIG.expressFee ?? 20, deliveryBase: CONFIG.deliveryBase ?? 10,
       isLogin: s.screen === 'login',
       notLogin: s.screen !== 'login',
-      fname: s.fname, setFname: (e) => set('fname')(e.target.value),
-      lname: s.lname, setLname: (e) => set('lname')(e.target.value),
-      phoneIn: s.phoneIn, setPhoneIn: (e) => set('phoneIn')(e.target.value),
+      authMode: s.authMode, authBusy: s.authBusy,
+      goLoginMode: () => this.setState({ authMode: 'login' }),
+      goRegisterMode: () => this.setState({ authMode: 'register' }),
       emailIn: s.emailIn, setEmailIn: (e) => set('emailIn')(e.target.value),
-      doLogin: () => {
-        if (!s.fname.trim() || !s.lname.trim()) return this.showToast('กรอกชื่อ-นามสกุลก่อนนะครับ ✏️');
-        if (!s.phoneIn.trim()) return this.showToast('กรอกเบอร์โทรด้วยครับ 📞');
-        const user = { fname: s.fname.trim(), lname: s.lname.trim(), phone: s.phoneIn.trim(), email: s.emailIn.trim() };
+      passIn: s.passIn, setPassIn: (e) => set('passIn')(e.target.value),
+      regFname: s.regFname, setRegFname: (e) => set('regFname')(e.target.value),
+      regLname: s.regLname, setRegLname: (e) => set('regLname')(e.target.value),
+      regEmail: s.regEmail, setRegEmail: (e) => set('regEmail')(e.target.value),
+      regPass1: s.regPass1, setRegPass1: (e) => set('regPass1')(e.target.value),
+      regPass2: s.regPass2, setRegPass2: (e) => set('regPass2')(e.target.value),
+      regEmailBad: s.regEmail.trim() !== '' && !EMAIL_RE.test(s.regEmail.trim()),
+      passShort: s.regPass1 !== '' && s.regPass1.length < 6,
+      passMismatch: s.regPass2 !== '' && s.regPass1 !== s.regPass2,
+      lineLogin: () => this.showToast('LINE Login กำลังจะเปิดเร็ว ๆ นี้ 💬 ตอนนี้ใช้อีเมลก่อนนะครับ'),
+      doEmailLogin: async () => {
+        const email = s.emailIn.trim().toLowerCase();
+        if (!EMAIL_RE.test(email)) return this.showToast('รูปแบบอีเมลไม่ถูกต้อง ❌');
+        if (!s.passIn) return this.showToast('กรอกรหัสผ่านด้วยครับ 🔑');
+        if (!this.auth) return this.showToast('ระบบสมาชิกยังไม่พร้อมใช้งาน');
+        this.setState({ authBusy: true });
+        const { data, error } = await this.auth.auth.signInWithPassword({ email, password: s.passIn });
+        this.setState({ authBusy: false });
+        if (error) return this.showToast('อีเมลหรือรหัสผ่านไม่ถูกต้อง ❌');
+        const md = (data.user && data.user.user_metadata) || {};
+        const user = { fname: md.fname || email.split('@')[0], lname: md.lname || '', phone: md.phone || '', email };
         try { localStorage.setItem('mp_user', JSON.stringify(user)); } catch (e) {}
-        this.setState({ user, phone: user.phone, screen: 'home' });
-        this.showToast('ยินดีต้อนรับ คุณ' + user.fname + ' 🎉');
+        this.setState({ user, phone: user.phone || s.phone, screen: 'home' });
+        this.showToast('ยินดีต้อนรับกลับ คุณ' + user.fname + ' 👋');
       },
-      doLogout: () => this.setState({ user: null, fname: '', lname: '', phoneIn: '', emailIn: '', screen: 'login' }),
+      doRegister: async () => {
+        const fname = s.regFname.trim(), lname = s.regLname.trim(), email = s.regEmail.trim().toLowerCase();
+        if (!fname || !lname) return this.showToast('กรอกชื่อ-นามสกุลก่อนนะครับ ✏️');
+        if (!EMAIL_RE.test(email)) return this.showToast('รูปแบบอีเมลไม่ถูกต้อง ❌');
+        if (s.regPass1.length < 6) return this.showToast('รหัสผ่านต้องยาวอย่างน้อย 6 ตัวอักษร 🔑');
+        if (s.regPass1 !== s.regPass2) return this.showToast('รหัสผ่าน 2 ช่องไม่เหมือนกัน ❌');
+        if (!this.auth) {
+          const user = { fname, lname, phone: '', email };
+          try { localStorage.setItem('mp_user', JSON.stringify(user)); } catch (e) {}
+          this.setState({ user, screen: 'home' });
+          return this.showToast('ยินดีต้อนรับ คุณ' + fname + ' 🎉');
+        }
+        this.setState({ authBusy: true });
+        const { data, error } = await this.auth.auth.signUp({ email, password: s.regPass1, options: { data: { fname, lname } } });
+        this.setState({ authBusy: false });
+        if (error) {
+          const m = (error.message || '').toLowerCase();
+          if (m.includes('already registered') || m.includes('already been registered')) return this.showToast('อีเมลนี้ถูกสมัครไว้แล้ว — กด "เข้าสู่ระบบ" ได้เลยครับ');
+          if (m.includes('invalid')) return this.showToast('อีเมลไม่ถูกต้อง ❌');
+          return this.showToast('สมัครไม่สำเร็จ: ' + error.message);
+        }
+        if (data.user && Array.isArray(data.user.identities) && data.user.identities.length === 0) {
+          return this.showToast('อีเมลนี้ถูกสมัครไว้แล้ว — กด "เข้าสู่ระบบ" ได้เลยครับ');
+        }
+        const user = { fname, lname, phone: '', email };
+        try { localStorage.setItem('mp_user', JSON.stringify(user)); } catch (e) {}
+        this.setState({ user, screen: 'home' });
+        this.showToast('สมัครสำเร็จ! ยินดีต้อนรับ คุณ' + fname + ' 🎉');
+      },
+      doLogout: () => {
+        if (this.auth) this.auth.auth.signOut();
+        try { localStorage.removeItem('mp_user'); } catch (e) {}
+        this.setState({ user: null, emailIn: '', passIn: '', regFname: '', regLname: '', regEmail: '', regPass1: '', regPass2: '', authMode: 'login', screen: 'login' });
+      },
       userName: s.user ? s.user.fname + ' ' + s.user.lname : '',
       isHome: s.screen === 'home', isOrder: s.screen === 'order', isDelivery: s.screen === 'delivery', isPay: s.screen === 'pay', isTrack: s.screen === 'track',
       showBack: s.screen === 'order' || s.screen === 'delivery' || s.screen === 'pay',
@@ -397,24 +454,63 @@ class App extends React.Component {
           </div>
         )}
 
-        {/* ── Login ── */}
+        {/* ── Login / Register ── */}
         {v.isLogin && (
-          <div style={css("padding:36px 24px;display:flex;flex-direction:column;gap:14px;align-items:stretch")}>
-            <div style={css("display:flex;flex-direction:column;align-items:center;gap:10px;margin-bottom:8px")}>
-              <img src="assets/logo-full.png" alt="MORE PRINT" style={css("width:170px;height:auto;display:block;background:#fff;border-radius:16px")}/>
-              <div style={css("font-size:14px;color:var(--sub);text-align:center")}>ลงทะเบียนก่อนสั่งปริ้น ใช้แค่ชื่อกับเบอร์โทร</div>
+          <div style={css("padding:28px 24px;display:flex;flex-direction:column;gap:14px;align-items:stretch")}>
+            <div style={css("display:flex;flex-direction:column;align-items:center;gap:10px;margin-bottom:2px")}>
+              <img src="assets/logo-full.png" alt="MORE PRINT" style={css("width:160px;height:auto;display:block;background:#fff;border-radius:16px")}/>
+              <div style={css("font-size:14px;color:var(--sub);text-align:center")}>สมัครครั้งเดียว สั่งปริ้นส่งถึงที่ ทุกที่ใน มข.</div>
             </div>
-            <div style={css("background:var(--card);border:1px solid var(--line);border-radius:16px;padding:18px 16px;display:flex;flex-direction:column;gap:12px;box-shadow:var(--shadow)")}>
-              <div><div style={css("font-size:12px;font-weight:600;color:var(--sub)")}>ชื่อจริง</div>
-              <input value={v.fname} onChange={v.setFname} placeholder="เช่น สมชาย" style={css("margin-top:6px;width:100%;box-sizing:border-box;height:44px;border:1px solid var(--line);border-radius:10px;background:var(--soft);color:var(--ink);padding:0 12px;font-size:14px;outline:none")}/></div>
-              <div><div style={css("font-size:12px;font-weight:600;color:var(--sub)")}>นามสกุล</div>
-              <input value={v.lname} onChange={v.setLname} placeholder="เช่น ใจดี" style={css("margin-top:6px;width:100%;box-sizing:border-box;height:44px;border:1px solid var(--line);border-radius:10px;background:var(--soft);color:var(--ink);padding:0 12px;font-size:14px;outline:none")}/></div>
-              <div><div style={css("font-size:12px;font-weight:600;color:var(--sub)")}>เบอร์โทร</div>
-              <input value={v.phoneIn} onChange={v.setPhoneIn} placeholder="08x-xxx-xxxx" inputMode="tel" style={css("margin-top:6px;width:100%;box-sizing:border-box;height:44px;border:1px solid var(--line);border-radius:10px;background:var(--soft);color:var(--ink);padding:0 12px;font-size:14px;outline:none")}/></div>
-              <div><div style={css("font-size:12px;font-weight:600;color:var(--sub)")}>อีเมล <span style={css("font-weight:400")}>(ไม่บังคับ)</span></div>
-              <input value={v.emailIn} onChange={v.setEmailIn} placeholder="you@email.com (ถ้ามี)" inputMode="email" style={css("margin-top:6px;width:100%;box-sizing:border-box;height:44px;border:1px solid var(--line);border-radius:10px;background:var(--soft);color:var(--ink);padding:0 12px;font-size:14px;outline:none")}/></div>
-              <button onClick={v.doLogin} style={css("margin-top:4px;height:50px;border:none;border-radius:14px;background:var(--acc);color:#fff;font-size:15px;font-weight:700;cursor:pointer")}>เข้าสู่ระบบ →</button>
+
+            <button onClick={v.lineLogin} style={css("height:50px;border:none;border-radius:14px;background:#06c755;color:#fff;font-size:15px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:10px")}>
+              <span style={css("background:#fff;color:#06c755;font-size:11px;font-weight:800;padding:3px 6px;border-radius:6px")}>LINE</span>
+              เข้าสู่ระบบด้วย LINE
+            </button>
+
+            <div style={css("display:flex;align-items:center;gap:10px;color:var(--sub);font-size:12px")}>
+              <div style={css("flex:1;height:1px;background:var(--line)")}></div>หรือใช้อีเมล<div style={css("flex:1;height:1px;background:var(--line)")}></div>
             </div>
+
+            <div style={css("display:flex;gap:8px")}>
+              <button onClick={v.goLoginMode} style={{ flex: 1, height: '42px', borderRadius: '12px', fontSize: '13.5px', fontWeight: 700, cursor: 'pointer',
+                border: v.authMode === 'login' ? '1.5px solid var(--acc)' : '1px solid var(--line)',
+                background: v.authMode === 'login' ? 'var(--accSoft)' : 'var(--card)', color: v.authMode === 'login' ? 'var(--acc)' : 'var(--sub)' }}>เข้าสู่ระบบ</button>
+              <button onClick={v.goRegisterMode} style={{ flex: 1, height: '42px', borderRadius: '12px', fontSize: '13.5px', fontWeight: 700, cursor: 'pointer',
+                border: v.authMode === 'register' ? '1.5px solid var(--acc)' : '1px solid var(--line)',
+                background: v.authMode === 'register' ? 'var(--accSoft)' : 'var(--card)', color: v.authMode === 'register' ? 'var(--acc)' : 'var(--sub)' }}>สมัครสมาชิกใหม่</button>
+            </div>
+
+            {v.authMode === 'login' && (
+              <div style={css("background:var(--card);border:1px solid var(--line);border-radius:16px;padding:18px 16px;display:flex;flex-direction:column;gap:12px;box-shadow:var(--shadow)")}>
+                <div><div style={css("font-size:12px;font-weight:600;color:var(--sub)")}>อีเมล</div>
+                <input value={v.emailIn} onChange={v.setEmailIn} placeholder="you@email.com" inputMode="email" autoComplete="email" style={css("margin-top:6px;width:100%;box-sizing:border-box;height:44px;border:1px solid var(--line);border-radius:10px;background:var(--soft);color:var(--ink);padding:0 12px;font-size:14px;outline:none")}/></div>
+                <div><div style={css("font-size:12px;font-weight:600;color:var(--sub)")}>รหัสผ่าน</div>
+                <input type="password" value={v.passIn} onChange={v.setPassIn} placeholder="••••••••" autoComplete="current-password" style={css("margin-top:6px;width:100%;box-sizing:border-box;height:44px;border:1px solid var(--line);border-radius:10px;background:var(--soft);color:var(--ink);padding:0 12px;font-size:14px;outline:none")}/></div>
+                <button onClick={v.doEmailLogin} disabled={v.authBusy} style={css("margin-top:4px;height:50px;border:none;border-radius:14px;background:var(--acc);color:#fff;font-size:15px;font-weight:700;cursor:pointer" + (v.authBusy ? ";opacity:.6" : ""))}>{v.authBusy ? 'กำลังเข้าสู่ระบบ…' : 'เข้าสู่ระบบ →'}</button>
+              </div>
+            )}
+
+            {v.authMode === 'register' && (
+              <div style={css("background:var(--card);border:1px solid var(--line);border-radius:16px;padding:18px 16px;display:flex;flex-direction:column;gap:12px;box-shadow:var(--shadow)")}>
+                <div style={css("display:flex;gap:10px")}>
+                  <div style={css("flex:1")}><div style={css("font-size:12px;font-weight:600;color:var(--sub)")}>ชื่อจริง</div>
+                  <input value={v.regFname} onChange={v.setRegFname} placeholder="เช่น สมชาย" style={css("margin-top:6px;width:100%;box-sizing:border-box;height:44px;border:1px solid var(--line);border-radius:10px;background:var(--soft);color:var(--ink);padding:0 12px;font-size:14px;outline:none")}/></div>
+                  <div style={css("flex:1")}><div style={css("font-size:12px;font-weight:600;color:var(--sub)")}>นามสกุล</div>
+                  <input value={v.regLname} onChange={v.setRegLname} placeholder="เช่น ใจดี" style={css("margin-top:6px;width:100%;box-sizing:border-box;height:44px;border:1px solid var(--line);border-radius:10px;background:var(--soft);color:var(--ink);padding:0 12px;font-size:14px;outline:none")}/></div>
+                </div>
+                <div><div style={css("font-size:12px;font-weight:600;color:var(--sub)")}>อีเมล</div>
+                <input value={v.regEmail} onChange={v.setRegEmail} placeholder="you@email.com" inputMode="email" autoComplete="email" style={css("margin-top:6px;width:100%;box-sizing:border-box;height:44px;border:1px solid " + (v.regEmailBad ? "#e03131" : "var(--line)") + ";border-radius:10px;background:var(--soft);color:var(--ink);padding:0 12px;font-size:14px;outline:none")}/>
+                {v.regEmailBad && <div style={css("margin-top:4px;font-size:11.5px;color:#e03131;font-weight:600")}>❌ รูปแบบอีเมลไม่ถูกต้อง เช่น somchai@gmail.com</div>}</div>
+                <div><div style={css("font-size:12px;font-weight:600;color:var(--sub)")}>รหัสผ่าน (อย่างน้อย 6 ตัวอักษร)</div>
+                <input type="password" value={v.regPass1} onChange={v.setRegPass1} placeholder="••••••••" autoComplete="new-password" style={css("margin-top:6px;width:100%;box-sizing:border-box;height:44px;border:1px solid " + (v.passShort ? "#e03131" : "var(--line)") + ";border-radius:10px;background:var(--soft);color:var(--ink);padding:0 12px;font-size:14px;outline:none")}/>
+                {v.passShort && <div style={css("margin-top:4px;font-size:11.5px;color:#e03131;font-weight:600")}>❌ รหัสผ่านสั้นเกินไป ต้องอย่างน้อย 6 ตัวอักษร</div>}</div>
+                <div><div style={css("font-size:12px;font-weight:600;color:var(--sub)")}>ยืนยันรหัสผ่าน (กรอกซ้ำอีกครั้ง)</div>
+                <input type="password" value={v.regPass2} onChange={v.setRegPass2} placeholder="••••••••" autoComplete="new-password" style={css("margin-top:6px;width:100%;box-sizing:border-box;height:44px;border:1px solid " + (v.passMismatch ? "#e03131" : "var(--line)") + ";border-radius:10px;background:var(--soft);color:var(--ink);padding:0 12px;font-size:14px;outline:none")}/>
+                {v.passMismatch && <div style={css("margin-top:4px;font-size:11.5px;color:#e03131;font-weight:600")}>❌ รหัสผ่านไม่เหมือนกัน — กรอกให้ตรงกับช่องบน</div>}</div>
+                <button onClick={v.doRegister} disabled={v.authBusy} style={css("margin-top:4px;height:50px;border:none;border-radius:14px;background:var(--acc);color:#fff;font-size:15px;font-weight:700;cursor:pointer" + (v.authBusy ? ";opacity:.6" : ""))}>{v.authBusy ? 'กำลังสมัคร…' : '✓ สมัครสมาชิก'}</button>
+              </div>
+            )}
+
             <div style={css("font-size:11.5px;color:var(--sub);text-align:center")}>ข้อมูลใช้สำหรับติดต่อรับ–ส่งเอกสารเท่านั้น</div>
           </div>
         )}
