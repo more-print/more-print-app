@@ -88,7 +88,6 @@ const optionsLabel = (o) => [
 ].filter(Boolean).join(' · ');
 
 function AdminLogin({ onOk }){
-  const [mode, setMode] = React.useState('login');
   const [email, setEmail] = React.useState('');
   const [pass, setPass] = React.useState('');
   const [busy, setBusy] = React.useState(false);
@@ -116,16 +115,10 @@ function AdminLogin({ onOk }){
     if (!DB) return onOk();
     if (!email.trim() || !pass) return setMsg('กรอกอีเมลและรหัสผ่านก่อนครับ');
     setBusy(true); setMsg('');
-    const cred = { email: email.trim().toLowerCase(), password: pass };
-    const { error } = mode === 'login'
-      ? await DB.auth.signInWithPassword(cred)
-      : await DB.auth.signUp(cred);
+    const { error } = await DB.auth.signInWithPassword({ email: email.trim().toLowerCase(), password: pass });
     if (error) {
       setBusy(false);
-      const m = (error.message || '').toLowerCase();
-      if (m.includes('already registered')) return setMsg('อีเมลนี้มีบัญชีแล้ว — สลับไปแท็บ "เข้าสู่ระบบ"');
-      if (m.includes('at least 6') || m.includes('6 characters')) return setMsg('รหัสผ่านต้องยาวอย่างน้อย 6 ตัวอักษร');
-      return setMsg(mode === 'login' ? 'อีเมลหรือรหัสผ่านไม่ถูกต้อง ❌' : 'สมัครไม่สำเร็จ: ' + error.message);
+      return setMsg('อีเมลหรือรหัสผ่านไม่ถูกต้อง ❌');
     }
     await verifyAdmin();
   };
@@ -136,20 +129,13 @@ function AdminLogin({ onOk }){
         <img src="assets/logo-icon.png" alt="" style={css("width:56px;height:auto")}/>
         <div style={css("font-family:'Montserrat',sans-serif;font-weight:800;font-size:17px;letter-spacing:1px")}><span style={css("color:var(--acc)")}>MORE</span> PRINT</div>
         <div style={css("font-size:13px;color:var(--sub)")}>🔐 หลังบ้าน — เข้าสู่ระบบเจ้าของร้าน</div>
-        <div style={css("display:flex;gap:8px;width:100%")}>
-          {[['login', 'เข้าสู่ระบบ'], ['register', 'สมัครครั้งแรก']].map(([k, label]) => (
-            <button key={k} onClick={() => { setMode(k); setMsg(''); }} style={{ flex: 1, height: '38px', borderRadius: '10px', fontSize: '12.5px', fontWeight: 700, cursor: 'pointer',
-              border: mode === k ? '1.5px solid var(--acc)' : '1px solid var(--line)',
-              background: mode === k ? 'var(--accSoft)' : 'var(--soft)', color: mode === k ? 'var(--acc)' : 'var(--sub)' }}>{label}</button>
-          ))}
-        </div>
         <input value={email} onChange={e => setEmail(e.target.value)} placeholder="อีเมลเจ้าของร้าน" inputMode="email" autoComplete="email"
           style={css("width:100%;box-sizing:border-box;height:46px;border:1px solid var(--line);border-radius:12px;background:var(--soft);color:var(--ink);padding:0 14px;font-size:14px;outline:none")}/>
         <input type="password" value={pass} onChange={e => setPass(e.target.value)} onKeyDown={e => e.key === 'Enter' && submit()} placeholder="รหัสผ่าน" autoComplete="current-password"
           style={css("width:100%;box-sizing:border-box;height:46px;border:1px solid var(--line);border-radius:12px;background:var(--soft);color:var(--ink);padding:0 14px;font-size:14px;outline:none")}/>
         {msg && <div style={css("font-size:12px;color:#d9480f;text-align:center;line-height:1.5")}>{msg}</div>}
         {uuid && <div style={css("font-size:10.5px;color:var(--sub);word-break:break-all;text-align:center")}>รหัสบัญชี (สำหรับผู้ดูแลระบบ): <span style={css("font-family:'IBM Plex Mono',monospace")}>{uuid}</span></div>}
-        <button onClick={submit} disabled={busy} style={css("width:100%;height:46px;border:none;border-radius:12px;background:var(--acc);color:#fff;font-size:14px;font-weight:700;cursor:pointer" + (busy ? ";opacity:.6" : ""))}>{busy ? 'กำลังตรวจสอบ…' : (mode === 'login' ? 'เข้าสู่หลังบ้าน →' : '✓ สมัครบัญชีเจ้าของ')}</button>
+        <button onClick={submit} disabled={busy} style={css("width:100%;height:46px;border:none;border-radius:12px;background:var(--acc);color:#fff;font-size:14px;font-weight:700;cursor:pointer" + (busy ? ";opacity:.6" : ""))}>{busy ? 'กำลังตรวจสอบ…' : 'เข้าสู่หลังบ้าน →'}</button>
       </div>
     </div>
   );
