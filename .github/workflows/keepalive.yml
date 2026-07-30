@@ -1,0 +1,19 @@
+name: Keep Supabase awake
+
+# แตะฐานข้อมูลสัปดาห์ละ 2 ครั้ง กันโปรเจกต์ Supabase ฟรีถูกพักเพราะไม่มีการใช้งาน
+on:
+  schedule:
+    - cron: '0 3 * * 1,4' # จันทร์และพฤหัส 03:00 UTC = 10:00 น. เวลาไทย
+  workflow_dispatch: {}
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping MORE PRINT database
+        run: |
+          code=$(curl -s -o /dev/null -w "%{http_code}" \
+            "https://plfghesoscfqdlthkzwq.supabase.co/rest/v1/banners?select=id&limit=1" \
+            -H "apikey: sb_publishable_iEj1XajKaIxwmM0t2smNLA_OQNgh06j")
+          echo "ping banners => HTTP $code"
+          test "$code" = "200"
