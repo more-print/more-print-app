@@ -212,7 +212,9 @@ function OrderCard({ o, onAdvance, onCancel, onRemove, busy }){
                   <img src={fileUrl(o.slip_path)} alt="สลิปโอนเงิน" style={css("max-width:170px;max-height:220px;border-radius:10px;border:1px solid var(--line);display:block;background:var(--soft)")}/>
                   <div style={css("font-size:11px;color:var(--acc);margin-top:4px;font-weight:600")}>🔍 แตะเพื่อดูรูปเต็ม</div>
                 </a>
-              : <div style={css("margin-top:4px;font-size:12.5px;color:#c92a2a;font-weight:700")}>⚠️ ไม่มีสลิปแนบมา — โทรเช็คก่อนปริ้น</div>}
+              : (o.status >= 1 && o.status < 4
+                ? <div style={css("margin-top:4px;font-size:12.5px;color:#c92a2a;font-weight:700")}>⚠️ ไม่มีสลิปแนบมา — โทรเช็คก่อนปริ้น</div>
+                : <div style={css("margin-top:4px;font-size:11.5px;color:var(--sub)")}>— ไม่มีไฟล์ (อาจถูกล้างเพื่อคืนพื้นที่แล้ว)</div>)}
           </div>
           <div>
             <div style={css("font-size:11px;font-weight:600;color:var(--sub);letter-spacing:.5px")}>🖨️ คำสั่งปริ้น</div>
@@ -303,6 +305,40 @@ function AdminApp(){
   const [bnColor, setBnColor] = React.useState('green');
   const [bnFile, setBnFile] = React.useState(null);
   const [bnBusy, setBnBusy] = React.useState(false);
+
+  const [histRows, setHistRows] = React.useState(null);
+  const [purgeBusy, setPurgeBusy] = React.useState(false);
+  const [purgeConfirm, setPurgeConfirm] = React.useState(false);
+  const [purgeResult, setPurgeResult] = React.useState('');
+
+  // โหลดประวัติทั้งหมดแบบเบา (เฉพาะคอลัมน์สถิติ) เมื่อเปิดแท็บสถิติ
+  React.useEffect(() => {
+    if (tab !== 'stats' || !authed) return;
+    if (!DB) { setHistRows(orders); return; }
+    DB.from('orders').select('created_at,total,status,customer_phone,phone')
+      .order('created_at', { ascending: false }).limit(10000)
+      .then(({ data }) => { if (data) setHistRows(data); });
+  }, [tab, authed]);
+
+  // สรุปรายเดือน + รายปี (ไม่นับออเดอร์ที่ยกเลิก)
+  const history = React.useMemo(() => {
+    const rows = histRows || [];
+    const byMonth = {};
+    rows.filter(o => o.status !== 0).forEach(o => {
+      const d = new Date(o.created_at);
+      const k = d.getFullYear() * 100 + d.getMonth();
+      if (!byMonth[k]) byMonth[k] = { y: d.getFullYear(), m: d.getMonth(), orders: 0, revenue: 0, phones: new Set() };
+      byMonth[k].orders++; byMonth[k].revenue += o.total || 0;
+      byMonth[k].phones.add(o.customer_phone || o.phone || '?');
+    });
+    const months = Object.values(byMonth).sort((a, b) => (b.y * 100 + b.m) - (a.y * 100 + a.m));
+    const thisYear = new Date().getFullYear();
+    const yr = { orders: 0, revenue: 0, phones: new Set() };
+    rows.filter(o => o.status !== 0 && new Date(o.created_at).getFullYear() === thisYear).forEach(o => {
+      yr.orders++; yr.revenue += o.total || 0; yr.phones.add(o.customer_phone || o.phone || '?');
+    });
+    return { months, thisYear, yearOrders: yr.orders, yearRevenue: yr.revenue, yearCustomers: yr.phones.size };
+  }, [histRows]);
 
   const loadBanners = React.useCallback(async () => {
     if (!DB) return;
@@ -425,6 +461,41 @@ function AdminApp(){
     } else {
       setOrders(list => list.filter(x => x.id !== o.id));
     }
+  };
+
+  // ล้างเฉพาะ "ไฟล์" ของออเดอร์ที่จบงานแล้ว (ส่งสำเร็จ/ยกเลิก) เกิน 30 วัน — ข้อมูลตัวเลข/สถิติอยู่ครบ
+  const purgeOldFiles = async () => {
+    if (!purgeConfirm) {
+      setPurgeConfirm(true);
+      setTimeout(() => setPurgeConfirm(false), 5000);
+      return;
+    }
+    setPurgeConfirm(false);
+    if (!DB) { setPurgeResult('โหมดตัวอย่าง — ไม่มีไฟล์จริงให้ล้าง'); return; }
+    setPurgeBusy(true); setPurgeResult('');
+    try {
+      const cutoff = new Date(Date.now() - 30 * 24 * 3600 * 1000).toISOString();
+      const { data } = await DB.from('orders').select('id,files,slip_path')
+        .in('status', [0, 4]).lt('created_at', cutoff).limit(500);
+      let nFiles = 0, nOrders = 0;
+      for (const o of (data || [])) {
+        const paths = [];
+        (o.files || []).forEach(f => { if (f.path) paths.push(f.path); });
+        if (o.slip_path) paths.push(o.slip_path);
+        if (!paths.length) continue;
+        const { error } = await DB.storage.from('uploads').remove(paths);
+        if (!error) {
+          nFiles += paths.length; nOrders++;
+          await DB.from('orders').update({
+            files: (o.files || []).map(f => ({ name: f.name, pages: f.pages, path: null })),
+            slip_path: null
+          }).eq('id', o.id);
+        }
+      }
+      setPurgeResult(nOrders ? '✓ ล้างแล้ว ' + nFiles + ' ไฟล์ จาก ' + nOrders + ' ออเดอร์ — ข้อมูลยอดขายอยู่ครบทุกรายการ' : 'ยังไม่มีไฟล์เก่าเกิน 30 วันให้ล้างครับ');
+      await refresh();
+    } catch (e) { console.error(e); setPurgeResult('เกิดข้อผิดพลาด ลองอีกครั้งครับ'); }
+    setPurgeBusy(false);
   };
 
   // สถิติ (ไม่นับออเดอร์ที่ยกเลิก)
@@ -635,6 +706,43 @@ function AdminApp(){
               <div style={css("font-family:'IBM Plex Mono',monospace;font-size:18px;font-weight:600;color:var(--acc)")}>{repeatCust}</div>
               <div style={css("font-size:10.5px;color:var(--sub);margin-top:2px")}>ลูกค้าประจำ (สั่ง ≥2 ครั้ง)</div>
             </div>
+          </div>
+
+          <div style={css("background:var(--card);border:1.5px solid var(--acc);border-radius:14px;padding:14px 16px;box-shadow:var(--shadow)")}>
+            <div style={css("font-size:12px;font-weight:700")}>🏆 สรุปทั้งปี {history.thisYear + 543}</div>
+            <div style={css("margin-top:10px;display:flex;gap:10px")}>
+              <div style={css("flex:1")}><div style={css("font-family:'IBM Plex Mono',monospace;font-size:20px;font-weight:600;color:var(--acc)")}>฿{history.yearRevenue.toLocaleString()}</div><div style={css("font-size:10.5px;color:var(--sub)")}>รายได้ทั้งปี</div></div>
+              <div style={css("flex:1")}><div style={css("font-family:'IBM Plex Mono',monospace;font-size:20px;font-weight:600")}>{history.yearOrders}</div><div style={css("font-size:10.5px;color:var(--sub)")}>ออเดอร์</div></div>
+              <div style={css("flex:1")}><div style={css("font-family:'IBM Plex Mono',monospace;font-size:20px;font-weight:600")}>{history.yearCustomers}</div><div style={css("font-size:10.5px;color:var(--sub)")}>ลูกค้า (ไม่ซ้ำ)</div></div>
+            </div>
+          </div>
+
+          <div style={css("background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px;box-shadow:var(--shadow)")}>
+            <div style={css("font-size:12px;font-weight:700;margin-bottom:10px")}>📅 ประวัติรายเดือน</div>
+            <div style={css("display:flex;font-size:10.5px;font-weight:700;color:var(--sub);padding-bottom:6px;border-bottom:1px solid var(--line)")}>
+              <span style={css("flex:1.3")}>เดือน</span><span style={css("flex:1;text-align:center")}>ออเดอร์</span><span style={css("flex:1;text-align:center")}>ลูกค้า</span><span style={css("flex:1.2;text-align:right")}>รายได้</span>
+            </div>
+            {history.months.length === 0 && <div style={css("padding:14px 0;text-align:center;font-size:12px;color:var(--sub)")}>ยังไม่มีข้อมูล</div>}
+            {history.months.slice(0, 24).map((mo, i) => (
+              <div key={i} style={css("display:flex;align-items:center;font-size:12.5px;padding:8px 0;border-bottom:1px dashed var(--line)")}>
+                <span style={css("flex:1.3;font-weight:600")}>{THAI_MONTHS[mo.m]} {(mo.y + 543) % 100}</span>
+                <span style={css("flex:1;text-align:center;font-family:'IBM Plex Mono',monospace")}>{mo.orders}</span>
+                <span style={css("flex:1;text-align:center;font-family:'IBM Plex Mono',monospace")}>{mo.phones.size}</span>
+                <span style={css("flex:1.2;text-align:right;font-family:'IBM Plex Mono',monospace;font-weight:600;color:var(--acc)")}>฿{mo.revenue.toLocaleString()}</span>
+              </div>
+            ))}
+            <div style={css("margin-top:8px;font-size:10.5px;color:var(--sub)")}>* ไม่นับออเดอร์ที่ยกเลิก · เก็บประวัติไว้ตลอดแม้ล้างไฟล์แล้ว</div>
+          </div>
+
+          <div style={css("background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px")}>
+            <div style={css("font-size:12px;font-weight:700")}>🧹 คืนพื้นที่ไฟล์</div>
+            <div style={css("margin-top:4px;font-size:11.5px;color:var(--sub);line-height:1.5")}>ลบเฉพาะ<b>ไฟล์ PDF และรูปสลิป</b>ของออเดอร์ที่จบงานแล้ว (ส่งสำเร็จ/ยกเลิก) เกิน 30 วัน — ตัวเลขยอดขาย สถิติ และประวัติลูกค้า<b>อยู่ครบไม่หายไปไหน</b></div>
+            <button disabled={purgeBusy} onClick={purgeOldFiles}
+              style={{ marginTop: '10px', width: '100%', height: '42px', border: 'none', borderRadius: '11px', fontSize: '13px', fontWeight: 700, cursor: 'pointer',
+                background: purgeConfirm ? '#d9480f' : 'var(--soft)', color: purgeConfirm ? '#fff' : 'var(--ink)' }}>
+              {purgeBusy ? '⏳ กำลังล้างไฟล์…' : purgeConfirm ? '⚠️ แน่ใจนะ? กดอีกครั้งเพื่อล้างไฟล์เก่า' : '🧹 ล้างไฟล์ออเดอร์ที่จบแล้วเกิน 30 วัน'}
+            </button>
+            {purgeResult && <div style={css("margin-top:8px;font-size:12px;color:var(--acc);font-weight:600")}>{purgeResult}</div>}
           </div>
 
         </div>
