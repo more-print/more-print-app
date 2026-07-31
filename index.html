@@ -222,7 +222,7 @@ class App extends React.Component {
       this.setState({ gmapBusy: true });
       const cfg = window.MP_CONFIG || {};
       try {
-        const r = await fetch(cfg.SUPABASE_URL + '/functions/v1/resolve?u=' + encodeURIComponent(url));
+        const r = await fetch(cfg.SUPABASE_URL + '/functions/v1/smart-handler?u=' + encodeURIComponent(url));
         if (r.ok) {
           const j = await r.json();
           if (j.final) pt = this.extractLatLng(j.final);
