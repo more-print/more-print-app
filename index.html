@@ -339,7 +339,7 @@ class App extends React.Component {
         if (f.file) {
           const safe = f.name.replace(/[^a-zA-Z0-9._-]/g, '_');
           path = id.replace('#', '') + '/f' + i + '_' + safe;
-          const { error } = await this.db.storage.from('uploads').upload(path, f.file, { upsert: true });
+          const { error } = await this.db.storage.from('uploads').upload(path, f.file);
           if (error) { console.error('upload:', error); path = null; }
         }
         files.push({ name: f.name, pages: f.pages, path });
@@ -349,7 +349,7 @@ class App extends React.Component {
       if (s.slip) {
         const ext = (s.slip.name.split('.').pop() || 'jpg').replace(/[^a-zA-Z0-9]/g, '').slice(0, 5) || 'jpg';
         slip_path = id.replace('#', '') + '/slip.' + ext;
-        const { error: se } = await this.db.storage.from('uploads').upload(slip_path, s.slip, { upsert: true });
+        const { error: se } = await this.db.storage.from('uploads').upload(slip_path, s.slip);
         if (se) { console.error('slip:', se); slip_path = null; }
       }
       const u = s.user || {};
