@@ -135,6 +135,19 @@ class App extends React.Component {
       if (u && u.fname) this.setState({ user: u, phone: u.phone || '' });
       else this.setState({ screen: 'login' });
     } catch (e) { this.setState({ screen: 'login' }); }
+    // กู้คืนออเดอร์ล่าสุดที่จำไว้ในเครื่อง (เผื่อลูกค้าปิดเว็บแล้วกลับเข้ามา)
+    try {
+      const od = JSON.parse(localStorage.getItem('mp_order') || 'null');
+      if (od && od.id) {
+        this.setState({
+          order: { id: od.id, total: od.total || 0, times: od.times || ['', '', '', ''] },
+          trackStep: od.step || 1,
+          cancelReason: od.cancelReason || ''
+        });
+        if (this.db && od.step !== 0 && (od.step || 1) < 4) this.startPolling(od.id);
+        else if (this.db) this.fetchOrderStatus(od.id);
+      }
+    } catch (e) {}
     const t = new Date(Date.now() + 90 * 60000);
     this.setState({ time: String(t.getHours()).padStart(2, '0') + ':' + String(Math.floor(t.getMinutes() / 15) * 15).padStart(2, '0') });
     this.clockTimer = setInterval(() => this.setState({ now: new Date() }), 30000);
@@ -377,28 +390,39 @@ class App extends React.Component {
     }
   }
 
+  // เช็คสถานะจากฐานข้อมูลผ่านช่องมองเฉพาะใบ (ต้องรู้รหัสออเดอร์เป๊ะ ๆ เท่านั้น)
+  async fetchOrderStatus(id){
+    try {
+      let row = null;
+      const r1 = await this.db.rpc('get_order_status', { oid: id });
+      if (!r1.error && r1.data) row = Array.isArray(r1.data) ? r1.data[0] : r1.data;
+      if (r1.error) {
+        const r2 = await this.db.from('orders').select('status,times,cancel_reason').eq('id', id).single();
+        if (!r2.error) row = r2.data;
+      }
+      if (row) {
+        this.setState(st => st.order && st.order.id === id
+          ? { trackStep: row.status, cancelReason: row.cancel_reason || '', order: { ...st.order, times: row.times || st.order.times } }
+          : null);
+        // อัปเดตสำเนาออเดอร์ที่จำไว้ในเครื่อง ให้เปิดเว็บใหม่แล้วเห็นสถานะล่าสุดทันที
+        try {
+          const od = JSON.parse(localStorage.getItem('mp_order') || 'null');
+          if (od && od.id === id) {
+            od.step = row.status;
+            od.times = row.times || od.times;
+            od.cancelReason = row.cancel_reason || '';
+            localStorage.setItem('mp_order', JSON.stringify(od));
+          }
+        } catch (e) {}
+        if (row.status === 0 || row.status >= 4) clearInterval(this.trackTimer);
+      }
+    } catch (e) {}
+  }
   // ติดตามสถานะจริงจากฐานข้อมูล (เจ้าของกดอัปเดต/ยกเลิกจากหน้าหลังบ้าน)
   startPolling(id){
     clearInterval(this.trackTimer);
-    this.trackTimer = setInterval(async () => {
-      try {
-        // ช่องมองสถานะเฉพาะใบ (ต้องรู้รหัสออเดอร์เป๊ะ ๆ เท่านั้น)
-        let row = null;
-        const r1 = await this.db.rpc('get_order_status', { oid: id });
-        if (!r1.error && r1.data) row = Array.isArray(r1.data) ? r1.data[0] : r1.data;
-        if (r1.error) {
-          // ระบบเก่า (ช่วงเปลี่ยนผ่าน ก่อนรัน SQL อัปเกรด)
-          const r2 = await this.db.from('orders').select('status,times,cancel_reason').eq('id', id).single();
-          if (!r2.error) row = r2.data;
-        }
-        if (row) {
-          this.setState(st => st.order && st.order.id === id
-            ? { trackStep: row.status, cancelReason: row.cancel_reason || '', order: { ...st.order, times: row.times || st.order.times } }
-            : null);
-          if (row.status === 0 || row.status >= 4) clearInterval(this.trackTimer);
-        }
-      } catch (e) {}
-    }, 8000);
+    this.fetchOrderStatus(id); // เช็คทันทีหนึ่งครั้งก่อน แล้วค่อยวนเช็คทุก 8 วิ
+    this.trackTimer = setInterval(() => this.fetchOrderStatus(id), 8000);
   }
 
   vals(){
@@ -484,7 +508,9 @@ class App extends React.Component {
       doLogout: () => {
         if (this.auth) this.auth.auth.signOut();
         try { if (this._liffReady && window.liff.isLoggedIn()) window.liff.logout(); } catch (e) {}
-        try { localStorage.removeItem('mp_user'); } catch (e) {}
+        try { localStorage.removeItem('mp_user'); localStorage.removeItem('mp_order'); } catch (e) {}
+        clearInterval(this.trackTimer);
+        this.setState({ order: null, trackStep: 1, cancelReason: '' });
         this.setState({ user: null, emailIn: '', passIn: '', regFname: '', regLname: '', regEmail: '', regPass1: '', regPass2: '', authMode: 'login', screen: 'login' });
       },
       userName: s.user ? s.user.fname + ' ' + s.user.lname : '',
@@ -603,6 +629,8 @@ class App extends React.Component {
         const id = '#MP-' + Array.from(crypto.getRandomValues(new Uint8Array(8))).map(b => 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'[b % 31]).join('');
         const t0 = this.fmtTime(new Date());
         this.setState({ order: { id, total: c.grandTotal, times: [t0, '', '', ''] }, trackStep: 1, cancelReason: '', screen: 'track' });
+        // จำออเดอร์ไว้ในเครื่อง — ปิดเว็บแล้วกลับมา การติดตามยังอยู่
+        try { localStorage.setItem('mp_order', JSON.stringify({ id, total: c.grandTotal, times: [t0, '', '', ''], step: 1 })); } catch (e) {}
         clearInterval(this.trackTimer);
         if (this.db) {
           // โหมดออนไลน์: บันทึกเข้าฐานข้อมูล + ติดตามสถานะจริงจากหลังบ้าน
