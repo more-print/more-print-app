@@ -86,6 +86,7 @@ class App extends React.Component {
       screen: 'home', files: [], ptype: 'bw', paper: 'A4', sides: 1, bind: 'none', copies: 1,
       point: '', addr: '', phone: '', time: '', express: false, slip: null,
       lat: null, lng: null, geoLabel: '', searchQ: '', searchResults: [], searching: false, locating: false,
+      gmapLink: '', gmapBusy: false,
       banners: [],
       order: null, trackStep: 1, cancelReason: '', toast: '', now: new Date(),
       user: null, authMode: 'login', authBusy: false,
@@ -197,6 +198,44 @@ class App extends React.Component {
       this.setState({ searching: false, searchResults: j.map(x => ({ name: x.display_name.split(',').slice(0, 3).join(','), lat: +x.lat, lng: +x.lon })) });
       if (!j.length) this.showToast('ไม่พบสถานที่ ลองพิมพ์คำอื่นครับ 🔍');
     } catch (e) { this.setState({ searching: false }); this.showToast('ค้นหาไม่สำเร็จ ลองอีกครั้งครับ'); }
+  }
+
+  // ── แกะพิกัดจากลิงก์ Google Maps ──
+  extractLatLng(s){
+    let m = s.match(/!3d(-?\d{1,2}\.\d+)!4d(-?\d{1,3}\.\d+)/);          // หมุดสถานที่ (แม่นสุด)
+    if (!m) m = s.match(/[?&]q=(-?\d{1,2}\.\d+)(?:,|%2C)(-?\d{1,3}\.\d+)/);
+    if (!m) m = s.match(/@(-?\d{1,2}\.\d+),(-?\d{1,3}\.\d+)/);          // จุดกลางแผนที่
+    if (!m) m = s.match(/center=(-?\d{1,2}\.\d+)(?:%2C|,)(-?\d{1,3}\.\d+)/);
+    if (!m) return null;
+    const lat = +m[1], lng = +m[2];
+    if (Math.abs(lat) > 90 || Math.abs(lng) > 180) return null;
+    return { lat, lng };
+  }
+  async useGmapLink(){
+    const raw = (this.state.gmapLink || '').trim();
+    const urlm = raw.match(/https?:\/\/\S+/);
+    if (!urlm) return this.showToast('วางลิงก์จาก Google Maps ก่อนนะครับ 🔗');
+    const url = urlm[0];
+    let pt = this.extractLatLng(url);
+    if (!pt) {
+      // ลิงก์สั้นจากปุ่มแชร์ (maps.app.goo.gl) — ต้องเปิดผ่านตัวกลางเพื่ออ่านพิกัด
+      this.setState({ gmapBusy: true });
+      const proxies = ['https://api.allorigins.win/raw?url=', 'https://corsproxy.io/?url='];
+      for (const p of proxies) {
+        try {
+          const r = await fetch(p + encodeURIComponent(url));
+          if (!r.ok) continue;
+          const t = await r.text();
+          pt = this.extractLatLng(t);
+          if (pt) break;
+        } catch (e) {}
+      }
+      this.setState({ gmapBusy: false });
+    }
+    if (!pt) return this.showToast('อ่านพิกัดจากลิงก์ไม่สำเร็จ 🙏 ลองค้นหาชื่อสถานที่หรือปักหมุดเองแทนครับ');
+    this.setState({ gmapLink: '' });
+    this.setPin(pt.lat, pt.lng, true);
+    this.showToast('📍 ปักหมุดตามลิงก์ Google Maps แล้ว!');
   }
 
   // ── นับจำนวนหน้าอัตโนมัติ ──
@@ -509,6 +548,18 @@ class App extends React.Component {
       printCost: c.printCost, bindCost: c.bindCost, printTotal: c.printTotal,
       deliveryCost: c.deliveryCost, grandTotal: c.grandTotal,
       toDelivery: () => { if (!s.files.length) return this.showToast('เพิ่มไฟล์ก่อนนะครับ 📄'); this.setState({ screen: 'delivery' }); },
+      gmapLink: s.gmapLink, gmapBusy: s.gmapBusy,
+      setGmapLink: (e) => {
+        const val = e.target.value;
+        this.setState({ gmapLink: val });
+        // วางลิงก์ปุ๊บ ประมวลผลให้เองเลย ไม่ต้องกดปุ่ม
+        if (/https?:\/\/(maps\.app\.goo\.gl|goo\.gl\/maps|www\.google\.[a-z.]+\/maps|maps\.google)/.test(val)) {
+          clearTimeout(this._gmT);
+          this._gmT = setTimeout(() => this.useGmapLink(), 400);
+        }
+      },
+      useGmapLink: () => this.useGmapLink(),
+      onGmapKey: (e) => { if (e.key === 'Enter') this.useGmapLink(); },
       searchQ: s.searchQ, setSearchQ: (e) => set('searchQ')(e.target.value),
       doSearch: () => this.doSearch(),
       onSearchKey: (e) => { if (e.key === 'Enter') this.doSearch(); },
@@ -826,6 +877,17 @@ class App extends React.Component {
             <div style={css("font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:var(--sub);letter-spacing:1px")}>STEP 02 / 03 — จุดส่ง &amp; เวลารับงาน</div>
             <div style={css("background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px;box-shadow:var(--shadow)")}>
               <div style={css("font-size:12px;font-weight:600;color:var(--sub);margin-bottom:8px")}>📍 ปักหมุดตำแหน่งส่งเอกสาร <span style={css("color:#d9480f")}>*</span></div>
+              <div style={css("border:1.5px solid var(--acc);border-radius:12px;padding:10px 12px;background:var(--accSoft)")}>
+                <div style={css("font-size:12px;font-weight:700;color:var(--acc)")}>🗺️ วางลิงก์จาก Google Maps</div>
+                <div style={css("margin-top:2px;font-size:10.5px;color:var(--sub)")}>เปิดแอป Google Maps → หาที่อยู่ของคุณ → กดแชร์ → คัดลอกลิงก์ → มาวางตรงนี้</div>
+                <div style={css("margin-top:6px;display:flex;gap:8px")}>
+                  <input value={v.gmapLink} onChange={v.setGmapLink} onKeyDown={v.onGmapKey} placeholder="https://maps.app.goo.gl/…" inputMode="url" style={css("flex:1;min-width:0;box-sizing:border-box;height:40px;border:1px solid var(--line);border-radius:10px;background:var(--card);color:var(--ink);padding:0 12px;font-size:12.5px;outline:none")}/>
+                  <button onClick={v.useGmapLink} disabled={v.gmapBusy} style={css("flex:none;height:40px;padding:0 14px;border:none;border-radius:10px;background:var(--acc);color:#fff;font-size:13px;font-weight:700;cursor:pointer" + (v.gmapBusy ? ";opacity:.6" : ""))}>{v.gmapBusy ? '⏳' : 'ตกลง'}</button>
+                </div>
+              </div>
+              <div style={css("display:flex;align-items:center;gap:10px;color:var(--sub);font-size:11px;margin:10px 0 8px")}>
+                <div style={css("flex:1;height:1px;background:var(--line)")}></div>หรือค้นหา / ปักหมุดเอง<div style={css("flex:1;height:1px;background:var(--line)")}></div>
+              </div>
               <div style={css("display:flex;gap:8px")}>
                 <input value={v.searchQ} onChange={v.setSearchQ} onKeyDown={v.onSearchKey} placeholder="🔍 ค้นหาสถานที่ เช่น หอ 9 มข., ตึกคอม" style={css("flex:1;min-width:0;box-sizing:border-box;height:42px;border:1px solid var(--line);border-radius:10px;background:var(--soft);color:var(--ink);padding:0 12px;font-size:13px;outline:none")}/>
                 <button onClick={v.doSearch} style={css("flex:none;height:42px;padding:0 14px;border:none;border-radius:10px;background:var(--acc);color:#fff;font-size:13px;font-weight:700;cursor:pointer")}>{v.searching ? '…' : 'ค้นหา'}</button>
