@@ -204,13 +204,30 @@ class App extends React.Component {
   async doSearch(){
     const q = this.state.searchQ.trim();
     if (!q) return;
-    this.setState({ searching: true, searchResults: [] });
+    const seq = (this._searchSeq = (this._searchSeq || 0) + 1);
+    this.setState({ searching: true });
     try {
-      const r = await fetch('https://nominatim.openstreetmap.org/search?format=json&accept-language=th&countrycodes=th&limit=5&q=' + encodeURIComponent(q));
+      // Photon: พิมพ์แค่บางส่วนก็เจอ + จัดอันดับผลใกล้ มข. ขึ้นก่อน
+      const r = await fetch('https://photon.komoot.io/api/?q=' + encodeURIComponent(q) + '&lat=16.4746&lon=102.8235&limit=6&lang=default');
       const j = await r.json();
-      this.setState({ searching: false, searchResults: j.map(x => ({ name: x.display_name.split(',').slice(0, 3).join(','), lat: +x.lat, lng: +x.lon })) });
-      if (!j.length) this.showToast('ไม่พบสถานที่ ลองพิมพ์คำอื่นครับ 🔍');
-    } catch (e) { this.setState({ searching: false }); this.showToast('ค้นหาไม่สำเร็จ ลองอีกครั้งครับ'); }
+      let results = (j.features || []).map(f => ({
+        name: [f.properties.name, f.properties.street, f.properties.district || f.properties.city].filter(Boolean).slice(0, 3).join(' · '),
+        lat: f.geometry.coordinates[1], lng: f.geometry.coordinates[0]
+      })).filter(x => x.name && isFinite(x.lat) && isFinite(x.lng));
+      if (!results.length) {
+        // สำรอง: Nominatim
+        const r2 = await fetch('https://nominatim.openstreetmap.org/search?format=json&accept-language=th&countrycodes=th&limit=5&q=' + encodeURIComponent(q));
+        const j2 = await r2.json();
+        results = j2.map(x => ({ name: x.display_name.split(',').slice(0, 3).join(','), lat: +x.lat, lng: +x.lon }));
+      }
+      if (seq !== this._searchSeq) return; // มีคำค้นใหม่กว่ากำลังทำงานอยู่
+      this.setState({ searching: false, searchResults: results });
+      if (!results.length) this.showToast('ไม่พบในแผนที่ 🔍 แนะนำวางลิงก์จาก Google Maps ช่องด้านบนแทนครับ');
+    } catch (e) {
+      if (seq !== this._searchSeq) return;
+      this.setState({ searching: false });
+      this.showToast('ค้นหาไม่สำเร็จ ลองอีกครั้งครับ');
+    }
   }
 
   // ── แกะพิกัดจากลิงก์ Google Maps ──
@@ -591,7 +608,15 @@ class App extends React.Component {
       },
       useGmapLink: () => this.useGmapLink(),
       onGmapKey: (e) => { if (e.key === 'Enter') this.useGmapLink(); },
-      searchQ: s.searchQ, setSearchQ: (e) => set('searchQ')(e.target.value),
+      searchQ: s.searchQ,
+      setSearchQ: (e) => {
+        const val = e.target.value;
+        this.setState({ searchQ: val });
+        // ค้นหาอัตโนมัติขณะพิมพ์ (รอหยุดพิมพ์ 0.6 วิ)
+        clearTimeout(this._sT);
+        if (val.trim().length >= 2) this._sT = setTimeout(() => this.doSearch(), 600);
+        else this.setState({ searchResults: [] });
+      },
       doSearch: () => this.doSearch(),
       onSearchKey: (e) => { if (e.key === 'Enter') this.doSearch(); },
       searching: s.searching,
