@@ -44,19 +44,19 @@ const DEMO_ORDERS = [
     customer_fname: 'สมชาย', customer_lname: 'ใจดี', customer_phone: '081-234-5678', customer_email: '',
     files: [{ name: 'รายงานสรุปวิชา.pdf', pages: 24, path: null }, { name: 'slides-present.pptx', pages: 12, path: null }],
     color: false, paper: 'A4', sides: 2, bind: 'corner', copies: 2,
-    point: 'คณะวิศวกรรมฯ', addr: 'ตึก EN ชั้น 2 หน้าลิฟต์', phone: '081-234-5678', time: '14:30', express: true, night: false,
+    point: 'คณะวิศวกรรมฯ', addr: 'ตึก EN ชั้น 2 หน้าลิฟต์', phone: '081-234-5678', time: '14:30', express: true, night: false, lat: 16.4740, lng: 102.8230,
     print_cost: 72, bind_cost: 10, delivery_cost: 30, night_fee: 0, total: 112, status: 2, times: ['13:02', '13:10', '', ''] },
   { id: '#MP-4511', created_at: new Date(Date.now() - 2*3600000).toISOString(),
     customer_fname: 'มินตรา', customer_lname: 'พาเพลิน', customer_phone: '095-888-1122', customer_email: 'mintra@kku.ac.th',
     files: [{ name: 'thesis-chapter3.pdf', pages: 45, path: null }],
     color: true, paper: 'A4', sides: 1, bind: 'book', copies: 1,
-    point: 'หอใน มข.', addr: 'หอ 9 ล็อบบี้', phone: '095-888-1122', time: '18:00', express: false, night: false,
+    point: 'หอใน มข.', addr: 'หอ 9 ล็อบบี้', phone: '095-888-1122', time: '18:00', express: false, night: false, lat: 16.4580, lng: 102.8160,
     print_cost: 225, bind_cost: 40, delivery_cost: 10, night_fee: 0, total: 275, status: 4, times: ['10:45', '11:02', '11:30', '11:52'] },
   { id: '#MP-4510', created_at: new Date(Date.now() - 5*3600000).toISOString(),
     customer_fname: 'ต้นกล้า', customer_lname: 'เรียนดี', customer_phone: '062-345-9900', customer_email: '',
     files: [{ name: 'ชีทสอบ-final.pdf', pages: 30, path: null }],
     color: false, paper: 'A4', sides: 1, bind: 'none', copies: 5,
-    point: 'โรงชาย มข.', addr: '', phone: '062-345-9900', time: '21:00', express: false, night: true,
+    point: 'โรงชาย มข.', addr: '', phone: '062-345-9900', time: '21:00', express: false, night: true, lat: 16.4796, lng: 102.8039,
     print_cost: 150, bind_cost: 0, delivery_cost: 10, night_fee: 25, total: 185, status: 1, times: ['20:15', '', '', ''] }
 ];
 
@@ -79,6 +79,28 @@ const fmtWhen = (iso) => {
 };
 const fileUrl = (path) => path && CFG.SUPABASE_URL ? CFG.SUPABASE_URL + '/storage/v1/object/public/uploads/' + path : null;
 const PTYPE_LABELS = { bw: 'เอกสารขาวดำ', laser: 'ขาวดำเลเซอร์', color: 'สีเลเซอร์', portfolio: 'Portfolio', poster: 'โปสเตอร์' };
+
+// ── แบ่งโซนส่งของจากพิกัดหมุดลูกค้า (สำหรับจ่ายงานไรเดอร์) ──
+const ZONES = [
+  { name: 'กังสดาล', lat: 16.4585, lng: 102.8150, bg: '#f3e8ff', fg: '#7c3aed' },
+  { name: 'โคลัมโบ', lat: 16.4796, lng: 102.8039, bg: '#e0f2fe', fg: '#0369a1' },
+  { name: 'หลังมอ', lat: 16.4883, lng: 102.8145, bg: '#dcfce7', fg: '#15803d' },
+];
+const ZONE_IN_CAMPUS = { name: 'ในมอ', bg: '#fef9c3', fg: '#a16207' };
+const ZONE_OUT = { name: 'นอกเขต', bg: '#f1f5f9', fg: '#64748b' };
+function zoneOf(lat, lng){
+  if (lat == null || lng == null) return null;
+  // ขอบเขตรั้ว มข. โดยประมาณ
+  if (lat >= 16.462 && lat <= 16.4875 && lng >= 102.8125 && lng <= 102.842) return ZONE_IN_CAMPUS;
+  let best = null, bd = Infinity;
+  for (const z of ZONES) {
+    const d = Math.hypot((lat - z.lat) * 111, (lng - z.lng) * 105); // ระยะ กม. โดยประมาณ
+    if (d < bd) { bd = d; best = z; }
+  }
+  return bd > 3.5 ? ZONE_OUT : best;
+}
+const ZONE_NAMES = ['ในมอ', 'กังสดาล', 'หลังมอ', 'โคลัมโบ', 'นอกเขต'];
+const zoneStyleByName = (n) => n === 'ในมอ' ? ZONE_IN_CAMPUS : n === 'นอกเขต' ? ZONE_OUT : (ZONES.find(z => z.name === n) || ZONE_OUT);
 const optionsLabel = (o) => [
   o.ptype ? (PTYPE_LABELS[o.ptype] || o.ptype) : (o.color ? 'สี' : 'ขาวดำ'),
   o.paper,
@@ -174,6 +196,7 @@ function OrderCard({ o, onAdvance, onCancel, onRemove, busy }){
             <StatusBadge status={o.status}/>
             {o.express && <span style={css("font-size:10.5px;font-weight:600;color:#c92a2a;background:#fff0f0;padding:2px 8px;border-radius:99px")}>🛵 ด่วน</span>}
             {o.night && <span style={css("font-size:10.5px;font-weight:600;color:var(--warnInk);background:var(--warnBg);padding:2px 8px;border-radius:99px")}>🌙 กลางคืน</span>}
+            {(() => { const z = zoneOf(o.lat, o.lng); return z ? <span style={{ fontSize: '10.5px', fontWeight: 700, color: z.fg, background: z.bg, padding: '2px 9px', borderRadius: '99px' }}>📍 {z.name}</span> : null; })()}
           </div>
           <div style={css("margin-top:4px;font-size:12px;color:var(--sub);overflow:hidden;text-overflow:ellipsis;white-space:nowrap")}>
             {fmtWhen(o.created_at)} · คุณ{o.customer_fname} {o.customer_lname} · {o.addr || o.point}
@@ -297,6 +320,7 @@ function AdminApp(){
   const [busyId, setBusyId] = React.useState(null);
   const [lastSync, setLastSync] = React.useState(null);
   const [filter, setFilter] = React.useState('all');
+  const [zoneFilter, setZoneFilter] = React.useState('all');
   const [banners, setBanners] = React.useState(DB ? [] : [{ id: 1, title: 'ตัวอย่างแบนเนอร์ — เปิด 24 ชม.', subtitle: 'สั่งได้ทุกเวลา ส่งทั่ว มข.', emoji: '🌙', color: 'dark', active: true }]);
   const [bnTitle, setBnTitle] = React.useState('');
   const [bnSub, setBnSub] = React.useState('');
@@ -547,10 +571,15 @@ function AdminApp(){
   const repeatCust = Object.values(custMap).filter(c => c.count >= 2).length;
   const monthLabel = THAI_MONTHS[now.getMonth()];
 
-  const shown = filter === 'all' ? orders
+  const statusShown = filter === 'all' ? orders
     : filter === 'pending' ? orders.filter(o => o.status >= 1 && o.status < 4)
     : filter === 'cancelled' ? orders.filter(o => o.status === 0)
     : orders.filter(o => o.status === 4);
+  // กรองตามโซนไรเดอร์
+  const zoneCounts = {};
+  statusShown.forEach(o => { const z = zoneOf(o.lat, o.lng); if (z) zoneCounts[z.name] = (zoneCounts[z.name] || 0) + 1; });
+  const shown = zoneFilter === 'all' ? statusShown
+    : statusShown.filter(o => { const z = zoneOf(o.lat, o.lng); return z && z.name === zoneFilter; });
 
   return (
     <div style={css("max-width:560px;margin:0 auto;min-height:100vh;display:flex;flex-direction:column;color:var(--ink)")}>
@@ -609,6 +638,23 @@ function AdminApp(){
                 border: filter === k ? '1.5px solid var(--acc)' : '1px solid var(--line)',
                 background: filter === k ? 'var(--accSoft)' : 'var(--soft)', color: filter === k ? 'var(--acc)' : 'var(--ink)' }}>{label}</button>
             ))}
+          </div>
+          <div style={css("display:flex;gap:6px;flex-wrap:wrap;align-items:center")}>
+            <span style={css("font-size:10.5px;font-weight:700;color:var(--sub)")}>🛵 โซน:</span>
+            <button onClick={() => setZoneFilter('all')} style={{ padding: '5px 11px', borderRadius: '99px', fontSize: '11px', fontWeight: 700, cursor: 'pointer',
+              border: zoneFilter === 'all' ? '1.5px solid var(--ink)' : '1px solid var(--line)',
+              background: zoneFilter === 'all' ? 'var(--ink)' : 'var(--soft)', color: zoneFilter === 'all' ? '#fff' : 'var(--ink)' }}>ทุกโซน</button>
+            {ZONE_NAMES.map(n => {
+              const zs = zoneStyleByName(n);
+              const on = zoneFilter === n;
+              return (
+                <button key={n} onClick={() => setZoneFilter(on ? 'all' : n)} style={{ padding: '5px 11px', borderRadius: '99px', fontSize: '11px', fontWeight: 700, cursor: 'pointer',
+                  border: on ? '1.5px solid ' + zs.fg : '1px solid var(--line)',
+                  background: zs.bg, color: zs.fg, opacity: on || zoneFilter === 'all' ? 1 : .45 }}>
+                  {n}{zoneCounts[n] ? ' (' + zoneCounts[n] + ')' : ''}
+                </button>
+              );
+            })}
           </div>
           {loading && <div style={css("text-align:center;color:var(--sub);font-size:13px;padding:30px 0")}>กำลังโหลด…</div>}
           {!loading && shown.length === 0 && (
