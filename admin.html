@@ -91,7 +91,7 @@ const ZONE_OUT = { name: 'นอกเขต', bg: '#f1f5f9', fg: '#64748b' };
 function zoneOf(lat, lng){
   if (lat == null || lng == null) return null;
   // ขอบเขตรั้ว มข. โดยประมาณ
-  if (lat >= 16.462 && lat <= 16.4875 && lng >= 102.8125 && lng <= 102.842) return ZONE_IN_CAMPUS;
+  if (lat >= 16.4645 && lat <= 16.4825 && lng >= 102.8145 && lng <= 102.8390) return ZONE_IN_CAMPUS;
   let best = null, bd = Infinity;
   for (const z of ZONES) {
     const d = Math.hypot((lat - z.lat) * 111, (lng - z.lng) * 105); // ระยะ กม. โดยประมาณ
