@@ -294,6 +294,7 @@ class App extends React.Component {
     const name = (f.name || '').toLowerCase();
     if ((f.type || '').startsWith('image/') || /\.(jpg|jpeg|png|gif|webp|heic|bmp)$/.test(name)) return { pages: 1, auto: true };
     if (f.type === 'application/pdf' || /\.pdf$/.test(name)) {
+      if (f.size > 250 * 1024 * 1024) return { pages: 1, auto: false }; // ใหญ่มาก อ่านในมือถือไม่ไหว
       try {
         const lib = await this.loadPdfJs();
         const buf = await f.arrayBuffer();
@@ -368,13 +369,13 @@ class App extends React.Component {
       for (let i = 0; i < s.files.length; i++) {
         const f = s.files[i];
         let path = null;
-        if (f.file) {
+        if (f.file && !f.big) {
           const safe = f.name.replace(/[^a-zA-Z0-9._-]/g, '_');
           path = id.replace('#', '') + '/f' + i + '_' + safe;
           const { error } = await this.db.storage.from('uploads').upload(path, f.file);
           if (error) { console.error('upload:', error); path = null; }
         }
-        files.push({ name: f.name, pages: f.pages, path });
+        files.push({ name: f.name, pages: f.pages, path, drive_url: f.big ? (f.driveUrl || '').trim() : null, auto: !!f.auto });
       }
       // อัปโหลดสลิปโอนเงิน
       let slip_path = null;
@@ -554,19 +555,32 @@ class App extends React.Component {
         const notPdf = list.filter(f => !isPdf(f));
         if (notPdf.length) this.showToast('❌ รับเฉพาะไฟล์ PDF นะครับ — ไฟล์แบบอื่นสั่งทาง LINE ' + ((window.MP_CONFIG || {}).LINE_OA_ID || '@346kifvy') + ' 💬');
         const pdfs = list.filter(isPdf);
-        const ok = pdfs.filter(f => f.size <= MAX_MB * 1024 * 1024);
-        const big = pdfs.filter(f => f.size > MAX_MB * 1024 * 1024);
-        if (big.length) this.showToast('❌ "' + big[0].name.slice(0, 18) + (big[0].name.length > 18 ? '…' : '') + '" ใหญ่เกิน ' + MAX_MB + 'MB — สั่งไฟล์ใหญ่ทาง LINE ' + ((window.MP_CONFIG || {}).LINE_OA_ID || '@346kifvy') + ' 💬');
-        if (!ok.length) return;
-        const items = ok.map(f => ({ uid: Date.now() + '-' + Math.random().toString(36).slice(2), name: f.name, pages: 1, file: f, counting: true, auto: false }));
+        if (!pdfs.length) return;
+        // ไฟล์ใหญ่เกินโควต้าอัปโหลด → ยังรับออเดอร์ได้ แต่ให้ส่งผ่านลิงก์ Google Drive แทน
+        // (ยังนับหน้าจากไฟล์ในเครื่องลูกค้าได้ตามปกติ เพราะไม่ต้องอัปโหลด)
+        const ok = pdfs.map(f => ({
+          uid: Date.now() + '-' + Math.random().toString(36).slice(2),
+          name: f.name, pages: 1, file: f, counting: true, auto: false,
+          big: f.size > MAX_MB * 1024 * 1024,
+          sizeMB: Math.round(f.size / 1048576),
+          driveUrl: ''
+        }));
+        if (ok.some(x => x.big)) this.showToast('📁 ไฟล์ใหญ่เกิน ' + MAX_MB + 'MB — อัปโหลดขึ้น Google Drive แล้ววางลิงก์ในรายการด้านล่างได้เลยครับ');
+        const items = ok;
         this.setState(st => ({ files: st.files.concat(items) }));
         items.forEach(async (it) => {
           const r = await this.countPages(it.file);
           this.setState(st => ({ files: st.files.map(x => x.uid === it.uid ? { ...x, pages: r.pages, auto: r.auto, counting: false } : x) }));
         });
       },
+      addDriveOnly: () => this.setState(st => ({ files: st.files.concat([{
+        uid: Date.now() + '-' + Math.random().toString(36).slice(2),
+        name: 'ไฟล์จาก Google Drive', pages: 1, file: null, counting: false, auto: false, big: true, sizeMB: 0, driveUrl: ''
+      }]) })),
       files: s.files.map((f, i) => ({
-        name: f.name, pages: f.pages,
+        name: f.name, pages: f.pages, big: !!f.big, sizeMB: f.sizeMB || 0,
+        driveUrl: f.driveUrl || '',
+        setDrive: (e) => { const v = e.target.value; this.setState(st => ({ files: st.files.map((x, j) => j === i ? { ...x, driveUrl: v } : x) })); },
         sub: f.counting ? '⏳ กำลังนับหน้าอัตโนมัติ…' : (f.auto ? '✓ นับหน้าให้อัตโนมัติแล้ว (แก้ได้ถ้าไม่ตรง)' : '✏️ ระบุจำนวนหน้าเองด้วยปุ่ม + / −'),
         inc: () => this.setState(st => ({ files: st.files.map((x, j) => j === i ? { ...x, pages: x.pages + 1 } : x) })),
         dec: () => this.setState(st => ({ files: st.files.map((x, j) => j === i ? { ...x, pages: Math.max(1, x.pages - 1) } : x) })),
@@ -597,7 +611,12 @@ class App extends React.Component {
       pageSummary: c.pages + ' หน้า × ' + s.copies + ' ชุด (' + ((PRINT_TYPES.find(t => t.k === s.ptype) || {}).label || '') + ' ' + s.paper + ')',
       printCost: c.printCost, bindCost: c.bindCost, printTotal: c.printTotal,
       deliveryCost: c.deliveryCost, grandTotal: c.grandTotal,
-      toDelivery: () => { if (!s.files.length) return this.showToast('เพิ่มไฟล์ก่อนนะครับ 📄'); this.setState({ screen: 'delivery' }); },
+      toDelivery: () => {
+        if (!s.files.length) return this.showToast('เพิ่มไฟล์ก่อนนะครับ 📄');
+        const missing = s.files.find(f => f.big && !/^https?:\/\/(drive|docs)\.google\.com\//i.test((f.driveUrl || '').trim()));
+        if (missing) return this.showToast('วางลิงก์ Google Drive ของไฟล์ใหญ่ให้ครบก่อนนะครับ 🔗');
+        this.setState({ screen: 'delivery' });
+      },
       gmapLink: s.gmapLink, gmapBusy: s.gmapBusy,
       setGmapLink: (e) => {
         const val = e.target.value;
@@ -876,17 +895,26 @@ class App extends React.Component {
               <div style={css("width:42px;height:42px;border-radius:10px;background:var(--accSoft);display:flex;align-items:center;justify-content:center;font-size:20px")}>📤</div>
               <div><div style={css("font-weight:600;font-size:14px;color:var(--acc)")}>+ เพิ่มไฟล์</div><div style={css("font-size:11px;color:var(--sub)")}>เฉพาะไฟล์ PDF · สูงสุด 50MB/ไฟล์ · นับหน้าให้อัตโนมัติ</div></div>
             </div>
-            <div onClick={() => window.open((window.MP_CONFIG || {}).LINE_OA_URL || 'https://line.me/R/ti/p/@346kifvy', '_blank')} style={css("margin-top:-6px;font-size:11px;color:var(--sub);cursor:pointer")}>📎 ไฟล์ใหญ่เกิน 50MB? <span style={css("color:#06c755;font-weight:700;text-decoration:underline")}>สั่งปริ้นทาง LINE {(window.MP_CONFIG || {}).LINE_OA_ID || '@346kifvy'}</span> ได้เลย</div>
+            <div style={css("margin-top:-6px;font-size:11px;color:var(--sub);line-height:1.6")}>📎 ไฟล์ใหญ่เกิน 50MB? แนบเป็น<b>ลิงก์ Google Drive</b>ได้เลย — <span onClick={v.addDriveOnly} style={css("color:var(--acc);font-weight:700;text-decoration:underline;cursor:pointer")}>+ เพิ่มลิงก์ Drive</span></div>
             {v.files.map((f, i) => (
-              <div key={i} style={css("background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px 14px;display:flex;align-items:center;gap:10px")}>
-                <div style={css("font-size:18px")}>📄</div>
-                <div style={css("flex:1;min-width:0")}><div style={css("font-size:12.5px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap")}>{f.name}</div><div style={css("font-size:10.5px;color:var(--sub)")}>{f.sub}</div></div>
-                <div style={css("display:flex;align-items:center;gap:8px")}>
-                  <button onClick={f.dec} style={css("width:26px;height:26px;border:1px solid var(--line);background:var(--soft);color:var(--ink);border-radius:8px;cursor:pointer")}>−</button>
-                  <div style={css("font-family:'IBM Plex Mono',monospace;font-size:13px;font-weight:600;min-width:34px;text-align:center")}>{f.pages} หน้า</div>
-                  <button onClick={f.inc} style={css("width:26px;height:26px;border:1px solid var(--line);background:var(--soft);color:var(--ink);border-radius:8px;cursor:pointer")}>+</button>
+              <div key={i} style={css("background:var(--card);border:1px solid " + (f.big ? "#f0b429" : "var(--line)") + ";border-radius:12px;padding:10px 14px")}>
+                <div style={css("display:flex;align-items:center;gap:10px")}>
+                  <div style={css("font-size:18px")}>{f.big ? '🗂️' : '📄'}</div>
+                  <div style={css("flex:1;min-width:0")}><div style={css("font-size:12.5px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap")}>{f.name}{f.sizeMB ? ' · ' + f.sizeMB + 'MB' : ''}</div><div style={css("font-size:10.5px;color:var(--sub)")}>{f.sub}</div></div>
+                  <div style={css("display:flex;align-items:center;gap:8px")}>
+                    <button onClick={f.dec} style={css("width:26px;height:26px;border:1px solid var(--line);background:var(--soft);color:var(--ink);border-radius:8px;cursor:pointer")}>−</button>
+                    <div style={css("font-family:'IBM Plex Mono',monospace;font-size:13px;font-weight:600;min-width:34px;text-align:center")}>{f.pages} หน้า</div>
+                    <button onClick={f.inc} style={css("width:26px;height:26px;border:1px solid var(--line);background:var(--soft);color:var(--ink);border-radius:8px;cursor:pointer")}>+</button>
+                  </div>
+                  <button onClick={f.del} style={css("border:none;background:none;color:var(--sub);font-size:14px;cursor:pointer")}>✕</button>
                 </div>
-                <button onClick={f.del} style={css("border:none;background:none;color:var(--sub);font-size:14px;cursor:pointer")}>✕</button>
+                {f.big && (
+                  <div style={css("margin-top:8px;padding-top:8px;border-top:1px dashed var(--line)")}>
+                    <div style={css("font-size:11.5px;font-weight:700;color:#a16207")}>⚠️ ไฟล์ใหญ่เกิน 50MB — ส่งผ่าน Google Drive แทน</div>
+                    <div style={css("margin-top:3px;font-size:10.5px;color:var(--sub);line-height:1.5")}>อัปโหลดไฟล์นี้ขึ้น Google Drive → กดแชร์ → ตั้งเป็น <b>"ทุกคนที่มีลิงก์"</b> → คัดลอกลิงก์มาวางด้านล่าง</div>
+                    <input value={f.driveUrl} onChange={f.setDrive} placeholder="https://drive.google.com/..." inputMode="url" style={css("margin-top:6px;width:100%;box-sizing:border-box;height:38px;border:1px solid " + (f.driveUrl ? "var(--acc)" : "#f0b429") + ";border-radius:9px;background:var(--soft);color:var(--ink);padding:0 10px;font-size:12px;outline:none")}/>
+                  </div>
+                )}
               </div>
             ))}
             <div style={css("background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px;display:flex;flex-direction:column;gap:12px;box-shadow:var(--shadow)")}>
