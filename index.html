@@ -30,7 +30,9 @@
 <script type="text/babel" data-presets="react">
 // ── Config (mirrors the design's editable props) ──────────────────────────
 // ค่าส่งเหมา ฿39 · ช่วงกลางคืน (22:00–06:00) รวมเป็น ฿49
-const CONFIG = { nightOverride: 'auto', nightFee: 10, expressFee: 20, deliveryBase: 39 };
+const CONFIG = { nightOverride: 'auto', nightFee: 10, expressFee: 20, deliveryBase: 39,
+  // ปริ้นสี: คิดตามปริมาณสีที่สแกนจากไฟล์ (สัดส่วนพื้นที่สีเกิน colorHeavyPct% = หน้าสีเยอะ)
+  colorLightPrice: 5, colorHeavyPrice: 7, colorHeavyPct: 30 };
 
 // ── ประเภทงานปริ้น + เรทราคา (ตามป้ายราคาหน้าร้าน) ──
 const PRINT_TYPES = [
@@ -292,19 +294,46 @@ class App extends React.Component {
   }
   async countPages(f){
     const name = (f.name || '').toLowerCase();
-    if ((f.type || '').startsWith('image/') || /\.(jpg|jpeg|png|gif|webp|heic|bmp)$/.test(name)) return { pages: 1, auto: true };
+    if ((f.type || '').startsWith('image/') || /\.(jpg|jpeg|png|gif|webp|heic|bmp)$/.test(name)) return { pages: 1, auto: true, heavy: 0, scanned: false };
     if (f.type === 'application/pdf' || /\.pdf$/.test(name)) {
-      if (f.size > 250 * 1024 * 1024) return { pages: 1, auto: false }; // ใหญ่มาก อ่านในมือถือไม่ไหว
+      if (f.size > 250 * 1024 * 1024) return { pages: 1, auto: false, heavy: 0, scanned: false }; // ใหญ่มาก อ่านในมือถือไม่ไหว
       try {
         const lib = await this.loadPdfJs();
         const buf = await f.arrayBuffer();
         const doc = await lib.getDocument({ data: buf }).promise;
         const n = doc.numPages;
+        const cs = await this.scanColor(doc);
         doc.destroy();
-        return { pages: Math.max(1, n), auto: true };
-      } catch (e) { console.error('pdf count:', e); return { pages: 1, auto: false }; }
+        return { pages: Math.max(1, n), auto: true, heavy: cs.heavy, scanned: cs.scanned };
+      } catch (e) { console.error('pdf count:', e); return { pages: 1, auto: false, heavy: 0, scanned: false }; }
     }
-    return { pages: 1, auto: false }; // DOCX/PPTX ฯลฯ — เว็บนับแม่นไม่ได้ ให้ลูกค้าระบุเอง
+    return { pages: 1, auto: false, heavy: 0, scanned: false }; // DOCX/PPTX ฯลฯ — เว็บนับแม่นไม่ได้ ให้ลูกค้าระบุเอง
+  }
+
+  // สแกนปริมาณสีทีละหน้า: วาดหน้าเป็นภาพย่อเล็กๆ แล้ววัดสัดส่วนพื้นที่ที่เป็นหมึกสี
+  async scanColor(doc){
+    if (doc.numPages > 400) return { heavy: 0, scanned: false }; // ไฟล์หนามาก ข้ามกันมือถือค้าง — ร้านตรวจเอง
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    let heavy = 0;
+    for (let i = 1; i <= doc.numPages; i++) {
+      try {
+        const page = await doc.getPage(i);
+        const vp = page.getViewport({ scale: 140 / page.getViewport({ scale: 1 }).width });
+        canvas.width = Math.ceil(vp.width); canvas.height = Math.ceil(vp.height);
+        ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+        // intent:'print' = วาดรวดเดียวไม่รอ animation frame (แท็บพื้นหลัง/เบราว์เซอร์บางตัวไม่ยิง rAF)
+        await page.render({ canvasContext: ctx, viewport: vp, intent: 'print' }).promise;
+        const d = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+        let total = 0, color = 0;
+        for (let p = 0; p < d.length; p += 4) {
+          total++;
+          if (Math.max(d[p], d[p + 1], d[p + 2]) - Math.min(d[p], d[p + 1], d[p + 2]) > 25) color++;
+        }
+        if (color / total * 100 > (CONFIG.colorHeavyPct ?? 30)) heavy++;
+      } catch (e) { /* หน้าที่วาดไม่ได้ นับเป็นสีน้อย */ }
+    }
+    return { heavy, scanned: true };
   }
 
   // ล็อกอินด้วยโปรไฟล์ LINE (หลัง authorize ผ่าน LINE OA)
@@ -345,10 +374,18 @@ class App extends React.Component {
     const pages = s.files.reduce((a, f) => a + f.pages, 0);
     const totalPages = pages * s.copies;
     const rate = pageRate(s.ptype, s.paper, s.sides, totalPages);
-    const printCost = Math.ceil(totalPages * rate);
+    let printCost = Math.ceil(totalPages * rate);
+    // ปริ้นสี: คิดทีละหน้าตามผลสแกนปริมาณสี (หน้า/ไฟล์ที่สแกนไม่ได้ = คิดเรทสีน้อยไว้ก่อน ร้านตรวจยืนยัน)
+    let heavyPages = 0, lightPages = 0;
+    if (s.ptype === 'color') {
+      const heavy = s.files.reduce((a, f) => a + Math.min(f.heavy || 0, f.pages), 0);
+      heavyPages = heavy * s.copies;
+      lightPages = totalPages - heavyPages;
+      printCost = Math.ceil(lightPages * (CONFIG.colorLightPrice ?? 5) + heavyPages * (CONFIG.colorHeavyPrice ?? 7));
+    }
     const bindCost = (s.bind === 'corner' ? 5 : s.bind === 'book' ? 40 : s.bind === 'landscape' ? 60 : 0) * s.copies;
     const deliveryCost = base + expressFee;
-    return { pages, totalPages, rate, printCost, bindCost, printTotal: printCost + bindCost, deliveryCost, nightFee, grandTotal: printCost + bindCost + deliveryCost + nightFee };
+    return { pages, totalPages, rate, heavyPages, lightPages, printCost, bindCost, printTotal: printCost + bindCost, deliveryCost, nightFee, grandTotal: printCost + bindCost + deliveryCost + nightFee };
   }
 
   seg(label, on, pick, grow){
@@ -375,7 +412,7 @@ class App extends React.Component {
           const { error } = await this.db.storage.from('uploads').upload(path, f.file);
           if (error) { console.error('upload:', error); path = null; }
         }
-        files.push({ name: f.name, pages: f.pages, path, drive_url: f.big ? (f.driveUrl || '').trim() : null, auto: !!f.auto });
+        files.push({ name: f.name, pages: f.pages, path, drive_url: f.big ? (f.driveUrl || '').trim() : null, auto: !!f.auto, heavy: f.heavy || 0, scanned: !!f.scanned });
       }
       // อัปโหลดสลิปโอนเงิน
       let slip_path = null;
@@ -570,7 +607,7 @@ class App extends React.Component {
         this.setState(st => ({ files: st.files.concat(items) }));
         items.forEach(async (it) => {
           const r = await this.countPages(it.file);
-          this.setState(st => ({ files: st.files.map(x => x.uid === it.uid ? { ...x, pages: r.pages, auto: r.auto, counting: false } : x) }));
+          this.setState(st => ({ files: st.files.map(x => x.uid === it.uid ? { ...x, pages: r.pages, auto: r.auto, heavy: r.heavy || 0, scanned: !!r.scanned, counting: false } : x) }));
         });
       },
       addDriveOnly: () => this.setState(st => ({ files: st.files.concat([{
@@ -581,7 +618,7 @@ class App extends React.Component {
         name: f.name, pages: f.pages, big: !!f.big, sizeMB: f.sizeMB || 0,
         driveUrl: f.driveUrl || '',
         setDrive: (e) => { const v = e.target.value; this.setState(st => ({ files: st.files.map((x, j) => j === i ? { ...x, driveUrl: v } : x) })); },
-        sub: f.counting ? '⏳ กำลังนับหน้าอัตโนมัติ…' : (f.auto ? '✓ นับหน้าให้อัตโนมัติแล้ว (แก้ได้ถ้าไม่ตรง)' : '✏️ ระบุจำนวนหน้าเองด้วยปุ่ม + / −'),
+        sub: f.counting ? '⏳ กำลังอ่านไฟล์ (นับหน้า + สแกนปริมาณสี)…' : ((f.auto ? '✓ นับหน้าให้อัตโนมัติแล้ว (แก้ได้ถ้าไม่ตรง)' : '✏️ ระบุจำนวนหน้าเองด้วยปุ่ม + / −') + (s.ptype === 'color' && f.scanned ? ' · 🎨 สีเยอะ ' + (f.heavy || 0) + ' หน้า' : '')),
         inc: () => this.setState(st => ({ files: st.files.map((x, j) => j === i ? { ...x, pages: x.pages + 1 } : x) })),
         dec: () => this.setState(st => ({ files: st.files.map((x, j) => j === i ? { ...x, pages: Math.max(1, x.pages - 1) } : x) })),
         del: () => this.setState(st => ({ files: st.files.filter((_, j) => j !== i) }))
@@ -605,14 +642,23 @@ class App extends React.Component {
       copyDec: () => this.setState(st => ({ copies: Math.max(1, st.copies - 1) })),
       rateHint: s.ptype === 'bw'
         ? 'เรทตอนนี้ ' + (c.rate < 1 ? (c.rate * 100) + ' สต.' : '฿' + c.rate) + '/หน้า' + (c.totalPages > 0 ? ' (รวม ' + c.totalPages + ' หน้า — ยิ่งเยอะยิ่งถูก)' : ' — ยิ่งเยอะยิ่งถูก')
+        : s.ptype === 'color'
+        ? 'เรท สีน้อย ฿' + (CONFIG.colorLightPrice ?? 5) + ' · สีเยอะ ฿' + (CONFIG.colorHeavyPrice ?? 7) + ' /หน้า — ระบบสแกนไฟล์ให้อัตโนมัติ'
         : 'เรท ฿' + c.rate + '/' + (s.ptype === 'poster' ? 'แผ่น' : 'หน้า'),
-      colorNote: s.ptype === 'color' ? '* ราคาสีจริง ฿3–10/หน้า ตามปริมาณสีในงาน ร้านจะยืนยันราคาก่อนปริ้น' : s.ptype === 'poster' ? '* กระดาษอาร์ตมัน/ด้าน ราคาเท่ากัน' : '',
+      colorNote: s.ptype === 'color'
+        ? (!s.files.length ? '* หน้าที่มีสีเกิน ' + (CONFIG.colorHeavyPct ?? 30) + '% ของพื้นที่ = สีเยอะ ฿' + (CONFIG.colorHeavyPrice ?? 7)
+          : s.files.some(f => !f.scanned) ? '* ไฟล์ที่ระบบสแกนสีไม่ได้ คิดเรทสีน้อยไว้ก่อน — ร้านตรวจไฟล์จริงและยืนยันราคาก่อนปริ้น'
+          : c.heavyPages > 0 ? '* สแกนไฟล์แล้ว: สีเยอะ ' + c.heavyPages + ' หน้า × ฿' + (CONFIG.colorHeavyPrice ?? 7) + ' · สีน้อย ' + c.lightPages + ' หน้า × ฿' + (CONFIG.colorLightPrice ?? 5)
+          : '* สแกนไฟล์แล้ว: ทุกหน้าสีน้อย ฿' + (CONFIG.colorLightPrice ?? 5) + '/หน้า')
+        : s.ptype === 'poster' ? '* กระดาษอาร์ตมัน/ด้าน ราคาเท่ากัน' : '',
+      colorBreak: s.ptype === 'color' && c.heavyPages > 0 ? '🎨 สีน้อย ' + c.lightPages + ' หน้า × ฿' + (CONFIG.colorLightPrice ?? 5) + ' + สีเยอะ ' + c.heavyPages + ' หน้า × ฿' + (CONFIG.colorHeavyPrice ?? 7) : '',
       typeLabel: (PRINT_TYPES.find(t => t.k === s.ptype) || {}).label || '',
       pageSummary: c.pages + ' หน้า × ' + s.copies + ' ชุด (' + ((PRINT_TYPES.find(t => t.k === s.ptype) || {}).label || '') + ' ' + s.paper + ')',
       printCost: c.printCost, bindCost: c.bindCost, printTotal: c.printTotal,
       deliveryCost: c.deliveryCost, grandTotal: c.grandTotal,
       toDelivery: () => {
         if (!s.files.length) return this.showToast('เพิ่มไฟล์ก่อนนะครับ 📄');
+        if (s.files.some(f => f.counting)) return this.showToast('รอระบบอ่านไฟล์แป๊บนึงครับ ⏳');
         const missing = s.files.find(f => f.big && !/^https?:\/\/(drive|docs)\.google\.com\//i.test((f.driveUrl || '').trim()));
         if (missing) return this.showToast('วางลิงก์ Google Drive ของไฟล์ใหญ่ให้ครบก่อนนะครับ 🔗');
         this.setState({ screen: 'delivery' });
@@ -951,6 +997,7 @@ class App extends React.Component {
               <div style={css("font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:var(--sub);letter-spacing:1px")}>ราคาโดยประมาณ</div>
               <div style={css("margin-top:8px;display:flex;flex-direction:column;gap:5px;font-size:12.5px")}>
                 <div style={css("display:flex;justify-content:space-between")}><span style={css("color:var(--sub)")}>ค่าปริ้น {v.pageSummary}</span><span style={css("font-family:'IBM Plex Mono',monospace")}>฿{v.printCost}</span></div>
+                {v.colorBreak && <div style={css("font-size:10.5px;color:var(--sub);margin-top:-4px")}>{v.colorBreak}</div>}
                 <div style={css("display:flex;justify-content:space-between")}><span style={css("color:var(--sub)")}>เข้าเล่ม</span><span style={css("font-family:'IBM Plex Mono',monospace")}>฿{v.bindCost}</span></div>
                 <div style={css("display:flex;justify-content:space-between;border-top:1px dashed var(--line);padding-top:6px;margin-top:2px;font-weight:700")}><span>รวมค่าปริ้น (ยังไม่รวมค่าส่ง)</span><span style={css("font-family:'IBM Plex Mono',monospace;color:var(--acc)")}>฿{v.printTotal}</span></div>
               </div>
@@ -1025,6 +1072,7 @@ class App extends React.Component {
               <div style={css("font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--sub);text-align:center;letter-spacing:2px")}>*** MORE PRINT — ORDER SUMMARY ***</div>
               <div style={css("margin-top:12px;display:flex;flex-direction:column;gap:6px;font-size:12.5px")}>
                 <div style={css("display:flex;justify-content:space-between")}><span style={css("color:var(--sub)")}>ค่าปริ้น {v.pageSummary}</span><span style={css("font-family:'IBM Plex Mono',monospace")}>฿{v.printCost}</span></div>
+                {v.colorBreak && <div style={css("font-size:10.5px;color:var(--sub);margin-top:-4px")}>{v.colorBreak}</div>}
                 <div style={css("display:flex;justify-content:space-between")}><span style={css("color:var(--sub)")}>เข้าเล่ม</span><span style={css("font-family:'IBM Plex Mono',monospace")}>฿{v.bindCost}</span></div>
                 <div style={css("display:flex;justify-content:space-between")}><span style={css("color:var(--sub)")}>ค่าส่ง {v.deliveryLabel}</span><span style={css("font-family:'IBM Plex Mono',monospace")}>฿{v.deliveryCost}</span></div>
                 {v.night && <div style={css("display:flex;justify-content:space-between")}><span style={css("color:var(--warnInk)")}>ค่าบริการกลางคืน</span><span style={css("font-family:'IBM Plex Mono',monospace;color:var(--warnInk)")}>฿{v.nightFee}</span></div>}
