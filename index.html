@@ -36,7 +36,7 @@ const CONFIG = { nightOverride: 'auto', nightFee: 10, expressFee: 20, deliveryBa
 
 // ── ประเภทงานปริ้น + เรทราคา (ตามป้ายราคาหน้าร้าน) ──
 const PRINT_TYPES = [
-  { k: 'bw', icon: '📄', label: 'เอกสารขาวดำ', desc: 'เริ่ม 33 สต./หน้า ยิ่งเยอะยิ่งถูก' },
+  { k: 'bw', icon: '📄', label: 'เอกสารขาวดำ', desc: 'แผ่นละ ฿1 · เกิน 30 แผ่นลดเหลือ 75/50 สต.' },
   { k: 'laser', icon: '⚫', label: 'ขาวดำเลเซอร์', desc: 'คมชัด ฿2/หน้า' },
   { k: 'color', icon: '🎨', label: 'สีเลเซอร์', desc: '~฿5/หน้า ตามปริมาณสี' },
   { k: 'portfolio', icon: '📁', label: 'Portfolio', desc: 'A4 ฿12 · A5 ฿8 /หน้า' },
@@ -44,13 +44,14 @@ const PRINT_TYPES = [
 ];
 const SIZE_BY_TYPE = { bw: ['A4'], laser: ['A4'], color: ['A4'], portfolio: ['A4', 'A5'], poster: ['A5', 'A4', 'A3', 'A2', 'A1', 'A0'] };
 const POSTER_PRICE = { A5: 10, A4: 15, A3: 30, A2: 130, A1: 250, A0: 500 };
-// เรทขาวดำตามจำนวนหน้ารวม: [หน้าเดียว, หน้าหลัง]
-function bwRate(totalPages, sides){
-  const t = totalPages > 20000 ? 3 : totalPages > 5000 ? 2 : totalPages > 100 ? 1 : 0;
-  return sides === 2 ? [0.40, 0.35, 0.30, 0.25][t] : [0.50, 0.40, 0.35, 0.33][t];
+// เรทขาวดำ คิดต่อแผ่นกระดาษ ตามจำนวนแผ่นรวมทั้งงาน: ≤30 แผ่น ฿1 · 31–100 ฿0.75 · >100 ฿0.50
+// หน้า-หลัง (1 แผ่น = 2 หน้าเอกสาร): ราคาแผ่นละ = เรทฐาน + ครึ่งหนึ่งของเรทฐาน (×1.5)
+function bwSheetRate(totalSheets, sides){
+  const base = totalSheets > 100 ? 0.50 : totalSheets > 30 ? 0.75 : 1.00;
+  return sides === 2 ? base * 1.5 : base;
 }
 function pageRate(ptype, size, sides, totalPages){
-  if (ptype === 'bw') return bwRate(totalPages, sides);
+  if (ptype === 'bw') return bwSheetRate(totalPages, sides);
   if (ptype === 'laser') return 2;
   if (ptype === 'color') return 5;
   if (ptype === 'portfolio') return size === 'A5' ? 8 : 12;
@@ -373,8 +374,16 @@ class App extends React.Component {
     const base = CONFIG.deliveryBase ?? 39;
     const pages = s.files.reduce((a, f) => a + f.pages, 0);
     const totalPages = pages * s.copies;
-    const rate = pageRate(s.ptype, s.paper, s.sides, totalPages);
+    let rate = pageRate(s.ptype, s.paper, s.sides, totalPages);
     let printCost = Math.ceil(totalPages * rate);
+    // ขาวดำ: คิดต่อแผ่นกระดาษจริง — หน้า-หลัง 1 แผ่นจุ 2 หน้า (เศษหน้าคี่ปัดขึ้นเป็นแผ่นเต็มรายไฟล์)
+    let sheets = totalPages;
+    if (s.ptype === 'bw') {
+      const perCopy = s.sides === 2 ? s.files.reduce((a, f) => a + Math.ceil(f.pages / 2), 0) : pages;
+      sheets = perCopy * s.copies;
+      rate = bwSheetRate(sheets, s.sides);
+      printCost = Math.ceil(sheets * rate);
+    }
     // ปริ้นสี: คิดทีละหน้าตามผลสแกนปริมาณสี (หน้า/ไฟล์ที่สแกนไม่ได้ = คิดเรทสีน้อยไว้ก่อน ร้านตรวจยืนยัน)
     let heavyPages = 0, lightPages = 0;
     if (s.ptype === 'color') {
@@ -385,7 +394,7 @@ class App extends React.Component {
     }
     const bindCost = (s.bind === 'corner' ? 5 : s.bind === 'book' ? 40 : s.bind === 'landscape' ? 60 : 0) * s.copies;
     const deliveryCost = base + expressFee;
-    return { pages, totalPages, rate, heavyPages, lightPages, printCost, bindCost, printTotal: printCost + bindCost, deliveryCost, nightFee, grandTotal: printCost + bindCost + deliveryCost + nightFee };
+    return { pages, totalPages, sheets, rate, heavyPages, lightPages, printCost, bindCost, printTotal: printCost + bindCost, deliveryCost, nightFee, grandTotal: printCost + bindCost + deliveryCost + nightFee };
   }
 
   seg(label, on, pick, grow){
@@ -641,7 +650,7 @@ class App extends React.Component {
       copyInc: () => this.setState(st => ({ copies: st.copies + 1 })),
       copyDec: () => this.setState(st => ({ copies: Math.max(1, st.copies - 1) })),
       rateHint: s.ptype === 'bw'
-        ? 'เรทตอนนี้ ' + (c.rate < 1 ? (c.rate * 100) + ' สต.' : '฿' + c.rate) + '/หน้า' + (c.totalPages > 0 ? ' (รวม ' + c.totalPages + ' หน้า — ยิ่งเยอะยิ่งถูก)' : ' — ยิ่งเยอะยิ่งถูก')
+        ? 'เรทตอนนี้ ' + (c.rate < 1 ? Math.round(c.rate * 100) + ' สต.' : '฿' + (Math.round(c.rate * 1000) / 1000)) + '/แผ่น' + (c.sheets > 0 ? ' (รวม ' + c.sheets + ' แผ่น — ยิ่งเยอะยิ่งถูก)' : ' — ยิ่งเยอะยิ่งถูก')
         : s.ptype === 'color'
         ? 'เรท สีน้อย ฿' + (CONFIG.colorLightPrice ?? 5) + ' · สีเยอะ ฿' + (CONFIG.colorHeavyPrice ?? 7) + ' /หน้า — ระบบสแกนไฟล์ให้อัตโนมัติ'
         : 'เรท ฿' + c.rate + '/' + (s.ptype === 'poster' ? 'แผ่น' : 'หน้า'),
@@ -651,7 +660,8 @@ class App extends React.Component {
           : c.heavyPages > 0 ? '* สแกนไฟล์แล้ว: สีเยอะ ' + c.heavyPages + ' หน้า × ฿' + (CONFIG.colorHeavyPrice ?? 7) + ' · สีน้อย ' + c.lightPages + ' หน้า × ฿' + (CONFIG.colorLightPrice ?? 5)
           : '* สแกนไฟล์แล้ว: ทุกหน้าสีน้อย ฿' + (CONFIG.colorLightPrice ?? 5) + '/หน้า')
         : s.ptype === 'poster' ? '* กระดาษอาร์ตมัน/ด้าน ราคาเท่ากัน' : '',
-      colorBreak: s.ptype === 'color' && c.heavyPages > 0 ? '🎨 สีน้อย ' + c.lightPages + ' หน้า × ฿' + (CONFIG.colorLightPrice ?? 5) + ' + สีเยอะ ' + c.heavyPages + ' หน้า × ฿' + (CONFIG.colorHeavyPrice ?? 7) : '',
+      colorBreak: s.ptype === 'color' && c.heavyPages > 0 ? '🎨 สีน้อย ' + c.lightPages + ' หน้า × ฿' + (CONFIG.colorLightPrice ?? 5) + ' + สีเยอะ ' + c.heavyPages + ' หน้า × ฿' + (CONFIG.colorHeavyPrice ?? 7)
+        : s.ptype === 'bw' && s.sides === 2 && c.sheets > 0 ? '📄 หน้า-หลังใช้กระดาษ ' + c.sheets + ' แผ่น × ฿' + (Math.round(c.rate * 1000) / 1000) + '/แผ่น' : '',
       typeLabel: (PRINT_TYPES.find(t => t.k === s.ptype) || {}).label || '',
       pageSummary: c.pages + ' หน้า × ' + s.copies + ' ชุด (' + ((PRINT_TYPES.find(t => t.k === s.ptype) || {}).label || '') + ' ' + s.paper + ')',
       printCost: c.printCost, bindCost: c.bindCost, printTotal: c.printTotal,
@@ -894,7 +904,7 @@ class App extends React.Component {
             )}
             <div style={css("padding:20px 20px 0")}>
               <div style={css("font-size:23px;font-weight:700;line-height:1.35;text-wrap:pretty")}>ส่งไฟล์ตอนนี้<br/>เอกสารถึงมือ ทุกที่รอบ มข.</div>
-              <div style={css("margin-top:6px;font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--sub)")}>B/W 50สต. · COLOR ฿5 · DELIVERY ฿{v.deliveryBase}</div>
+              <div style={css("margin-top:6px;font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--sub)")}>B/W ฿1 · COLOR ฿5 · DELIVERY ฿{v.deliveryBase}</div>
               <div onClick={v.startOrder} style={css("margin-top:16px;border:2px dashed var(--line);border-radius:16px;background:var(--card);padding:22px 16px;display:flex;flex-direction:column;align-items:center;gap:8px;cursor:pointer;box-shadow:var(--shadow)")}>
                 <div style={css("width:56px;height:56px;border-radius:14px;background:#fff;border:1px solid var(--line);display:flex;align-items:center;justify-content:center;overflow:hidden")}><img src="assets/logo-icon.png" alt="MORE PRINT" style={css("width:46px;height:auto;display:block")}/></div>
                 <div style={css("font-weight:600;font-size:14px;color:var(--acc)")}>แตะเพื่ออัปโหลดไฟล์</div>
@@ -903,7 +913,7 @@ class App extends React.Component {
               <button onClick={v.startOrder} style={css("margin-top:12px;width:100%;height:50px;border:none;border-radius:14px;background:var(--acc);color:#fff;font-size:16px;font-weight:700;cursor:pointer")}>เริ่มสั่งปริ้น · คำนวณราคาทันที</button>
             </div>
             <div style={css("padding:18px 20px 0;display:flex;gap:10px")}>
-              <div style={css("flex:1;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 14px")}><div style={css("font-family:'IBM Plex Mono',monospace;font-size:18px;font-weight:600;color:var(--acc)")}>50สต.</div><div style={css("font-size:11px;color:var(--sub);margin-top:2px")}>ขาวดำ / หน้า</div></div>
+              <div style={css("flex:1;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 14px")}><div style={css("font-family:'IBM Plex Mono',monospace;font-size:18px;font-weight:600;color:var(--acc)")}>฿1</div><div style={css("font-size:11px;color:var(--sub);margin-top:2px")}>ขาวดำ / แผ่น</div></div>
               <div style={css("flex:1;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 14px")}><div style={css("font-family:'IBM Plex Mono',monospace;font-size:18px;font-weight:600;color:var(--acc)")}>฿5</div><div style={css("font-size:11px;color:var(--sub);margin-top:2px")}>สี / หน้า</div></div>
               <div style={css("flex:1;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 14px")}><div style={css("font-family:'IBM Plex Mono',monospace;font-size:18px;font-weight:600;color:var(--acc)")}>฿{v.deliveryBase}</div><div style={css("font-size:11px;color:var(--sub);margin-top:2px")}>ค่าส่งเหมาทั่ว มข.</div></div>
             </div>
