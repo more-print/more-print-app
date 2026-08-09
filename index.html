@@ -305,26 +305,30 @@ class App extends React.Component {
         const n = doc.numPages;
         const cs = await this.scanColor(doc);
         doc.destroy();
-        return { pages: Math.max(1, n), auto: true, heavy: cs.heavy, scanned: cs.scanned };
+        return { pages: Math.max(1, n), auto: true, heavy: cs.heavy, scanned: cs.scanned, thumb: cs.thumb };
       } catch (e) { console.error('pdf count:', e); return { pages: 1, auto: false, heavy: 0, scanned: false }; }
     }
     return { pages: 1, auto: false, heavy: 0, scanned: false }; // DOCX/PPTX ฯลฯ — เว็บนับแม่นไม่ได้ ให้ลูกค้าระบุเอง
   }
 
   // สแกนปริมาณสีทีละหน้า: วาดหน้าเป็นภาพย่อเล็กๆ แล้ววัดสัดส่วนพื้นที่ที่เป็นหมึกสี
+  // แถมเก็บภาพหน้าแรกไว้เป็นรูปตัวอย่าง (thumb) ให้ลูกค้าเช็คไฟล์ในหน้าตรวจสอบออเดอร์
   async scanColor(doc){
-    if (doc.numPages > 400) return { heavy: 0, scanned: false }; // ไฟล์หนามาก ข้ามกันมือถือค้าง — ร้านตรวจเอง
+    if (doc.numPages > 400) return { heavy: 0, scanned: false, thumb: null }; // ไฟล์หนามาก ข้ามกันมือถือค้าง — ร้านตรวจเอง
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d', { willReadFrequently: true });
-    let heavy = 0;
+    let heavy = 0, thumb = null;
     for (let i = 1; i <= doc.numPages; i++) {
       try {
         const page = await doc.getPage(i);
-        const vp = page.getViewport({ scale: 140 / page.getViewport({ scale: 1 }).width });
+        // หน้าแรกวาดใหญ่หน่อยเพื่อใช้เป็นรูปตัวอย่าง หน้าอื่นวาดเล็กพอสำหรับวัดสี
+        const w = i === 1 ? 220 : 140;
+        const vp = page.getViewport({ scale: w / page.getViewport({ scale: 1 }).width });
         canvas.width = Math.ceil(vp.width); canvas.height = Math.ceil(vp.height);
         ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, canvas.width, canvas.height);
         // intent:'print' = วาดรวดเดียวไม่รอ animation frame (แท็บพื้นหลัง/เบราว์เซอร์บางตัวไม่ยิง rAF)
         await page.render({ canvasContext: ctx, viewport: vp, intent: 'print' }).promise;
+        if (i === 1) { try { thumb = canvas.toDataURL('image/jpeg', 0.8); } catch (e) {} }
         const d = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
         let total = 0, color = 0;
         for (let p = 0; p < d.length; p += 4) {
@@ -334,7 +338,7 @@ class App extends React.Component {
         if (color / total * 100 > (CONFIG.colorHeavyPct ?? 30)) heavy++;
       } catch (e) { /* หน้าที่วาดไม่ได้ นับเป็นสีน้อย */ }
     }
-    return { heavy, scanned: true };
+    return { heavy, scanned: true, thumb };
   }
 
   // ล็อกอินด้วยโปรไฟล์ LINE (หลัง authorize ผ่าน LINE OA)
@@ -584,9 +588,9 @@ class App extends React.Component {
       userPic: (s.user && s.user.picture) || '',
       userInitial: s.user ? ((s.user.fname || '?').trim().charAt(0) || '?') : '',
       banners: s.banners,
-      isHome: s.screen === 'home', isOrder: s.screen === 'order', isDelivery: s.screen === 'delivery', isPay: s.screen === 'pay', isTrack: s.screen === 'track',
-      showBack: s.screen === 'order' || s.screen === 'delivery' || s.screen === 'pay',
-      goBack: () => this.setState({ screen: s.screen === 'pay' ? 'delivery' : s.screen === 'delivery' ? 'order' : 'home' }),
+      isHome: s.screen === 'home', isOrder: s.screen === 'order', isDelivery: s.screen === 'delivery', isReview: s.screen === 'review', isPay: s.screen === 'pay', isTrack: s.screen === 'track',
+      showBack: s.screen === 'order' || s.screen === 'delivery' || s.screen === 'review' || s.screen === 'pay',
+      goBack: () => this.setState({ screen: s.screen === 'pay' ? 'review' : s.screen === 'review' ? 'delivery' : s.screen === 'delivery' ? 'order' : 'home' }),
       startOrder: () => {
         if (!s.user) { this.setState({ screen: 'login' }); return this.showToast('เข้าสู่ระบบก่อนสั่งปริ้นนะครับ 🙏'); }
         this.setState({ screen: 'order' });
@@ -616,7 +620,7 @@ class App extends React.Component {
         this.setState(st => ({ files: st.files.concat(items) }));
         items.forEach(async (it) => {
           const r = await this.countPages(it.file);
-          this.setState(st => ({ files: st.files.map(x => x.uid === it.uid ? { ...x, pages: r.pages, auto: r.auto, heavy: r.heavy || 0, scanned: !!r.scanned, counting: false } : x) }));
+          this.setState(st => ({ files: st.files.map(x => x.uid === it.uid ? { ...x, pages: r.pages, auto: r.auto, heavy: r.heavy || 0, scanned: !!r.scanned, thumb: r.thumb || null, counting: false } : x) }));
         });
       },
       addDriveOnly: () => this.setState(st => ({ files: st.files.concat([{
@@ -625,6 +629,7 @@ class App extends React.Component {
       }]) })),
       files: s.files.map((f, i) => ({
         name: f.name, pages: f.pages, big: !!f.big, sizeMB: f.sizeMB || 0,
+        thumb: f.thumb || null, heavy: f.heavy || 0, scanned: !!f.scanned,
         driveUrl: f.driveUrl || '',
         setDrive: (e) => { const v = e.target.value; this.setState(st => ({ files: st.files.map((x, j) => j === i ? { ...x, driveUrl: v } : x) })); },
         sub: f.counting ? '⏳ กำลังอ่านไฟล์ (นับหน้า + สแกนปริมาณสี)…' : ((f.auto ? '✓ นับหน้าให้อัตโนมัติแล้ว (แก้ได้ถ้าไม่ตรง)' : '✏️ ระบุจำนวนหน้าเองด้วยปุ่ม + / −') + (s.ptype === 'color' && f.scanned ? ' · 🎨 สีเยอะ ' + (f.heavy || 0) + ' หน้า' : '')),
@@ -714,8 +719,16 @@ class App extends React.Component {
         if (s.lat == null) return this.showToast('ปักหมุดตำแหน่งส่งบนแผนที่ก่อนนะครับ 📍');
         if (!s.addr.trim()) return this.showToast('กรอกรายละเอียดที่อยู่ด้วยครับ 🏠');
         if (!s.phone) return this.showToast('ใส่เบอร์โทรผู้รับด้วยครับ 📞');
-        this.setState({ screen: 'pay' });
+        this.setState({ screen: 'review' });
       },
+      // หน้าตรวจสอบออเดอร์ก่อนชำระเงิน
+      goPay: () => this.setState({ screen: 'pay' }),
+      goEditOrder: () => this.setState({ screen: 'order' }),
+      goEditDelivery: () => this.setState({ screen: 'delivery' }),
+      paperLabel: s.paper,
+      sidesLabel: s.sides === 2 ? 'หน้า-หลัง' : 'หน้าเดียว',
+      bindLabel: s.bind === 'corner' ? 'เย็บมุม' : s.bind === 'book' ? 'เข้าเล่ม' : s.bind === 'landscape' ? 'เล่มแนวนอน' : 'ไม่เข้าเล่ม',
+      isColorType: s.ptype === 'color',
       destLabel: s.addr,
       timeLabel: (s.express ? 'ด่วน ~45 นาที' : s.time + ' น.'),
       deliveryLabel: s.express ? '(ด่วน)' : '',
@@ -945,7 +958,7 @@ class App extends React.Component {
         {/* ── Order (Step 1) ── */}
         {v.isOrder && (
           <div style={css("padding:18px 20px 110px;display:flex;flex-direction:column;gap:14px")}>
-            <div style={css("font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:var(--sub);letter-spacing:1px")}>STEP 01 / 03 — อัปโหลด &amp; ตัวเลือก</div>
+            <div style={css("font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:var(--sub);letter-spacing:1px")}>STEP 01 / 04 — อัปโหลด &amp; ตัวเลือก</div>
             <input type="file" multiple accept=".pdf,application/pdf" ref={this.fileRef} onChange={v.onFiles} style={css("display:none")}/>
             <div onClick={v.pickFiles} style={css("border:2px dashed var(--line);border-radius:14px;background:var(--card);padding:16px;display:flex;align-items:center;gap:12px;cursor:pointer")}>
               <div style={css("width:42px;height:42px;border-radius:10px;background:var(--accSoft);display:flex;align-items:center;justify-content:center;font-size:20px")}>📤</div>
@@ -955,7 +968,9 @@ class App extends React.Component {
             {v.files.map((f, i) => (
               <div key={i} style={css("background:var(--card);border:1px solid " + (f.big ? "#f0b429" : "var(--line)") + ";border-radius:12px;padding:10px 14px")}>
                 <div style={css("display:flex;align-items:center;gap:10px")}>
-                  <div style={css("font-size:18px")}>{f.big ? '🗂️' : '📄'}</div>
+                  {f.thumb
+                    ? <img src={f.thumb} alt="" style={css("width:30px;height:40px;object-fit:cover;object-position:top;border:1px solid var(--line);border-radius:5px;background:#fff;flex:none")}/>
+                    : <div style={css("font-size:18px")}>{f.big ? '🗂️' : '📄'}</div>}
                   <div style={css("flex:1;min-width:0")}><div style={css("font-size:12.5px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap")}>{f.name}{f.sizeMB ? ' · ' + f.sizeMB + 'MB' : ''}</div><div style={css("font-size:10.5px;color:var(--sub)")}>{f.sub}</div></div>
                   <div style={css("display:flex;align-items:center;gap:8px")}>
                     <button onClick={f.dec} style={css("width:26px;height:26px;border:1px solid var(--line);background:var(--soft);color:var(--ink);border-radius:8px;cursor:pointer")}>−</button>
@@ -1019,7 +1034,7 @@ class App extends React.Component {
         {/* ── Delivery (Step 2) ── */}
         {v.isDelivery && (
           <div style={css("padding:18px 20px 110px;display:flex;flex-direction:column;gap:14px")}>
-            <div style={css("font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:var(--sub);letter-spacing:1px")}>STEP 02 / 03 — จุดส่ง &amp; เวลารับงาน</div>
+            <div style={css("font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:var(--sub);letter-spacing:1px")}>STEP 02 / 04 — จุดส่ง &amp; เวลารับงาน</div>
             <div style={css("background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px;box-shadow:var(--shadow)")}>
               <div style={css("font-size:12px;font-weight:600;color:var(--sub);margin-bottom:8px")}>📍 ปักหมุดตำแหน่งส่งเอกสาร <span style={css("color:#d9480f")}>*</span></div>
               <div style={css("border:1.5px solid var(--acc);border-radius:12px;padding:10px 12px;background:var(--accSoft)")}>
@@ -1070,14 +1085,74 @@ class App extends React.Component {
               </div>
             </div>
             {v.deliveryWarn && <div style={css("font-size:12px;color:#d9480f")}>{v.deliveryWarn}</div>}
-            <button onClick={v.toPay} style={css("width:100%;height:50px;border:none;border-radius:14px;background:var(--acc);color:#fff;font-size:15px;font-weight:700;cursor:pointer")}>ต่อไป: ชำระเงิน →</button>
+            <button onClick={v.toPay} style={css("width:100%;height:50px;border:none;border-radius:14px;background:var(--acc);color:#fff;font-size:15px;font-weight:700;cursor:pointer")}>ต่อไป: ตรวจสอบออเดอร์ →</button>
           </div>
         )}
 
-        {/* ── Pay (Step 3) ── */}
+        {/* ── Review (Step 3) — ตรวจสอบสเปกก่อนจ่าย ลดออเดอร์ผิด ── */}
+        {v.isReview && (
+          <div style={css("padding:18px 20px 110px;display:flex;flex-direction:column;gap:14px")}>
+            <div style={css("font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:var(--sub);letter-spacing:1px")}>STEP 03 / 04 — ตรวจสอบออเดอร์</div>
+            <div style={css("background:var(--accSoft);border:1px solid var(--acc);border-radius:12px;padding:10px 14px;font-size:12.5px;color:var(--acc);font-weight:600;line-height:1.5")}>🔎 เช็คให้ชัวร์ก่อนจ่ายเงิน — ถ้าไม่ตรงกดแก้ไขได้เลย ยังไม่เสียเงินนะครับ</div>
+
+            <div style={css("background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px;box-shadow:var(--shadow)")}>
+              <div style={css("font-size:11px;font-weight:700;color:var(--sub);letter-spacing:.5px")}>📄 ไฟล์ที่จะปริ้น ({v.files.length})</div>
+              {v.files.map((f, i) => (
+                <div key={i} style={css("display:flex;align-items:center;gap:12px;padding:10px 0" + (i < v.files.length - 1 ? ";border-bottom:1px dashed var(--line)" : ""))}>
+                  {f.thumb
+                    ? <img src={f.thumb} alt="" style={css("width:46px;height:62px;object-fit:cover;object-position:top;border:1px solid var(--line);border-radius:6px;background:#fff;flex:none")}/>
+                    : <div style={css("width:46px;height:62px;border:1px solid var(--line);border-radius:6px;background:var(--soft);display:flex;align-items:center;justify-content:center;font-size:22px;flex:none")}>{f.big ? '🗂️' : '📄'}</div>}
+                  <div style={css("flex:1;min-width:0")}>
+                    <div style={css("font-size:13px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap")}>{f.name}</div>
+                    <div style={css("font-size:11px;color:var(--sub);margin-top:2px")}>{f.pages} หน้า{v.isColorType && f.scanned ? ' · 🎨 สีเยอะ ' + f.heavy + ' หน้า' : ''}{f.big ? ' · ส่งผ่าน Google Drive' : ''}</div>
+                    {f.thumb && <div style={css("font-size:10px;color:var(--sub)")}>↑ รูปตัวอย่างหน้าแรกจากไฟล์จริง</div>}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div style={css("background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px;box-shadow:var(--shadow)")}>
+              <div style={css("font-size:11px;font-weight:700;color:var(--sub);letter-spacing:.5px")}>🖨️ สเปกงานปริ้น</div>
+              <div style={css("margin-top:8px;display:flex;flex-wrap:wrap;gap:6px")}>
+                {[v.typeLabel, v.paperLabel, v.sidesLabel, v.bindLabel, v.copies + ' ชุด'].map((t, i) => (
+                  <span key={i} style={css("font-size:12px;font-weight:600;background:var(--soft);border:1px solid var(--line);border-radius:99px;padding:5px 12px")}>{t}</span>
+                ))}
+              </div>
+              <div style={css("margin-top:8px;font-size:11.5px;color:var(--acc);font-weight:600")}>💡 {v.rateHint}</div>
+            </div>
+
+            <div style={css("background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px;box-shadow:var(--shadow)")}>
+              <div style={css("font-size:11px;font-weight:700;color:var(--sub);letter-spacing:.5px")}>📍 จัดส่ง</div>
+              <div style={css("margin-top:8px;display:flex;flex-direction:column;gap:5px;font-size:12.5px")}>
+                <div><span style={css("color:var(--sub)")}>ที่อยู่: </span>{v.destLabel}</div>
+                <div><span style={css("color:var(--sub)")}>เบอร์ผู้รับ: </span><span style={css("font-family:'IBM Plex Mono',monospace")}>{v.phone}</span></div>
+                <div><span style={css("color:var(--sub)")}>เวลารับ: </span>{v.timeLabel}</div>
+              </div>
+            </div>
+
+            <div style={css("background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px;box-shadow:var(--shadow)")}>
+              <div style={css("display:flex;flex-direction:column;gap:6px;font-size:12.5px")}>
+                <div style={css("display:flex;justify-content:space-between")}><span style={css("color:var(--sub)")}>ค่าปริ้น {v.pageSummary}</span><span style={css("font-family:'IBM Plex Mono',monospace")}>฿{v.printCost}</span></div>
+                {v.colorBreak && <div style={css("font-size:10.5px;color:var(--sub);margin-top:-4px")}>{v.colorBreak}</div>}
+                <div style={css("display:flex;justify-content:space-between")}><span style={css("color:var(--sub)")}>เข้าเล่ม</span><span style={css("font-family:'IBM Plex Mono',monospace")}>฿{v.bindCost}</span></div>
+                <div style={css("display:flex;justify-content:space-between")}><span style={css("color:var(--sub)")}>ค่าส่ง {v.deliveryLabel}</span><span style={css("font-family:'IBM Plex Mono',monospace")}>฿{v.deliveryCost}</span></div>
+                {v.night && <div style={css("display:flex;justify-content:space-between")}><span style={css("color:var(--warnInk)")}>ค่าบริการกลางคืน</span><span style={css("font-family:'IBM Plex Mono',monospace;color:var(--warnInk)")}>฿{v.nightFee}</span></div>}
+              </div>
+              <div style={css("margin-top:10px;border-top:2px dashed var(--line);padding-top:10px;display:flex;justify-content:space-between;align-items:baseline")}><span style={css("font-weight:700;font-size:14px")}>ยอดรวม</span><span style={css("font-family:'IBM Plex Mono',monospace;font-size:24px;font-weight:600;color:var(--acc)")}>฿{v.grandTotal}</span></div>
+            </div>
+
+            <div style={css("display:flex;gap:10px")}>
+              <button onClick={v.goEditOrder} style={css("flex:1;height:44px;border:1.5px solid var(--acc);border-radius:12px;background:var(--card);color:var(--acc);font-size:13px;font-weight:700;cursor:pointer")}>✏️ แก้ไฟล์/สเปก</button>
+              <button onClick={v.goEditDelivery} style={css("flex:1;height:44px;border:1.5px solid var(--acc);border-radius:12px;background:var(--card);color:var(--acc);font-size:13px;font-weight:700;cursor:pointer")}>✏️ แก้ที่จัดส่ง</button>
+            </div>
+            <button onClick={v.goPay} style={css("width:100%;height:50px;border:none;border-radius:14px;background:var(--acc);color:#fff;font-size:15px;font-weight:700;cursor:pointer")}>✓ ถูกต้องทั้งหมด — ไปชำระเงิน →</button>
+          </div>
+        )}
+
+        {/* ── Pay (Step 4) ── */}
         {v.isPay && (
           <div style={css("padding:18px 20px 110px;display:flex;flex-direction:column;gap:14px")}>
-            <div style={css("font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:var(--sub);letter-spacing:1px")}>STEP 03 / 03 — ชำระเงิน PROMPTPAY</div>
+            <div style={css("font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:var(--sub);letter-spacing:1px")}>STEP 04 / 04 — ชำระเงิน PROMPTPAY</div>
             <div style={css("background:var(--card);border-radius:4px;box-shadow:var(--shadow);padding:16px;position:relative")}>
               <div style={css("font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--sub);text-align:center;letter-spacing:2px")}>*** MORE PRINT — ORDER SUMMARY ***</div>
               <div style={css("margin-top:12px;display:flex;flex-direction:column;gap:6px;font-size:12.5px")}>
