@@ -1111,14 +1111,18 @@ class App extends React.Component {
               ))}
             </div>
 
-            <div style={css("background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px;box-shadow:var(--shadow)")}>
-              <div style={css("font-size:11px;font-weight:700;color:var(--sub);letter-spacing:.5px")}>🖨️ สเปกงานปริ้น</div>
-              <div style={css("margin-top:8px;display:flex;flex-wrap:wrap;gap:6px")}>
-                {[v.typeLabel, v.paperLabel, v.sidesLabel, v.bindLabel, v.copies + ' ชุด'].map((t, i) => (
-                  <span key={i} style={css("font-size:12px;font-weight:600;background:var(--soft);border:1px solid var(--line);border-radius:99px;padding:5px 12px")}>{t}</span>
+            <div style={css("background:var(--accSoft);border:1.5px solid var(--acc);border-radius:14px;padding:14px 16px;box-shadow:var(--shadow)")}>
+              <div style={css("font-size:11px;font-weight:700;color:var(--acc);letter-spacing:.5px")}>🖨️ สเปกงานปริ้นที่คุณเลือก</div>
+              <div style={css("margin-top:10px;display:flex;flex-direction:column;gap:9px")}>
+                {[['ประเภทงาน', v.typeLabel], ['ขนาดกระดาษ', v.paperLabel], ['ด้านที่พิมพ์', v.sidesLabel], ['การเข้าเล่ม', v.bindLabel], ['จำนวน', v.copies + ' ชุด']].map((p, i) => (
+                  <div key={i} style={css("display:flex;align-items:center;gap:10px")}>
+                    <div style={css("width:20px;height:20px;border-radius:50%;background:var(--acc);color:#fff;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex:none")}>✓</div>
+                    <span style={css("font-size:12.5px;color:var(--sub);min-width:88px")}>{p[0]}</span>
+                    <span style={css("font-size:13.5px;font-weight:700")}>{p[1]}</span>
+                  </div>
                 ))}
               </div>
-              <div style={css("margin-top:8px;font-size:11.5px;color:var(--acc);font-weight:600")}>💡 {v.rateHint}</div>
+              <div style={css("margin-top:10px;border-top:1px dashed var(--acc);padding-top:8px;font-size:11.5px;color:var(--acc);font-weight:600")}>💡 {v.rateHint}</div>
             </div>
 
             <div style={css("background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px;box-shadow:var(--shadow)")}>
