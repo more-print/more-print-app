@@ -743,15 +743,19 @@ class App extends React.Component {
         if (this.db && !s.slip) return this.showToast('แนบสลิปโอนเงินก่อนยืนยันนะครับ 🧾');
         const id = '#MP-' + Array.from(crypto.getRandomValues(new Uint8Array(8))).map(b => 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'[b % 31]).join('');
         const t0 = this.fmtTime(new Date());
-        this.setState({ order: { id, total: c.grandTotal, times: [t0, '', '', ''] }, trackStep: 1, cancelReason: '', screen: 'track' });
-        // จำออเดอร์ไว้ในเครื่อง — ปิดเว็บแล้วกลับมา การติดตามยังอยู่
-        try { localStorage.setItem('mp_order', JSON.stringify({ id, total: c.grandTotal, times: [t0, '', '', ''], step: 1 })); } catch (e) {}
         clearInterval(this.trackTimer);
         if (this.db) {
           // โหมดออนไลน์: บันทึกเข้าฐานข้อมูล + ติดตามสถานะจริงจากหลังบ้าน
+          // ต้องเรียกก่อนล้าง state ด้านล่าง — saveOrder จับรายการไฟล์ไว้ตั้งแต่บรรทัดแรก อัปโหลดครบแน่นอน
           this.saveOrder(id, c, t0);
           this.startPolling(id);
-        } else {
+        }
+        // ยืนยันแล้วล้างรายการงานทิ้ง — เข้ามาสั่งรอบหน้าต้องเป็นหน้าว่างพร้อมดรอปไฟล์ใหม่ ไม่มีไฟล์เก่าค้าง
+        this.setState({ order: { id, total: c.grandTotal, times: [t0, '', '', ''] }, trackStep: 1, cancelReason: '', screen: 'track',
+          files: [], slip: null, copies: 1, bind: 'none', express: false, ptype: 'bw', paper: 'A4', sides: 1 });
+        // จำออเดอร์ไว้ในเครื่อง — ปิดเว็บแล้วกลับมา การติดตามยังอยู่
+        try { localStorage.setItem('mp_order', JSON.stringify({ id, total: c.grandTotal, times: [t0, '', '', ''], step: 1 })); } catch (e) {}
+        if (!this.db) {
           // โหมดออฟไลน์: จำลองสถานะเดินเอง
           this.trackTimer = setInterval(() => {
             this.setState(st => {
