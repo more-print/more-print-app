@@ -35,14 +35,12 @@ const CONFIG = { nightOverride: 'auto', nightFee: 10, expressFee: 20, deliveryBa
   colorLightPrice: 5, colorHeavyPrice: 7, colorHeavyPct: 50 };
 
 // ── ประเภทงานปริ้น + เรทราคา (ตามป้ายราคาหน้าร้าน) ──
+// งาน Standard มีแค่ 2 ประเภท (งานใหญ่/พิเศษไปทาง Pro) — ptype เก่า laser/portfolio/poster ยังแสดงในหลังบ้านได้
 const PRINT_TYPES = [
   { k: 'bw', icon: '📄', label: 'เอกสารขาวดำ', desc: 'แผ่นละ ฿1 · เกิน 30 แผ่นลดเหลือ 75/50 สต.' },
-  { k: 'laser', icon: '⚫', label: 'ขาวดำเลเซอร์', desc: 'คมชัด ฿2/หน้า' },
-  { k: 'color', icon: '🎨', label: 'สีเลเซอร์', desc: '~฿5/หน้า ตามปริมาณสี' },
-  { k: 'portfolio', icon: '📁', label: 'Portfolio', desc: 'A4 ฿12 · A5 ฿8 /หน้า' },
-  { k: 'poster', icon: '🖼️', label: 'โปสเตอร์ / แผ่นใหญ่', desc: 'อาร์ตมัน–ด้าน A5–A0' }
+  { k: 'color', icon: '🎨', label: 'สีเลเซอร์', desc: '฿5-7/หน้า ตามปริมาณสี สแกนให้อัตโนมัติ' }
 ];
-const SIZE_BY_TYPE = { bw: ['A4'], laser: ['A4'], color: ['A4'], portfolio: ['A4', 'A5'], poster: ['A5', 'A4', 'A3', 'A2', 'A1', 'A0'] };
+const SIZE_BY_TYPE = { bw: ['A4'], color: ['A4'] };
 const POSTER_PRICE = { A5: 10, A4: 15, A3: 30, A2: 130, A1: 250, A0: 500 };
 // เรทขาวดำ คิดต่อแผ่นกระดาษ ตามจำนวนแผ่นรวมทั้งงาน: ≤30 แผ่น ฿1 · 31–100 ฿0.75 · >100 ฿0.50
 // หน้า-หลัง (1 แผ่น = 2 หน้าเอกสาร): ราคาแผ่นละ = เรทฐาน + ครึ่งหนึ่งของเรทฐาน (×1.5)
@@ -1147,7 +1145,7 @@ class App extends React.Component {
                 <div style={{ fontSize: '22px', flex: 'none' }}>🖨️</div>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: '13.5px', fontWeight: 700, color: !v.isPro ? 'var(--acc)' : 'var(--ink)' }}>Standard — งานปริ้นทั่วไป</div>
-                  <div style={{ fontSize: '11px', color: 'var(--sub)', marginTop: '1px' }}>เอกสารขาวดำ / สี · Portfolio · โปสเตอร์ · ราคาปกติ</div>
+                  <div style={{ fontSize: '11px', color: 'var(--sub)', marginTop: '1px' }}>เอกสารขาวดำ · ปริ้นสีเลเซอร์ · กระดาษ A4 ราคาปกติ</div>
                 </div>
                 <div style={{ width: '20px', height: '20px', borderRadius: '50%', flex: 'none', boxSizing: 'border-box',
                   border: !v.isPro ? '6px solid var(--acc)' : '2px solid var(--line)', background: '#fff' }}></div>
