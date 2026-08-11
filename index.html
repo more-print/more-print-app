@@ -64,7 +64,8 @@ const BANNER_THEMES = {
   green: 'linear-gradient(135deg,#00b368,#00744a)',
   dark: 'linear-gradient(135deg,#2b2b28,#000)',
   orange: 'linear-gradient(135deg,#f76707,#d9480f)',
-  blue: 'linear-gradient(135deg,#1c7ed6,#0b4f8c)'
+  blue: 'linear-gradient(135deg,#1c7ed6,#0b4f8c)',
+  alert: 'linear-gradient(135deg,#e03131,#8f1414)' // ประกาศแจ้งปัญหา/ล่าช้าจากหลังบ้าน
 };
 
 // Copy an inline CSS string verbatim into a React style object.
@@ -88,6 +89,7 @@ class App extends React.Component {
     this.state = {
       screen: 'home', files: [], tier: 'standard', ptype: 'bw', paper: 'A4', sides: 1, bind: 'none', copies: 1,
       reviews: [], reviewsReady: false, revStars: 5, revText: '', trackStars: 5, trackText: '',
+      alertPrompt: false, alertAck: false,
       point: '', addr: '', phone: '', time: '', express: false, slip: null,
       lat: null, lng: null, geoLabel: '', searchQ: '', searchResults: [], searching: false, locating: false,
       gmapLink: '', gmapBusy: false,
@@ -636,6 +638,8 @@ class App extends React.Component {
       goBack: () => this.setState({ screen: s.screen === 'pay' ? 'review' : s.screen === 'review' ? 'delivery' : s.screen === 'delivery' ? 'order' : 'home' }),
       startOrder: () => {
         if (!s.user) { this.setState({ screen: 'login' }); return this.showToast('เข้าสู่ระบบก่อนสั่งปริ้นนะครับ 🙏'); }
+        // มีประกาศแจ้งปัญหา/ล่าช้า → ถามลูกค้าก่อนหนึ่งครั้งว่ายังจะสั่งต่อไหม
+        if (s.banners.some(b => b.color === 'alert') && !s.alertAck) return this.setState({ alertPrompt: true });
         this.setState({ screen: 'order' });
       },
       goTrack: () => this.setState({ screen: 'track' }),
@@ -840,6 +844,11 @@ class App extends React.Component {
           tt: { fontSize: '13px', fontWeight: done || active ? 700 : 500, color: done || active ? 'var(--ink)' : 'var(--sub)' }
         };
       }),
+      // ── ประกาศแจ้งปัญหา/งานล่าช้า (เปิด-ปิดจากหลังบ้าน ผ่านแบนเนอร์ชนิด alert) ──
+      alertBn: (() => { const a = s.banners.find(b => b.color === 'alert'); return a ? { title: a.title || '', subtitle: a.subtitle || '' } : null; })(),
+      alertPrompt: s.alertPrompt,
+      alertGo: () => this.setState({ alertAck: true, alertPrompt: false, screen: 'order' }),
+      alertStay: () => this.setState({ alertPrompt: false }),
       // ── รีวิวจากลูกค้า ──
       reviews: s.reviews.slice(0, 12).map(r => ({
         stars: Math.max(1, Math.min(5, r.stars || 5)),
@@ -897,6 +906,7 @@ class App extends React.Component {
         pick: () => {
           if (n.k === 'line') return window.open((window.MP_CONFIG || {}).LINE_OA_URL || 'https://line.me/R/ti/p/@346kifvy', '_blank');
           if ((n.k === 'order' || n.k === 'track') && !s.user) { this.setState({ screen: 'login' }); return this.showToast('เข้าสู่ระบบก่อนนะครับ 🙏'); }
+          if (n.k === 'order' && s.banners.some(b => b.color === 'alert') && !s.alertAck) return this.setState({ alertPrompt: true });
           this.setState({ screen: n.k });
         },
         st: { textAlign: 'center', cursor: 'pointer', minWidth: '58px', padding: '4px 0', color: this.state.screen === n.k ? 'var(--acc)' : 'var(--sub)' }
@@ -1099,6 +1109,7 @@ class App extends React.Component {
         {v.isOrder && (
           <div style={css("padding:18px 20px 110px;display:flex;flex-direction:column;gap:14px")}>
             <div style={css("font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:var(--sub);letter-spacing:1px")}>STEP 01 / 04 — อัปโหลด &amp; ตัวเลือก</div>
+            {v.alertBn && <div style={css("background:#fff0f0;border:1px solid #ffa8a8;border-radius:12px;padding:10px 14px;font-size:12px;color:#c92a2a;font-weight:700;line-height:1.5")}>⚠️ {v.alertBn.title}</div>}
             <input type="file" multiple accept=".pdf,application/pdf" ref={this.fileRef} onChange={v.onFiles} style={css("display:none")}/>
             <div onClick={v.pickFiles} style={css("border:2px dashed var(--line);border-radius:14px;background:var(--card);padding:16px;display:flex;align-items:center;gap:12px;cursor:pointer")}>
               <div style={css("width:42px;height:42px;border-radius:10px;background:var(--accSoft);display:flex;align-items:center;justify-content:center;font-size:20px")}>📤</div>
@@ -1398,6 +1409,23 @@ class App extends React.Component {
             {v.noOrder && (
               <div style={css("text-align:center;padding:50px 20px;color:var(--sub)")}><div style={css("font-size:36px")}>🗒️</div><div style={css("margin-top:10px;font-size:14px")}>ยังไม่มีออเดอร์ — เริ่มสั่งปริ้นได้เลย</div><button onClick={v.startOrder} style={css("margin-top:16px;height:44px;padding:0 22px;border:none;border-radius:12px;background:var(--acc);color:#fff;font-size:14px;font-weight:700;cursor:pointer")}>เริ่มสั่งปริ้น</button></div>
             )}
+          </div>
+        )}
+
+        {/* ── ป๊อปอัพประกาศแจ้งปัญหา/ล่าช้า — ถามลูกค้าก่อนเข้าหน้าสั่ง ── */}
+        {v.alertPrompt && v.alertBn && (
+          <div style={css("position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:60;display:flex;align-items:center;justify-content:center;padding:24px")}>
+            <div style={css("background:var(--card);border-radius:18px;max-width:340px;width:100%;padding:20px;box-shadow:0 10px 40px rgba(0,0,0,.4)")}>
+              <div style={css("font-size:36px;text-align:center")}>⚠️</div>
+              <div style={css("margin-top:8px;font-size:15px;font-weight:800;text-align:center")}>แจ้งจากทางร้าน</div>
+              <div style={css("margin-top:8px;font-size:13.5px;font-weight:600;line-height:1.6;text-align:center;color:#c92a2a")}>{v.alertBn.title}</div>
+              {v.alertBn.subtitle && <div style={css("margin-top:4px;font-size:12px;color:var(--sub);line-height:1.55;text-align:center")}>{v.alertBn.subtitle}</div>}
+              <div style={css("margin-top:10px;font-size:12.5px;color:var(--sub);text-align:center")}>ยังต้องการสั่งปริ้นต่อไหมครับ?</div>
+              <div style={css("margin-top:14px;display:flex;gap:10px")}>
+                <button onClick={v.alertStay} style={css("flex:1;height:44px;border:1px solid var(--line);border-radius:12px;background:var(--soft);color:var(--ink);font-size:13.5px;font-weight:700;cursor:pointer")}>ไว้ทีหลัง</button>
+                <button onClick={v.alertGo} style={css("flex:1;height:44px;border:none;border-radius:12px;background:var(--acc);color:#fff;font-size:13.5px;font-weight:700;cursor:pointer")}>รับทราบ สั่งต่อ</button>
+              </div>
+            </div>
           </div>
         )}
 

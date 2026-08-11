@@ -32,7 +32,8 @@ const BANNER_THEMES = {
   green: 'linear-gradient(135deg,#00b368,#00744a)',
   dark: 'linear-gradient(135deg,#2b2b28,#000)',
   orange: 'linear-gradient(135deg,#f76707,#d9480f)',
-  blue: 'linear-gradient(135deg,#1c7ed6,#0b4f8c)'
+  blue: 'linear-gradient(135deg,#1c7ed6,#0b4f8c)',
+  alert: 'linear-gradient(135deg,#e03131,#8f1414)' // ประกาศแจ้งปัญหา/ล่าช้า — ลูกค้าเจอป๊อปอัพก่อนสั่ง
 };
 const BANNER_COLORS = [['green', 'เขียว'], ['dark', 'ดำ'], ['orange', 'ส้ม'], ['blue', 'ฟ้า']];
 const STEP_COLORS = ['#8a6d1a', '#0b7285', '#9c36b5', '#00b368'];
@@ -434,6 +435,32 @@ function AdminApp(){
     else setBanners(l => l.filter(x => x.id !== b.id));
   };
 
+  // ── ประกาศแจ้งปัญหา/งานล่าช้า (แบนเนอร์ชนิด alert: ลูกค้าเจอป๊อปอัพเตือนก่อนสั่ง + แถบแดงบนเว็บ) ──
+  const [alOpen, setAlOpen] = React.useState(false);
+  const [alMsg, setAlMsg] = React.useState('');
+  const alertActive = banners.find(b => b.color === 'alert' && b.active !== false);
+  const AL_PRESETS = [
+    'เครื่องพิมพ์ขัดข้อง กำลังเร่งซ่อม — งานอาจล่าช้ากว่าปกติ 2-3 ชั่วโมง',
+    'ออเดอร์เยอะมาก คิวยาว — งานอาจล่าช้ากว่าปกติ'
+  ];
+  const openAlert = async () => {
+    const m = alMsg.trim(); if (!m) return;
+    if (DB) {
+      await DB.from('banners').update({ active: false }).eq('color', 'alert'); // ปิดประกาศเก่าก่อน มีได้ทีละอัน
+      await DB.from('banners').insert({ title: m, subtitle: 'ขออภัยในความไม่สะดวก ร้านจะรีบจัดการให้เร็วที่สุดครับ 🙏', emoji: '⚠️', color: 'alert' });
+      await loadBanners();
+    } else setBanners(l => [{ id: Date.now(), title: m, subtitle: 'ขออภัยในความไม่สะดวกครับ', emoji: '⚠️', color: 'alert', active: true }, ...l.map(x => x.color === 'alert' ? { ...x, active: false } : x)]);
+    setAlMsg(''); setAlOpen(false);
+  };
+  const closeAlert = async () => {
+    if (DB) { await DB.from('banners').update({ active: false }).eq('color', 'alert'); await loadBanners(); }
+    else setBanners(l => l.map(x => x.color === 'alert' ? { ...x, active: false } : x));
+  };
+  const deleteAlert = async () => {
+    if (DB) { await DB.from('banners').delete().eq('color', 'alert'); await loadBanners(); }
+    else setBanners(l => l.filter(x => x.color !== 'alert'));
+  };
+
   const refresh = React.useCallback(async () => {
     if (!DB) return;
     try {
@@ -666,6 +693,33 @@ function AdminApp(){
 
       {tab === 'orders' && (
         <div style={css("padding:14px 16px 40px;display:flex;flex-direction:column;gap:10px")}>
+          {/* ประกาศแจ้งปัญหา/งานล่าช้า */}
+          {alertActive ? (
+            <div style={css("background:#fff0f0;border:1.5px solid #e03131;border-radius:14px;padding:12px 14px")}>
+              <div style={css("font-size:11px;font-weight:800;color:#c92a2a;letter-spacing:.5px")}>🚨 กำลังประกาศแจ้งลูกค้าอยู่ — ลูกค้าเห็นป๊อปอัพเตือนก่อนสั่งทุกคน</div>
+              <div style={css("margin-top:6px;font-size:13px;font-weight:700;color:#7a1010;line-height:1.5")}>{alertActive.title}</div>
+              <div style={css("margin-top:10px;display:flex;gap:8px")}>
+                <button onClick={closeAlert} style={css("flex:1;height:40px;border:none;border-radius:10px;background:var(--acc);color:#fff;font-size:12.5px;font-weight:700;cursor:pointer")}>✓ ทุกอย่างปกติแล้ว — ปิดประกาศ</button>
+                <button onClick={deleteAlert} style={css("height:40px;padding:0 14px;border:1px solid #ffa8a8;border-radius:10px;background:none;color:#c92a2a;font-size:12.5px;font-weight:700;cursor:pointer")}>ลบทิ้ง</button>
+              </div>
+            </div>
+          ) : alOpen ? (
+            <div style={css("background:var(--card);border:1.5px solid #e03131;border-radius:14px;padding:12px 14px")}>
+              <div style={css("font-size:12px;font-weight:800;color:#c92a2a")}>🚨 ประกาศแจ้งลูกค้า: งานล่าช้า/มีปัญหา</div>
+              <div style={css("margin-top:8px;display:flex;flex-direction:column;gap:6px")}>
+                {AL_PRESETS.map((p, i) => (
+                  <button key={i} onClick={() => setAlMsg(p)} style={css("text-align:left;padding:8px 12px;border-radius:10px;font-size:11.5px;line-height:1.5;cursor:pointer;border:1px solid " + (alMsg === p ? "#e03131" : "var(--line)") + ";background:" + (alMsg === p ? "#fff0f0" : "var(--soft)") + ";color:var(--ink)")}>{p}</button>
+                ))}
+              </div>
+              <textarea value={alMsg} onChange={e => setAlMsg(e.target.value)} placeholder="หรือพิมพ์ข้อความเอง เช่น หมึกหมดชั่วคราว งานอาจช้า 1-2 ชม." style={css("margin-top:8px;width:100%;box-sizing:border-box;min-height:52px;border:1px solid var(--line);border-radius:10px;background:var(--soft);color:var(--ink);padding:8px 10px;font-size:12.5px;outline:none;resize:vertical;font-family:inherit")}/>
+              <div style={css("margin-top:8px;display:flex;gap:8px")}>
+                <button onClick={() => { setAlOpen(false); setAlMsg(''); }} style={css("height:40px;padding:0 14px;border:1px solid var(--line);border-radius:10px;background:var(--soft);color:var(--ink);font-size:12.5px;font-weight:600;cursor:pointer")}>ยกเลิก</button>
+                <button onClick={openAlert} disabled={!alMsg.trim()} style={css("flex:1;height:40px;border:none;border-radius:10px;background:" + (alMsg.trim() ? "#e03131" : "#f1b5b5") + ";color:#fff;font-size:12.5px;font-weight:700;cursor:pointer")}>📣 เปิดประกาศให้ลูกค้าเห็นทันที</button>
+              </div>
+            </div>
+          ) : (
+            <button onClick={() => setAlOpen(true)} style={css("align-self:flex-start;padding:7px 14px;border-radius:99px;font-size:11.5px;font-weight:700;cursor:pointer;border:1px solid #e03131;background:none;color:#c92a2a")}>🚨 แจ้งลูกค้า: งานล่าช้า/มีปัญหา</button>
+          )}
           <div style={css("display:flex;gap:6px;align-items:center;flex-wrap:wrap")}>
             <button onClick={exportCsv} style={css("order:9;margin-left:auto;padding:6px 12px;border-radius:99px;font-size:11.5px;font-weight:700;cursor:pointer;border:1px solid var(--acc);background:var(--accSoft);color:var(--acc)")}>⬇ สำรองข้อมูล CSV</button>
             {[['all', 'ทั้งหมด'], ['pending', 'กำลังทำ'], ['done', 'ส่งแล้ว'], ['cancelled', 'ยกเลิก']].map(([k, label]) => (
