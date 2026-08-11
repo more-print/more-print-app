@@ -86,7 +86,7 @@ class App extends React.Component {
     this.fileRef = React.createRef();
     this.slipRef = React.createRef();
     this.state = {
-      screen: 'home', files: [], ptype: 'bw', paper: 'A4', sides: 1, bind: 'none', copies: 1,
+      screen: 'home', files: [], tier: 'standard', ptype: 'bw', paper: 'A4', sides: 1, bind: 'none', copies: 1,
       point: '', addr: '', phone: '', time: '', express: false, slip: null,
       lat: null, lng: null, geoLabel: '', searchQ: '', searchResults: [], searching: false, locating: false,
       gmapLink: '', gmapBusy: false,
@@ -396,7 +396,9 @@ class App extends React.Component {
       lightPages = totalPages - heavyPages;
       printCost = Math.ceil(lightPages * (CONFIG.colorLightPrice ?? 5) + heavyPages * (CONFIG.colorHeavyPrice ?? 7));
     }
-    const bindCost = (s.bind === 'corner' ? 5 : s.bind === 'book' ? 40 : s.bind === 'landscape' ? 60 : 0) * s.copies;
+    // งาน Pro: ยังไม่กำหนดราคา — คิดค่าปริ้น ฿0 ไว้ก่อน (ลูกค้าชำระค่าส่ง) ร้านยืนยันราคาจริงทาง LINE
+    if (s.tier === 'pro') { rate = 0; printCost = 0; heavyPages = 0; lightPages = 0; }
+    const bindCost = s.tier === 'pro' ? 0 : (s.bind === 'corner' ? 5 : s.bind === 'book' ? 40 : s.bind === 'landscape' ? 60 : 0) * s.copies;
     const deliveryCost = base + expressFee;
     return { pages, totalPages, sheets, rate, heavyPages, lightPages, printCost, bindCost, printTotal: printCost + bindCost, deliveryCost, nightFee, grandTotal: printCost + bindCost + deliveryCost + nightFee };
   }
@@ -440,7 +442,7 @@ class App extends React.Component {
         id, slip_path,
         customer_fname: u.fname || '', customer_lname: u.lname || '',
         customer_phone: u.phone || s.phone || '', customer_email: u.email || '',
-        files, ptype: s.ptype, color: s.ptype === 'color', paper: s.paper, sides: s.sides, bind: s.bind, copies: s.copies,
+        files, ptype: s.tier === 'pro' ? 'pro' : s.ptype, color: s.tier !== 'pro' && s.ptype === 'color', paper: s.paper, sides: s.sides, bind: s.tier === 'pro' ? 'none' : s.bind, copies: s.copies,
         point: s.geoLabel || '', lat: s.lat, lng: s.lng,
         addr: s.addr, phone: s.phone, time: s.time, express: s.express, night: this.isNight(),
         print_cost: c.printCost, bind_cost: c.bindCost, delivery_cost: c.deliveryCost,
@@ -641,34 +643,44 @@ class App extends React.Component {
         icon: t.icon, label: t.label, desc: t.desc, on: s.ptype === t.k,
         pick: () => this.setState({ ptype: t.k, paper: SIZE_BY_TYPE[t.k][0] })
       })),
-      showSize: SIZE_BY_TYPE[s.ptype].length > 1,
+      // ระดับงาน: Standard = งานปริ้นทั่วไป (ของเดิม) · Pro = งานขั้นสูง A3/A2/A1 (ราคารอเจ้าของกำหนด)
+      isPro: s.tier === 'pro',
+      pickStandard: () => this.setState({ tier: 'standard', paper: SIZE_BY_TYPE[s.ptype][0] }),
+      pickPro: () => this.setState({ tier: 'pro', paper: ['A3', 'A2', 'A1'].includes(s.paper) ? s.paper : 'A3' }),
+      proSizeOpts: ['A3', 'A2', 'A1'].map(sz => this.seg(sz, s.paper === sz, () => this.setState({ paper: sz }), true)),
+      proNote: s.tier === 'pro' ? '✨ งาน Pro — ร้านจะยืนยันราคาปริ้นทาง LINE ก่อนเริ่มงาน ยอดที่ชำระตอนนี้คือค่าส่งเท่านั้น' : '',
+      showSize: s.tier !== 'pro' && SIZE_BY_TYPE[s.ptype].length > 1,
       sizeOpts: SIZE_BY_TYPE[s.ptype].map(sz => {
         const label = s.ptype === 'portfolio' ? sz + ' ฿' + (sz === 'A5' ? 8 : 12)
           : s.ptype === 'poster' ? sz + ' ฿' + POSTER_PRICE[sz] : sz;
         return this.seg(label, s.paper === sz, () => this.setState({ paper: sz }));
       }),
-      showSides: s.ptype === 'bw' || s.ptype === 'laser' || s.ptype === 'color',
-      sidesOpts: [this.seg('หน้าเดียว', s.sides === 1, () => this.setState({ sides: 1 }), true), this.seg('หน้า-หลัง' + (s.ptype === 'bw' ? ' (ถูกกว่า)' : ''), s.sides === 2, () => this.setState({ sides: 2 }), true)],
-      showBind: s.ptype !== 'poster',
+      showSides: s.tier === 'pro' || s.ptype === 'bw' || s.ptype === 'laser' || s.ptype === 'color',
+      sidesOpts: [this.seg('หน้าเดียว', s.sides === 1, () => this.setState({ sides: 1 }), true), this.seg('หน้า-หลัง' + (s.tier !== 'pro' && s.ptype === 'bw' ? ' (ถูกกว่า)' : ''), s.sides === 2, () => this.setState({ sides: 2 }), true)],
+      showBind: s.tier !== 'pro' && s.ptype !== 'poster',
       bindOpts: [this.seg('ไม่เข้าเล่ม', s.bind === 'none', () => this.setState({ bind: 'none' })), this.seg('เย็บมุม +฿5', s.bind === 'corner', () => this.setState({ bind: 'corner' })), this.seg('เข้าเล่ม +฿40', s.bind === 'book', () => this.setState({ bind: 'book' })), this.seg('เล่มแนวนอน +฿60', s.bind === 'landscape', () => this.setState({ bind: 'landscape' }))],
       copies: s.copies,
       copyInc: () => this.setState(st => ({ copies: st.copies + 1 })),
       copyDec: () => this.setState(st => ({ copies: Math.max(1, st.copies - 1) })),
-      rateHint: s.ptype === 'bw'
+      rateHint: s.tier === 'pro'
+        ? '✨ งาน Pro คุณภาพพรีเมียม — ร้านยืนยันราคาทาง LINE ก่อนเริ่มงาน'
+        : s.ptype === 'bw'
         ? 'เรทตอนนี้ ' + (c.rate < 1 ? Math.round(c.rate * 100) + ' สต.' : '฿' + (Math.round(c.rate * 1000) / 1000)) + '/แผ่น' + (c.sheets > 0 ? ' (รวม ' + c.sheets + ' แผ่น — ยิ่งเยอะยิ่งถูก)' : ' — ยิ่งเยอะยิ่งถูก')
         : s.ptype === 'color'
         ? 'เรท สีน้อย ฿' + (CONFIG.colorLightPrice ?? 5) + ' · สีเยอะ ฿' + (CONFIG.colorHeavyPrice ?? 7) + ' /หน้า — ระบบสแกนไฟล์ให้อัตโนมัติ'
         : 'เรท ฿' + c.rate + '/' + (s.ptype === 'poster' ? 'แผ่น' : 'หน้า'),
-      colorNote: s.ptype === 'color'
+      colorNote: s.tier === 'pro' ? ''
+        : s.ptype === 'color'
         ? (!s.files.length ? '* หน้าที่มีสีเกิน ' + (CONFIG.colorHeavyPct ?? 30) + '% ของพื้นที่ = สีเยอะ ฿' + (CONFIG.colorHeavyPrice ?? 7)
           : s.files.some(f => !f.scanned) ? '* ไฟล์ที่ระบบสแกนสีไม่ได้ คิดเรทสีน้อยไว้ก่อน — ร้านตรวจไฟล์จริงและยืนยันราคาก่อนปริ้น'
           : c.heavyPages > 0 ? '* สแกนไฟล์แล้ว: สีเยอะ ' + c.heavyPages + ' หน้า × ฿' + (CONFIG.colorHeavyPrice ?? 7) + ' · สีน้อย ' + c.lightPages + ' หน้า × ฿' + (CONFIG.colorLightPrice ?? 5)
           : '* สแกนไฟล์แล้ว: ทุกหน้าสีน้อย ฿' + (CONFIG.colorLightPrice ?? 5) + '/หน้า')
         : s.ptype === 'poster' ? '* กระดาษอาร์ตมัน/ด้าน ราคาเท่ากัน' : '',
-      colorBreak: s.ptype === 'color' && c.heavyPages > 0 ? '🎨 สีน้อย ' + c.lightPages + ' หน้า × ฿' + (CONFIG.colorLightPrice ?? 5) + ' + สีเยอะ ' + c.heavyPages + ' หน้า × ฿' + (CONFIG.colorHeavyPrice ?? 7)
+      colorBreak: s.tier === 'pro' ? ''
+        : s.ptype === 'color' && c.heavyPages > 0 ? '🎨 สีน้อย ' + c.lightPages + ' หน้า × ฿' + (CONFIG.colorLightPrice ?? 5) + ' + สีเยอะ ' + c.heavyPages + ' หน้า × ฿' + (CONFIG.colorHeavyPrice ?? 7)
         : s.ptype === 'bw' && s.sides === 2 && c.sheets > 0 ? '📄 หน้า-หลังใช้กระดาษ ' + c.sheets + ' แผ่น × ฿' + (Math.round(c.rate * 1000) / 1000) + '/แผ่น' : '',
-      typeLabel: (PRINT_TYPES.find(t => t.k === s.ptype) || {}).label || '',
-      pageSummary: c.pages + ' หน้า × ' + s.copies + ' ชุด (' + ((PRINT_TYPES.find(t => t.k === s.ptype) || {}).label || '') + ' ' + s.paper + ')',
+      typeLabel: s.tier === 'pro' ? '✨ PRO พรีเมียม' : ((PRINT_TYPES.find(t => t.k === s.ptype) || {}).label || ''),
+      pageSummary: c.pages + ' หน้า × ' + s.copies + ' ชุด (' + (s.tier === 'pro' ? 'PRO' : ((PRINT_TYPES.find(t => t.k === s.ptype) || {}).label || '')) + ' ' + s.paper + ')',
       printCost: c.printCost, bindCost: c.bindCost, printTotal: c.printTotal,
       deliveryCost: c.deliveryCost, grandTotal: c.grandTotal,
       toDelivery: () => {
@@ -727,7 +739,7 @@ class App extends React.Component {
       goEditDelivery: () => this.setState({ screen: 'delivery' }),
       paperLabel: s.paper,
       sidesLabel: s.sides === 2 ? 'หน้า-หลัง' : 'หน้าเดียว',
-      bindLabel: s.bind === 'corner' ? 'เย็บมุม' : s.bind === 'book' ? 'เข้าเล่ม' : s.bind === 'landscape' ? 'เล่มแนวนอน' : 'ไม่เข้าเล่ม',
+      bindLabel: s.tier === 'pro' ? '— (แจ้งเพิ่มทาง LINE ได้)' : s.bind === 'corner' ? 'เย็บมุม' : s.bind === 'book' ? 'เข้าเล่ม' : s.bind === 'landscape' ? 'เล่มแนวนอน' : 'ไม่เข้าเล่ม',
       isColorType: s.ptype === 'color',
       destLabel: s.addr,
       timeLabel: (s.express ? 'ด่วน ~45 นาที' : s.time + ' น.'),
@@ -752,7 +764,7 @@ class App extends React.Component {
         }
         // ยืนยันแล้วล้างรายการงานทิ้ง — เข้ามาสั่งรอบหน้าต้องเป็นหน้าว่างพร้อมดรอปไฟล์ใหม่ ไม่มีไฟล์เก่าค้าง
         this.setState({ order: { id, total: c.grandTotal, times: [t0, '', '', ''] }, trackStep: 1, cancelReason: '', screen: 'track',
-          files: [], slip: null, copies: 1, bind: 'none', express: false, ptype: 'bw', paper: 'A4', sides: 1 });
+          files: [], slip: null, copies: 1, bind: 'none', express: false, tier: 'standard', ptype: 'bw', paper: 'A4', sides: 1 });
         // จำออเดอร์ไว้ในเครื่อง — ปิดเว็บแล้วกลับมา การติดตามยังอยู่
         try { localStorage.setItem('mp_order', JSON.stringify({ id, total: c.grandTotal, times: [t0, '', '', ''], step: 1 })); } catch (e) {}
         if (!this.db) {
@@ -992,10 +1004,34 @@ class App extends React.Component {
                 )}
               </div>
             ))}
+            {/* เลือกระดับงาน: Standard (ของเดิม) / Pro (งานขั้นสูง A3-A1 ราคารอยืนยัน) */}
+            <div style={css("background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px;display:flex;flex-direction:column;gap:8px;box-shadow:var(--shadow)")}>
+              <div style={css("font-size:12px;font-weight:600;color:var(--sub)")}>เลือกระดับงานปริ้น</div>
+              <div onClick={v.pickStandard} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '11px 12px', borderRadius: '12px', cursor: 'pointer',
+                border: !v.isPro ? '1.5px solid var(--acc)' : '1px solid var(--line)', background: !v.isPro ? 'var(--accSoft)' : 'var(--soft)' }}>
+                <div style={{ fontSize: '22px', flex: 'none' }}>🖨️</div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: '13.5px', fontWeight: 700, color: !v.isPro ? 'var(--acc)' : 'var(--ink)' }}>Standard — งานปริ้นทั่วไป</div>
+                  <div style={{ fontSize: '11px', color: 'var(--sub)', marginTop: '1px' }}>เอกสารขาวดำ / สี · Portfolio · โปสเตอร์ · ราคาปกติ</div>
+                </div>
+                <div style={{ width: '20px', height: '20px', borderRadius: '50%', flex: 'none', boxSizing: 'border-box',
+                  border: !v.isPro ? '6px solid var(--acc)' : '2px solid var(--line)', background: '#fff' }}></div>
+              </div>
+              <div onClick={v.pickPro} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '11px 12px', borderRadius: '12px', cursor: 'pointer',
+                border: v.isPro ? '1.5px solid var(--acc)' : '1px solid var(--line)', background: v.isPro ? 'var(--accSoft)' : 'var(--soft)' }}>
+                <div style={{ fontSize: '22px', flex: 'none' }}>✨</div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: '13.5px', fontWeight: 700, color: v.isPro ? 'var(--acc)' : 'var(--ink)' }}>Pro — งานปริ้นขั้นสูง</div>
+                  <div style={{ fontSize: '11px', color: 'var(--sub)', marginTop: '1px' }}>คุณภาพพรีเมียมเหนือกว่างานทั่วไป · ขนาดใหญ่ A3 / A2 / A1 · ร้านยืนยันราคาก่อนเริ่มงาน</div>
+                </div>
+                <div style={{ width: '20px', height: '20px', borderRadius: '50%', flex: 'none', boxSizing: 'border-box',
+                  border: v.isPro ? '6px solid var(--acc)' : '2px solid var(--line)', background: '#fff' }}></div>
+              </div>
+            </div>
             <div style={css("background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px;display:flex;flex-direction:column;gap:12px;box-shadow:var(--shadow)")}>
               <div style={css("display:flex;flex-direction:column;gap:6px")}>
-                <div style={css("font-size:12px;font-weight:600;color:var(--sub)")}>ประเภทงานปริ้น</div>
-                {v.typeOpts.map((t, i) => (
+                {!v.isPro && <div style={css("font-size:12px;font-weight:600;color:var(--sub)")}>ประเภทงานปริ้น</div>}
+                {!v.isPro && v.typeOpts.map((t, i) => (
                   <div key={i} onClick={t.pick} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '10px 12px', borderRadius: '12px', cursor: 'pointer',
                     border: t.on ? '1.5px solid var(--acc)' : '1px solid var(--line)',
                     background: t.on ? 'var(--accSoft)' : 'var(--soft)' }}>
@@ -1008,6 +1044,7 @@ class App extends React.Component {
                       border: t.on ? '6px solid var(--acc)' : '2px solid var(--line)', background: '#fff' }}></div>
                   </div>
                 ))}
+                {v.isPro && <div style={css("display:flex;flex-direction:column;gap:6px")}><div style={css("font-size:12px;font-weight:600;color:var(--sub)")}>ขนาดงาน Pro</div><div style={css("display:flex;gap:8px;flex-wrap:wrap")}>{v.proSizeOpts.map((o, i) => <button key={i} onClick={o.pick} style={o.st}>{o.label}</button>)}</div></div>}
                 <div style={css("font-size:11.5px;color:var(--acc);font-weight:600")}>💡 {v.rateHint}</div>
                 {v.colorNote && <div style={css("font-size:10.5px;color:var(--sub)")}>{v.colorNote}</div>}
               </div>
@@ -1027,6 +1064,7 @@ class App extends React.Component {
               <div style={css("margin-top:8px;display:flex;flex-direction:column;gap:5px;font-size:12.5px")}>
                 <div style={css("display:flex;justify-content:space-between")}><span style={css("color:var(--sub)")}>ค่าปริ้น {v.pageSummary}</span><span style={css("font-family:'IBM Plex Mono',monospace")}>฿{v.printCost}</span></div>
                 {v.colorBreak && <div style={css("font-size:10.5px;color:var(--sub);margin-top:-4px")}>{v.colorBreak}</div>}
+                {v.proNote && <div style={css("font-size:11px;color:#a16207;font-weight:700;line-height:1.5;margin-top:-2px")}>{v.proNote}</div>}
                 <div style={css("display:flex;justify-content:space-between")}><span style={css("color:var(--sub)")}>เข้าเล่ม</span><span style={css("font-family:'IBM Plex Mono',monospace")}>฿{v.bindCost}</span></div>
                 <div style={css("display:flex;justify-content:space-between;border-top:1px dashed var(--line);padding-top:6px;margin-top:2px;font-weight:700")}><span>รวมค่าปริ้น (ยังไม่รวมค่าส่ง)</span><span style={css("font-family:'IBM Plex Mono',monospace;color:var(--acc)")}>฿{v.printTotal}</span></div>
               </div>
@@ -1142,6 +1180,7 @@ class App extends React.Component {
               <div style={css("display:flex;flex-direction:column;gap:6px;font-size:12.5px")}>
                 <div style={css("display:flex;justify-content:space-between")}><span style={css("color:var(--sub)")}>ค่าปริ้น {v.pageSummary}</span><span style={css("font-family:'IBM Plex Mono',monospace")}>฿{v.printCost}</span></div>
                 {v.colorBreak && <div style={css("font-size:10.5px;color:var(--sub);margin-top:-4px")}>{v.colorBreak}</div>}
+                {v.proNote && <div style={css("font-size:11px;color:#a16207;font-weight:700;line-height:1.5;margin-top:-2px")}>{v.proNote}</div>}
                 <div style={css("display:flex;justify-content:space-between")}><span style={css("color:var(--sub)")}>เข้าเล่ม</span><span style={css("font-family:'IBM Plex Mono',monospace")}>฿{v.bindCost}</span></div>
                 <div style={css("display:flex;justify-content:space-between")}><span style={css("color:var(--sub)")}>ค่าส่ง {v.deliveryLabel}</span><span style={css("font-family:'IBM Plex Mono',monospace")}>฿{v.deliveryCost}</span></div>
                 {v.night && <div style={css("display:flex;justify-content:space-between")}><span style={css("color:var(--warnInk)")}>ค่าบริการกลางคืน</span><span style={css("font-family:'IBM Plex Mono',monospace;color:var(--warnInk)")}>฿{v.nightFee}</span></div>}
@@ -1166,6 +1205,7 @@ class App extends React.Component {
               <div style={css("margin-top:12px;display:flex;flex-direction:column;gap:6px;font-size:12.5px")}>
                 <div style={css("display:flex;justify-content:space-between")}><span style={css("color:var(--sub)")}>ค่าปริ้น {v.pageSummary}</span><span style={css("font-family:'IBM Plex Mono',monospace")}>฿{v.printCost}</span></div>
                 {v.colorBreak && <div style={css("font-size:10.5px;color:var(--sub);margin-top:-4px")}>{v.colorBreak}</div>}
+                {v.proNote && <div style={css("font-size:11px;color:#a16207;font-weight:700;line-height:1.5;margin-top:-2px")}>{v.proNote}</div>}
                 <div style={css("display:flex;justify-content:space-between")}><span style={css("color:var(--sub)")}>เข้าเล่ม</span><span style={css("font-family:'IBM Plex Mono',monospace")}>฿{v.bindCost}</span></div>
                 <div style={css("display:flex;justify-content:space-between")}><span style={css("color:var(--sub)")}>ค่าส่ง {v.deliveryLabel}</span><span style={css("font-family:'IBM Plex Mono',monospace")}>฿{v.deliveryCost}</span></div>
                 {v.night && <div style={css("display:flex;justify-content:space-between")}><span style={css("color:var(--warnInk)")}>ค่าบริการกลางคืน</span><span style={css("font-family:'IBM Plex Mono',monospace;color:var(--warnInk)")}>฿{v.nightFee}</span></div>}
