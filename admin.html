@@ -390,6 +390,23 @@ function AdminApp(){
   }, []);
   React.useEffect(() => { if (authed && DB) loadBanners(); }, [authed, loadBanners]);
 
+  // ── รีวิวลูกค้า (ลบรีวิวไม่เหมาะสมได้) ──
+  const [reviews, setReviews] = React.useState([]);
+  const [revDelId, setRevDelId] = React.useState(null);
+  const loadReviews = React.useCallback(async () => {
+    if (!DB) return;
+    try {
+      const { data, error } = await DB.from('reviews').select('*').order('id', { ascending: false }).limit(100);
+      if (!error && data) setReviews(data);
+    } catch (e) { console.error(e); }
+  }, []);
+  React.useEffect(() => { if (authed && DB) loadReviews(); }, [authed, loadReviews]);
+  const delReview = async (r) => {
+    if (revDelId !== r.id) { setRevDelId(r.id); return; } // กดครั้งแรก = ขอยืนยันก่อน กันกดพลาด
+    if (DB) { await DB.from('reviews').delete().eq('id', r.id); await loadReviews(); }
+    setRevDelId(null);
+  };
+
   const addBanner = async () => {
     if (!bnTitle.trim()) return;
     setBnBusy(true);
@@ -875,6 +892,21 @@ function AdminApp(){
                 <button onClick={() => toggleBanner(b)} style={css("height:32px;padding:0 12px;border:1px solid var(--line);border-radius:9px;background:var(--soft);color:var(--ink);font-size:11.5px;font-weight:600;cursor:pointer")}>{b.active ? 'ซ่อน' : 'แสดง'}</button>
                 <button onClick={() => delBanner(b)} style={css("height:32px;padding:0 12px;border:1px solid #ffa8a8;border-radius:9px;background:none;color:#c92a2a;font-size:11.5px;font-weight:600;cursor:pointer")}>ลบ</button>
               </div>
+            </div>
+          ))}
+
+          <div style={css("font-size:12px;font-weight:700;color:var(--sub);margin-top:8px")}>⭐ รีวิวจากลูกค้า ({reviews.length})</div>
+          {reviews.length === 0 && <div style={css("text-align:center;color:var(--sub);font-size:13px;padding:14px 0")}>ยังไม่มีรีวิว</div>}
+          {reviews.map(r => (
+            <div key={r.id} style={css("background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px 14px;box-shadow:var(--shadow)")}>
+              <div style={css("display:flex;align-items:center;gap:8px")}>
+                <span style={css("color:#f5a623;font-size:13px;letter-spacing:1px")}>{'★'.repeat(Math.max(1, Math.min(5, r.stars || 5)))}</span>
+                {r.auto && <span style={css("font-size:10px;font-weight:700;background:var(--soft);color:var(--sub);padding:2px 8px;border-radius:99px")}>5 ดาวอัตโนมัติ</span>}
+                <span style={css("flex:1")}></span>
+                <button onClick={() => delReview(r)} style={css("height:28px;padding:0 10px;border:1px solid #ffa8a8;border-radius:8px;background:" + (revDelId === r.id ? "#c92a2a" : "none") + ";color:" + (revDelId === r.id ? "#fff" : "#c92a2a") + ";font-size:11px;font-weight:700;cursor:pointer")}>{revDelId === r.id ? 'ยืนยันลบ?' : 'ลบ'}</button>
+              </div>
+              {r.comment && <div style={css("margin-top:4px;font-size:12.5px;line-height:1.5")}>{r.comment}</div>}
+              <div style={css("margin-top:4px;font-size:11px;color:var(--sub)")}>คุณ{r.name || 'ลูกค้า'}{r.ptype ? ' · งาน' + r.ptype : ''}{r.order_id ? ' · ' + r.order_id : ''} · {fmtWhen(r.created_at)}</div>
             </div>
           ))}
         </div>

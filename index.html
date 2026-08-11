@@ -87,6 +87,7 @@ class App extends React.Component {
     this.slipRef = React.createRef();
     this.state = {
       screen: 'home', files: [], tier: 'standard', ptype: 'bw', paper: 'A4', sides: 1, bind: 'none', copies: 1,
+      reviews: [], reviewsReady: false, revStars: 5, revText: '', trackStars: 5, trackText: '',
       point: '', addr: '', phone: '', time: '', express: false, slip: null,
       lat: null, lng: null, geoLabel: '', searchQ: '', searchResults: [], searching: false, locating: false,
       gmapLink: '', gmapBusy: false,
@@ -111,7 +112,14 @@ class App extends React.Component {
       this.db.from('banners').select('*').eq('active', true).order('created_at', { ascending: false }).limit(10)
         .then(({ data }) => { if (data && data.length) this.setState({ banners: data }); })
         .catch(() => {});
+      this.loadReviews();
     }
+    // โหมดตัวอย่าง (ยังไม่เชื่อมฐานข้อมูล): โชว์รีวิวตัวอย่างไว้ดูหน้าตา
+    if (!this.db) this.setState({ reviewsReady: true, reviews: [
+      { id: 3, name: 'มินตรา', stars: 5, comment: 'ส่งไวมาก งานคมชัด แนะนำเลยค่ะ', ptype: 'สีเลเซอร์', auto: false, created_at: new Date().toISOString() },
+      { id: 2, name: 'ก้อง', stars: 5, comment: null, ptype: 'เอกสารขาวดำ', auto: true, created_at: new Date().toISOString() },
+      { id: 1, name: 'boat', stars: 4, comment: 'ดีครับ ราคาโอเค ส่งตรงเวลา', ptype: null, auto: false, created_at: new Date().toISOString() }
+    ] });
     // ⚠️ ด่านล็อกอินต้องมาก่อนเสมอ — ไม่มีบัญชี = หน้า login เท่านั้น
     try {
       const u0 = JSON.parse(localStorage.getItem('mp_user') || 'null');
@@ -143,7 +151,7 @@ class App extends React.Component {
       const od = JSON.parse(localStorage.getItem('mp_order') || 'null');
       if (od && od.id) {
         this.setState({
-          order: { id: od.id, total: od.total || 0, times: od.times || ['', '', '', ''] },
+          order: { id: od.id, total: od.total || 0, times: od.times || ['', '', '', ''], plabel: od.plabel || '' },
           trackStep: od.step || 1,
           cancelReason: od.cancelReason || ''
         });
@@ -487,7 +495,40 @@ class App extends React.Component {
           }
         } catch (e) {}
         if (row.status === 0 || row.status >= 4) clearInterval(this.trackTimer);
+        if (row.status >= 4) this.maybeAutoReview(id);
       }
+    } catch (e) {}
+  }
+  // ── รีวิวจากลูกค้า (ตาราง reviews: anon อ่าน+เพิ่มได้เท่านั้น) ──
+  loadReviews(){
+    if (!this.db) return;
+    this.db.from('reviews').select('id,order_id,name,stars,comment,ptype,auto,created_at').order('id', { ascending: false }).limit(40)
+      .then(({ data, error }) => {
+        if (error || !data) return; // ตารางยังไม่ถูกสร้าง — ซ่อนส่วนรีวิวไปเงียบๆ
+        // ออเดอร์เดียวกันแสดงรีวิวเดียว: แถวใหม่สุดชนะ (รีวิวที่ลูกค้าเขียนเองมาแทน 5 ดาวอัตโนมัติ)
+        const seen = {}; const out = [];
+        for (const r of data) {
+          if (r.order_id) { if (seen[r.order_id]) continue; seen[r.order_id] = 1; }
+          out.push(r);
+        }
+        this.setState({ reviews: out, reviewsReady: true });
+      });
+  }
+  // ออเดอร์ถึงมือลูกค้าแล้ว (ส่งแล้ว) แต่ลูกค้ายังไม่รีวิวเอง → ให้ 5 ดาวอัตโนมัติหนึ่งครั้ง
+  maybeAutoReview(id){
+    try {
+      if (!this.db || !id) return;
+      const k = 'mp_review_' + id;
+      if (localStorage.getItem(k)) return;
+      localStorage.setItem(k, 'auto'); // กันยิงซ้ำจากการเช็คสถานะหลายรอบ
+      const od = (() => { try { return JSON.parse(localStorage.getItem('mp_order') || 'null'); } catch (e) { return null; } })();
+      const u = this.state.user || {};
+      this.db.from('reviews').insert({ order_id: id, name: u.fname || 'ลูกค้า', stars: 5, comment: null, ptype: (od && od.plabel) || null, auto: true })
+        .then(({ error }) => {
+          if (error) { console.error('auto review:', error); try { localStorage.removeItem(k); } catch (e) {} }
+          else this.loadReviews();
+        });
+      this.setState({});
     } catch (e) {}
   }
   // ติดตามสถานะจริงจากฐานข้อมูล (เจ้าของกดอัปเดต/ยกเลิกจากหน้าหลังบ้าน)
@@ -762,11 +803,13 @@ class App extends React.Component {
           this.saveOrder(id, c, t0);
           this.startPolling(id);
         }
+        // จำป้ายประเภทงานไว้กับออเดอร์ — ใช้แสดงในรีวิว ("งานเอกสารขาวดำ" ฯลฯ)
+        const plabel = s.tier === 'pro' ? 'PRO พรีเมียม' : ((PRINT_TYPES.find(t => t.k === s.ptype) || {}).label || '');
         // ยืนยันแล้วล้างรายการงานทิ้ง — เข้ามาสั่งรอบหน้าต้องเป็นหน้าว่างพร้อมดรอปไฟล์ใหม่ ไม่มีไฟล์เก่าค้าง
-        this.setState({ order: { id, total: c.grandTotal, times: [t0, '', '', ''] }, trackStep: 1, cancelReason: '', screen: 'track',
+        this.setState({ order: { id, total: c.grandTotal, times: [t0, '', '', ''], plabel }, trackStep: 1, cancelReason: '', screen: 'track',
           files: [], slip: null, copies: 1, bind: 'none', express: false, tier: 'standard', ptype: 'bw', paper: 'A4', sides: 1 });
         // จำออเดอร์ไว้ในเครื่อง — ปิดเว็บแล้วกลับมา การติดตามยังอยู่
-        try { localStorage.setItem('mp_order', JSON.stringify({ id, total: c.grandTotal, times: [t0, '', '', ''], step: 1 })); } catch (e) {}
+        try { localStorage.setItem('mp_order', JSON.stringify({ id, total: c.grandTotal, times: [t0, '', '', ''], step: 1, plabel })); } catch (e) {}
         if (!this.db) {
           // โหมดออฟไลน์: จำลองสถานะเดินเอง
           this.trackTimer = setInterval(() => {
@@ -797,6 +840,53 @@ class App extends React.Component {
           tt: { fontSize: '13px', fontWeight: done || active ? 700 : 500, color: done || active ? 'var(--ink)' : 'var(--sub)' }
         };
       }),
+      // ── รีวิวจากลูกค้า ──
+      reviews: s.reviews.slice(0, 12).map(r => ({
+        stars: Math.max(1, Math.min(5, r.stars || 5)),
+        comment: r.comment || '',
+        name: r.name || 'ลูกค้า',
+        ptype: r.ptype || '',
+        date: r.created_at ? new Date(r.created_at).toLocaleDateString('th-TH', { day: 'numeric', month: 'short' }) : ''
+      })),
+      revCount: s.reviews.length,
+      revAvg: s.reviews.length ? (s.reviews.reduce((a, r) => a + Math.max(1, Math.min(5, r.stars || 5)), 0) / s.reviews.length).toFixed(1) : '5.0',
+      revStars: s.revStars, setRevStars: (n) => () => this.setState({ revStars: n }),
+      revText: s.revText, setRevText: (e) => this.setState({ revText: e.target.value }),
+      revDone: (() => { try { return !!localStorage.getItem('mp_home_rev'); } catch (e) { return false; } })(),
+      sendHomeReview: () => {
+        if (!this.db) return this.showToast('โหมดตัวอย่าง — ยังไม่เชื่อมฐานข้อมูล');
+        const u = s.user || {};
+        this.db.from('reviews').insert({ order_id: null, name: u.fname || 'ลูกค้า', stars: s.revStars, comment: (s.revText || '').trim() || null, ptype: null, auto: false })
+          .then(({ error }) => {
+            if (error) return this.showToast('ส่งรีวิวไม่สำเร็จ ลองใหม่อีกครั้งครับ 🙏');
+            try { localStorage.setItem('mp_home_rev', '1'); } catch (e) {}
+            this.setState({ revText: '' });
+            this.showToast('ขอบคุณสำหรับรีวิวครับ 💚');
+            this.loadReviews();
+          });
+      },
+      // รีวิวหลังได้รับของ (หน้าติดตาม เมื่อสถานะ = ส่งแล้ว)
+      revReady: s.reviewsReady,
+      showTrackReview: !!s.order && step >= 4 && !cancelled && s.reviewsReady,
+      trackRevDone: (() => { try { return s.order && localStorage.getItem('mp_review_' + s.order.id) === 'done'; } catch (e) { return false; } })(),
+      trackStars: s.trackStars, setTrackStars: (n) => () => this.setState({ trackStars: n }),
+      trackText: s.trackText, setTrackText: (e) => this.setState({ trackText: e.target.value }),
+      sendTrackReview: () => {
+        if (!s.order) return;
+        if (!this.db) {
+          try { localStorage.setItem('mp_review_' + s.order.id, 'done'); } catch (e) {}
+          this.setState({ trackText: '' });
+          return this.showToast('โหมดตัวอย่าง — รีวิวไม่ถูกบันทึกจริง');
+        }
+        this.db.from('reviews').insert({ order_id: s.order.id, name: (s.user || {}).fname || 'ลูกค้า', stars: s.trackStars, comment: (s.trackText || '').trim() || null, ptype: s.order.plabel || null, auto: false })
+          .then(({ error }) => {
+            if (error) return this.showToast('ส่งรีวิวไม่สำเร็จ ลองใหม่อีกครั้งครับ 🙏');
+            try { localStorage.setItem('mp_review_' + s.order.id, 'done'); } catch (e) {}
+            this.setState({ trackText: '' });
+            this.showToast('ขอบคุณสำหรับรีวิวครับ 💚');
+            this.loadReviews();
+          });
+      },
       newOrder: () => this.setState({ screen: 'order', files: [], copies: 1, slip: null }),
       toast: s.toast,
       navItems: [
@@ -963,6 +1053,40 @@ class App extends React.Component {
                 <span style={css("border:1px dashed var(--line);color:var(--sub);font-size:12px;padding:7px 12px;border-radius:99px")}>+ ทุกที่รอบ มข.</span>
               </div>
             </div>
+            {/* ── รีวิวจากลูกค้า: ให้ดาว+คอมเมนต์ได้ตรงนี้เลย (ซ่อนจนกว่าตาราง reviews พร้อม) ── */}
+            {v.revReady && <div style={css("padding:18px 20px 0")}>
+              <div style={css("display:flex;align-items:baseline;gap:8px;margin-bottom:9px")}>
+                <div style={css("font-size:13px;font-weight:700")}>⭐ รีวิวจากลูกค้า</div>
+                {v.revCount > 0 && <div style={css("font-size:11.5px;color:var(--sub)")}>{v.revAvg} / 5 · {v.revCount} รีวิว</div>}
+              </div>
+              {!v.revDone ? (
+                <div style={css("background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 14px;margin-bottom:10px")}>
+                  <div style={css("font-size:12px;font-weight:600;color:var(--sub)")}>ให้คะแนนร้านเราหน่อยครับ</div>
+                  <div style={css("margin-top:6px;display:flex;gap:4px")}>
+                    {[1, 2, 3, 4, 5].map(n => <span key={n} onClick={v.setRevStars(n)} style={css("font-size:28px;line-height:1;cursor:pointer;color:" + (n <= v.revStars ? "#f5a623" : "var(--line)"))}>★</span>)}
+                  </div>
+                  <textarea value={v.revText} onChange={v.setRevText} placeholder="ชื่นชมหรือแนะนำให้ร้านปรับปรุง (ไม่บังคับ)" style={css("margin-top:8px;width:100%;box-sizing:border-box;min-height:54px;border:1px solid var(--line);border-radius:10px;background:var(--soft);color:var(--ink);padding:8px 10px;font-size:12.5px;outline:none;resize:vertical;font-family:inherit")}/>
+                  <button onClick={v.sendHomeReview} style={css("margin-top:8px;width:100%;height:40px;border:none;border-radius:10px;background:var(--acc);color:#fff;font-size:13px;font-weight:700;cursor:pointer")}>ส่งรีวิว</button>
+                </div>
+              ) : (
+                <div style={css("background:var(--accSoft);border:1px solid var(--acc);border-radius:12px;padding:10px 14px;margin-bottom:10px;font-size:12.5px;color:var(--acc);font-weight:600")}>🙏 ขอบคุณสำหรับรีวิวครับ</div>
+              )}
+              {v.reviews.length > 0 && (
+                <div style={css("display:flex;flex-direction:column;gap:8px")}>
+                  {v.reviews.map((r, i) => (
+                    <div key={i} style={css("background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px 14px")}>
+                      <div style={css("display:flex;align-items:center;gap:8px")}>
+                        <div style={css("color:#f5a623;font-size:13px;letter-spacing:1px")}>{'★'.repeat(r.stars)}<span style={css("color:var(--line)")}>{'★'.repeat(5 - r.stars)}</span></div>
+                        <div style={css("flex:1")}></div>
+                        <div style={css("font-size:10.5px;color:var(--sub)")}>{r.date}</div>
+                      </div>
+                      {r.comment && <div style={css("margin-top:5px;font-size:12.5px;line-height:1.55")}>{r.comment}</div>}
+                      <div style={css("margin-top:5px;font-size:11px;color:var(--sub)")}>คุณ{r.name}{r.ptype ? ' · งาน' + r.ptype : ''}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>}
             <div onClick={() => window.open((window.MP_CONFIG || {}).LINE_OA_URL || 'https://line.me/R/ti/p/@346kifvy', '_blank')} style={css("margin:18px 20px 20px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 16px;display:flex;align-items:center;gap:12px;cursor:pointer")}>
               <div style={css("width:38px;height:38px;border-radius:10px;background:#06c755;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12px")}>LINE</div>
               <div style={css("flex:1")}><div style={css("font-size:13px;font-weight:600")}>สอบถาม / สั่งด่วนทาง LINE</div><div style={css("font-size:11px;color:var(--sub)")}>LINE OA: @346kifvy — แตะเพื่อแชทกับร้าน</div></div>
@@ -1256,6 +1380,18 @@ class App extends React.Component {
                   <div style={css("display:flex;justify-content:space-between")}><span style={css("color:var(--sub)")}>เวลารับ</span><span style={css("font-family:'IBM Plex Mono',monospace")}>{v.timeLabel}</span></div>
                   <div style={css("display:flex;justify-content:space-between;font-weight:700;border-top:1px dashed var(--line);padding-top:6px")}><span>ชำระแล้ว</span><span style={css("font-family:'IBM Plex Mono',monospace;color:var(--acc)")}>฿{v.paidTotal}</span></div>
                 </div>
+                {v.showTrackReview && (v.trackRevDone
+                  ? <div style={css("background:var(--accSoft);border:1px solid var(--acc);border-radius:14px;padding:12px 16px;font-size:12.5px;color:var(--acc);font-weight:600")}>🙏 ขอบคุณสำหรับรีวิวครับ — ดูได้ที่หน้าแรกเลย</div>
+                  : <div style={css("background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px;box-shadow:var(--shadow)")}>
+                      <div style={css("font-size:13.5px;font-weight:700")}>ได้รับงานแล้ว ให้คะแนนหน่อยครับ ⭐</div>
+                      <div style={css("margin-top:4px;font-size:11px;color:var(--sub);line-height:1.5")}>ระบบให้ 5 ดาวไว้ให้แล้ว — ปรับดาวหรือเขียนคอมเมนต์เพิ่มได้เลยครับ</div>
+                      <div style={css("margin-top:8px;display:flex;gap:5px")}>
+                        {[1, 2, 3, 4, 5].map(n => <span key={n} onClick={v.setTrackStars(n)} style={css("font-size:30px;line-height:1;cursor:pointer;color:" + (n <= v.trackStars ? "#f5a623" : "var(--line)"))}>★</span>)}
+                      </div>
+                      <textarea value={v.trackText} onChange={v.setTrackText} placeholder="ชื่นชมหรือแนะนำให้ร้านปรับปรุง (ไม่บังคับ)" style={css("margin-top:8px;width:100%;box-sizing:border-box;min-height:54px;border:1px solid var(--line);border-radius:10px;background:var(--soft);color:var(--ink);padding:8px 10px;font-size:12.5px;outline:none;resize:vertical;font-family:inherit")}/>
+                      <button onClick={v.sendTrackReview} style={css("margin-top:8px;width:100%;height:42px;border:none;border-radius:10px;background:var(--acc);color:#fff;font-size:13.5px;font-weight:700;cursor:pointer")}>ส่งรีวิว</button>
+                    </div>
+                )}
                 <button onClick={v.newOrder} style={css("width:100%;height:46px;border:1px solid var(--line);border-radius:14px;background:var(--card);color:var(--ink);font-size:14px;font-weight:600;cursor:pointer")}>+ สั่งปริ้นใหม่</button>
               </React.Fragment>
             )}
