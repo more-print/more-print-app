@@ -654,6 +654,7 @@ function AdminApp(){
           </div>
         </div>
         <div style={css("display:flex;align-items:center;gap:10px")}>
+          <a href="pro.html" style={css("background:#7048e8;color:#fff;height:32px;padding:0 12px;border-radius:9px;font-size:11.5px;font-weight:700;text-decoration:none;display:flex;align-items:center")}>✨ PRO</a>
           {DB && <button onClick={refresh} style={css("background:#2a2a2a;border:none;color:#fff;height:32px;padding:0 12px;border-radius:9px;font-size:12px;cursor:pointer")}>⟳ รีเฟรช</button>}
           {DB && <button onClick={() => DB.auth.signOut().then(() => location.reload())} style={css("background:none;border:1px solid #444;color:#bbb;height:32px;padding:0 10px;border-radius:9px;font-size:11px;cursor:pointer")}>ออก</button>}
           <div style={css("font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--accBright);display:flex;align-items:center;gap:5px")}>
