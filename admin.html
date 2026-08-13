@@ -357,9 +357,9 @@ function AdminApp(){
   React.useEffect(() => {
     if (tab !== 'stats' || !authed) return;
     if (!DB) { setHistRows(orders); return; }
-    DB.from('orders').select('created_at,total,status,customer_phone,phone')
+    DB.from('orders').select('created_at,total,status,customer_phone,phone,ptype')
       .order('created_at', { ascending: false }).limit(10000)
-      .then(({ data }) => { if (data) setHistRows(data); });
+      .then(({ data }) => { if (data) setHistRows(data.filter(o => o.ptype !== 'pro')); });
   }, [tab, authed]);
 
   // สรุปรายเดือน + รายปี (ไม่นับออเดอร์ที่ยกเลิก)
@@ -465,7 +465,8 @@ function AdminApp(){
     if (!DB) return;
     try {
       const { data, error } = await DB.from('orders').select('*').order('created_at', { ascending: false }).limit(1000);
-      if (!error && data) { setOrders(data); setLastSync(new Date()); }
+      // งาน Pro แยกไปบริหารที่ pro.html (ของร้านพาร์ทเนอร์) — หลังบ้านหลักเห็นเฉพาะงาน Standard ของเรา
+      if (!error && data) { setOrders(data.filter(o => o.ptype !== 'pro')); setLastSync(new Date()); }
     } catch (e) { console.error(e); }
     setLoading(false);
   }, []);
@@ -655,6 +656,7 @@ function AdminApp(){
         </div>
         <div style={css("display:flex;align-items:center;gap:10px")}>
           <a href="pro.html" style={css("background:#7048e8;color:#fff;height:32px;padding:0 12px;border-radius:9px;font-size:11.5px;font-weight:700;text-decoration:none;display:flex;align-items:center")}>✨ PRO</a>
+          <a href="commission.html" style={css("background:#a16207;color:#fff;height:32px;padding:0 10px;border-radius:9px;font-size:11.5px;font-weight:700;text-decoration:none;display:flex;align-items:center")}>💰</a>
           {DB && <button onClick={refresh} style={css("background:#2a2a2a;border:none;color:#fff;height:32px;padding:0 12px;border-radius:9px;font-size:12px;cursor:pointer")}>⟳ รีเฟรช</button>}
           {DB && <button onClick={() => DB.auth.signOut().then(() => location.reload())} style={css("background:none;border:1px solid #444;color:#bbb;height:32px;padding:0 10px;border-radius:9px;font-size:11px;cursor:pointer")}>ออก</button>}
           <div style={css("font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--accBright);display:flex;align-items:center;gap:5px")}>

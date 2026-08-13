@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MORE PRINT — ค่าคอมงาน PRO</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Montserrat:wght@700;800&display=swap" rel="stylesheet">
+<style>
+  body{margin:0;background:var(--bg);font-family:'IBM Plex Sans Thai',sans-serif;
+  --bg:#faf7f0;--card:#ffffff;--ink:#111111;--sub:#93876f;--line:#eee5d4;--soft:#f5efe2;
+  --acc:#a16207;--accSoft:#fff3d6;--green:#00b368;--purple:#7048e8;--shadow:0 2px 10px rgba(0,0,0,.06)}
+  input,button{font-family:'IBM Plex Sans Thai',sans-serif}
+  table{border-collapse:collapse;width:100%}
+</style>
+<script src="./config.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script crossorigin src="https://unpkg.com/react@18.3.1/umd/react.production.min.js"></script>
+<script crossorigin src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js"></script>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel" data-presets="react">
+const CFG = window.MP_CONFIG || {};
+const DB = (CFG.SUPABASE_URL && CFG.SUPABASE_ANON_KEY && window.supabase)
+  ? window.supabase.createClient(CFG.SUPABASE_URL, CFG.SUPABASE_ANON_KEY, { auth: { storageKey: 'mp-comm' } }) : null;
+
+const COMMISSION = 0.33; // ค่าคอม MORE PRINT — ต้องตรงกับ pro.html
+const PARTNER_NAME = 'ร้านอุดมสุขปริ้นติ้ง';
+const TH_MONTHS = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
+
+function css(str){
+  const o = {};
+  String(str).split(';').forEach(decl => {
+    const i = decl.indexOf(':');
+    if (i < 0) return;
+    const prop = decl.slice(0, i).trim();
+    if (!prop) return;
+    o[prop.startsWith('--') ? prop : prop.replace(/-([a-z])/g, (_, c) => c.toUpperCase())] = decl.slice(i + 1).trim();
+  });
+  return o;
+}
+const baht = (n) => '฿' + (Math.round((n || 0) * 100) / 100).toLocaleString('th-TH');
+const jobValue = (o) => (o.print_cost || 0) + (o.bind_cost || 0);
+const fmtDate = (iso) => { const d = new Date(iso); return d.getDate() + ' ' + TH_MONTHS[d.getMonth()] + ' ' + ((d.getFullYear() + 543) % 100); };
+
+const DEMO = [
+  { id: '#MP-PRO101', created_at: new Date().toISOString(), status: 4, print_cost: 600, bind_cost: 0, slip_path: 'x/slip.jpg', payout_at: new Date().toISOString(), customer_fname: 'สมชาย', paper: 'A1', copies: 2 },
+  { id: '#MP-PRO102', created_at: new Date(Date.now() - 20*3600000).toISOString(), status: 4, print_cost: 250, bind_cost: 0, slip_path: 'x/slip.jpg', payout_at: null, customer_fname: 'มินตรา', paper: 'A2', copies: 1 },
+  { id: '#MP-PRO103', created_at: new Date(Date.now() - 3*3600000).toISOString(), status: 2, print_cost: 1000, bind_cost: 0, slip_path: 'x/slip.jpg', payout_at: null, customer_fname: 'ต้นกล้า', paper: 'A0', copies: 1 },
+  { id: '#MP-PRO104', created_at: new Date(Date.now() - 40*24*3600000).toISOString(), status: 4, print_cost: 480, bind_cost: 0, slip_path: 'x/slip.jpg', payout_at: new Date().toISOString(), customer_fname: 'boat', paper: 'A2', copies: 3 }
+];
+
+function Login({ onOk }){
+  const [email, setEmail] = React.useState('');
+  const [pass, setPass] = React.useState('');
+  const [busy, setBusy] = React.useState(false);
+  const [msg, setMsg] = React.useState('');
+  const verify = async () => {
+    const a = await DB.rpc('is_admin');
+    if (a.data) { onOk(); return; }
+    const p = await DB.rpc('is_partner');
+    setMsg(p.data ? 'หน้านี้สำหรับเจ้าของ MORE PRINT เท่านั้น — ร้านพาร์ทเนอร์ใช้หน้า pro.html ครับ' : 'บัญชีนี้ไม่ใช่เจ้าของร้าน');
+    setBusy(false);
+  };
+  React.useEffect(() => {
+    if (!DB) { onOk(); return; }
+    DB.auth.getSession().then(({ data }) => { if (data.session) { setBusy(true); verify(); } });
+  }, []);
+  const submit = async () => {
+    if (!DB) return onOk();
+    if (!email.trim() || !pass) return setMsg('กรอกอีเมลและรหัสผ่านก่อนครับ');
+    setBusy(true); setMsg('');
+    const { error } = await DB.auth.signInWithPassword({ email: email.trim().toLowerCase(), password: pass });
+    if (error) { setBusy(false); return setMsg('อีเมลหรือรหัสผ่านไม่ถูกต้อง ❌'); }
+    await verify();
+  };
+  return (
+    <div style={css("min-height:100vh;display:flex;align-items:center;justify-content:center;background:var(--bg);padding:20px")}>
+      <div style={css("background:var(--card);border:1px solid var(--line);border-radius:18px;padding:28px 24px;width:320px;box-shadow:var(--shadow);display:flex;flex-direction:column;gap:12px;align-items:center")}>
+        <div style={css("font-size:34px")}>💰</div>
+        <div style={css("font-family:'Montserrat',sans-serif;font-weight:800;font-size:16px;letter-spacing:1px")}><span style={css("color:var(--acc)")}>MORE</span> PRINT <span style={css("color:var(--acc)")}>COMMISSION</span></div>
+        <div style={css("font-size:13px;color:var(--sub);text-align:center")}>🔐 รายได้ค่าคอมจากงาน PRO — เจ้าของเท่านั้น</div>
+        <input value={email} onChange={e => setEmail(e.target.value)} placeholder="อีเมลเจ้าของร้าน" inputMode="email" autoComplete="email"
+          style={css("width:100%;box-sizing:border-box;height:46px;border:1px solid var(--line);border-radius:12px;background:var(--soft);color:var(--ink);padding:0 14px;font-size:14px;outline:none")}/>
+        <input type="password" value={pass} onChange={e => setPass(e.target.value)} onKeyDown={e => e.key === 'Enter' && submit()} placeholder="รหัสผ่าน" autoComplete="current-password"
+          style={css("width:100%;box-sizing:border-box;height:46px;border:1px solid var(--line);border-radius:12px;background:var(--soft);color:var(--ink);padding:0 14px;font-size:14px;outline:none")}/>
+        {msg && <div style={css("font-size:12px;color:#d9480f;text-align:center;line-height:1.5")}>{msg}</div>}
+        <button onClick={submit} disabled={busy} style={css("width:100%;height:46px;border:none;border-radius:12px;background:var(--acc);color:#fff;font-size:14px;font-weight:700;cursor:pointer" + (busy ? ";opacity:.6" : ""))}>{busy ? 'กำลังตรวจสอบ…' : 'ดูรายได้ค่าคอม →'}</button>
+      </div>
+    </div>
+  );
+}
+
+// ไทม์ไลน์ของแต่ละงาน: ชำระ → ผลิต → ส่งถึงมือ → โอนส่วนแบ่งแล้ว
+function Pipeline({ o }){
+  const steps = [
+    ['💰', 'ชำระแล้ว', !!o.slip_path],
+    ['🖨️', 'ผลิต', o.status >= 2],
+    ['✅', 'ถึงมือลูกค้า', o.status >= 4],
+    ['💸', 'โอนส่วนแบ่งแล้ว', !!o.payout_at]
+  ];
+  return (
+    <div style={css("display:flex;gap:6px;flex-wrap:wrap")}>
+      {steps.map(([ic, label, on], i) => (
+        <span key={i} style={css("font-size:10.5px;font-weight:700;padding:3px 9px;border-radius:99px;" + (on ? "background:var(--accSoft);color:var(--acc)" : "background:var(--soft);color:#c8bfa8"))}>{ic} {label}</span>
+      ))}
+    </div>
+  );
+}
+
+function Dash(){
+  const [orders, setOrders] = React.useState(DB ? [] : DEMO);
+  const [loading, setLoading] = React.useState(!!DB);
+  const load = React.useCallback(async () => {
+    if (!DB) return;
+    setLoading(true);
+    const cols = 'id,created_at,status,print_cost,bind_cost,slip_path,customer_fname,paper,copies';
+    let r = await DB.from('orders').select(cols + ',payout_at').eq('ptype', 'pro').order('created_at', { ascending: false }).limit(3000);
+    if (r.error) r = await DB.from('orders').select(cols).eq('ptype', 'pro').order('created_at', { ascending: false }).limit(3000);
+    if (!r.error && r.data) setOrders(r.data);
+    setLoading(false);
+  }, []);
+  React.useEffect(() => { load(); }, [load]);
+
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const month = new Date(now.getFullYear(), now.getMonth(), 1);
+  const year = new Date(now.getFullYear(), 0, 1);
+  // รับรู้รายได้เมื่องานจบ (ส่งถึงมือลูกค้า = สถานะ 4) — งานระหว่างทางแยกเป็น "คอมรอรับ"
+  const done = orders.filter(o => o.status === 4 && jobValue(o) > 0);
+  const pending = orders.filter(o => o.status > 0 && o.status < 4);
+  const pendingComm = pending.reduce((a, o) => a + jobValue(o) * COMMISSION, 0);
+  const agg = (since) => {
+    const rows = done.filter(o => new Date(o.created_at) >= since);
+    const job = rows.reduce((a, o) => a + jobValue(o), 0);
+    return { n: rows.length, job, comm: job * COMMISSION, partner: job * (1 - COMMISSION) };
+  };
+  const periods = [['วันนี้', agg(today)], ['เดือนนี้', agg(month)], ['ปีนี้', agg(year)]];
+  // สรุปรายเดือน
+  const byMonth = {};
+  done.forEach(o => {
+    const d = new Date(o.created_at);
+    const k = d.getFullYear() * 100 + d.getMonth();
+    if (!byMonth[k]) byMonth[k] = { y: d.getFullYear(), m: d.getMonth(), n: 0, job: 0 };
+    byMonth[k].n++; byMonth[k].job += jobValue(o);
+  });
+  const months = Object.keys(byMonth).sort((a, b) => b - a).map(k => byMonth[k]);
+
+  return (
+    <div style={css("min-height:100vh;background:var(--bg)")}>
+      <div style={css("background:#2b2413;color:#fff;padding:16px 18px;display:flex;align-items:center;gap:12px;position:sticky;top:0;z-index:10")}>
+        <div style={css("font-size:22px")}>💰</div>
+        <div style={css("flex:1;min-width:0")}>
+          <div style={css("font-family:'Montserrat',sans-serif;font-weight:800;font-size:15px;letter-spacing:1px")}><span style={css("color:#ffd43b")}>MORE</span> PRINT <span style={css("color:#ffd43b")}>COMMISSION</span></div>
+          <div style={css("font-family:'IBM Plex Mono',monospace;font-size:9.5px;letter-spacing:2px;color:#e6c366")}>คอม {Math.round(COMMISSION * 100)}% จากงาน PRO · {PARTNER_NAME}</div>
+        </div>
+        {!DB && <span style={css("font-size:10px;font-weight:700;background:#f59f00;color:#2b2413;padding:3px 10px;border-radius:99px")}>DEMO</span>}
+        <a href="pro.html" style={css("color:#b197fc;font-size:11.5px;font-weight:700;text-decoration:none")}>✨ PRO</a>
+        <a href="admin.html" style={css("color:#e6c366;font-size:11.5px;font-weight:700;text-decoration:none")}>← หลัก</a>
+        <button onClick={load} style={css("height:32px;padding:0 10px;border:1px solid #6b5c2e;border-radius:9px;background:none;color:#fff;font-size:11.5px;cursor:pointer")}>{loading ? '…' : '⟳'}</button>
+      </div>
+
+      <div style={css("padding:14px 16px 40px;display:flex;flex-direction:column;gap:12px;max-width:760px;margin:0 auto")}>
+        {!DB && <div style={css("background:var(--accSoft);border:1px solid var(--line);border-radius:12px;padding:10px 14px;font-size:12px;color:var(--acc)")}>⚠️ โหมดตัวอย่าง — ข้อมูลเป็นเพียงตัวอย่าง</div>}
+
+        {/* คอมที่ได้จริง (งานจบแล้ว) วันนี้/เดือน/ปี */}
+        <div style={css("display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px")}>
+          {periods.map(([label, a], i) => (
+            <div key={i} style={css("background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 12px;box-shadow:var(--shadow)")}>
+              <div style={css("font-size:11px;font-weight:700;color:var(--sub)")}>คอม{label}</div>
+              <div style={css("margin-top:4px;font-size:19px;font-weight:800;font-family:'IBM Plex Mono',monospace;color:var(--acc)")}>{baht(a.comm)}</div>
+              <div style={css("font-size:10.5px;color:var(--sub)")}>{a.n} งานจบแล้ว</div>
+            </div>
+          ))}
+        </div>
+
+        {/* คอมรอรับจากงานที่ยังไม่จบ */}
+        <div style={css("background:var(--card);border:1.5px dashed var(--acc);border-radius:14px;padding:12px 16px;display:flex;align-items:center;gap:12px")}>
+          <div style={css("font-size:24px")}>⏳</div>
+          <div style={css("flex:1")}>
+            <div style={css("font-size:12px;font-weight:700;color:var(--acc)")}>คอมรอรับ — งานที่กำลังทำอยู่ {pending.length} งาน</div>
+            <div style={css("font-size:11px;color:var(--sub)")}>จะเข้ายอดเมื่องานส่งถึงมือลูกค้า</div>
+          </div>
+          <div style={css("font-family:'IBM Plex Mono',monospace;font-size:18px;font-weight:800;color:var(--acc)")}>{baht(pendingComm)}</div>
+        </div>
+
+        {/* สรุปรายเดือน */}
+        <div style={css("background:var(--card);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);overflow-x:auto")}>
+          <div style={css("padding:12px 16px 0;font-size:12.5px;font-weight:700;color:var(--sub)")}>📅 สรุปรายเดือน (เฉพาะงานที่จบแล้ว)</div>
+          <table style={css("margin-top:6px")}>
+            <thead><tr>
+              {['เดือน', 'งาน', 'ยอดเต็ม 100%', 'คอมเรา ' + Math.round(COMMISSION * 100) + '%', 'ให้' + PARTNER_NAME.replace('ร้าน', '')].map((h, i) => (
+                <th key={i} style={css("text-align:" + (i < 2 ? "left" : "right") + ";font-size:10.5px;color:var(--sub);font-weight:600;padding:6px 12px;border-bottom:1px solid var(--line);white-space:nowrap")}>{h}</th>
+              ))}
+            </tr></thead>
+            <tbody>
+              {months.length === 0 && <tr><td colSpan="5" style={css("padding:16px;text-align:center;font-size:12px;color:var(--sub)")}>ยังไม่มีงานที่จบ</td></tr>}
+              {months.map((m, i) => (
+                <tr key={i}>
+                  <td style={css("padding:7px 12px;font-size:12px;font-weight:700;white-space:nowrap")}>{TH_MONTHS[m.m]} {(m.y + 543) % 100}</td>
+                  <td style={css("padding:7px 12px;font-size:12px;color:var(--sub)")}>{m.n}</td>
+                  <td style={css("padding:7px 12px;font-size:12px;text-align:right;font-family:'IBM Plex Mono',monospace")}>{baht(m.job)}</td>
+                  <td style={css("padding:7px 12px;font-size:12px;text-align:right;font-family:'IBM Plex Mono',monospace;font-weight:700;color:var(--acc)")}>{baht(m.job * COMMISSION)}</td>
+                  <td style={css("padding:7px 12px;font-size:12px;text-align:right;font-family:'IBM Plex Mono',monospace;color:var(--purple)")}>{baht(m.job * (1 - COMMISSION))}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <div style={css("padding:8px 16px 12px")}></div>
+        </div>
+
+        {/* รายงานทีละงาน */}
+        <div style={css("font-size:12.5px;font-weight:700;color:var(--sub)")}>🧾 รายละเอียดทีละงาน ({orders.length})</div>
+        {loading && <div style={css("text-align:center;color:var(--sub);font-size:13px;padding:16px 0")}>กำลังโหลด…</div>}
+        {!loading && orders.length === 0 && <div style={css("text-align:center;color:var(--sub);font-size:13px;padding:24px 0")}>ยังไม่มีงาน Pro เข้ามา</div>}
+        {orders.map(o => (
+          <div key={o.id} style={css("background:var(--card);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);padding:12px 16px" + (o.status === 0 ? ";opacity:.5" : ""))}>
+            <div style={css("display:flex;align-items:center;gap:8px;flex-wrap:wrap")}>
+              <span style={css("font-family:'IBM Plex Mono',monospace;font-size:12.5px;font-weight:600")}>{o.id}</span>
+              <span style={css("font-size:11px;color:var(--sub)")}>{fmtDate(o.created_at)} · คุณ{o.customer_fname} · {o.paper} × {o.copies || 1}</span>
+              {o.status === 0 && <span style={css("font-size:10.5px;font-weight:700;color:#c92a2a;background:#ffe3e3;padding:2px 9px;border-radius:99px")}>ยกเลิก</span>}
+            </div>
+            <div style={css("margin-top:7px")}><Pipeline o={o}/></div>
+            {jobValue(o) > 0 ? (
+              <div style={css("margin-top:8px;display:flex;gap:14px;flex-wrap:wrap;font-size:11.5px")}>
+                <span style={css("color:var(--sub)")}>ยอดเต็ม <b style={css("font-family:'IBM Plex Mono',monospace;color:var(--ink)")}>{baht(jobValue(o))}</b></span>
+                <span style={css("color:var(--sub)")}>คอมเรา <b style={css("font-family:'IBM Plex Mono',monospace;color:var(--acc)")}>{baht(jobValue(o) * COMMISSION)}</b></span>
+                <span style={css("color:var(--sub)")}>ให้ร้านอุดมสุข <b style={css("font-family:'IBM Plex Mono',monospace;color:var(--purple)")}>{baht(jobValue(o) * (1 - COMMISSION))}</b></span>
+              </div>
+            ) : (
+              <div style={css("margin-top:8px;font-size:11px;color:var(--sub)")}>⏳ ยังไม่ตั้งราคา — ไปตั้งที่หน้า ✨ PRO</div>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function App(){
+  const [authed, setAuthed] = React.useState(false);
+  if (!authed) return <Login onOk={() => setAuthed(true)}/>;
+  return <Dash/>;
+}
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
+</body>
+</html>

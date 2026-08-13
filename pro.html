@@ -133,10 +133,12 @@ function Badge({ status }){
   return <span style={css("font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:600;color:var(--acc);background:var(--accSoft);padding:3px 10px;border-radius:99px;white-space:nowrap")}>{STEPS[i]}</span>;
 }
 
-function ProOrder({ o, isOwner, payoutReady, onPrice, onPayout }){
+function ProOrder({ o, isOwner, payoutReady, onPrice, onPayout, onAdvance, onCancel }){
   const [edit, setEdit] = React.useState(false);
   const [price, setPrice] = React.useState('');
   const [confirmPay, setConfirmPay] = React.useState(false);
+  const [cancelOpen, setCancelOpen] = React.useState(false);
+  const [reason, setReason] = React.useState('');
   const priced = jobValue(o) > 0;
   const save = () => {
     const n = Math.round(Number(price));
@@ -200,6 +202,23 @@ function ProOrder({ o, isOwner, payoutReady, onPrice, onPayout }){
       ) : (
         <div style={css("margin-top:10px;background:var(--goldBg);border-radius:10px;padding:9px 12px;font-size:11.5px;color:var(--gold);font-weight:600")}>⏳ MORE PRINT กำลังตกลงราคากับลูกค้า — เดี๋ยวยอดจะขึ้นตรงนี้ครับ</div>
       )}
+      {o.status === 0 && o.cancel_reason && <div style={css("margin-top:8px;font-size:11.5px;color:#c92a2a")}>เหตุผลที่ยกเลิก: {o.cancel_reason}</div>}
+      {isOwner && o.status > 0 && o.status < 4 && (
+        <div style={css("margin-top:10px;display:flex;flex-direction:column;gap:8px")}>
+          <div style={css("display:flex;gap:8px")}>
+            <button onClick={() => onAdvance(o)} style={css("flex:1;height:40px;border:none;border-radius:10px;background:var(--acc);color:#fff;font-size:12.5px;font-weight:700;cursor:pointer")}>→ อัปเดตเป็น "{STEPS[Math.min(o.status, 3)]}"</button>
+            <button onClick={() => setCancelOpen(v => !v)} style={css("height:40px;padding:0 12px;border:1px solid #ffa8a8;border-radius:10px;background:none;color:#c92a2a;font-size:12px;font-weight:600;cursor:pointer")}>✕ ยกเลิก</button>
+          </div>
+          {cancelOpen && (
+            <div style={css("display:flex;gap:8px")}>
+              <input value={reason} onChange={e => setReason(e.target.value)} placeholder="เหตุผลที่ยกเลิก (ลูกค้าจะเห็นข้อความนี้)"
+                style={css("flex:1;box-sizing:border-box;height:38px;border:1px solid var(--line);border-radius:10px;background:var(--soft);color:var(--ink);padding:0 12px;font-size:12px;outline:none")}/>
+              <button onClick={() => { if (reason.trim()) { onCancel(o, reason.trim()); setCancelOpen(false); setReason(''); } }} disabled={!reason.trim()}
+                style={css("height:38px;padding:0 12px;border:none;border-radius:10px;background:" + (reason.trim() ? "#c92a2a" : "#f1b5b5") + ";color:#fff;font-size:12px;font-weight:700;cursor:pointer")}>ยืนยันยกเลิก</button>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -213,7 +232,7 @@ function Dash({ role }){
   const load = React.useCallback(async () => {
     if (!DB) return;
     setLoading(true);
-    const cols = 'id,created_at,status,customer_fname,customer_lname,customer_phone,paper,sides,copies,print_cost,bind_cost,delivery_cost,night_fee,total,files';
+    const cols = 'id,created_at,status,times,cancel_reason,customer_fname,customer_lname,customer_phone,paper,sides,copies,print_cost,bind_cost,delivery_cost,night_fee,total,files';
     let r = await DB.from('orders').select(cols + ',payout_at').eq('ptype', 'pro').order('created_at', { ascending: false }).limit(2000);
     if (r.error) {
       // ยังไม่มีคอลัมน์ payout_at — โหลดแบบไม่มีไปก่อน (ตั้งราคายังใช้ได้ แต่บันทึกการโอนยังไม่ได้)
@@ -234,6 +253,18 @@ function Dash({ role }){
     const ts = new Date().toISOString();
     if (DB) { await DB.from('orders').update({ payout_at: ts }).eq('id', o.id); await load(); }
     else setOrders(l => l.map(x => x.id === o.id ? { ...x, payout_at: ts } : x));
+  };
+  // สถานะงาน Pro จัดการที่นี่ (หลังบ้านหลักไม่แสดงงาน Pro แล้ว) — ลูกค้าเห็นสถานะวิ่งเหมือนเดิม
+  const advance = async (o) => {
+    const next = Math.min((o.status || 1) + 1, 4);
+    const times = (o.times || ['', '', '', '']).slice();
+    times[next - 1] = fmtTime(new Date());
+    if (DB) { await DB.from('orders').update({ status: next, times }).eq('id', o.id); await load(); }
+    else setOrders(l => l.map(x => x.id === o.id ? { ...x, status: next, times } : x));
+  };
+  const cancelOrder = async (o, reason) => {
+    if (DB) { await DB.from('orders').update({ status: 0, cancel_reason: reason }).eq('id', o.id); await load(); }
+    else setOrders(l => l.map(x => x.id === o.id ? { ...x, status: 0, cancel_reason: reason } : x));
   };
 
   // ── สถิติราย วัน/สัปดาห์/เดือน/ปี (ไม่รวมออเดอร์ที่ยกเลิก) ──
@@ -269,6 +300,7 @@ function Dash({ role }){
           <div style={css("font-family:'IBM Plex Mono',monospace;font-size:9.5px;letter-spacing:2px;color:#b197fc")}>{isOwner ? 'PARTNER FINANCE · คอม ' + Math.round(COMMISSION * 100) + '%' : 'PARTNER VIEW · ส่วนแบ่งร้านคุณ ' + Math.round((1 - COMMISSION) * 100) + '%'}</div>
         </div>
         {!DB && <span style={css("font-size:10px;font-weight:700;background:#f59f00;color:#1c1533;padding:3px 10px;border-radius:99px")}>DEMO</span>}
+        {isOwner && <a href="commission.html" style={css("color:#ffd43b;font-size:11.5px;font-weight:700;text-decoration:none")}>💰 ค่าคอม</a>}
         {isOwner && <a href="admin.html" style={css("color:#b197fc;font-size:11.5px;font-weight:700;text-decoration:none")}>← หลังบ้านหลัก</a>}
         <button onClick={load} style={css("height:32px;padding:0 12px;border:1px solid #4c3d80;border-radius:9px;background:none;color:#fff;font-size:11.5px;cursor:pointer")}>{loading ? '…' : '⟳ รีเฟรช'}</button>
         {DB && <button onClick={() => DB.auth.signOut().then(() => location.reload())} style={css("height:32px;padding:0 10px;border:1px solid #4c3d80;border-radius:9px;background:none;color:#b197fc;font-size:11px;cursor:pointer")}>ออก</button>}
@@ -306,7 +338,7 @@ function Dash({ role }){
         <div style={css("font-size:12.5px;font-weight:700;color:var(--sub)")}>📋 ออเดอร์งาน PRO ทั้งหมด ({orders.length})</div>
         {loading && <div style={css("text-align:center;color:var(--sub);font-size:13px;padding:16px 0")}>กำลังโหลด…</div>}
         {!loading && orders.length === 0 && <div style={css("text-align:center;color:var(--sub);font-size:13px;padding:24px 0")}>ยังไม่มีออเดอร์งาน Pro เข้ามา</div>}
-        {orders.map(o => <ProOrder key={o.id} o={o} isOwner={isOwner} payoutReady={payoutReady} onPrice={setPrice} onPayout={markPayout}/>)}
+        {orders.map(o => <ProOrder key={o.id} o={o} isOwner={isOwner} payoutReady={payoutReady} onPrice={setPrice} onPayout={markPayout} onAdvance={advance} onCancel={cancelOrder}/>)}
 
         {/* ลูกค้างาน Pro — เจ้าของเห็นคนเดียว (ข้อมูลลูกค้าไม่เปิดให้พาร์ทเนอร์) */}
         {isOwner && customers.length > 0 && <div style={css("font-size:12.5px;font-weight:700;color:var(--sub);margin-top:6px")}>👥 ลูกค้างาน PRO ({customers.length})</div>}
