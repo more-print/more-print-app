@@ -47,12 +47,13 @@ const fmtWhen = (iso) => {
   return (sameDay ? 'วันนี้ ' : d.getDate() + '/' + (d.getMonth()+1) + '/' + (d.getFullYear()+543).toString().slice(-2) + ' ') + fmtTime(d);
 };
 const baht = (n) => '฿' + (Math.round((n || 0) * 100) / 100).toLocaleString('th-TH');
+const fileUrl = (path) => path && CFG.SUPABASE_URL ? CFG.SUPABASE_URL + '/storage/v1/object/public/uploads/' + path : null;
 const jobValue = (o) => (o.print_cost || 0) + (o.bind_cost || 0); // มูลค่างานปริ้น (ฐานคิดคอม)
 const commOf = (o) => jobValue(o) * COMMISSION;
 const partnerOf = (o) => jobValue(o) - commOf(o);
 
 const DEMO = [
-  { id: '#MP-PRO001', created_at: new Date(Date.now() - 2*3600000).toISOString(), status: 2, customer_fname: 'สมชาย', customer_lname: 'ใจดี', customer_phone: '081-111-2222', paper: 'A1', sides: 1, copies: 2, print_cost: 600, bind_cost: 0, delivery_cost: 39, night_fee: 0, total: 639, payout_at: null },
+  { id: '#MP-PRO001', created_at: new Date(Date.now() - 2*3600000).toISOString(), status: 2, customer_fname: 'สมชาย', customer_lname: 'ใจดี', customer_phone: '081-111-2222', paper: 'A1', sides: 1, copies: 2, print_cost: 600, bind_cost: 0, delivery_cost: 39, night_fee: 0, total: 639, payout_at: null, files: [{ name: 'โปสเตอร์งานวิจัย.pdf', pages: 1, path: null, drive_url: 'https://drive.google.com/file/d/demo' }] },
   { id: '#MP-PRO002', created_at: new Date(Date.now() - 26*3600000).toISOString(), status: 4, customer_fname: 'มินตรา', customer_lname: 'พาเพลิน', customer_phone: '095-333-4444', paper: 'A2', sides: 2, copies: 1, print_cost: 250, bind_cost: 0, delivery_cost: 49, night_fee: 10, total: 309, payout_at: null },
   { id: '#MP-PRO003', created_at: new Date(Date.now() - 30*3600000).toISOString(), status: 4, customer_fname: 'ต้นกล้า', customer_lname: 'เรียนดี', customer_phone: '062-555-6666', paper: 'A3', sides: 1, copies: 5, print_cost: 0, bind_cost: 0, delivery_cost: 39, night_fee: 0, total: 39, payout_at: null }
 ];
@@ -60,24 +61,41 @@ const DEMO = [
 function ProLogin({ onOk }){
   const [email, setEmail] = React.useState('');
   const [pass, setPass] = React.useState('');
+  const [pass2, setPass2] = React.useState('');
+  const [reg, setReg] = React.useState(false);
   const [busy, setBusy] = React.useState(false);
   const [msg, setMsg] = React.useState('');
+  const [uuid, setUuid] = React.useState('');
+  // เช็คสิทธิ์: เจ้าของ MORE PRINT = โหมดเต็ม / ร้านพาร์ทเนอร์ = เห็นเฉพาะงาน Pro (สิทธิ์คุมที่ฐานข้อมูล)
   const verify = async () => {
-    const r = await DB.rpc('is_admin');
-    if (r.data) { onOk(); return; }
-    setMsg(r.error ? 'ระบบสิทธิ์ยังไม่พร้อม' : 'บัญชีนี้ไม่ใช่เจ้าของร้าน');
+    const a = await DB.rpc('is_admin');
+    if (a.data) { onOk('owner'); return; }
+    const p = await DB.rpc('is_partner');
+    if (p.data) { onOk('partner'); return; }
+    const { data } = await DB.auth.getUser();
+    setUuid((data && data.user && data.user.id) || '');
+    setMsg(p.error
+      ? 'ระบบสิทธิ์พาร์ทเนอร์ยังไม่พร้อม — เจ้าของร้านต้องรัน SQL เปิดระบบก่อน'
+      : 'บัญชีนี้ยังไม่ได้รับสิทธิ์เข้าหลังบ้าน PRO — ส่งอีเมลที่สมัครให้เจ้าของร้าน MORE PRINT เปิดสิทธิ์ให้ครับ');
     setBusy(false);
   };
   React.useEffect(() => {
-    if (!DB) { onOk(); return; }
+    if (!DB) { onOk('owner'); return; }
     DB.auth.getSession().then(({ data }) => { if (data.session) { setBusy(true); verify(); } });
   }, []);
   const submit = async () => {
-    if (!DB) return onOk();
+    if (!DB) return onOk('owner');
     if (!email.trim() || !pass) return setMsg('กรอกอีเมลและรหัสผ่านก่อนครับ');
+    if (reg && pass !== pass2) return setMsg('รหัสผ่านสองช่องไม่เหมือนกัน ❌');
+    if (reg && pass.length < 6) return setMsg('รหัสผ่านอย่างน้อย 6 ตัวอักษรครับ');
     setBusy(true); setMsg('');
-    const { error } = await DB.auth.signInWithPassword({ email: email.trim().toLowerCase(), password: pass });
-    if (error) { setBusy(false); return setMsg('อีเมลหรือรหัสผ่านไม่ถูกต้อง ❌'); }
+    if (reg) {
+      const { error } = await DB.auth.signUp({ email: email.trim().toLowerCase(), password: pass });
+      if (error) { setBusy(false); return setMsg(/already/i.test(error.message || '') ? 'อีเมลนี้มีบัญชีแล้ว — สลับไปเข้าสู่ระบบ' : 'สมัครไม่สำเร็จ ลองใหม่อีกครั้งครับ'); }
+    } else {
+      const { error } = await DB.auth.signInWithPassword({ email: email.trim().toLowerCase(), password: pass });
+      if (error) { setBusy(false); return setMsg('อีเมลหรือรหัสผ่านไม่ถูกต้อง ❌'); }
+    }
     await verify();
   };
   return (
@@ -85,13 +103,17 @@ function ProLogin({ onOk }){
       <div style={css("background:var(--card);border:1px solid var(--line);border-radius:18px;padding:28px 24px;width:320px;box-shadow:var(--shadow);display:flex;flex-direction:column;gap:12px;align-items:center")}>
         <div style={css("font-size:34px")}>✨</div>
         <div style={css("font-family:'Montserrat',sans-serif;font-weight:800;font-size:17px;letter-spacing:1px")}><span style={css("color:var(--acc)")}>MORE</span> PRINT <span style={css("color:var(--acc)")}>PRO</span></div>
-        <div style={css("font-size:13px;color:var(--sub)")}>🔐 หลังบ้านงาน PRO — เข้าสู่ระบบเจ้าของร้าน</div>
-        <input value={email} onChange={e => setEmail(e.target.value)} placeholder="อีเมลเจ้าของร้าน" inputMode="email" autoComplete="email"
+        <div style={css("font-size:13px;color:var(--sub)")}>{reg ? '📝 สมัครบัญชีร้านพาร์ทเนอร์' : '🔐 หลังบ้านงาน PRO — เจ้าของร้าน / ร้านพาร์ทเนอร์'}</div>
+        <input value={email} onChange={e => setEmail(e.target.value)} placeholder="อีเมล" inputMode="email" autoComplete="email"
           style={css("width:100%;box-sizing:border-box;height:46px;border:1px solid var(--line);border-radius:12px;background:var(--soft);color:var(--ink);padding:0 14px;font-size:14px;outline:none")}/>
-        <input type="password" value={pass} onChange={e => setPass(e.target.value)} onKeyDown={e => e.key === 'Enter' && submit()} placeholder="รหัสผ่าน" autoComplete="current-password"
+        <input type="password" value={pass} onChange={e => setPass(e.target.value)} onKeyDown={e => !reg && e.key === 'Enter' && submit()} placeholder="รหัสผ่าน" autoComplete={reg ? 'new-password' : 'current-password'}
           style={css("width:100%;box-sizing:border-box;height:46px;border:1px solid var(--line);border-radius:12px;background:var(--soft);color:var(--ink);padding:0 14px;font-size:14px;outline:none")}/>
+        {reg && <input type="password" value={pass2} onChange={e => setPass2(e.target.value)} onKeyDown={e => e.key === 'Enter' && submit()} placeholder="รหัสผ่านอีกครั้ง" autoComplete="new-password"
+          style={css("width:100%;box-sizing:border-box;height:46px;border:1px solid var(--line);border-radius:12px;background:var(--soft);color:var(--ink);padding:0 14px;font-size:14px;outline:none")}/>}
         {msg && <div style={css("font-size:12px;color:#d9480f;text-align:center;line-height:1.5")}>{msg}</div>}
-        <button onClick={submit} disabled={busy} style={css("width:100%;height:46px;border:none;border-radius:12px;background:var(--acc);color:#fff;font-size:14px;font-weight:700;cursor:pointer" + (busy ? ";opacity:.6" : ""))}>{busy ? 'กำลังตรวจสอบ…' : 'เข้าสู่หลังบ้าน PRO →'}</button>
+        {uuid && <div style={css("font-size:10.5px;color:var(--sub);word-break:break-all;text-align:center")}>รหัสบัญชี (แจ้งเจ้าของร้าน): <span style={css("font-family:'IBM Plex Mono',monospace")}>{uuid}</span></div>}
+        <button onClick={submit} disabled={busy} style={css("width:100%;height:46px;border:none;border-radius:12px;background:var(--acc);color:#fff;font-size:14px;font-weight:700;cursor:pointer" + (busy ? ";opacity:.6" : ""))}>{busy ? 'กำลังตรวจสอบ…' : reg ? 'สมัครบัญชีพาร์ทเนอร์' : 'เข้าสู่หลังบ้าน PRO →'}</button>
+        <div onClick={() => { setReg(r => !r); setMsg(''); }} style={css("font-size:11.5px;color:var(--acc);font-weight:600;cursor:pointer;text-decoration:underline")}>{reg ? '← มีบัญชีแล้ว เข้าสู่ระบบ' : 'ร้านพาร์ทเนอร์ยังไม่มีบัญชี? สมัครที่นี่'}</div>
       </div>
     </div>
   );
@@ -103,7 +125,7 @@ function Badge({ status }){
   return <span style={css("font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:600;color:var(--acc);background:var(--accSoft);padding:3px 10px;border-radius:99px;white-space:nowrap")}>{STEPS[i]}</span>;
 }
 
-function ProOrder({ o, payoutReady, onPrice, onPayout }){
+function ProOrder({ o, isOwner, payoutReady, onPrice, onPayout }){
   const [edit, setEdit] = React.useState(false);
   const [price, setPrice] = React.useState('');
   const [confirmPay, setConfirmPay] = React.useState(false);
@@ -129,34 +151,53 @@ function ProOrder({ o, payoutReady, onPrice, onPayout }){
           : o.status !== 0 && <span style={css("font-size:10.5px;font-weight:700;color:var(--gold);background:var(--goldBg);padding:2px 9px;border-radius:99px")}>⏳ ค้างโอน</span>)}
       </div>
       <div style={css("margin-top:5px;font-size:12px;color:var(--sub)")}>
-        {fmtWhen(o.created_at)} · คุณ{o.customer_fname} {o.customer_lname || ''} · <a href={'tel:' + String(o.customer_phone || '').replace(/[^0-9+]/g, '')}>{o.customer_phone}</a>
+        {fmtWhen(o.created_at)} · คุณ{o.customer_fname} {o.customer_lname || ''}{isOwner && o.customer_phone ? <span> · <a href={'tel:' + String(o.customer_phone || '').replace(/[^0-9+]/g, '')}>{o.customer_phone}</a></span> : null}
       </div>
-      <div style={css("margin-top:4px;font-size:12px;font-weight:600")}>✨ {o.paper} · {o.sides === 2 ? 'หน้า-หลัง' : 'หน้าเดียว'} · {o.copies || 1} ชุด <span style={css("color:var(--sub);font-weight:400")}>· ค่าส่ง {baht((o.delivery_cost || 0) + (o.night_fee || 0))} (ของเรา ไม่คิดคอม)</span></div>
+      <div style={css("margin-top:4px;font-size:12px;font-weight:600")}>✨ {o.paper} · {o.sides === 2 ? 'หน้า-หลัง' : 'หน้าเดียว'} · {o.copies || 1} ชุด <span style={css("color:var(--sub);font-weight:400")}>· ค่าส่ง {baht((o.delivery_cost || 0) + (o.night_fee || 0))} ({isOwner ? 'ของเรา ไม่คิดคอม' : 'MORE PRINT จัดส่งเอง'})</span></div>
+      {(o.files || []).length > 0 && (
+        <div style={css("margin-top:8px;display:flex;flex-direction:column;gap:5px")}>
+          {(o.files || []).map((f, i) => (
+            <div key={i} style={css("display:flex;align-items:center;gap:8px;background:var(--soft);border-radius:9px;padding:7px 10px")}>
+              <span>{f.drive_url ? '🗂️' : '📄'}</span>
+              <span style={css("flex:1;min-width:0;font-size:12px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap")}>{f.name}</span>
+              <span style={css("font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:var(--sub);flex:none")}>{f.pages} หน้า</span>
+              {f.drive_url
+                ? <a href={f.drive_url} target="_blank" rel="noreferrer" style={css("flex:none;font-size:11px;font-weight:700;color:var(--gold);text-decoration:none;background:var(--goldBg);padding:3px 9px;border-radius:8px")}>🔗 Drive</a>
+                : fileUrl(f.path)
+                  ? <a href={fileUrl(f.path)} target="_blank" rel="noreferrer" style={css("flex:none;font-size:11px;font-weight:700;color:var(--acc);text-decoration:none;background:var(--accSoft);padding:3px 9px;border-radius:8px")}>⬇ เปิดไฟล์</a>
+                  : <span style={css("flex:none;font-size:10.5px;color:var(--sub)")}>—</span>}
+            </div>
+          ))}
+        </div>
+      )}
       {priced && !edit ? (
         <div style={css("margin-top:10px;background:var(--soft);border-radius:10px;padding:10px 12px;font-size:12.5px;display:flex;flex-direction:column;gap:4px")}>
-          <div style={css("display:flex;justify-content:space-between")}><span style={css("color:var(--sub)")}>ค่างานปริ้น (100%)</span><span style={css("font-family:'IBM Plex Mono',monospace;font-weight:600")}>{baht(jobValue(o))} <span onClick={() => { setEdit(true); setPrice(String(jobValue(o))); }} style={css("color:var(--acc);font-size:11px;cursor:pointer;text-decoration:underline")}>แก้</span></span></div>
+          <div style={css("display:flex;justify-content:space-between")}><span style={css("color:var(--sub)")}>ค่างานปริ้น (100%)</span><span style={css("font-family:'IBM Plex Mono',monospace;font-weight:600")}>{baht(jobValue(o))} {isOwner && <span onClick={() => { setEdit(true); setPrice(String(jobValue(o))); }} style={css("color:var(--acc);font-size:11px;cursor:pointer;text-decoration:underline")}>แก้</span>}</span></div>
           <div style={css("display:flex;justify-content:space-between")}><span style={css("color:var(--sub)")}>ค่าคอม MORE PRINT ({Math.round(COMMISSION * 100)}%)</span><span style={css("font-family:'IBM Plex Mono',monospace;color:var(--acc);font-weight:600")}>−{baht(commOf(o))}</span></div>
-          <div style={css("display:flex;justify-content:space-between;border-top:1px dashed var(--line);padding-top:5px;font-weight:700")}><span>ยอดโอนให้ร้านพาร์ทเนอร์</span><span style={css("font-family:'IBM Plex Mono',monospace;color:var(--gold)")}>{baht(partnerOf(o))}</span></div>
-          {o.status !== 0 && !o.payout_at && (
+          <div style={css("display:flex;justify-content:space-between;border-top:1px dashed var(--line);padding-top:5px;font-weight:700")}><span>{isOwner ? 'ยอดโอนให้ร้านพาร์ทเนอร์' : 'ส่วนของร้านคุณ'}</span><span style={css("font-family:'IBM Plex Mono',monospace;color:var(--gold)")}>{baht(partnerOf(o))}</span></div>
+          {isOwner && o.status !== 0 && !o.payout_at && (
             payoutReady
               ? <button onClick={askPayout} style={css("margin-top:6px;height:38px;border:none;border-radius:10px;background:" + (confirmPay ? "#0b7285" : "var(--gold)") + ";color:#fff;font-size:12.5px;font-weight:700;cursor:pointer")}>{confirmPay ? 'กดอีกครั้งเพื่อยืนยัน — โอนเงินแล้วจริงๆ' : '💸 โอนเงินให้ร้านแล้ว — บันทึก'}</button>
               : <div style={css("margin-top:6px;font-size:11px;color:#c92a2a;font-weight:600")}>⚠️ รัน SQL เพิ่มคอลัมน์ payout_at ก่อน จึงจะบันทึกการโอนได้</div>
           )}
           {o.payout_at && <div style={css("font-size:11px;color:#0b7285")}>บันทึกการโอนเมื่อ {fmtWhen(o.payout_at)}</div>}
         </div>
-      ) : (
+      ) : isOwner ? (
         <div style={css("margin-top:10px;display:flex;gap:8px;align-items:center")}>
           <input value={price} onChange={e => setPrice(e.target.value.replace(/[^0-9]/g, ''))} onKeyDown={e => e.key === 'Enter' && save()} placeholder="ราคางานที่ตกลงกับลูกค้า (บาท)" inputMode="numeric"
             style={css("flex:1;box-sizing:border-box;height:40px;border:1px solid var(--line);border-radius:10px;background:var(--soft);color:var(--ink);padding:0 12px;font-size:13px;outline:none")}/>
           <button onClick={save} disabled={!price} style={css("height:40px;padding:0 16px;border:none;border-radius:10px;background:" + (price ? "var(--acc)" : "#c8b8f5") + ";color:#fff;font-size:12.5px;font-weight:700;cursor:pointer")}>บันทึกราคา</button>
           {edit && <button onClick={() => { setEdit(false); setPrice(''); }} style={css("height:40px;padding:0 12px;border:1px solid var(--line);border-radius:10px;background:var(--soft);color:var(--ink);font-size:12.5px;cursor:pointer")}>ยกเลิก</button>}
         </div>
+      ) : (
+        <div style={css("margin-top:10px;background:var(--goldBg);border-radius:10px;padding:9px 12px;font-size:11.5px;color:var(--gold);font-weight:600")}>⏳ MORE PRINT กำลังตกลงราคากับลูกค้า — เดี๋ยวยอดจะขึ้นตรงนี้ครับ</div>
       )}
     </div>
   );
 }
 
-function Dash(){
+function Dash({ role }){
+  const isOwner = role === 'owner'; // พาร์ทเนอร์ = ดูอย่างเดียว (ฐานข้อมูลก็บังคับไว้อีกชั้น)
   const [orders, setOrders] = React.useState(DB ? [] : DEMO);
   const [payoutReady, setPayoutReady] = React.useState(!DB);
   const [loading, setLoading] = React.useState(!!DB);
@@ -164,7 +205,7 @@ function Dash(){
   const load = React.useCallback(async () => {
     if (!DB) return;
     setLoading(true);
-    const cols = 'id,created_at,status,customer_fname,customer_lname,customer_phone,paper,sides,copies,print_cost,bind_cost,delivery_cost,night_fee,total';
+    const cols = 'id,created_at,status,customer_fname,customer_lname,customer_phone,paper,sides,copies,print_cost,bind_cost,delivery_cost,night_fee,total,files';
     let r = await DB.from('orders').select(cols + ',payout_at').eq('ptype', 'pro').order('created_at', { ascending: false }).limit(2000);
     if (r.error) {
       // ยังไม่มีคอลัมน์ payout_at — โหลดแบบไม่มีไปก่อน (ตั้งราคายังใช้ได้ แต่บันทึกการโอนยังไม่ได้)
@@ -217,11 +258,12 @@ function Dash(){
         <div style={css("font-size:22px")}>✨</div>
         <div style={css("flex:1;min-width:0")}>
           <div style={css("font-family:'Montserrat',sans-serif;font-weight:800;font-size:15px;letter-spacing:1px")}><span style={css("color:#b197fc")}>MORE</span> PRINT <span style={css("color:#b197fc")}>PRO</span></div>
-          <div style={css("font-family:'IBM Plex Mono',monospace;font-size:9.5px;letter-spacing:2px;color:#b197fc")}>PARTNER FINANCE · คอม {Math.round(COMMISSION * 100)}%</div>
+          <div style={css("font-family:'IBM Plex Mono',monospace;font-size:9.5px;letter-spacing:2px;color:#b197fc")}>{isOwner ? 'PARTNER FINANCE · คอม ' + Math.round(COMMISSION * 100) + '%' : 'PARTNER VIEW · ส่วนแบ่งร้านคุณ ' + Math.round((1 - COMMISSION) * 100) + '%'}</div>
         </div>
         {!DB && <span style={css("font-size:10px;font-weight:700;background:#f59f00;color:#1c1533;padding:3px 10px;border-radius:99px")}>DEMO</span>}
-        <a href="admin.html" style={css("color:#b197fc;font-size:11.5px;font-weight:700;text-decoration:none")}>← หลังบ้านหลัก</a>
+        {isOwner && <a href="admin.html" style={css("color:#b197fc;font-size:11.5px;font-weight:700;text-decoration:none")}>← หลังบ้านหลัก</a>}
         <button onClick={load} style={css("height:32px;padding:0 12px;border:1px solid #4c3d80;border-radius:9px;background:none;color:#fff;font-size:11.5px;cursor:pointer")}>{loading ? '…' : '⟳ รีเฟรช'}</button>
+        {DB && <button onClick={() => DB.auth.signOut().then(() => location.reload())} style={css("height:32px;padding:0 10px;border:1px solid #4c3d80;border-radius:9px;background:none;color:#b197fc;font-size:11px;cursor:pointer")}>ออก</button>}
       </div>
 
       <div style={css("padding:14px 16px 40px;display:flex;flex-direction:column;gap:12px;max-width:760px;margin:0 auto")}>
@@ -235,8 +277,8 @@ function Dash(){
               <div style={css("margin-top:4px;font-size:20px;font-weight:800;font-family:'IBM Plex Mono',monospace;color:var(--acc)")}>{baht(a.job)}</div>
               <div style={css("font-size:11px;color:var(--sub)")}>{a.n} ออเดอร์{a.unpriced ? ' (รอตั้งราคา ' + a.unpriced + ')' : ''}</div>
               <div style={css("margin-top:6px;font-size:11px;line-height:1.7")}>
-                <div style={css("display:flex;justify-content:space-between")}><span style={css("color:var(--sub)")}>คอมเรา {Math.round(COMMISSION * 100)}%</span><span style={css("font-family:'IBM Plex Mono',monospace;font-weight:600;color:var(--acc)")}>{baht(a.comm)}</span></div>
-                <div style={css("display:flex;justify-content:space-between")}><span style={css("color:var(--sub)")}>ส่งร้านพาร์ทเนอร์</span><span style={css("font-family:'IBM Plex Mono',monospace;font-weight:600;color:var(--gold)")}>{baht(a.partner)}</span></div>
+                <div style={css("display:flex;justify-content:space-between")}><span style={css("color:var(--sub)")}>{isOwner ? 'คอมเรา' : 'คอม MORE PRINT'} {Math.round(COMMISSION * 100)}%</span><span style={css("font-family:'IBM Plex Mono',monospace;font-weight:600;color:var(--acc)")}>{baht(a.comm)}</span></div>
+                <div style={css("display:flex;justify-content:space-between")}><span style={css("color:var(--sub)")}>{isOwner ? 'ส่งร้านพาร์ทเนอร์' : 'ส่วนของร้านคุณ'}</span><span style={css("font-family:'IBM Plex Mono',monospace;font-weight:600;color:var(--gold)")}>{baht(a.partner)}</span></div>
               </div>
             </div>
           ))}
@@ -246,7 +288,7 @@ function Dash(){
         <div style={css("background:var(--goldBg);border:1.5px solid #f0c36d;border-radius:14px;padding:13px 16px;display:flex;align-items:center;gap:12px")}>
           <div style={css("font-size:26px")}>💸</div>
           <div style={css("flex:1")}>
-            <div style={css("font-size:12px;font-weight:700;color:var(--gold)")}>ยอดค้างโอนให้ร้านพาร์ทเนอร์ (หักคอมแล้ว)</div>
+            <div style={css("font-size:12px;font-weight:700;color:var(--gold)")}>{isOwner ? 'ยอดค้างโอนให้ร้านพาร์ทเนอร์ (หักคอมแล้ว)' : 'ยอดที่ MORE PRINT เตรียมโอนให้ร้านคุณ (หักคอมแล้ว)'}</div>
             <div style={css("font-size:22px;font-weight:800;font-family:'IBM Plex Mono',monospace;color:var(--gold)")}>{baht(owedSum)}</div>
             <div style={css("font-size:11px;color:var(--gold)")}>จาก {owed.length} ออเดอร์ที่ตั้งราคาแล้วและยังไม่กดบันทึกการโอน</div>
           </div>
@@ -256,11 +298,11 @@ function Dash(){
         <div style={css("font-size:12.5px;font-weight:700;color:var(--sub)")}>📋 ออเดอร์งาน PRO ทั้งหมด ({orders.length})</div>
         {loading && <div style={css("text-align:center;color:var(--sub);font-size:13px;padding:16px 0")}>กำลังโหลด…</div>}
         {!loading && orders.length === 0 && <div style={css("text-align:center;color:var(--sub);font-size:13px;padding:24px 0")}>ยังไม่มีออเดอร์งาน Pro เข้ามา</div>}
-        {orders.map(o => <ProOrder key={o.id} o={o} payoutReady={payoutReady} onPrice={setPrice} onPayout={markPayout}/>)}
+        {orders.map(o => <ProOrder key={o.id} o={o} isOwner={isOwner} payoutReady={payoutReady} onPrice={setPrice} onPayout={markPayout}/>)}
 
-        {/* ลูกค้างาน Pro */}
-        {customers.length > 0 && <div style={css("font-size:12.5px;font-weight:700;color:var(--sub);margin-top:6px")}>👥 ลูกค้างาน PRO ({customers.length})</div>}
-        {customers.map((cst, i) => (
+        {/* ลูกค้างาน Pro — เจ้าของเห็นคนเดียว (ข้อมูลลูกค้าไม่เปิดให้พาร์ทเนอร์) */}
+        {isOwner && customers.length > 0 && <div style={css("font-size:12.5px;font-weight:700;color:var(--sub);margin-top:6px")}>👥 ลูกค้างาน PRO ({customers.length})</div>}
+        {isOwner && customers.map((cst, i) => (
           <div key={i} style={css("background:var(--card);border:1px solid var(--line);border-radius:12px;padding:11px 14px;display:flex;align-items:center;gap:12px;box-shadow:var(--shadow)")}>
             <div style={css("width:36px;height:36px;border-radius:50%;background:var(--accSoft);color:var(--acc);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:14px;flex:none")}>{(cst.name || '?').trim().charAt(0)}</div>
             <div style={css("flex:1;min-width:0")}>
@@ -279,9 +321,9 @@ function Dash(){
 }
 
 function App(){
-  const [authed, setAuthed] = React.useState(false);
-  if (!authed) return <ProLogin onOk={() => setAuthed(true)}/>;
-  return <Dash/>;
+  const [role, setRole] = React.useState(null); // 'owner' | 'partner'
+  if (!role) return <ProLogin onOk={(r) => setRole(r)}/>;
+  return <Dash role={role}/>;
 }
 ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
 </script>
