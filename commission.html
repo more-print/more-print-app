@@ -11,6 +11,7 @@
   --acc:#a16207;--accSoft:#fff3d6;--green:#00b368;--purple:#7048e8;--shadow:0 2px 10px rgba(0,0,0,.06)}
   input,button{font-family:'IBM Plex Sans Thai',sans-serif}
   table{border-collapse:collapse;width:100%}
+  @media print{ .no-print{display:none!important} body{background:#fff} }
 </style>
 <script src="./config.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -113,6 +114,7 @@ function Pipeline({ o }){
 function Dash(){
   const [orders, setOrders] = React.useState(DB ? [] : DEMO);
   const [loading, setLoading] = React.useState(!!DB);
+  const [bill, setBill] = React.useState(null); // {y, m} = เปิดหน้าบิลของเดือนนั้น
   const load = React.useCallback(async () => {
     if (!DB) return;
     setLoading(true);
@@ -147,6 +149,69 @@ function Dash(){
     byMonth[k].n++; byMonth[k].job += jobValue(o);
   });
   const months = Object.keys(byMonth).sort((a, b) => b - a).map(k => byMonth[k]);
+
+  // ── ใบสรุปยอดประจำเดือน (บิลส่งให้ร้านพาร์ทเนอร์) ──
+  if (bill) {
+    const rows = done.filter(o => { const d = new Date(o.created_at); return d.getFullYear() === bill.y && d.getMonth() === bill.m; });
+    const job = rows.reduce((a, o) => a + jobValue(o), 0);
+    const comm = job * COMMISSION, net = job - comm;
+    const unpaid = rows.filter(o => !o.payout_at);
+    const unpaidNet = unpaid.reduce((a, o) => a + jobValue(o) * (1 - COMMISSION), 0);
+    const monthLabel = TH_MONTHS[bill.m] + ' ' + (bill.y + 543);
+    const d0 = new Date();
+    return (
+      <div style={css("min-height:100vh;background:#fff;color:#111")}>
+        <div className="no-print" style={css("padding:12px 16px;display:flex;gap:10px;background:var(--soft);position:sticky;top:0")}>
+          <button onClick={() => setBill(null)} style={css("height:38px;padding:0 14px;border:1px solid var(--line);border-radius:10px;background:#fff;color:var(--ink);font-size:12.5px;font-weight:600;cursor:pointer")}>← กลับ</button>
+          <button onClick={() => window.print()} style={css("flex:1;height:38px;border:none;border-radius:10px;background:var(--acc);color:#fff;font-size:13px;font-weight:700;cursor:pointer")}>🖨️ พิมพ์ / บันทึกเป็น PDF (ส่งให้ร้านทาง LINE ได้)</button>
+        </div>
+        <div style={css("max-width:640px;margin:0 auto;padding:28px 24px 60px")}>
+          <div style={css("display:flex;justify-content:space-between;align-items:flex-start;gap:12px")}>
+            <div>
+              <div style={css("font-family:'Montserrat',sans-serif;font-weight:800;font-size:20px;letter-spacing:1px")}><span style={css("color:#00b368")}>MORE</span> PRINT</div>
+              <div style={css("font-size:11px;color:#888;margin-top:2px")}>บริการปริ้นเอกสารพร้อมส่ง 24 ชม. รอบ มข.</div>
+            </div>
+            <div style={css("text-align:right")}>
+              <div style={css("font-size:16px;font-weight:800")}>ใบสรุปยอดงาน PRO</div>
+              <div style={css("font-size:12px;color:#666")}>ประจำเดือน {monthLabel}</div>
+            </div>
+          </div>
+          <div style={css("margin-top:18px;display:flex;justify-content:space-between;gap:12px;font-size:12.5px;line-height:1.7")}>
+            <div><span style={css("color:#888")}>เรียน</span><br/><b>{PARTNER_NAME}</b></div>
+            <div style={css("text-align:right")}><span style={css("color:#888")}>วันที่ออกเอกสาร</span><br/><b>{d0.getDate()} {TH_MONTHS[d0.getMonth()]} {d0.getFullYear() + 543}</b></div>
+          </div>
+          <table style={css("margin-top:18px")}>
+            <thead><tr>
+              {['#', 'วันที่', 'รหัสออเดอร์', 'งาน', 'ยอด (บาท)'].map((h, i) => (
+                <th key={i} style={css("text-align:" + (i === 4 ? "right" : "left") + ";font-size:11px;color:#888;font-weight:600;padding:7px 8px;border-bottom:1.5px solid #111;white-space:nowrap")}>{h}</th>
+              ))}
+            </tr></thead>
+            <tbody>
+              {rows.length === 0 && <tr><td colSpan="5" style={css("padding:18px;text-align:center;font-size:12px;color:#888")}>เดือนนี้ยังไม่มีงานที่จบ</td></tr>}
+              {rows.map((o, i) => (
+                <tr key={o.id}>
+                  <td style={css("padding:7px 8px;font-size:12px;color:#888;border-bottom:1px solid #eee")}>{i + 1}</td>
+                  <td style={css("padding:7px 8px;font-size:12px;border-bottom:1px solid #eee;white-space:nowrap")}>{fmtDate(o.created_at)}</td>
+                  <td style={css("padding:7px 8px;font-size:12px;font-family:'IBM Plex Mono',monospace;border-bottom:1px solid #eee")}>{o.id}</td>
+                  <td style={css("padding:7px 8px;font-size:12px;border-bottom:1px solid #eee")}>{o.paper} × {o.copies || 1}</td>
+                  <td style={css("padding:7px 8px;font-size:12px;text-align:right;font-family:'IBM Plex Mono',monospace;border-bottom:1px solid #eee")}>{(Math.round(jobValue(o) * 100) / 100).toLocaleString('th-TH')}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <div style={css("margin-top:16px;margin-left:auto;max-width:330px;display:flex;flex-direction:column;gap:6px;font-size:13px")}>
+            <div style={css("display:flex;justify-content:space-between")}><span style={css("color:#666")}>ยอดงานรวมทั้งหมด ({rows.length} งาน)</span><span style={css("font-family:'IBM Plex Mono',monospace;font-weight:600")}>{baht(job)}</span></div>
+            <div style={css("display:flex;justify-content:space-between")}><span style={css("color:#666")}>หักค่าคอมมิชชั่น MORE PRINT ({Math.round(COMMISSION * 100)}%)</span><span style={css("font-family:'IBM Plex Mono',monospace;font-weight:600;color:#c92a2a")}>−{baht(comm)}</span></div>
+            <div style={css("display:flex;justify-content:space-between;border-top:2px solid #111;padding-top:8px;font-size:15px;font-weight:800")}><span>ยอดสุทธิที่{PARTNER_NAME}ได้รับ</span><span style={css("font-family:'IBM Plex Mono',monospace;color:#00744a")}>{baht(net)}</span></div>
+            {unpaid.length > 0
+              ? <div style={css("font-size:11px;color:#a16207;text-align:right")}>ในจำนวนนี้ยังค้างโอน {unpaid.length} งาน รวม {baht(unpaidNet)}</div>
+              : rows.length > 0 && <div style={css("font-size:11px;color:#00744a;text-align:right")}>✓ โอนครบทุกงานแล้ว</div>}
+          </div>
+          <div style={css("margin-top:34px;font-size:10.5px;color:#999;border-top:1px solid #eee;padding-top:10px;line-height:1.6")}>เอกสารสรุปยอดนี้สร้างจากระบบ MORE PRINT อัตโนมัติ · นับเฉพาะงานที่จัดส่งถึงลูกค้าเรียบร้อยแล้วในเดือน {monthLabel} · ค่าจัดส่งเป็นของ MORE PRINT ไม่อยู่ในยอดนี้</div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div style={css("min-height:100vh;background:var(--bg)")}>
@@ -191,12 +256,12 @@ function Dash(){
           <div style={css("padding:12px 16px 0;font-size:12.5px;font-weight:700;color:var(--sub)")}>📅 สรุปรายเดือน (เฉพาะงานที่จบแล้ว)</div>
           <table style={css("margin-top:6px")}>
             <thead><tr>
-              {['เดือน', 'งาน', 'ยอดเต็ม 100%', 'คอมเรา ' + Math.round(COMMISSION * 100) + '%', 'ให้' + PARTNER_NAME.replace('ร้าน', '')].map((h, i) => (
+              {['เดือน', 'งาน', 'ยอดเต็ม 100%', 'คอมเรา ' + Math.round(COMMISSION * 100) + '%', 'ให้' + PARTNER_NAME.replace('ร้าน', ''), ''].map((h, i) => (
                 <th key={i} style={css("text-align:" + (i < 2 ? "left" : "right") + ";font-size:10.5px;color:var(--sub);font-weight:600;padding:6px 12px;border-bottom:1px solid var(--line);white-space:nowrap")}>{h}</th>
               ))}
             </tr></thead>
             <tbody>
-              {months.length === 0 && <tr><td colSpan="5" style={css("padding:16px;text-align:center;font-size:12px;color:var(--sub)")}>ยังไม่มีงานที่จบ</td></tr>}
+              {months.length === 0 && <tr><td colSpan="6" style={css("padding:16px;text-align:center;font-size:12px;color:var(--sub)")}>ยังไม่มีงานที่จบ</td></tr>}
               {months.map((m, i) => (
                 <tr key={i}>
                   <td style={css("padding:7px 12px;font-size:12px;font-weight:700;white-space:nowrap")}>{TH_MONTHS[m.m]} {(m.y + 543) % 100}</td>
@@ -204,6 +269,9 @@ function Dash(){
                   <td style={css("padding:7px 12px;font-size:12px;text-align:right;font-family:'IBM Plex Mono',monospace")}>{baht(m.job)}</td>
                   <td style={css("padding:7px 12px;font-size:12px;text-align:right;font-family:'IBM Plex Mono',monospace;font-weight:700;color:var(--acc)")}>{baht(m.job * COMMISSION)}</td>
                   <td style={css("padding:7px 12px;font-size:12px;text-align:right;font-family:'IBM Plex Mono',monospace;color:var(--purple)")}>{baht(m.job * (1 - COMMISSION))}</td>
+                  <td style={css("padding:7px 12px;text-align:right")}>
+                    <button onClick={() => setBill({ y: m.y, m: m.m })} style={css("height:30px;padding:0 12px;border:1px solid var(--acc);border-radius:9px;background:var(--accSoft);color:var(--acc);font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap")}>🧾 ออกบิล</button>
+                  </td>
                 </tr>
               ))}
             </tbody>
