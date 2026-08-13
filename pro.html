@@ -91,7 +91,15 @@ function ProLogin({ onOk }){
     setBusy(true); setMsg('');
     if (reg) {
       const { error } = await DB.auth.signUp({ email: email.trim().toLowerCase(), password: pass });
-      if (error) { setBusy(false); return setMsg(/already/i.test(error.message || '') ? 'อีเมลนี้มีบัญชีแล้ว — สลับไปเข้าสู่ระบบ' : 'สมัครไม่สำเร็จ ลองใหม่อีกครั้งครับ'); }
+      if (error) {
+        setBusy(false);
+        const m = error.message || '';
+        return setMsg(/already/i.test(m) ? 'อีเมลนี้มีบัญชีแล้ว — สลับไปเข้าสู่ระบบด้านล่างแทนครับ'
+          : /rate limit|too many|security purposes/i.test(m) ? '⏳ ลองสมัครถี่เกินไป ระบบล็อกกันสแปมชั่วคราว — พักประมาณ 1 ชั่วโมงแล้วค่อยลองใหม่ครับ'
+          : /password/i.test(m) ? 'รหัสผ่านสั้นหรือเดาง่ายเกินไป — ตั้งใหม่ให้ยาวขึ้นครับ'
+          : /invalid.*email|email.*invalid/i.test(m) ? 'รูปแบบอีเมลไม่ถูกต้อง เช็คตัวสะกดอีกทีครับ'
+          : 'สมัครไม่สำเร็จ — ระบบแจ้งว่า: ' + m);
+      }
     } else {
       const { error } = await DB.auth.signInWithPassword({ email: email.trim().toLowerCase(), password: pass });
       if (error) { setBusy(false); return setMsg('อีเมลหรือรหัสผ่านไม่ถูกต้อง ❌'); }
