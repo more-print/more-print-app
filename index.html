@@ -1502,9 +1502,10 @@ class App extends React.Component {
               </div>
               <div style={css("margin-top:12px;border-top:2px dashed var(--line);padding-top:10px;display:flex;justify-content:space-between;align-items:baseline")}><span style={css("font-weight:700;font-size:14px")}>ยอดชำระ</span><span style={css("font-family:'IBM Plex Mono',monospace;font-size:26px;font-weight:600;color:var(--acc)")}>฿{v.grandTotal}</span></div>
             </div>
-            <div style={css("background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px;display:flex;flex-direction:column;align-items:center;gap:10px")}>
-              <div style={css("width:180px;height:180px;border-radius:8px;background:repeating-linear-gradient(45deg,var(--soft) 0 8px,var(--card) 8px 16px);border:1px solid var(--line);display:flex;align-items:center;justify-content:center")}><div style={css("font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--sub);background:var(--card);padding:4px 8px;border-radius:6px")}>PromptPay QR</div></div>
-              <div style={css("font-size:12px;color:var(--sub)")}>สแกนจ่ายด้วยแอปธนาคาร แล้วแนบสลิปด้านล่าง</div>
+            <div style={css("background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px;display:flex;flex-direction:column;align-items:center;gap:10px")}>
+              {/* QR พร้อมเพย์จริงของร้าน (Make by KBank) — กดค้างที่รูปเพื่อบันทึก/สแกนจากอัลบั้มได้ */}
+              <img src="assets/promptpay-qr.jpg" alt="PromptPay QR ของร้าน MORE PRINT" style={css("width:250px;max-width:100%;border-radius:12px;border:1px solid var(--line);display:block")} onError={(e) => { e.target.style.display = 'none'; }}/>
+              <div style={css("font-size:12px;color:var(--sub);text-align:center;line-height:1.6")}>สแกนด้วยแอปธนาคารไหนก็ได้ · โอนตามยอดด้านบน<br/>แล้วแนบสลิปด้านล่างเพื่อยืนยัน</div>
             </div>
             <input type="file" accept="image/*" ref={this.slipRef} onChange={v.onSlip} style={css("display:none")}/>
             <div onClick={v.pickSlip} style={css("border:2px dashed " + (v.slipName ? "var(--acc)" : "var(--line)") + ";border-radius:14px;background:var(--card);padding:14px 16px;display:flex;align-items:center;gap:12px;cursor:pointer")}>
