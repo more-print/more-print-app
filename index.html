@@ -29,11 +29,13 @@
 
 <script type="text/babel" data-presets="react">
 // ── Config (mirrors the design's editable props) ──────────────────────────
-// ค่าส่งคิดตามระยะทางถนนจริงจากร้าน: กม.แรก ฿19 + ฿6/กม.ถัดไป (ปัดเศษ กม. ขึ้น) ในรัศมี 4 กม.
-// 4-6 กม. = ฿129 นัดเวลาล่วงหน้า · เกิน 6 กม. = นอกพื้นที่ (สั่งทาง LINE) · กลางคืน +10 · ด่วน +20
+// ค่าส่ง 2 ชั้น คิดตามระยะทางถนนจริงจากร้าน (ระบบเลือกพาหนะเองจากประเภทงาน):
+// 🏍️ มอเตอร์ไซค์ (งานทั่วไป): กม.แรก ฿19 + ฿6/กม.ถัดไป (ปัดเศษ กม. ขึ้น) ไปเรื่อยๆ ไม่มีเพดาน
+// 🚗 รถยนต์ (งานใหญ่: Standy / เพลท A3 ขึ้นไป): ≤2กม. ฿69 · ≤4กม. ฿89 · ≤6กม. ฿129 · เกิน 6 กม. สั่งทาง LINE
 const CONFIG = { nightOverride: 'auto', nightFee: 10, expressFee: 20,
-  shopLat: 16.485104, shopLng: 102.816614, // จุดที่ตั้งร้าน (โนนม่วง หลังมอ) — แก้ที่นี่ถ้าย้ายร้าน
-  deliveryBase: 19, deliveryPerKm: 6, bikeMaxKm: 4, farPrice: 129, farMaxKm: 6,
+  shopLat: 16.4633326, shopLng: 102.8241938, // จุดร้าน: โรงพิมพ์อุดมสุขปริ้นติ้ง (กังสดาล) — แก้ที่นี่ถ้าย้าย
+  deliveryBase: 19, bikePerKm: 6,
+  carTiers: [[2, 69], [4, 89], [6, 129]],
   // ปริ้นสี: คิดตามปริมาณสีที่สแกนจากไฟล์ (สัดส่วนพื้นที่สีเกิน colorHeavyPct% = หน้าสีเยอะ)
   colorLightPrice: 5, colorHeavyPrice: 7, colorHeavyPct: 50 };
 
@@ -430,13 +432,21 @@ class App extends React.Component {
     const s = this.state;
     const nightFee = this.isNight() ? (CONFIG.nightFee ?? 10) : 0;
     const expressFee = s.express ? (CONFIG.expressFee ?? 20) : 0;
-    // ค่าส่งตามระยะทางถนนจริงจากร้าน (ยังไม่ปักหมุด = โชว์ราคาเริ่มต้น กม.แรก ไปก่อน)
+    // ค่าส่ง 2 ชั้นตามระยะถนนจริง — ระบบเลือกพาหนะเองจากประเภทงาน (ยังไม่ปักหมุด = โชว์ราคาเริ่มต้น)
     const km = s.distKm;
-    let deliveryFee = CONFIG.deliveryBase ?? 19, farNote = false, outOfArea = false;
-    if (km != null) {
-      if (km <= (CONFIG.bikeMaxKm ?? 4)) deliveryFee = (CONFIG.deliveryBase ?? 19) + (CONFIG.deliveryPerKm ?? 6) * (Math.max(1, Math.ceil(km)) - 1);
-      else if (km <= (CONFIG.farMaxKm ?? 6)) { deliveryFee = CONFIG.farPrice ?? 129; farNote = true; }
-      else { deliveryFee = CONFIG.farPrice ?? 129; outOfArea = true; }
+    const carJob = this.needsCar();
+    const tiers = CONFIG.carTiers || [[2, 69], [4, 89], [6, 129]];
+    let deliveryFee, farNote = false, outOfArea = false;
+    if (carJob) {
+      deliveryFee = tiers[0][1];
+      if (km != null) {
+        const t = tiers.find(x => km <= x[0]);
+        if (t) { deliveryFee = t[1]; farNote = km > tiers[tiers.length - 2][0]; } // ช่วงไกลสุด = นัดเวลาล่วงหน้า
+        else { deliveryFee = tiers[tiers.length - 1][1]; outOfArea = true; }
+      }
+    } else {
+      deliveryFee = CONFIG.deliveryBase ?? 19;
+      if (km != null) deliveryFee = (CONFIG.deliveryBase ?? 19) + (CONFIG.bikePerKm ?? 6) * (Math.max(1, Math.ceil(km)) - 1);
     }
     const pages = s.files.reduce((a, f) => a + f.pages, 0);
     const totalPages = pages * s.copies;
@@ -463,8 +473,14 @@ class App extends React.Component {
     const bindCost = s.tier === 'pro' ? 0 : (s.bind === 'corner' ? 5 : s.bind === 'book' ? 40 : s.bind === 'landscape' ? 60 : 0) * s.copies;
     const deliveryCost = deliveryFee + expressFee;
     return { pages, totalPages, sheets, rate, heavyPages, lightPages, printCost, bindCost, printTotal: printCost + bindCost,
-      deliveryFee, farNote, outOfArea, deliveryPending: km == null,
+      deliveryFee, carJob, farNote, outOfArea, deliveryPending: km == null,
       deliveryCost, nightFee, grandTotal: printCost + bindCost + deliveryCost + nightFee };
+  }
+
+  // งานขนาดใหญ่ต้องส่งด้วยรถยนต์: Standy และเพลทขนาด A3 ขึ้นไป (A3/A2/A1/A0)
+  needsCar(){
+    const s = this.state;
+    return s.tier === 'pro' && (s.proType === 'standee' || (s.proType === 'plate' && ['A0', 'A1', 'A2', 'A3'].includes(s.proSize)));
   }
 
   // ป้ายสรุปงาน Pro เช่น "เพลท A2" / "พับครึ่ง A3" — ใช้แสดงผลและบันทึกลงช่อง paper
@@ -847,7 +863,7 @@ class App extends React.Component {
       deliveryWarn: '',
       toPay: () => {
         if (s.lat == null) return this.showToast('ปักหมุดตำแหน่งส่งบนแผนที่ก่อนนะครับ 📍');
-        if (c.outOfArea) return this.showToast('จุดส่งไกลจากร้านเกิน ' + (CONFIG.farMaxKm ?? 6) + ' กม. 🙏 สั่งทาง LINE ' + ((window.MP_CONFIG || {}).LINE_OA_ID || '@346kifvy') + ' ได้ครับ');
+        if (c.outOfArea) return this.showToast('งานขนาดใหญ่ส่งด้วยรถยนต์ได้ในระยะ 6 กม. — จุดนี้ไกลเกิน 🙏 สั่ง/ปรึกษาทาง LINE ' + ((window.MP_CONFIG || {}).LINE_OA_ID || '@346kifvy') + ' ได้ครับ');
         if (!s.addr.trim()) return this.showToast('กรอกรายละเอียดที่อยู่ด้วยครับ 🏠');
         if (!s.phone) return this.showToast('ใส่เบอร์โทรผู้รับด้วยครับ 📞');
         this.setState({ screen: 'review' });
@@ -855,8 +871,8 @@ class App extends React.Component {
       // ระยะทาง + ค่าส่งสด แสดงใต้แผนที่
       distLine: s.lat == null ? ''
         : s.distKm == null ? '📏 กำลังวัดระยะทางจากร้าน…'
-        : c.outOfArea ? '🚫 ไกลจากร้าน ~' + s.distKm.toFixed(1) + ' กม. — เกินพื้นที่จัดส่ง (' + (CONFIG.farMaxKm ?? 6) + ' กม.) สั่งทาง LINE ได้ครับ'
-        : '📏 ระยะจากร้าน ~' + s.distKm.toFixed(1) + ' กม.' + (s.distSrc === 'est' ? ' (ประมาณ)' : '') + ' · ค่าส่ง ฿' + c.deliveryFee + (c.farNote ? ' — ระยะไกล ร้านจะนัดเวลาส่งล่วงหน้า' : ''),
+        : c.outOfArea ? '🚫 งานขนาดใหญ่ (ส่งด้วยรถยนต์) ไกลจากร้าน ~' + s.distKm.toFixed(1) + ' กม. — เกินพื้นที่ 6 กม. สั่งทาง LINE ได้ครับ'
+        : (c.carJob ? '🚗' : '🏍️') + ' ระยะจากร้าน ~' + s.distKm.toFixed(1) + ' กม.' + (s.distSrc === 'est' ? ' (ประมาณ)' : '') + ' · ค่าส่ง ฿' + c.deliveryFee + (c.carJob ? ' (งานใหญ่ ส่งด้วยรถยนต์)' : '') + (c.farNote ? ' — ร้านจะนัดเวลาส่งล่วงหน้า' : ''),
       distOut: !!c.outOfArea,
       deliveryFee: c.deliveryFee, deliveryPending: c.deliveryPending,
       // หน้าตรวจสอบออเดอร์ก่อนชำระเงิน
