@@ -29,8 +29,11 @@
 
 <script type="text/babel" data-presets="react">
 // ── Config (mirrors the design's editable props) ──────────────────────────
-// ค่าส่งเหมา ฿39 · ช่วงกลางคืน (22:00–06:00) รวมเป็น ฿49
-const CONFIG = { nightOverride: 'auto', nightFee: 10, expressFee: 20, deliveryBase: 39,
+// ค่าส่งคิดตามระยะทางถนนจริงจากร้าน: กม.แรก ฿19 + ฿6/กม.ถัดไป (ปัดเศษ กม. ขึ้น) ในรัศมี 4 กม.
+// 4-6 กม. = ฿129 นัดเวลาล่วงหน้า · เกิน 6 กม. = นอกพื้นที่ (สั่งทาง LINE) · กลางคืน +10 · ด่วน +20
+const CONFIG = { nightOverride: 'auto', nightFee: 10, expressFee: 20,
+  shopLat: 16.485104, shopLng: 102.816614, // จุดที่ตั้งร้าน (โนนม่วง หลังมอ) — แก้ที่นี่ถ้าย้ายร้าน
+  deliveryBase: 19, deliveryPerKm: 6, bikeMaxKm: 4, farPrice: 129, farMaxKm: 6,
   // ปริ้นสี: คิดตามปริมาณสีที่สแกนจากไฟล์ (สัดส่วนพื้นที่สีเกิน colorHeavyPct% = หน้าสีเยอะ)
   colorLightPrice: 5, colorHeavyPrice: 7, colorHeavyPct: 50 };
 
@@ -100,6 +103,7 @@ class App extends React.Component {
       reviews: [], reviewsReady: false, revStars: 5, revText: '', trackStars: 5, trackText: '',
       alertPrompt: false, alertAck: false,
       proType: 'plate', proSize: 'A0', proBind: 'ไสกาว',
+      distKm: null, distSrc: '',
       point: '', addr: '', phone: '', time: '', express: false, slip: null,
       lat: null, lng: null, geoLabel: '', searchQ: '', searchResults: [], searching: false, locating: false,
       gmapLink: '', gmapBusy: false,
@@ -179,7 +183,7 @@ class App extends React.Component {
   componentDidUpdate(){ this.syncNight(); this.syncMap(); }
   componentWillUnmount(){
     clearInterval(this.clockTimer); clearInterval(this.trackTimer);
-    clearTimeout(this.toastTimer); clearTimeout(this._revTimer);
+    clearTimeout(this.toastTimer); clearTimeout(this._revTimer); clearTimeout(this._distTimer);
     if (this._map) { this._map.remove(); this._map = null; }
   }
 
@@ -201,6 +205,7 @@ class App extends React.Component {
         this.setState({ lat: c.lat, lng: c.lng });
         clearTimeout(this._revTimer);
         this._revTimer = setTimeout(() => this.reverseGeocode(c.lat, c.lng), 600);
+        this.updateDistance(c.lat, c.lng);
       });
       m.on('click', (e) => m.panTo(e.latlng)); // แตะตรงไหน แผนที่เลื่อนให้หมุดไปตรงนั้น
       this._map = m;
@@ -214,6 +219,26 @@ class App extends React.Component {
     if (this._map) this._map.setView([lat, lng], 17); // เลื่อนแผนที่มาที่จุด (หมุดอยู่กลางจออยู่แล้ว)
     clearTimeout(this._revTimer);
     this._revTimer = setTimeout(() => this.reverseGeocode(lat, lng), 600);
+    this.updateDistance(lat, lng);
+  }
+  // วัดระยะทางถนนจริงจากร้าน → จุดส่ง (OSRM ฟรี) — ถ้าเซิร์ฟเวอร์ล่มใช้เส้นตรง ×1.3 ประมาณแทน
+  updateDistance(lat, lng){
+    clearTimeout(this._distTimer);
+    this.setState({ distKm: null, distSrc: '' });
+    this._distTimer = setTimeout(async () => {
+      const seq = (this._distSeq = (this._distSeq || 0) + 1);
+      const est = Math.hypot((lat - CONFIG.shopLat) * 111, (lng - CONFIG.shopLng) * 105) * 1.3;
+      try {
+        const r = await fetch('https://router.project-osrm.org/route/v1/driving/' + CONFIG.shopLng + ',' + CONFIG.shopLat + ';' + lng + ',' + lat + '?overview=false');
+        const j = await r.json();
+        const m = j && j.routes && j.routes[0] && j.routes[0].distance;
+        if (seq !== this._distSeq) return;
+        this.setState({ distKm: m ? m / 1000 : est, distSrc: m ? 'road' : 'est' });
+      } catch (e) {
+        if (seq !== this._distSeq) return;
+        this.setState({ distKm: est, distSrc: 'est' });
+      }
+    }, 450);
   }
   async reverseGeocode(lat, lng){
     try {
@@ -405,7 +430,14 @@ class App extends React.Component {
     const s = this.state;
     const nightFee = this.isNight() ? (CONFIG.nightFee ?? 10) : 0;
     const expressFee = s.express ? (CONFIG.expressFee ?? 20) : 0;
-    const base = CONFIG.deliveryBase ?? 39;
+    // ค่าส่งตามระยะทางถนนจริงจากร้าน (ยังไม่ปักหมุด = โชว์ราคาเริ่มต้น กม.แรก ไปก่อน)
+    const km = s.distKm;
+    let deliveryFee = CONFIG.deliveryBase ?? 19, farNote = false, outOfArea = false;
+    if (km != null) {
+      if (km <= (CONFIG.bikeMaxKm ?? 4)) deliveryFee = (CONFIG.deliveryBase ?? 19) + (CONFIG.deliveryPerKm ?? 6) * (Math.max(1, Math.ceil(km)) - 1);
+      else if (km <= (CONFIG.farMaxKm ?? 6)) { deliveryFee = CONFIG.farPrice ?? 129; farNote = true; }
+      else { deliveryFee = CONFIG.farPrice ?? 129; outOfArea = true; }
+    }
     const pages = s.files.reduce((a, f) => a + f.pages, 0);
     const totalPages = pages * s.copies;
     let rate = pageRate(s.ptype, s.paper, s.sides, totalPages);
@@ -429,8 +461,10 @@ class App extends React.Component {
     // งาน Pro: ยังไม่กำหนดราคา — คิดค่าปริ้น ฿0 ไว้ก่อน (ลูกค้าชำระค่าส่ง) ร้านยืนยันราคาจริงทาง LINE
     if (s.tier === 'pro') { rate = 0; printCost = 0; heavyPages = 0; lightPages = 0; }
     const bindCost = s.tier === 'pro' ? 0 : (s.bind === 'corner' ? 5 : s.bind === 'book' ? 40 : s.bind === 'landscape' ? 60 : 0) * s.copies;
-    const deliveryCost = base + expressFee;
-    return { pages, totalPages, sheets, rate, heavyPages, lightPages, printCost, bindCost, printTotal: printCost + bindCost, deliveryCost, nightFee, grandTotal: printCost + bindCost + deliveryCost + nightFee };
+    const deliveryCost = deliveryFee + expressFee;
+    return { pages, totalPages, sheets, rate, heavyPages, lightPages, printCost, bindCost, printTotal: printCost + bindCost,
+      deliveryFee, farNote, outOfArea, deliveryPending: km == null,
+      deliveryCost, nightFee, grandTotal: printCost + bindCost + deliveryCost + nightFee };
   }
 
   // ป้ายสรุปงาน Pro เช่น "เพลท A2" / "พับครึ่ง A3" — ใช้แสดงผลและบันทึกลงช่อง paper
@@ -813,10 +847,18 @@ class App extends React.Component {
       deliveryWarn: '',
       toPay: () => {
         if (s.lat == null) return this.showToast('ปักหมุดตำแหน่งส่งบนแผนที่ก่อนนะครับ 📍');
+        if (c.outOfArea) return this.showToast('จุดส่งไกลจากร้านเกิน ' + (CONFIG.farMaxKm ?? 6) + ' กม. 🙏 สั่งทาง LINE ' + ((window.MP_CONFIG || {}).LINE_OA_ID || '@346kifvy') + ' ได้ครับ');
         if (!s.addr.trim()) return this.showToast('กรอกรายละเอียดที่อยู่ด้วยครับ 🏠');
         if (!s.phone) return this.showToast('ใส่เบอร์โทรผู้รับด้วยครับ 📞');
         this.setState({ screen: 'review' });
       },
+      // ระยะทาง + ค่าส่งสด แสดงใต้แผนที่
+      distLine: s.lat == null ? ''
+        : s.distKm == null ? '📏 กำลังวัดระยะทางจากร้าน…'
+        : c.outOfArea ? '🚫 ไกลจากร้าน ~' + s.distKm.toFixed(1) + ' กม. — เกินพื้นที่จัดส่ง (' + (CONFIG.farMaxKm ?? 6) + ' กม.) สั่งทาง LINE ได้ครับ'
+        : '📏 ระยะจากร้าน ~' + s.distKm.toFixed(1) + ' กม.' + (s.distSrc === 'est' ? ' (ประมาณ)' : '') + ' · ค่าส่ง ฿' + c.deliveryFee + (c.farNote ? ' — ระยะไกล ร้านจะนัดเวลาส่งล่วงหน้า' : ''),
+      distOut: !!c.outOfArea,
+      deliveryFee: c.deliveryFee, deliveryPending: c.deliveryPending,
       // หน้าตรวจสอบออเดอร์ก่อนชำระเงิน
       goPay: () => this.setState({ screen: 'pay' }),
       goEditOrder: () => this.setState({ screen: 'order' }),
@@ -979,7 +1021,7 @@ class App extends React.Component {
         {/* ── Night banner ── */}
         {v.night && (
           <div style={css("margin:14px 20px 0;background:var(--warnBg);border:1px solid var(--warnLine);border-radius:12px;padding:10px 14px;display:flex;gap:10px;align-items:center")}>
-            <span style={css("font-size:16px")}>🌙</span><div style={css("font-size:12px;color:var(--warnInk);line-height:1.45")}>ตอนนี้ {v.clock} — ช่วงกลางคืน (22:00–06:00) ค่าส่ง <b>฿{v.deliveryBase + v.nightFee}</b> (ปกติ ฿{v.deliveryBase})</div>
+            <span style={css("font-size:16px")}>🌙</span><div style={css("font-size:12px;color:var(--warnInk);line-height:1.45")}>ตอนนี้ {v.clock} — ช่วงกลางคืน (22:00–06:00) มีค่าบริการกลางคืน <b>+฿{v.nightFee}</b></div>
           </div>
         )}
 
@@ -1072,7 +1114,7 @@ class App extends React.Component {
             )}
             <div style={css("padding:20px 20px 0")}>
               <div style={css("font-size:23px;font-weight:700;line-height:1.35;text-wrap:pretty")}>ส่งไฟล์ตอนนี้<br/>เอกสารถึงมือ ทุกที่รอบ มข.</div>
-              <div style={css("margin-top:6px;font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--sub)")}>B/W ฿1 · COLOR ฿5 · DELIVERY ฿{v.deliveryBase}</div>
+              <div style={css("margin-top:6px;font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--sub)")}>B/W ฿1 · COLOR ฿5 · DELIVERY เริ่ม ฿{v.deliveryBase}</div>
               <div onClick={v.startOrder} style={css("margin-top:16px;border:2px dashed var(--line);border-radius:16px;background:var(--card);padding:22px 16px;display:flex;flex-direction:column;align-items:center;gap:8px;cursor:pointer;box-shadow:var(--shadow)")}>
                 <div style={css("width:56px;height:56px;border-radius:14px;background:#fff;border:1px solid var(--line);display:flex;align-items:center;justify-content:center;overflow:hidden")}><img src="assets/logo-icon.png" alt="MORE PRINT" style={css("width:46px;height:auto;display:block")}/></div>
                 <div style={css("font-weight:600;font-size:14px;color:var(--acc)")}>แตะเพื่ออัปโหลดไฟล์</div>
@@ -1083,7 +1125,7 @@ class App extends React.Component {
             <div style={css("padding:18px 20px 0;display:flex;gap:10px")}>
               <div style={css("flex:1;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 14px")}><div style={css("font-family:'IBM Plex Mono',monospace;font-size:18px;font-weight:600;color:var(--acc)")}>฿1</div><div style={css("font-size:11px;color:var(--sub);margin-top:2px")}>ขาวดำ / แผ่น</div></div>
               <div style={css("flex:1;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 14px")}><div style={css("font-family:'IBM Plex Mono',monospace;font-size:18px;font-weight:600;color:var(--acc)")}>฿5</div><div style={css("font-size:11px;color:var(--sub);margin-top:2px")}>สี / หน้า</div></div>
-              <div style={css("flex:1;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 14px")}><div style={css("font-family:'IBM Plex Mono',monospace;font-size:18px;font-weight:600;color:var(--acc)")}>฿{v.deliveryBase}</div><div style={css("font-size:11px;color:var(--sub);margin-top:2px")}>ค่าส่งเหมาทั่ว มข.</div></div>
+              <div style={css("flex:1;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 14px")}><div style={css("font-family:'IBM Plex Mono',monospace;font-size:18px;font-weight:600;color:var(--acc)")}>฿{v.deliveryBase}</div><div style={css("font-size:11px;color:var(--sub);margin-top:2px")}>ค่าส่งเริ่มต้น (ตามระยะ)</div></div>
             </div>
             {v.hasOrder && (
               <div onClick={v.goTrack} style={css("margin:16px 20px 0;background:var(--card);border:1px solid var(--line);border-radius:16px;padding:14px 16px;cursor:pointer;box-shadow:var(--shadow)")}>
@@ -1287,6 +1329,7 @@ class App extends React.Component {
                 <button onClick={v.locateMe} title="ใช้ตำแหน่งปัจจุบันของฉัน" style={css("position:absolute;right:12px;bottom:12px;z-index:902;width:46px;height:46px;border-radius:50%;border:none;background:#fff;box-shadow:0 2px 10px rgba(0,0,0,.3);font-size:21px;cursor:pointer;display:flex;align-items:center;justify-content:center")}>{v.locating ? '⏳' : '🎯'}</button>
               </div>
               <div style={css("margin-top:6px;font-size:11px;color:var(--sub);line-height:1.6")}>เลื่อนแผนที่ให้หมุด 📍 ชี้ตรงจุดส่ง · แตะจุดไหนหมุดวิ่งไปให้ · ปุ่ม 🎯 = ตำแหน่งของฉัน</div>
+              {v.distLine && <div style={css("margin-top:7px;border-radius:11px;padding:9px 12px;font-size:12px;font-weight:700;line-height:1.55;" + (v.distOut ? "background:#fff0f0;border:1px solid #ffa8a8;color:#c92a2a" : "background:var(--accSoft);border:1px solid var(--acc);color:var(--acc)"))}>{v.distLine}</div>}
               <div style={css("margin-top:4px;font-size:11px;color:var(--acc);font-weight:600;line-height:1.5")}>💡 ค้นหาชื่อหอไม่เจอ? ไม่เป็นไร — แตะปักหมุดเองตรงที่พักของคุณ แล้วพิมพ์ชื่อหอ + รายละเอียดในช่องด้านล่างได้เลย</div>
               <div style={css("margin-top:12px;font-size:12px;font-weight:600;color:var(--sub)")}>รายละเอียดที่อยู่ (หอ / คณะ / บ้านเลขที่ / ซอย / จุดนัด) <span style={css("color:#d9480f")}>*</span></div>
               <input value={v.addr} onChange={v.setAddr} placeholder="เช่น หอ 9 ตึก B ชั้น 2, บ้านเลขที่ 123/4 ซอยมะลิวัลย์ 5" style={css("margin-top:6px;width:100%;box-sizing:border-box;height:42px;border:1px solid var(--line);border-radius:10px;background:var(--soft);color:var(--ink);padding:0 12px;font-size:13px;outline:none")}/>
@@ -1303,7 +1346,7 @@ class App extends React.Component {
             </div>
             <div style={css("background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px")}>
               <div style={css("display:flex;flex-direction:column;gap:5px;font-size:12.5px")}>
-                <div style={css("display:flex;justify-content:space-between")}><span style={css("color:var(--sub)")}>ค่าส่งเริ่มต้น</span><span style={css("font-family:'IBM Plex Mono',monospace")}>฿{v.deliveryBase}</span></div>
+                <div style={css("display:flex;justify-content:space-between")}><span style={css("color:var(--sub)")}>ค่าส่ง{v.deliveryPending ? ' (เริ่มต้น — รอปักหมุด)' : ' (ตามระยะจริง)'}</span><span style={css("font-family:'IBM Plex Mono',monospace")}>฿{v.deliveryFee}</span></div>
                 {v.express && <div style={css("display:flex;justify-content:space-between")}><span style={css("color:var(--sub)")}>ส่งด่วน</span><span style={css("font-family:'IBM Plex Mono',monospace")}>+฿{v.expressFee}</span></div>}
                 {v.night && <div style={css("display:flex;justify-content:space-between")}><span style={css("color:var(--warnInk)")}>🌙 ค่าบริการกลางคืน</span><span style={css("font-family:'IBM Plex Mono',monospace;color:var(--warnInk)")}>+฿{v.nightFee}</span></div>}
                 <div style={css("display:flex;justify-content:space-between;border-top:1px dashed var(--line);padding-top:6px;margin-top:2px;font-weight:700")}><span>รวมทั้งหมด</span><span style={css("font-family:'IBM Plex Mono',monospace;color:var(--acc)")}>฿{v.grandTotal}</span></div>
