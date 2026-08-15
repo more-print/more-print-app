@@ -37,7 +37,8 @@ const CONFIG = { nightOverride: 'auto', nightFee: 10, expressFee: 20,
   deliveryBase: 19, bikePerKm: 6,
   carTiers: [[2, 69], [4, 89], [6, 129]],
   // ปริ้นสี: คิดตามปริมาณสีที่สแกนจากไฟล์ (สัดส่วนพื้นที่สีเกิน colorHeavyPct% = หน้าสีเยอะ)
-  colorLightPrice: 5, colorHeavyPrice: 7, colorHeavyPct: 50 };
+  colorLightPrice: 5, colorHeavyPrice: 7, colorHeavyPct: 50,
+  photoInkPct: 80, photoMinColorPct: 15 }; // กฎจับหน้ารูปภาพเต็มหน้า: หมึกคลุม >80% + มีสีจริง >15% = สีเยอะ
 
 // ── ประเภทงานปริ้น + เรทราคา (ตามป้ายราคาหน้าร้าน) ──
 // งาน Standard มีแค่ 2 ประเภท (งานใหญ่/พิเศษไปทาง Pro) — ptype เก่า laser/portfolio/poster ยังแสดงในหลังบ้านได้
@@ -387,12 +388,18 @@ class App extends React.Component {
         await page.render({ canvasContext: ctx, viewport: vp, intent: 'print' }).promise;
         if (i === 1) { try { thumb = canvas.toDataURL('image/jpeg', 0.8); } catch (e) {} }
         const d = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
-        let total = 0, color = 0;
+        let total = 0, ink = 0, color = 0;
         for (let p = 0; p < d.length; p += 4) {
+          const r = d[p], g = d[p + 1], b = d[p + 2];
           total++;
-          if (Math.max(d[p], d[p + 1], d[p + 2]) - Math.min(d[p], d[p + 1], d[p + 2]) > 25) color++;
+          const mx = Math.max(r, g, b), mn = Math.min(r, g, b);
+          if (!(mx >= 245 && mn >= 245)) ink++; // ไม่ใช่กระดาษขาว = มีหมึก
+          if (mx - mn > 25) color++;            // ต่างช่องสีมาก = หมึกสี
         }
-        if (color / total * 100 > (CONFIG.colorHeavyPct ?? 30)) heavy++;
+        const colorPct = color / total * 100, inkPct = ink / total * 100;
+        // สีเยอะเมื่อ (1) พื้นที่สีสดเกินเกณฑ์ หรือ (2) เป็นหน้ารูปภาพ/กราฟิกเกือบเต็มหน้าที่มีสีจริง
+        // — ภาพถ่ายมีพิกเซลโทนหม่น/เทาปนเยอะ วัดแบบ (1) อย่างเดียวจะหลุดทั้งที่กินหมึกสีมาก
+        if (colorPct > (CONFIG.colorHeavyPct ?? 50) || (inkPct > (CONFIG.photoInkPct ?? 80) && colorPct > (CONFIG.photoMinColorPct ?? 15))) heavy++;
       } catch (e) { /* หน้าที่วาดไม่ได้ นับเป็นสีน้อย */ }
     }
     return { heavy, scanned: true, thumb };
@@ -805,7 +812,7 @@ class App extends React.Component {
         : 'เรท ฿' + c.rate + '/' + (s.ptype === 'poster' ? 'แผ่น' : 'หน้า'),
       colorNote: s.tier === 'pro' ? ''
         : s.ptype === 'color'
-        ? (!s.files.length ? '* หน้าที่มีสีเกิน ' + (CONFIG.colorHeavyPct ?? 30) + '% ของพื้นที่ = สีเยอะ ฿' + (CONFIG.colorHeavyPrice ?? 7)
+        ? (!s.files.length ? '* หน้าสีเกิน ' + (CONFIG.colorHeavyPct ?? 50) + '% ของพื้นที่ หรือเป็นรูปภาพเต็มหน้า = สีเยอะ ฿' + (CONFIG.colorHeavyPrice ?? 7)
           : s.files.some(f => !f.scanned) ? '* ไฟล์ที่ระบบสแกนสีไม่ได้ คิดเรทสีน้อยไว้ก่อน — ร้านตรวจไฟล์จริงและยืนยันราคาก่อนปริ้น'
           : c.heavyPages > 0 ? '* สแกนไฟล์แล้ว: สีเยอะ ' + c.heavyPages + ' หน้า × ฿' + (CONFIG.colorHeavyPrice ?? 7) + ' · สีน้อย ' + c.lightPages + ' หน้า × ฿' + (CONFIG.colorLightPrice ?? 5)
           : '* สแกนไฟล์แล้ว: ทุกหน้าสีน้อย ฿' + (CONFIG.colorLightPrice ?? 5) + '/หน้า')
