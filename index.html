@@ -106,7 +106,7 @@ class App extends React.Component {
       reviews: [], reviewsReady: false, revStars: 5, revText: '', trackStars: 5, trackText: '',
       alertPrompt: false, alertAck: false,
       proType: 'plate', proSize: 'A0', proBind: 'ไสกาว',
-      distKm: null, distSrc: '',
+      distKm: null, distSrc: '', trackOpen: false,
       point: '', addr: '', phone: '', time: '', express: false, slip: null,
       lat: null, lng: null, geoLabel: '', searchQ: '', searchResults: [], searching: false, locating: false,
       gmapLink: '', gmapBusy: false,
@@ -915,7 +915,7 @@ class App extends React.Component {
         const plabel = s.tier === 'pro' ? 'PRO ' + this.proLabel() : ((PRINT_TYPES.find(t => t.k === s.ptype) || {}).label || '');
         // ยืนยันแล้วล้างรายการงานทิ้ง — เข้ามาสั่งรอบหน้าต้องเป็นหน้าว่างพร้อมดรอปไฟล์ใหม่ ไม่มีไฟล์เก่าค้าง
         this.setState({ order: { id, total: c.grandTotal, times: [t0, '', '', ''], plabel }, trackStep: 1, cancelReason: '', screen: 'track',
-          files: [], slip: null, copies: 1, bind: 'none', express: false, tier: 'standard', ptype: 'bw', paper: 'A4', sides: 1 });
+          files: [], slip: null, copies: 1, bind: 'none', express: false, tier: 'standard', ptype: 'bw', paper: 'A4', sides: 1, trackOpen: false });
         // จำออเดอร์ไว้ในเครื่อง — ปิดเว็บแล้วกลับมา การติดตามยังอยู่
         try { localStorage.setItem('mp_order', JSON.stringify({ id, total: c.grandTotal, times: [t0, '', '', ''], step: 1, plabel })); } catch (e) {}
         if (!this.db) {
@@ -931,6 +931,10 @@ class App extends React.Component {
         this.showToast('รับออเดอร์แล้ว! 🎉');
       },
       hasOrder: !!s.order, noOrder: !s.order,
+      // ออเดอร์ที่ส่งแล้ว: หดเหลือแถบรหัสออเดอร์ แตะเพื่อกาง (ออเดอร์ที่ยังไม่จบแสดงเต็มตลอด)
+      trackDelivered: !!s.order && step >= 4 && !cancelled,
+      trackCollapsed: !!s.order && step >= 4 && !cancelled && !s.trackOpen,
+      trackToggle: () => this.setState({ trackOpen: !s.trackOpen }),
       orderId: s.order ? s.order.id : '', paidTotal: s.order ? s.order.total : 0,
       cancelled, cancelReason: s.cancelReason,
       trackLabel: s.order ? (cancelled ? 'ยกเลิกแล้ว' : STEPS[Math.min(step, 4) - 1]) : '',
@@ -1490,21 +1494,36 @@ class App extends React.Component {
                     <div style={css("margin-top:8px;font-size:11.5px;color:#a61e1e")}>โอนเงินแล้ว? ติดต่อขอคืนเงิน/สั่งใหม่ทาง LINE OA @346kifvy 💬</div>
                   </div>
                 )}
-                <div style={css("background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px;box-shadow:var(--shadow)")}>
-                  <div style={css("display:flex;justify-content:space-between;align-items:center")}><div style={css("font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--sub)")}>ORDER {v.orderId}</div><div style={v.trackBadgeSt}>{v.trackLabel}</div></div>
-                  <div style={css("margin-top:6px;font-size:13px;font-weight:600")}>{v.etaLabel}</div>
-                  <div style={css("margin-top:14px;display:flex;flex-direction:column;gap:0")}>{v.trackSteps.map((sv, i) => (
-                    <div key={i} style={css("display:flex;gap:12px")}>
-                      <div style={css("display:flex;flex-direction:column;align-items:center")}><div style={sv.dot}>{sv.mark}</div><div style={sv.bar}></div></div>
-                      <div style={css("padding-bottom:16px")}><div style={sv.tt}>{sv.label}</div><div style={css("font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:var(--sub)")}>{sv.time}</div></div>
+                {v.trackCollapsed ? (
+                  <div onClick={v.trackToggle} style={css("background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px;display:flex;align-items:center;gap:11px;cursor:pointer;box-shadow:var(--shadow)")}>
+                    <span style={css("font-size:20px")}>✅</span>
+                    <div style={css("flex:1;min-width:0")}>
+                      <div style={css("font-family:'IBM Plex Mono',monospace;font-size:13.5px;font-weight:700")}>{v.orderId}</div>
+                      <div style={css("margin-top:2px;font-size:11px;color:var(--sub)")}>ส่งเรียบร้อยแล้ว · แตะเพื่อดูรายละเอียด</div>
                     </div>
-                  ))}</div>
-                </div>
-                <div style={css("background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px;font-size:12.5px;display:flex;flex-direction:column;gap:5px")}>
-                  <div style={css("display:flex;justify-content:space-between")}><span style={css("color:var(--sub)")}>ส่งที่</span><span style={css("text-align:right;max-width:60%")}>{v.destLabel}</span></div>
-                  <div style={css("display:flex;justify-content:space-between")}><span style={css("color:var(--sub)")}>เวลารับ</span><span style={css("font-family:'IBM Plex Mono',monospace")}>{v.timeLabel}</span></div>
-                  <div style={css("display:flex;justify-content:space-between;font-weight:700;border-top:1px dashed var(--line);padding-top:6px")}><span>ชำระแล้ว</span><span style={css("font-family:'IBM Plex Mono',monospace;color:var(--acc)")}>฿{v.paidTotal}</span></div>
-                </div>
+                    <div style={v.trackBadgeSt}>{v.trackLabel}</div>
+                    <span style={css("color:var(--sub);font-size:12px")}>▼</span>
+                  </div>
+                ) : (
+                  <React.Fragment>
+                    <div style={css("background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px;box-shadow:var(--shadow)")}>
+                      <div style={css("display:flex;justify-content:space-between;align-items:center")}><div style={css("font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--sub)")}>ORDER {v.orderId}</div><div style={v.trackBadgeSt}>{v.trackLabel}</div></div>
+                      <div style={css("margin-top:6px;font-size:13px;font-weight:600")}>{v.etaLabel}</div>
+                      <div style={css("margin-top:14px;display:flex;flex-direction:column;gap:0")}>{v.trackSteps.map((sv, i) => (
+                        <div key={i} style={css("display:flex;gap:12px")}>
+                          <div style={css("display:flex;flex-direction:column;align-items:center")}><div style={sv.dot}>{sv.mark}</div><div style={sv.bar}></div></div>
+                          <div style={css("padding-bottom:16px")}><div style={sv.tt}>{sv.label}</div><div style={css("font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:var(--sub)")}>{sv.time}</div></div>
+                        </div>
+                      ))}</div>
+                    </div>
+                    <div style={css("background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px;font-size:12.5px;display:flex;flex-direction:column;gap:5px")}>
+                      <div style={css("display:flex;justify-content:space-between")}><span style={css("color:var(--sub)")}>ส่งที่</span><span style={css("text-align:right;max-width:60%")}>{v.destLabel}</span></div>
+                      <div style={css("display:flex;justify-content:space-between")}><span style={css("color:var(--sub)")}>เวลารับ</span><span style={css("font-family:'IBM Plex Mono',monospace")}>{v.timeLabel}</span></div>
+                      <div style={css("display:flex;justify-content:space-between;font-weight:700;border-top:1px dashed var(--line);padding-top:6px")}><span>ชำระแล้ว</span><span style={css("font-family:'IBM Plex Mono',monospace;color:var(--acc)")}>฿{v.paidTotal}</span></div>
+                    </div>
+                    {v.trackDelivered && <div onClick={v.trackToggle} style={css("text-align:center;font-size:12px;color:var(--acc);font-weight:700;cursor:pointer;padding:2px 0")}>▲ ย่อรายละเอียด</div>}
+                  </React.Fragment>
+                )}
                 {v.showTrackReview && (v.trackRevDone
                   ? <div style={css("background:var(--accSoft);border:1px solid var(--acc);border-radius:14px;padding:12px 16px;font-size:12.5px;color:var(--acc);font-weight:600")}>🙏 ขอบคุณสำหรับรีวิวครับ — ดูได้ที่หน้าแรกเลย</div>
                   : <div style={css("background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px;box-shadow:var(--shadow)")}>
