@@ -57,7 +57,7 @@ const PRO_TYPES = [
   { k: 'foldbook', icon: '📖', label: 'พับครึ่ง หน้า-หลัง (เข้าเล่ม/เมนู)', sizes: ['A2', 'A3', 'A4'], bindOpt: true },
   { k: 'portfolio', icon: '📁', label: 'Portfolio' },
   { k: 'sticker', icon: '🏷️', label: 'สติ๊กเกอร์' },
-  { k: 'namecard', icon: '💳', label: 'นามบัตร' },
+  { k: 'namecard', icon: '💳', label: 'นามบัตร', qty: [100, 200, 300] },
   { k: 'standee', icon: '🧍', label: 'Standy (สแตนดี้)' }
 ];
 const PRO_BINDS = ['ไสกาว', 'ปกแข็ง', 'สันห่วงพลาสติก', 'ขาตะเกียบ', 'เย็บมุงหลังคา', 'ห่วงเกลียว', 'ห่วงคู่', 'เย็บเล่ม', 'เทปปิด', 'สันกาวปกแข็ง'];
@@ -108,7 +108,7 @@ class App extends React.Component {
       screen: 'home', files: [], tier: 'standard', ptype: 'bw', paper: 'A4', sides: 1, bind: 'none', copies: 1,
       reviews: [], reviewsReady: false, revStars: 5, revText: '', trackStars: 5, trackText: '',
       alertPrompt: false, alertAck: false,
-      proType: 'plate', proSize: 'A0', proBind: 'ไสกาว',
+      proType: 'plate', proSize: 'A0', proBind: 'ไสกาว', proQty: 100,
       distKm: null, distSrc: '', trackOpen: false,
       point: '', addr: '', phone: '', time: '', express: false, slip: null,
       lat: null, lng: null, geoLabel: '', searchQ: '', searchResults: [], searching: false, locating: false,
@@ -509,6 +509,7 @@ class App extends React.Component {
     return t.k === 'plate' ? 'เพลท ' + s.proSize
       : t.k === 'poster' ? 'โปสเตอร์ ' + s.proSize
       : t.k === 'foldbook' ? 'พับครึ่ง ' + s.proSize
+      : t.k === 'namecard' ? 'นามบัตร ' + s.proQty + ' ชิ้น'
       : t.label;
   }
 
@@ -794,7 +795,9 @@ class App extends React.Component {
       pickStandard: () => this.setState({ tier: 'standard', paper: SIZE_BY_TYPE[s.ptype][0] }),
       pickPro: () => this.setState({ tier: 'pro' }),
       proTypeOpts: PRO_TYPES.map(t => this.seg(t.icon + ' ' + t.label, s.proType === t.k,
-        () => this.setState({ proType: t.k, proSize: (t.sizes || [''])[0], proBind: t.bindOpt ? s.proBind : s.proBind, sides: t.k === 'foldbook' ? 2 : 1 }))),
+        () => this.setState({ proType: t.k, proSize: (t.sizes || [''])[0], proQty: (t.qty || [100])[0], sides: t.k === 'foldbook' ? 2 : 1 }))),
+      proShowQty: !!((PRO_TYPES.find(t => t.k === s.proType) || {}).qty),
+      proQtyOpts: (((PRO_TYPES.find(t => t.k === s.proType) || {}).qty) || []).map(n => this.seg(n + ' ชิ้น', s.proQty === n, () => this.setState({ proQty: n }))),
       proSizeOpts: ((PRO_TYPES.find(t => t.k === s.proType) || {}).sizes || []).map(sz => this.seg(sz, s.proSize === sz, () => this.setState({ proSize: sz }), true)),
       proShowSides: s.proType === 'poster',
       proSidesOpts: [this.seg('ด้านหน้าอย่างเดียว', s.sides === 1, () => this.setState({ sides: 1 }), true), this.seg('หน้า-หลัง', s.sides === 2, () => this.setState({ sides: 2 }), true)],
@@ -1325,7 +1328,8 @@ class App extends React.Component {
                 {v.isPro && <div style={css("display:flex;flex-direction:column;gap:6px")}><div style={css("font-size:12px;font-weight:600;color:var(--sub)")}>ประเภทงาน Pro (ร้านอุดมสุขปริ้นติ้ง)</div><div style={css("display:flex;flex-direction:column;gap:8px")}>{v.proTypeOpts.map((o, i) => <button key={i} onClick={o.pick} style={{ ...o.st, width: '100%', boxSizing: 'border-box', minHeight: '46px', display: 'flex', alignItems: 'center', textAlign: 'left', fontSize: '13px' }}>{o.label}</button>)}</div></div>}
                 {v.isPro && v.proSizeOpts.length > 0 && <div style={css("display:flex;flex-direction:column;gap:6px")}><div style={css("font-size:12px;font-weight:600;color:var(--sub)")}>ขนาด</div><div style={css("display:flex;gap:8px;flex-wrap:wrap")}>{v.proSizeOpts.map((o, i) => <button key={i} onClick={o.pick} style={o.st}>{o.label}</button>)}</div></div>}
                 {v.isPro && v.proShowSides && <div style={css("display:flex;flex-direction:column;gap:6px")}><div style={css("font-size:12px;font-weight:600;color:var(--sub)")}>ด้านที่พิมพ์</div><div style={css("display:flex;gap:8px")}>{v.proSidesOpts.map((o, i) => <button key={i} onClick={o.pick} style={o.st}>{o.label}</button>)}</div></div>}
-                {v.isPro && v.proShowBind && <div style={css("display:flex;flex-direction:column;gap:6px")}><div style={css("font-size:12px;font-weight:600;color:var(--sub)")}>ตัวเลือกเข้าเล่ม</div><div style={css("display:flex;gap:8px;flex-wrap:wrap")}>{v.proBindOpts.map((o, i) => <button key={i} onClick={o.pick} style={o.st}>{o.label}</button>)}</div></div>}
+                {v.isPro && v.proShowBind && <div style={css("display:flex;flex-direction:column;gap:6px")}><div style={css("font-size:12px;font-weight:600;color:var(--sub)")}>ตัวเลือกเข้าเล่ม</div><div style={css("display:flex;flex-direction:column;gap:8px")}>{v.proBindOpts.map((o, i) => <button key={i} onClick={o.pick} style={{ ...o.st, width: '100%', boxSizing: 'border-box', minHeight: '44px', display: 'flex', alignItems: 'center', textAlign: 'left', fontSize: '13px' }}>{o.label}</button>)}</div></div>}
+                {v.isPro && v.proShowQty && <div style={css("display:flex;flex-direction:column;gap:6px")}><div style={css("font-size:12px;font-weight:600;color:var(--sub)")}>จำนวน</div><div style={css("display:flex;flex-direction:column;gap:8px")}>{v.proQtyOpts.map((o, i) => <button key={i} onClick={o.pick} style={{ ...o.st, width: '100%', boxSizing: 'border-box', minHeight: '44px', display: 'flex', alignItems: 'center', textAlign: 'left', fontSize: '13px' }}>{o.label}</button>)}</div></div>}
                 {v.isPro && <div style={css("font-size:11.5px;font-weight:700;color:var(--acc)")}>✓ ที่เลือก: {v.proPicked}{v.proShowBind ? ' · ' + (v.bindLabel || '') : ''}</div>}
                 <div style={css("font-size:11.5px;color:var(--acc);font-weight:600")}>💡 {v.rateHint}</div>
                 {v.colorNote && <div style={css("font-size:10.5px;color:var(--sub)")}>{v.colorNote}</div>}
