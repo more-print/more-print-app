@@ -41,6 +41,7 @@ const CONFIG = { nightOverride: 'auto', nightFee: 10, expressFee: 20, expressEna
   photoInkPct: 80, photoMinColorPct: 15, // กฎจับหน้ารูปภาพเต็มหน้า: หมึกคลุม >80% + มีสีจริง >15% = สีเยอะ
   // เวลาผลิต+ส่งโดยประมาณ (นาที) — บวกเพิ่มตามคิวค้างจริง: คิวก่อนหน้า × queuePerOrderMin
   etaStandardMin: 45, queuePerOrderMin: 15,
+  cancelWindowMin: 10, // ลูกค้ายกเลิกเองได้ภายในกี่นาทีหลังชำระ (ต้องยังสถานะ "รับออเดอร์") — SQL customer_cancel ใช้เลขเดียวกัน แก้ต้องแก้คู่กัน
   etaProMin: { plate: 90, plateBig: 180, poster: 45, foldbook: 90, portfolio: 60, sticker: 90, namecard: 90, standee: 90 } };
 
 // ── ประเภทงานปริ้น + เรทราคา (ตามป้ายราคาหน้าร้าน) ──
@@ -119,6 +120,7 @@ class App extends React.Component {
       gmapLink: '', gmapBusy: false,
       banners: [],
       order: null, trackStep: 1, cancelReason: '', toast: '', now: new Date(),
+      selfCancelArm: false, selfCancelBusy: false,
       user: null, authMode: 'login', authBusy: false,
       emailIn: '', passIn: '',
       regFname: '', regLname: '', regEmail: '', regPass1: '', regPass2: ''
@@ -177,7 +179,7 @@ class App extends React.Component {
       const od = JSON.parse(localStorage.getItem('mp_order') || 'null');
       if (od && od.id) {
         this.setState({
-          order: { id: od.id, total: od.total || 0, times: od.times || ['', '', '', ''], plabel: od.plabel || '', eta: od.eta || null, pickup: !!od.pickup },
+          order: { id: od.id, total: od.total || 0, times: od.times || ['', '', '', ''], plabel: od.plabel || '', eta: od.eta || null, pickup: !!od.pickup, ts: od.ts || null },
           trackStep: od.step || 1,
           cancelReason: od.cancelReason || ''
         });
@@ -693,6 +695,34 @@ class App extends React.Component {
     this.trackTimer = setInterval(() => this.fetchOrderStatus(id), 8000);
   }
 
+  // ── ลูกค้ายกเลิกออเดอร์เอง: ทำได้เฉพาะตอนร้านยังไม่เริ่มปริ้น (สถานะ 1) และไม่เกิน cancelWindowMin นาทีหลังชำระ
+  // เงื่อนไขจริงตัดสินที่ SQL customer_cancel (SECURITY DEFINER) — ฝั่งเว็บเป็นแค่หน้าจอ เดาเวลา/สถานะเองไม่ได้
+  async selfCancel(){
+    const s = this.state;
+    if (!s.order || s.selfCancelBusy) return;
+    const reason = 'ลูกค้ายกเลิกเอง (ภายใน ' + (CONFIG.cancelWindowMin ?? 10) + ' นาทีหลังชำระเงิน)';
+    const markCancelled = () => {
+      clearInterval(this.trackTimer);
+      this.setState({ trackStep: 0, cancelReason: reason, selfCancelArm: false, selfCancelBusy: false });
+      try { const od = JSON.parse(localStorage.getItem('mp_order') || 'null');
+        if (od && od.id === s.order.id) { od.step = 0; od.cancelReason = reason; localStorage.setItem('mp_order', JSON.stringify(od)); } } catch (e) {}
+      this.showToast('ยกเลิกออเดอร์เรียบร้อยครับ ↩️');
+    };
+    if (!this.db) return markCancelled(); // โหมดตัวอย่าง: จำลองยกเลิกในเครื่อง
+    this.setState({ selfCancelBusy: true });
+    const fail = (msg) => { this.setState({ selfCancelBusy: false, selfCancelArm: false }); this.showToast(msg); };
+    try {
+      const { data, error } = await this.db.rpc('customer_cancel', { oid: s.order.id });
+      if (error) return fail('ยกเลิกไม่สำเร็จ ลองอีกครั้ง หรือทักแชทร้านทาง LINE ครับ 🙏');
+      if (data === 'printing') { fail('ร้านเริ่มทำงานนี้แล้ว ยกเลิกจากหน้าเว็บไม่ได้ — รีบทักแชทร้านเลยครับ 💬'); return this.fetchOrderStatus(s.order.id); }
+      if (data === 'timeout') return fail('เลยช่วงยกเลิก ' + (CONFIG.cancelWindowMin ?? 10) + ' นาทีแล้ว — ทักแชทร้านทาง LINE ครับ 💬');
+      if (data !== 'ok') return fail('ยกเลิกไม่สำเร็จ — ทักแชทร้านทาง LINE ครับ 🙏');
+      // แจ้งร้านทาง LINE ว่าลูกค้ายกเลิกเอง จะได้ไม่ปริ้นทิ้ง (ยิงแบบไม่รอผล)
+      try { fetch((window.MP_CONFIG || {}).SUPABASE_URL + '/functions/v1/notify-order?action=customer-cancelled', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: s.order.id }) }); } catch (e) {}
+      markCancelled();
+    } catch (e) { fail('ยกเลิกไม่สำเร็จ ลองอีกครั้งครับ 🙏'); }
+  }
+
   vals(){
     const s = this.state, c = this.calc(), night = this.isNight();
     const set = (k) => (v) => this.setState({ [k]: v });
@@ -989,10 +1019,11 @@ class App extends React.Component {
         const eta = Date.now() + etaBaseMin * 60000;
         // ยืนยันแล้วล้างรายการงานทิ้ง — เข้ามาสั่งรอบหน้าต้องเป็นหน้าว่างพร้อมดรอปไฟล์ใหม่ ไม่มีไฟล์เก่าค้าง
         const pickup = s.tier === 'pro' && s.proPickup;
-        this.setState({ order: { id, total: c.grandTotal, times: [t0, '', '', ''], plabel, eta, pickup }, trackStep: 1, cancelReason: '', screen: 'track',
-          files: [], slip: null, copies: 1, bind: 'none', express: false, tier: 'standard', ptype: 'bw', paper: 'A4', sides: 1, proPickup: false, trackOpen: false });
+        const ts = Date.now(); // เวลาชำระ — ใช้นับถอยหลังช่วงที่ลูกค้ายกเลิกเองได้
+        this.setState({ order: { id, total: c.grandTotal, times: [t0, '', '', ''], plabel, eta, pickup, ts }, trackStep: 1, cancelReason: '', screen: 'track',
+          files: [], slip: null, copies: 1, bind: 'none', express: false, tier: 'standard', ptype: 'bw', paper: 'A4', sides: 1, proPickup: false, trackOpen: false, selfCancelArm: false });
         // จำออเดอร์ไว้ในเครื่อง — ปิดเว็บแล้วกลับมา การติดตามยังอยู่
-        try { localStorage.setItem('mp_order', JSON.stringify({ id, total: c.grandTotal, times: [t0, '', '', ''], step: 1, plabel, eta, pickup })); } catch (e) {}
+        try { localStorage.setItem('mp_order', JSON.stringify({ id, total: c.grandTotal, times: [t0, '', '', ''], step: 1, plabel, eta, pickup, ts })); } catch (e) {}
         // บวกเวลาตามคิวที่ค้างจริง (ออเดอร์ที่ยังไม่ออกส่ง) — รอ insert ลงฐานก่อนแล้วค่อยนับ
         if (this.db) setTimeout(async () => {
           try {
@@ -1025,6 +1056,15 @@ class App extends React.Component {
       trackToggle: () => this.setState({ trackOpen: !s.trackOpen }),
       orderId: s.order ? s.order.id : '', paidTotal: s.order ? s.order.total : 0,
       cancelled, cancelReason: s.cancelReason,
+      // ── ลูกค้ายกเลิกเอง: ปุ่มโผล่เฉพาะช่วง "รับออเดอร์" + ยังไม่เกินเวลา (นาฬิกา s.now เดินทุก 30 วิ ตัวเลขนับถอยหลังจึงสดเสมอ) ──
+      selfCancelled: cancelled && /^ลูกค้ายกเลิกเอง/.test(s.cancelReason || ''),
+      canSelfCancel: !!s.order && !cancelled && step === 1 && !!s.order.ts && (Date.now() - s.order.ts) < (CONFIG.cancelWindowMin ?? 10) * 60000,
+      cancelWindowMin: CONFIG.cancelWindowMin ?? 10,
+      cancelLeftMin: s.order && s.order.ts ? Math.max(0, Math.ceil(((CONFIG.cancelWindowMin ?? 10) * 60000 - (Date.now() - s.order.ts)) / 60000)) : 0,
+      selfCancelArm: s.selfCancelArm, selfCancelBusy: s.selfCancelBusy,
+      armSelfCancel: () => this.setState({ selfCancelArm: true }),
+      unarmSelfCancel: () => this.setState({ selfCancelArm: false }),
+      doSelfCancel: () => this.selfCancel(),
       trackLabel: s.order ? (cancelled ? 'ยกเลิกแล้ว' : (stepsFor(s.order) || STEPS)[Math.min(step, 4) - 1]) : '',
       trackBadgeSt: { fontFamily: "'IBM Plex Mono',monospace", fontSize: '11px', fontWeight: 600, padding: '3px 8px', borderRadius: '99px',
         color: cancelled ? '#c92a2a' : 'var(--acc)', background: cancelled ? '#ffe3e3' : 'var(--accSoft)' },
@@ -1607,8 +1647,8 @@ class App extends React.Component {
               <React.Fragment>
                 {v.cancelled && (
                   <div style={css("background:#fff0f0;border:1px solid #ffc9c9;border-radius:14px;padding:14px 16px")}>
-                    <div style={css("font-size:14.5px;font-weight:700;color:#c92a2a")}>❌ ออเดอร์ถูกยกเลิกโดยร้าน</div>
-                    {v.cancelReason && <div style={css("margin-top:6px;font-size:13px;color:#a61e1e;line-height:1.5")}><b>เหตุผล:</b> {v.cancelReason}</div>}
+                    <div style={css("font-size:14.5px;font-weight:700;color:#c92a2a")}>{v.selfCancelled ? '↩️ คุณยกเลิกออเดอร์นี้แล้ว' : '❌ ออเดอร์ถูกยกเลิกโดยร้าน'}</div>
+                    {!v.selfCancelled && v.cancelReason && <div style={css("margin-top:6px;font-size:13px;color:#a61e1e;line-height:1.5")}><b>เหตุผล:</b> {v.cancelReason}</div>}
                     <div style={css("margin-top:8px;font-size:11.5px;color:#a61e1e")}>โอนเงินแล้ว? ติดต่อขอคืนเงิน/สั่งใหม่ทาง LINE OA @346kifvy 💬</div>
                   </div>
                 )}
@@ -1640,6 +1680,26 @@ class App extends React.Component {
                     </div>
                     {v.trackDelivered && <div onClick={v.trackToggle} style={css("text-align:center;font-size:12px;color:var(--acc);font-weight:700;cursor:pointer;padding:2px 0")}>▲ ย่อรายละเอียด</div>}
                   </React.Fragment>
+                )}
+                {/* ── ยกเลิกออเดอร์เอง: เห็นเฉพาะช่วงร้านยังไม่เริ่มปริ้น และไม่เกิน cancelWindowMin นาทีหลังชำระ ── */}
+                {v.canSelfCancel && (
+                  <div style={css("background:var(--card);border:1px solid var(--line);border-radius:14px;padding:13px 16px;box-shadow:var(--shadow)")}>
+                    {!v.selfCancelArm ? (
+                      <React.Fragment>
+                        <button onClick={v.armSelfCancel} style={css("width:100%;height:42px;border:1px solid #ffa8a8;border-radius:10px;background:none;color:#c92a2a;font-size:13px;font-weight:700;cursor:pointer")}>↩️ ยกเลิกออเดอร์นี้</button>
+                        <div style={css("margin-top:6px;font-size:10.5px;color:var(--sub);text-align:center")}>เปลี่ยนใจได้ภายใน {v.cancelWindowMin} นาทีหลังชำระ · เหลืออีก ~{v.cancelLeftMin} นาที</div>
+                      </React.Fragment>
+                    ) : (
+                      <React.Fragment>
+                        <div style={css("font-size:12.5px;font-weight:700;color:#c92a2a;text-align:center")}>ยืนยันยกเลิกออเดอร์นี้ใช่ไหมครับ?</div>
+                        <div style={css("margin-top:4px;font-size:11px;color:var(--sub);text-align:center;line-height:1.5")}>ถ้าโอนเงินไปแล้ว ทักแชท LINE OA @346kifvy เพื่อรับเงินคืนได้เลยครับ</div>
+                        <div style={css("margin-top:10px;display:flex;gap:8px")}>
+                          <button onClick={v.unarmSelfCancel} disabled={v.selfCancelBusy} style={css("flex:1;height:42px;border:1px solid var(--line);border-radius:10px;background:var(--soft);color:var(--ink);font-size:12.5px;font-weight:700;cursor:pointer")}>ไม่ยกเลิกแล้ว</button>
+                          <button onClick={v.doSelfCancel} disabled={v.selfCancelBusy} style={css("flex:1;height:42px;border:none;border-radius:10px;background:#c92a2a;color:#fff;font-size:12.5px;font-weight:700;cursor:pointer;opacity:" + (v.selfCancelBusy ? ".6" : "1"))}>{v.selfCancelBusy ? 'กำลังยกเลิก…' : '✔ ยืนยันยกเลิก'}</button>
+                        </div>
+                      </React.Fragment>
+                    )}
+                  </div>
                 )}
                 {v.showTrackReview && (v.trackRevDone
                   ? <div style={css("background:var(--accSoft);border:1px solid var(--acc);border-radius:14px;padding:12px 16px;font-size:12.5px;color:var(--acc);font-weight:600")}>🙏 ขอบคุณสำหรับรีวิวครับ — ดูได้ที่หน้าแรกเลย</div>

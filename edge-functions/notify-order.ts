@@ -1,6 +1,7 @@
 // Edge Function: notify-order — แจ้งเตือน LINE: ออเดอร์ใหม่ (→เจ้าของ/พาร์ทเนอร์) + ออเดอร์ถูกยกเลิก (→ลูกค้า)
 // Secrets: LINE_TOKEN, LINE_OWNER_ID, (ไม่บังคับ) LINE_PARTNER_ID
 // ?action=test → ข้อความทดสอบหาเจ้าของ · ?action=cancelled + {id} → แจ้งลูกค้า (ต้องมี line_uid)
+// ?action=customer-cancelled + {id} → ลูกค้ายกเลิกเองใน 10 นาที → แจ้งเจ้าของ (+พาร์ทเนอร์ถ้างาน Pro) ว่าไม่ต้องทำงานนี้
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -55,7 +56,23 @@ Deno.serve(async (req) => {
       return json({ ok: r1.ok, status: r1.status });
     }
 
+    if (action === 'customer-cancelled') {
+      // ลูกค้ากดยกเลิกเองจากหน้าเว็บ → แจ้งร้านให้หยุดงานนี้ (เช็คกับฐานข้อมูลจริง กันคนนอกยิงมั่ว)
+      if (o.status !== 0 || !/^ลูกค้ายกเลิกเอง/.test(o.cancel_reason || '')) return json({ error: 'not-self-cancelled' }, 400);
+      if (Date.now() - new Date(o.created_at).getTime() > 30 * 60 * 1000) return json({ error: 'too-old' }, 400);
+      const isPro = o.ptype === 'pro';
+      const r1 = await push(owner,
+        '↩️ ลูกค้ายกเลิกออเดอร์ ' + o.id + ' เอง\n'
+        + 'คุณ' + (o.customer_fname || 'ลูกค้า') + ' · ' + (isPro ? '✨ PRO ' + (o.paper || '') : 'งานทั่วไป') + ' · ฿' + (o.total || 0) + '\n'
+        + '⛔ ไม่ต้องทำงานนี้แล้ว — ถ้าลูกค้าโอนเงินแล้ว รอลูกค้าทักมาขอคืนครับ');
+      if (isPro && partner) {
+        await push(partner, '⛔ งาน PRO ' + o.id + ' ถูกยกเลิกโดยลูกค้า — ไม่ต้องผลิตครับ');
+      }
+      return json({ ok: r1.ok, status: r1.status });
+    }
+
     // ออเดอร์ใหม่ → แจ้งเจ้าของ (+พาร์ทเนอร์ถ้าเป็นงาน Pro)
+    if (o.status === 0) return json({ error: 'cancelled-order' }, 400); // ออเดอร์ที่ยกเลิกแล้วห้ามเด้งเป็น "ออเดอร์ใหม่"
     if (Date.now() - new Date(o.created_at).getTime() > 10 * 60 * 1000) return json({ error: 'too-old' }, 400);
     const isPro = o.ptype === 'pro';
     const text = '🖨️ ออเดอร์ใหม่ ' + o.id + '\n'
