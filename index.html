@@ -32,7 +32,7 @@
 // ค่าส่ง 2 ชั้น คิดตามระยะทางถนนจริงจากร้าน (ระบบเลือกพาหนะเองจากประเภทงาน):
 // 🏍️ มอเตอร์ไซค์ (งานทั่วไป): กม.แรก ฿19 + ฿6/กม.ถัดไป (ปัดเศษ กม. ขึ้น) ไปเรื่อยๆ ไม่มีเพดาน
 // 🚗 รถยนต์ (งานใหญ่: Standy / เพลท A3 ขึ้นไป): ≤2กม. ฿69 · ≤4กม. ฿89 · ≤6กม. ฿129 · เกิน 6 กม. สั่งทาง LINE
-const CONFIG = { nightOverride: 'auto', nightFee: 10, expressFee: 20,
+const CONFIG = { nightOverride: 'auto', nightFee: 10, expressFee: 20, expressEnabled: false, // ส่งด่วนปิดชั่วคราว — เปลี่ยนเป็น true เพื่อเปิดคืน
   shopLat: 16.4633326, shopLng: 102.8241938, // จุดร้าน: โรงพิมพ์อุดมสุขปริ้นติ้ง (กังสดาล) — แก้ที่นี่ถ้าย้าย
   deliveryBase: 19, bikePerKm: 6,
   carTiers: [[2, 69], [4, 89], [6, 129]],
@@ -473,7 +473,7 @@ class App extends React.Component {
   calc(){
     const s = this.state;
     const nightFee = this.isNight() ? (CONFIG.nightFee ?? 10) : 0;
-    const expressFee = s.express ? (CONFIG.expressFee ?? 20) : 0;
+    const expressFee = (CONFIG.expressEnabled !== false && s.express) ? (CONFIG.expressFee ?? 20) : 0;
     // ค่าส่ง 2 ชั้นตามระยะถนนจริง — ระบบเลือกพาหนะเองจากประเภทงาน (ยังไม่ปักหมุด = โชว์ราคาเริ่มต้น)
     const km = s.distKm;
     const carJob = this.needsCar();
@@ -594,7 +594,7 @@ class App extends React.Component {
         point: s.geoLabel || '', lat: s.lat, lng: s.lng,
         pickup: s.tier === 'pro' && s.proPickup,
         addr: (s.tier === 'pro' && s.proPickup) ? '🏪 มารับเองที่ร้านอุดมสุขปริ้นติ้ง' : s.addr,
-        phone: s.phone, time: s.time, express: s.express, night: this.isNight(),
+        phone: s.phone, time: '', express: s.express, night: this.isNight(),
         print_cost: c.printCost, bind_cost: c.bindCost, delivery_cost: c.deliveryCost,
         night_fee: this.isNight() ? (CONFIG.nightFee ?? 10) : 0,
         total: c.grandTotal, status: 1, times: [t0, '', '', '']
@@ -925,6 +925,7 @@ class App extends React.Component {
       phone: s.phone, setPhone: (e) => set('phone')(e.target.value),
       time: s.time, setTime: (e) => set('time')(e.target.value),
       express: s.express, toggleExpress: () => this.setState(st => ({ express: !st.express })),
+      expressOn: CONFIG.expressEnabled !== false,
       expressTrack: { width: '46px', height: '27px', borderRadius: '99px', background: s.express ? 'var(--acc)' : 'var(--line)', position: 'relative', transition: 'background .2s', flex: 'none' },
       expressKnob: { width: '21px', height: '21px', borderRadius: '50%', background: '#fff', position: 'absolute', top: '3px', left: s.express ? '22px' : '3px', transition: 'left .2s', boxShadow: '0 1px 3px rgba(0,0,0,.3)' },
       deliveryWarn: '',
@@ -1425,7 +1426,7 @@ class App extends React.Component {
         {/* ── Delivery (Step 2) ── */}
         {v.isDelivery && (
           <div style={css("padding:18px 20px 110px;display:flex;flex-direction:column;gap:14px")}>
-            <div style={css("font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:var(--sub);letter-spacing:1px")}>STEP 02 / 04 — จุดส่ง &amp; เวลารับงาน</div>
+            <div style={css("font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:var(--sub);letter-spacing:1px")}>STEP 02 / 04 — จุดส่ง</div>
             <div style={css("background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px;box-shadow:var(--shadow)")}>
               {v.proPickupOn && (
                 <div style={css("border:1.5px solid var(--acc);border-radius:12px;padding:12px 14px;background:var(--accSoft)")}>
@@ -1473,14 +1474,14 @@ class App extends React.Component {
               <div style={css("margin-top:10px;font-size:12px;font-weight:600;color:var(--sub)")}>เบอร์โทรผู้รับ <span style={css("color:#d9480f")}>*</span></div>
               <input value={v.phone} onChange={v.setPhone} placeholder="08x-xxx-xxxx" inputMode="tel" style={css("margin-top:6px;width:100%;box-sizing:border-box;height:42px;border:1px solid var(--line);border-radius:10px;background:var(--soft);color:var(--ink);padding:0 12px;font-size:13px;outline:none")}/>
             </div>
-            <div style={css("background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px;box-shadow:var(--shadow)")}>
-              <div style={css("font-size:12px;font-weight:600;color:var(--sub)")}>เวลาที่ต้องการรับเอกสาร</div>
-              <input type="time" value={v.time} onChange={v.setTime} style={css("margin-top:6px;width:100%;box-sizing:border-box;height:44px;border:1px solid var(--line);border-radius:10px;background:var(--soft);color:var(--ink);padding:0 12px;font-size:16px;font-family:'IBM Plex Mono',monospace;outline:none")}/>
-              <div onClick={v.toggleExpress} style={css("margin-top:12px;display:flex;align-items:center;gap:12px;cursor:pointer")}>
-                <div style={v.expressTrack}><div style={v.expressKnob}></div></div>
-                <div style={css("flex:1")}><div style={css("font-size:13px;font-weight:600")}>🛵 ส่งด่วน (Express)</div><div style={css("font-size:11px;color:var(--sub)")}>ถึงภายใน ~45 นาที · +฿{v.expressFee}</div></div>
+            {v.expressOn && (
+              <div style={css("background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px;box-shadow:var(--shadow)")}>
+                <div onClick={v.toggleExpress} style={css("display:flex;align-items:center;gap:12px;cursor:pointer")}>
+                  <div style={v.expressTrack}><div style={v.expressKnob}></div></div>
+                  <div style={css("flex:1")}><div style={css("font-size:13px;font-weight:600")}>🛵 ส่งด่วน (Express)</div><div style={css("font-size:11px;color:var(--sub)")}>ถึงภายใน ~45 นาที · +฿{v.expressFee}</div></div>
+                </div>
               </div>
-            </div>
+            )}
             <div style={css("background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px")}>
               <div style={css("display:flex;flex-direction:column;gap:5px;font-size:12.5px")}>
                 <div style={css("display:flex;justify-content:space-between")}><span style={css("color:var(--sub)")}>ค่าส่ง{v.deliveryPending ? ' (เริ่มต้น — รอปักหมุด)' : ' (ตามระยะจริง)'}</span><span style={css("font-family:'IBM Plex Mono',monospace")}>฿{v.deliveryFee}</span></div>
@@ -1535,7 +1536,6 @@ class App extends React.Component {
               <div style={css("margin-top:8px;display:flex;flex-direction:column;gap:5px;font-size:12.5px")}>
                 <div><span style={css("color:var(--sub)")}>ที่อยู่: </span>{v.destLabel}</div>
                 <div><span style={css("color:var(--sub)")}>เบอร์ผู้รับ: </span><span style={css("font-family:'IBM Plex Mono',monospace")}>{v.phone}</span></div>
-                <div><span style={css("color:var(--sub)")}>เวลารับ: </span>{v.timeLabel}</div>
               </div>
             </div>
 
@@ -1573,7 +1573,6 @@ class App extends React.Component {
                 <div style={css("display:flex;justify-content:space-between")}><span style={css("color:var(--sub)")}>ค่าส่ง {v.deliveryLabel}</span><span style={css("font-family:'IBM Plex Mono',monospace")}>฿{v.deliveryCost}</span></div>
                 {v.night && <div style={css("display:flex;justify-content:space-between")}><span style={css("color:var(--warnInk)")}>ค่าบริการกลางคืน</span><span style={css("font-family:'IBM Plex Mono',monospace;color:var(--warnInk)")}>฿{v.nightFee}</span></div>}
                 <div style={css("display:flex;justify-content:space-between;font-size:12px")}><span style={css("color:var(--sub)")}>ส่งที่</span><span style={css("text-align:right;max-width:60%")}>{v.destLabel}</span></div>
-                <div style={css("display:flex;justify-content:space-between;font-size:12px")}><span style={css("color:var(--sub)")}>เวลารับ</span><span style={css("font-family:'IBM Plex Mono',monospace")}>{v.timeLabel}</span></div>
               </div>
               <div style={css("margin-top:12px;border-top:2px dashed var(--line);padding-top:10px;display:flex;justify-content:space-between;align-items:baseline")}><span style={css("font-weight:700;font-size:14px")}>ยอดชำระ</span><span style={css("font-family:'IBM Plex Mono',monospace;font-size:26px;font-weight:600;color:var(--acc)")}>฿{v.grandTotal}</span></div>
             </div>
@@ -1629,7 +1628,6 @@ class App extends React.Component {
                     </div>
                     <div style={css("background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px;font-size:12.5px;display:flex;flex-direction:column;gap:5px")}>
                       <div style={css("display:flex;justify-content:space-between")}><span style={css("color:var(--sub)")}>ส่งที่</span><span style={css("text-align:right;max-width:60%")}>{v.destLabel}</span></div>
-                      <div style={css("display:flex;justify-content:space-between")}><span style={css("color:var(--sub)")}>เวลารับ</span><span style={css("font-family:'IBM Plex Mono',monospace")}>{v.timeLabel}</span></div>
                       <div style={css("display:flex;justify-content:space-between;font-weight:700;border-top:1px dashed var(--line);padding-top:6px")}><span>ชำระแล้ว</span><span style={css("font-family:'IBM Plex Mono',monospace;color:var(--acc)")}>฿{v.paidTotal}</span></div>
                     </div>
                     {v.trackDelivered && <div onClick={v.trackToggle} style={css("text-align:center;font-size:12px;color:var(--acc);font-weight:700;cursor:pointer;padding:2px 0")}>▲ ย่อรายละเอียด</div>}
