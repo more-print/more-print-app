@@ -207,7 +207,12 @@ function Dash(){
     else setOrders(l => l.map(x => x.id === o.id ? { ...x, status: next, times } : x));
   };
   const cancelOrder = async (o, reason) => {
-    if (DB) { await DB.from('orders').update({ status: 0, cancel_reason: reason }).eq('id', o.id); await load(); }
+    if (DB) {
+      await DB.from('orders').update({ status: 0, cancel_reason: reason }).eq('id', o.id);
+      // แจ้งลูกค้าทาง LINE (ล้มเหลวไม่กระทบการยกเลิก)
+      try { fetch(CFG.SUPABASE_URL + '/functions/v1/notify-order?action=cancelled', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: o.id }) }); } catch (e) {}
+      await load();
+    }
     else setOrders(l => l.map(x => x.id === o.id ? { ...x, status: 0, cancel_reason: reason } : x));
   };
   React.useEffect(() => { load(); }, [load]);

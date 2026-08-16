@@ -1,13 +1,12 @@
-// Edge Function: notify-order — แจ้งเตือนเข้า LINE เมื่อมีออเดอร์ใหม่
-// Secrets ที่ต้องตั้ง: LINE_TOKEN (channel access token), LINE_OWNER_ID (User ID เจ้าของ)
-// (ไม่บังคับ) LINE_PARTNER_ID = User ID ร้านอุดมสุข — ถ้าตั้งไว้ งาน Pro จะแจ้งเขาด้วย
-// เรียกทดสอบ: ?action=test → ส่งข้อความทดสอบหาเจ้าของทันที
+// Edge Function: notify-order — แจ้งเตือน LINE: ออเดอร์ใหม่ (→เจ้าของ/พาร์ทเนอร์) + ออเดอร์ถูกยกเลิก (→ลูกค้า)
+// Secrets: LINE_TOKEN, LINE_OWNER_ID, (ไม่บังคับ) LINE_PARTNER_ID
+// ?action=test → ข้อความทดสอบหาเจ้าของ · ?action=cancelled + {id} → แจ้งลูกค้า (ต้องมี line_uid)
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
-const json = (obj: unknown, status = 200) =>
+const json = (obj, status = 200) =>
   new Response(JSON.stringify(obj), { status, headers: { ...CORS, 'Content-Type': 'application/json' } });
 
 Deno.serve(async (req) => {
@@ -18,7 +17,7 @@ Deno.serve(async (req) => {
     const partner = Deno.env.get('LINE_PARTNER_ID') || '';
     if (!token || !owner) return json({ error: 'missing-secrets' }, 500);
 
-    const push = (to: string, text: string) =>
+    const push = (to, text) =>
       fetch('https://api.line.me/v2/bot/message/push', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
@@ -26,24 +25,38 @@ Deno.serve(async (req) => {
       });
 
     const url = new URL(req.url);
-    if (url.searchParams.get('action') === 'test') {
+    const action = url.searchParams.get('action') || 'new';
+
+    if (action === 'test') {
       const r = await push(owner, '✅ ทดสอบระบบแจ้งเตือน MORE PRINT สำเร็จ! ออเดอร์ใหม่จะเด้งเข้าที่นี่ครับ 🖨️');
       return json({ ok: r.ok, status: r.status, detail: await r.text() });
     }
 
-    // ตรวจกับฐานข้อมูลจริงก่อนแจ้ง — กันคนนอกยิงสแปม (ต้องเป็นออเดอร์ที่มีจริงและเพิ่งสั่ง)
+    // ดึงออเดอร์จริงจากฐานข้อมูล (สิทธิ์ระบบ) — กันคนนอกยิงมั่ว
     const { id } = await req.json();
     if (!id) return json({ error: 'no-id' }, 400);
     const sbUrl = Deno.env.get('SUPABASE_URL') || '';
     const srKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '';
-    const r = await fetch(sbUrl + '/rest/v1/orders?id=eq.' + encodeURIComponent(id) + '&select=id,created_at,customer_fname,total,ptype,paper,addr,pickup,copies,delivery_cost', {
+    const r = await fetch(sbUrl + '/rest/v1/orders?id=eq.' + encodeURIComponent(id) + '&select=id,created_at,status,cancel_reason,line_uid,customer_fname,total,ptype,paper,addr,pickup,copies', {
       headers: { apikey: srKey, Authorization: 'Bearer ' + srKey },
     });
     const rows = await r.json();
     const o = Array.isArray(rows) && rows[0];
     if (!o) return json({ error: 'order-not-found' }, 404);
-    if (Date.now() - new Date(o.created_at).getTime() > 10 * 60 * 1000) return json({ error: 'too-old' }, 400);
 
+    if (action === 'cancelled') {
+      // แจ้งลูกค้าว่าออเดอร์ถูกยกเลิก (เฉพาะลูกค้าที่ล็อกอินด้วย LINE)
+      if (o.status !== 0) return json({ error: 'not-cancelled' }, 400);
+      if (!o.line_uid) return json({ ok: false, reason: 'no-line-uid' });
+      const r1 = await push(o.line_uid,
+        '❌ ขออภัยครับ ออเดอร์ ' + o.id + ' ถูกยกเลิกโดยร้าน\n'
+        + 'เหตุผล: ' + (o.cancel_reason || '-') + '\n'
+        + 'โอนเงินแล้ว? ทักแชทนี้เพื่อขอเงินคืนได้เลยครับ 🙏');
+      return json({ ok: r1.ok, status: r1.status });
+    }
+
+    // ออเดอร์ใหม่ → แจ้งเจ้าของ (+พาร์ทเนอร์ถ้าเป็นงาน Pro)
+    if (Date.now() - new Date(o.created_at).getTime() > 10 * 60 * 1000) return json({ error: 'too-old' }, 400);
     const isPro = o.ptype === 'pro';
     const text = '🖨️ ออเดอร์ใหม่ ' + o.id + '\n'
       + 'คุณ' + (o.customer_fname || 'ลูกค้า') + ' · ' + (isPro ? '✨ PRO ' + (o.paper || '') : 'งานทั่วไป') + ' · ฿' + (o.total || 0) + '\n'

@@ -593,6 +593,7 @@ class App extends React.Component {
         bind: s.tier === 'pro' ? (s.proType === 'foldbook' ? s.proBind : 'none') : s.bind, copies: s.copies,
         point: s.geoLabel || '', lat: s.lat, lng: s.lng,
         pickup: s.tier === 'pro' && s.proPickup,
+        line_uid: (s.user && s.user.line_uid) || null, // ไว้แจ้งเตือนลูกค้าทาง LINE (เฉพาะคนล็อกอินด้วย LINE)
         addr: (s.tier === 'pro' && s.proPickup) ? '🏪 มารับเองที่ร้านอุดมสุขปริ้นติ้ง' : s.addr,
         phone: s.phone, time: '', express: s.express, night: this.isNight(),
         print_cost: c.printCost, bind_cost: c.bindCost, delivery_cost: c.deliveryCost,
@@ -600,6 +601,11 @@ class App extends React.Component {
         total: c.grandTotal, status: 1, times: [t0, '', '', '']
       };
       let { error } = await this.db.from('orders').insert(payload);
+      if (error && (error.message || '').includes('line_uid')) {
+        // ฐานข้อมูลยังไม่มีคอลัมน์ line_uid — บันทึกแบบไม่มีไปก่อน ออเดอร์ต้องไม่หาย
+        const { line_uid, ...restL } = payload;
+        ({ error } = await this.db.from('orders').insert(restL));
+      }
       if (error && (error.message || '').includes('pickup')) {
         // ฐานข้อมูลยังไม่มีคอลัมน์ pickup — บันทึกแบบไม่มีไปก่อน ออเดอร์ต้องไม่หาย
         const { pickup, ...restP } = payload;
