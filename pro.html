@@ -70,10 +70,10 @@ function ProLogin({ onOk }){
   const [busy, setBusy] = React.useState(false);
   const [msg, setMsg] = React.useState('');
   const [uuid, setUuid] = React.useState('');
-  // เช็คสิทธิ์: เจ้าของ MORE PRINT = โหมดเต็ม / ร้านพาร์ทเนอร์ = เห็นเฉพาะงาน Pro (สิทธิ์คุมที่ฐานข้อมูล)
+  // หน้านี้เป็นของร้านพาร์ทเนอร์เท่านั้น — บัญชีเจ้าของ MORE PRINT จัดการงาน Pro ที่หน้า commission.html
   const verify = async () => {
     const a = await DB.rpc('is_admin');
-    if (a.data) { onOk('owner'); return; }
+    if (a.data) { setMsg('หน้านี้แยกเป็นของร้านพาร์ทเนอร์ (อุดมสุข) แล้ว — เจ้าของร้านจัดการงาน Pro ทั้งหมดได้ที่หน้า 💰 ค่าคอม (commission.html) ครับ'); setBusy(false); return; }
     const p = await DB.rpc('is_partner');
     if (p.data) { onOk('partner'); return; }
     const { data } = await DB.auth.getUser();
@@ -84,11 +84,11 @@ function ProLogin({ onOk }){
     setBusy(false);
   };
   React.useEffect(() => {
-    if (!DB) { onOk('owner'); return; }
+    if (!DB) { onOk('partner'); return; }
     DB.auth.getSession().then(({ data }) => { if (data.session) { setBusy(true); verify(); } });
   }, []);
   const submit = async () => {
-    if (!DB) return onOk('owner');
+    if (!DB) return onOk('partner');
     if (!email.trim() || !pass) return setMsg('กรอกอีเมลและรหัสผ่านก่อนครับ');
     if (reg && pass !== pass2) return setMsg('รหัสผ่านสองช่องไม่เหมือนกัน ❌');
     if (reg && pass.length < 6) return setMsg('รหัสผ่านอย่างน้อย 6 ตัวอักษรครับ');
@@ -115,7 +115,7 @@ function ProLogin({ onOk }){
       <div style={css("background:var(--card);border:1px solid var(--line);border-radius:18px;padding:28px 24px;width:320px;box-shadow:var(--shadow);display:flex;flex-direction:column;gap:12px;align-items:center")}>
         <div style={css("font-size:34px")}>✨</div>
         <div style={css("font-family:'Montserrat',sans-serif;font-weight:800;font-size:17px;letter-spacing:1px")}><span style={css("color:var(--acc)")}>MORE</span> PRINT <span style={css("color:var(--acc)")}>PRO</span></div>
-        <div style={css("font-size:13px;color:var(--sub)")}>{reg ? '📝 สมัครบัญชีร้านพาร์ทเนอร์' : '🔐 หลังบ้านงาน PRO — เจ้าของร้าน / ร้านพาร์ทเนอร์'}</div>
+        <div style={css("font-size:13px;color:var(--sub)")}>{reg ? '📝 สมัครบัญชีร้านพาร์ทเนอร์' : '🔐 หลังบ้านร้านพาร์ทเนอร์ — อุดมสุขปริ้นติ้ง'}</div>
         <input value={email} onChange={e => setEmail(e.target.value)} placeholder="อีเมล" inputMode="email" autoComplete="email"
           style={css("width:100%;box-sizing:border-box;height:46px;border:1px solid var(--line);border-radius:12px;background:var(--soft);color:var(--ink);padding:0 14px;font-size:14px;outline:none")}/>
         <input type="password" value={pass} onChange={e => setPass(e.target.value)} onKeyDown={e => !reg && e.key === 'Enter' && submit()} placeholder="รหัสผ่าน" autoComplete={reg ? 'new-password' : 'current-password'}

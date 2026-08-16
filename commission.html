@@ -45,6 +45,12 @@ function css(str){
 const baht = (n) => '฿' + (Math.round((n || 0) * 100) / 100).toLocaleString('th-TH');
 const jobValue = (o) => (o.print_cost || 0) + (o.bind_cost || 0);
 const fmtDate = (iso) => { const d = new Date(iso); return d.getDate() + ' ' + TH_MONTHS[d.getMonth()] + ' ' + ((d.getFullYear() + 543) % 100); };
+const fmtHM = (d) => String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+const fileUrl = (path) => path && CFG.SUPABASE_URL ? CFG.SUPABASE_URL + '/storage/v1/object/public/uploads/' + path : null;
+// ขั้นสถานะตามวิธีรับงาน (มารับเอง = จบที่ร้านอุดมสุข)
+const stepsOf = (o) => o && o.pickup
+  ? ['รับออเดอร์', 'กำลังผลิตสินค้า', 'เสร็จแล้ว รอมารับ', 'ลูกค้ารับสินค้าแล้ว']
+  : ['รับออเดอร์', 'กำลังผลิตสินค้า', 'กำลังจัดส่ง', 'ส่งแล้ว'];
 
 const DEMO = [
   { id: '#MP-PRO101', created_at: new Date().toISOString(), status: 4, print_cost: 600, bind_cost: 0, slip_path: 'x/slip.jpg', payout_at: new Date().toISOString(), customer_fname: 'สมชาย', paper: 'A1', copies: 2 },
@@ -99,7 +105,7 @@ function Pipeline({ o }){
   const steps = [
     ['💰', 'ชำระแล้ว', !!o.slip_path],
     ['🖨️', 'ผลิต', o.status >= 2],
-    ['✅', 'ถึงมือลูกค้า', o.status >= 4],
+    ['✅', o.pickup ? 'ลูกค้ารับแล้ว' : 'ถึงมือลูกค้า', o.status >= 4],
     ['💸', 'โอนส่วนแบ่งแล้ว', !!o.payout_at]
   ];
   return (
@@ -107,6 +113,62 @@ function Pipeline({ o }){
       {steps.map(([ic, label, on], i) => (
         <span key={i} style={css("font-size:10.5px;font-weight:700;padding:3px 9px;border-radius:99px;" + (on ? "background:var(--accSoft);color:var(--acc)" : "background:var(--soft);color:#c8bfa8"))}>{ic} {label}</span>
       ))}
+    </div>
+  );
+}
+
+// แผงจัดการต่อออเดอร์ (เจ้าของ): ไฟล์ / ตั้งราคา / บันทึกโอน / อัปเดตสถานะ / ยกเลิก
+function Manage({ o, onPrice, onPayout, onAdvance, onCancel }){
+  const [edit, setEdit] = React.useState(false);
+  const [price, setPriceV] = React.useState('');
+  const [confirmPay, setConfirmPay] = React.useState(false);
+  const [cancelOpen, setCancelOpen] = React.useState(false);
+  const [reason, setReason] = React.useState('');
+  const priced = jobValue(o) > 0;
+  const save = () => { const n = Math.round(Number(price)); if (!n || n <= 0) return; onPrice(o, n); setEdit(false); setPriceV(''); };
+  const askPayout = () => { if (!confirmPay) { setConfirmPay(true); setTimeout(() => setConfirmPay(false), 4000); return; } setConfirmPay(false); onPayout(o); };
+  return (
+    <div style={css("margin-top:9px;display:flex;flex-direction:column;gap:8px")}>
+      {(o.files || []).length > 0 && (
+        <div style={css("display:flex;gap:6px;flex-wrap:wrap")}>
+          {(o.files || []).map((f, i) => {
+            const u = f.drive_url || fileUrl(f.path);
+            return u
+              ? <a key={i} href={u} target="_blank" rel="noreferrer" style={css("font-size:11px;font-weight:700;color:var(--acc);background:var(--accSoft);padding:4px 10px;border-radius:8px;text-decoration:none")}>⬇ {f.name} · {f.pages} หน้า</a>
+              : <span key={i} style={css("font-size:11px;color:var(--sub)")}>{f.name}</span>;
+          })}
+        </div>
+      )}
+      {o.status !== 0 && (!priced || edit) && (
+        <div style={css("display:flex;gap:8px;align-items:center")}>
+          <input value={price} onChange={e => setPriceV(e.target.value.replace(/[^0-9]/g, ''))} onKeyDown={e => e.key === 'Enter' && save()} placeholder="ราคางานที่ตกลงกับลูกค้า (บาท)" inputMode="numeric"
+            style={css("flex:1;box-sizing:border-box;height:38px;border:1px solid var(--line);border-radius:10px;background:var(--soft);color:var(--ink);padding:0 12px;font-size:12.5px;outline:none")}/>
+          <button onClick={save} disabled={!price} style={css("height:38px;padding:0 14px;border:none;border-radius:10px;background:" + (price ? "var(--acc)" : "#dcc9a0") + ";color:#fff;font-size:12px;font-weight:700;cursor:pointer")}>บันทึกราคา</button>
+          {edit && <button onClick={() => { setEdit(false); setPriceV(''); }} style={css("height:38px;padding:0 10px;border:1px solid var(--line);border-radius:10px;background:var(--soft);color:var(--ink);font-size:12px;cursor:pointer")}>ยกเลิก</button>}
+        </div>
+      )}
+      {priced && !edit && (
+        <div style={css("display:flex;gap:10px;align-items:center;flex-wrap:wrap")}>
+          <span style={css("font-size:11.5px;color:var(--sub)")}>ราคางาน <b style={css("font-family:'IBM Plex Mono',monospace;color:var(--ink)")}>{baht(jobValue(o))}</b> <span onClick={() => { setEdit(true); setPriceV(String(jobValue(o))); }} style={css("color:var(--acc);font-size:11px;cursor:pointer;text-decoration:underline")}>แก้</span></span>
+          {o.status !== 0 && !o.payout_at && <button onClick={askPayout} style={css("height:34px;padding:0 14px;border:none;border-radius:9px;background:" + (confirmPay ? "#0b7285" : "var(--acc)") + ";color:#fff;font-size:11.5px;font-weight:700;cursor:pointer")}>{confirmPay ? 'กดอีกครั้ง — โอนแล้วจริงๆ' : '💸 โอนส่วนแบ่งให้ร้านแล้ว'}</button>}
+          {o.payout_at && <span style={css("font-size:11px;font-weight:700;color:#0b7285;background:#e3fafc;padding:3px 10px;border-radius:99px")}>💸 โอนแล้ว</span>}
+        </div>
+      )}
+      {o.status > 0 && o.status < 4 && (
+        <div style={css("display:flex;gap:8px")}>
+          <button onClick={() => onAdvance(o)} style={css("flex:1;height:38px;border:none;border-radius:10px;background:var(--purple);color:#fff;font-size:12px;font-weight:700;cursor:pointer")}>→ อัปเดตเป็น "{stepsOf(o)[Math.min(o.status, 3)]}"</button>
+          <button onClick={() => setCancelOpen(v => !v)} style={css("height:38px;padding:0 12px;border:1px solid #ffa8a8;border-radius:10px;background:none;color:#c92a2a;font-size:11.5px;font-weight:600;cursor:pointer")}>✕ ยกเลิก</button>
+        </div>
+      )}
+      {cancelOpen && (
+        <div style={css("display:flex;gap:8px")}>
+          <input value={reason} onChange={e => setReason(e.target.value)} placeholder="เหตุผลที่ยกเลิก (ลูกค้าจะเห็น)"
+            style={css("flex:1;box-sizing:border-box;height:36px;border:1px solid var(--line);border-radius:10px;background:var(--soft);color:var(--ink);padding:0 12px;font-size:12px;outline:none")}/>
+          <button onClick={() => { if (reason.trim()) { onCancel(o, reason.trim()); setCancelOpen(false); setReason(''); } }} disabled={!reason.trim()}
+            style={css("height:36px;padding:0 12px;border:none;border-radius:10px;background:" + (reason.trim() ? "#c92a2a" : "#f1b5b5") + ";color:#fff;font-size:11.5px;font-weight:700;cursor:pointer")}>ยืนยันยกเลิก</button>
+        </div>
+      )}
+      {o.status === 0 && o.cancel_reason && <div style={css("font-size:11px;color:#c92a2a")}>เหตุผลที่ยกเลิก: {o.cancel_reason}</div>}
     </div>
   );
 }
@@ -119,11 +181,35 @@ function Dash(){
     if (!DB) return;
     setLoading(true);
     const cols = 'id,created_at,status,print_cost,bind_cost,slip_path,customer_fname,paper,copies';
-    let r = await DB.from('orders').select(cols + ',payout_at').eq('ptype', 'pro').order('created_at', { ascending: false }).limit(3000);
+    const colsFull = cols + ',payout_at,pickup,sides,customer_lname,customer_phone,delivery_cost,night_fee,times,cancel_reason,files,total';
+    let r = await DB.from('orders').select(colsFull).eq('ptype', 'pro').order('created_at', { ascending: false }).limit(3000);
     if (r.error) r = await DB.from('orders').select(cols).eq('ptype', 'pro').order('created_at', { ascending: false }).limit(3000);
     if (!r.error && r.data) setOrders(r.data);
     setLoading(false);
   }, []);
+
+  // ── เครื่องมือจัดการของเจ้าของ (ย้ายมาจาก pro.html — หน้านั้นเป็นของร้านอุดมสุขล้วนๆ แล้ว) ──
+  const setPrice = async (o, n) => {
+    const total = n + (o.bind_cost || 0) + (o.delivery_cost || 0) + (o.night_fee || 0);
+    if (DB) { await DB.from('orders').update({ print_cost: n, total }).eq('id', o.id); await load(); }
+    else setOrders(l => l.map(x => x.id === o.id ? { ...x, print_cost: n, total } : x));
+  };
+  const markPayout = async (o) => {
+    const ts = new Date().toISOString();
+    if (DB) { await DB.from('orders').update({ payout_at: ts }).eq('id', o.id); await load(); }
+    else setOrders(l => l.map(x => x.id === o.id ? { ...x, payout_at: ts } : x));
+  };
+  const advance = async (o) => {
+    const next = Math.min((o.status || 1) + 1, 4);
+    const times = (o.times || ['', '', '', '']).slice();
+    times[next - 1] = fmtHM(new Date());
+    if (DB) { await DB.from('orders').update({ status: next, times }).eq('id', o.id); await load(); }
+    else setOrders(l => l.map(x => x.id === o.id ? { ...x, status: next, times } : x));
+  };
+  const cancelOrder = async (o, reason) => {
+    if (DB) { await DB.from('orders').update({ status: 0, cancel_reason: reason }).eq('id', o.id); await load(); }
+    else setOrders(l => l.map(x => x.id === o.id ? { ...x, status: 0, cancel_reason: reason } : x));
+  };
   React.useEffect(() => { load(); }, [load]);
 
   const now = new Date();
@@ -222,7 +308,6 @@ function Dash(){
           <div style={css("font-family:'IBM Plex Mono',monospace;font-size:9.5px;letter-spacing:2px;color:#e6c366")}>คอม {Math.round(COMMISSION * 100)}% จากงาน PRO · {PARTNER_NAME}</div>
         </div>
         {!DB && <span style={css("font-size:10px;font-weight:700;background:#f59f00;color:#2b2413;padding:3px 10px;border-radius:99px")}>DEMO</span>}
-        <a href="pro.html" style={css("color:#b197fc;font-size:11.5px;font-weight:700;text-decoration:none")}>✨ PRO</a>
         <a href="admin.html" style={css("color:#e6c366;font-size:11.5px;font-weight:700;text-decoration:none")}>← หลัก</a>
         <button onClick={load} style={css("height:32px;padding:0 10px;border:1px solid #6b5c2e;border-radius:9px;background:none;color:#fff;font-size:11.5px;cursor:pointer")}>{loading ? '…' : '⟳'}</button>
       </div>
@@ -287,19 +372,19 @@ function Dash(){
           <div key={o.id} style={css("background:var(--card);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);padding:12px 16px" + (o.status === 0 ? ";opacity:.5" : ""))}>
             <div style={css("display:flex;align-items:center;gap:8px;flex-wrap:wrap")}>
               <span style={css("font-family:'IBM Plex Mono',monospace;font-size:12.5px;font-weight:600")}>{o.id}</span>
-              <span style={css("font-size:11px;color:var(--sub)")}>{fmtDate(o.created_at)} · คุณ{o.customer_fname} · {o.paper} × {o.copies || 1}</span>
+              <span style={css("font-size:11px;color:var(--sub)")}>{fmtDate(o.created_at)} · คุณ{o.customer_fname} {o.customer_lname || ''}{o.customer_phone ? <span> · <a href={'tel:' + String(o.customer_phone).replace(/[^0-9+]/g, '')}>{o.customer_phone}</a></span> : null} · {o.paper} × {o.copies || 1}</span>
+              <span style={css("font-size:10.5px;font-weight:700;padding:2px 9px;border-radius:99px;" + (o.pickup ? "background:var(--accSoft);color:var(--acc)" : "background:#f0ebff;color:var(--purple)"))}>{o.pickup ? '🏪 มารับเอง' : '🛵 ส่ง'}</span>
               {o.status === 0 && <span style={css("font-size:10.5px;font-weight:700;color:#c92a2a;background:#ffe3e3;padding:2px 9px;border-radius:99px")}>ยกเลิก</span>}
             </div>
             <div style={css("margin-top:7px")}><Pipeline o={o}/></div>
-            {jobValue(o) > 0 ? (
+            {jobValue(o) > 0 && (
               <div style={css("margin-top:8px;display:flex;gap:14px;flex-wrap:wrap;font-size:11.5px")}>
                 <span style={css("color:var(--sub)")}>ยอดเต็ม <b style={css("font-family:'IBM Plex Mono',monospace;color:var(--ink)")}>{baht(jobValue(o))}</b></span>
                 <span style={css("color:var(--sub)")}>คอมเรา <b style={css("font-family:'IBM Plex Mono',monospace;color:var(--acc)")}>{baht(jobValue(o) * COMMISSION)}</b></span>
                 <span style={css("color:var(--sub)")}>ให้ร้านอุดมสุข <b style={css("font-family:'IBM Plex Mono',monospace;color:var(--purple)")}>{baht(jobValue(o) * (1 - COMMISSION))}</b></span>
               </div>
-            ) : (
-              <div style={css("margin-top:8px;font-size:11px;color:var(--sub)")}>⏳ ยังไม่ตั้งราคา — ไปตั้งที่หน้า ✨ PRO</div>
             )}
+            <Manage o={o} onPrice={setPrice} onPayout={markPayout} onAdvance={advance} onCancel={cancelOrder}/>
           </div>
         ))}
       </div>
