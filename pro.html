@@ -28,7 +28,11 @@ const DB = (CFG.SUPABASE_URL && CFG.SUPABASE_ANON_KEY && window.supabase)
 // ── ค่าคอมมิชชั่น MORE PRINT ต่อออเดอร์ Pro — แก้ที่นี่จุดเดียว ──
 const COMMISSION = 0.33; // 33% ของค่างานปริ้น (ไม่รวมค่าส่ง — ค่าส่งเป็นของ MORE PRINT อยู่แล้ว)
 
-const STEPS = ['รับออเดอร์', 'กำลังปริ้น', 'กำลังจัดส่ง', 'ส่งแล้ว'];
+const STEPS = ['รับออเดอร์', 'กำลังผลิตสินค้า', 'กำลังจัดส่ง', 'ส่งแล้ว'];
+// ขั้นสถานะตามวิธีรับงาน: ลูกค้ามารับเอง = จบที่ร้าน / ให้ส่ง = MORE PRINT รับช่วงขั้นจัดส่ง
+const stepsOf = (o) => o && o.pickup
+  ? ['รับออเดอร์', 'กำลังผลิตสินค้า', 'เสร็จแล้ว รอมารับ', 'ลูกค้ารับสินค้าแล้ว']
+  : STEPS;
 function css(str){
   const o = {};
   String(str).split(';').forEach(decl => {
@@ -54,7 +58,7 @@ const partnerOf = (o) => jobValue(o) - commOf(o);
 
 const DEMO = [
   { id: '#MP-PRO001', created_at: new Date(Date.now() - 2*3600000).toISOString(), status: 2, customer_fname: 'สมชาย', customer_lname: 'ใจดี', customer_phone: '081-111-2222', paper: 'A1', sides: 1, copies: 2, print_cost: 600, bind_cost: 0, delivery_cost: 39, night_fee: 0, total: 639, payout_at: null, files: [{ name: 'โปสเตอร์งานวิจัย.pdf', pages: 1, path: null, drive_url: 'https://drive.google.com/file/d/demo' }] },
-  { id: '#MP-PRO002', created_at: new Date(Date.now() - 26*3600000).toISOString(), status: 4, customer_fname: 'มินตรา', customer_lname: 'พาเพลิน', customer_phone: '095-333-4444', paper: 'A2', sides: 2, copies: 1, print_cost: 250, bind_cost: 0, delivery_cost: 49, night_fee: 10, total: 309, payout_at: null },
+  { id: '#MP-PRO002', created_at: new Date(Date.now() - 26*3600000).toISOString(), status: 2, customer_fname: 'มินตรา', customer_lname: 'พาเพลิน', customer_phone: '095-333-4444', paper: 'A2', sides: 2, copies: 1, print_cost: 250, bind_cost: 0, delivery_cost: 0, night_fee: 0, total: 250, payout_at: null, pickup: true },
   { id: '#MP-PRO003', created_at: new Date(Date.now() - 30*3600000).toISOString(), status: 4, customer_fname: 'ต้นกล้า', customer_lname: 'เรียนดี', customer_phone: '062-555-6666', paper: 'A3', sides: 1, copies: 5, print_cost: 0, bind_cost: 0, delivery_cost: 39, night_fee: 0, total: 39, payout_at: null }
 ];
 
@@ -127,13 +131,13 @@ function ProLogin({ onOk }){
   );
 }
 
-function Badge({ status }){
+function Badge({ status, labels }){
   if (status === 0) return <span style={css("font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:600;color:#c92a2a;background:#ffe3e3;padding:3px 10px;border-radius:99px;white-space:nowrap")}>ยกเลิกแล้ว</span>;
   const i = Math.min(Math.max(status, 1), 4) - 1;
-  return <span style={css("font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:600;color:var(--acc);background:var(--accSoft);padding:3px 10px;border-radius:99px;white-space:nowrap")}>{STEPS[i]}</span>;
+  return <span style={css("font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:600;color:var(--acc);background:var(--accSoft);padding:3px 10px;border-radius:99px;white-space:nowrap")}>{(labels || STEPS)[i]}</span>;
 }
 
-function ProOrder({ o, isOwner, payoutReady, onPrice, onPayout, onAdvance, onCancel }){
+function ProOrder({ o, isOwner, payoutReady, onPrice, onPayout, onAdvance, onCancel, onPartnerAdvance }){
   const [edit, setEdit] = React.useState(false);
   const [price, setPrice] = React.useState('');
   const [confirmPay, setConfirmPay] = React.useState(false);
@@ -155,7 +159,8 @@ function ProOrder({ o, isOwner, payoutReady, onPrice, onPayout, onAdvance, onCan
     <div style={css("background:var(--card);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);padding:13px 16px" + (o.status === 0 ? ";opacity:.55" : ""))}>
       <div style={css("display:flex;align-items:center;gap:8px;flex-wrap:wrap")}>
         <span style={css("font-family:'IBM Plex Mono',monospace;font-size:13px;font-weight:600")}>{o.id}</span>
-        <Badge status={o.status}/>
+        <Badge status={o.status} labels={stepsOf(o)}/>
+        <span style={css("font-size:10.5px;font-weight:700;padding:2px 9px;border-radius:99px;" + (o.pickup ? "background:var(--goldBg);color:var(--gold)" : "background:var(--accSoft);color:var(--acc)"))}>{o.pickup ? '🏪 ลูกค้ามารับเอง' : '🛵 MORE PRINT ส่ง'}</span>
         {priced && (o.payout_at
           ? <span style={css("font-size:10.5px;font-weight:700;color:#0b7285;background:#e3fafc;padding:2px 9px;border-radius:99px")}>💸 โอนให้ร้านแล้ว</span>
           : o.status !== 0 && <span style={css("font-size:10.5px;font-weight:700;color:var(--gold);background:var(--goldBg);padding:2px 9px;border-radius:99px")}>⏳ ค้างโอน</span>)}
@@ -203,10 +208,15 @@ function ProOrder({ o, isOwner, payoutReady, onPrice, onPayout, onAdvance, onCan
         <div style={css("margin-top:10px;background:var(--goldBg);border-radius:10px;padding:9px 12px;font-size:11.5px;color:var(--gold);font-weight:600")}>⏳ MORE PRINT กำลังตกลงราคากับลูกค้า — เดี๋ยวยอดจะขึ้นตรงนี้ครับ</div>
       )}
       {o.status === 0 && o.cancel_reason && <div style={css("margin-top:8px;font-size:11.5px;color:#c92a2a")}>เหตุผลที่ยกเลิก: {o.cancel_reason}</div>}
+      {!isOwner && o.status > 0 && o.status < 4 && (
+        (o.status < 3 || o.pickup)
+          ? <button onClick={() => onPartnerAdvance(o)} style={css("margin-top:10px;width:100%;height:42px;border:none;border-radius:10px;background:var(--acc);color:#fff;font-size:12.5px;font-weight:700;cursor:pointer")}>→ อัปเดตสถานะเป็น "{stepsOf(o)[Math.min(o.status, 3)]}"</button>
+          : <div style={css("margin-top:10px;background:var(--accSoft);border-radius:10px;padding:9px 12px;font-size:11.5px;color:var(--acc);font-weight:600")}>📦 งานอยู่ระหว่างจัดส่งโดย MORE PRINT — สถานะสุดท้ายทีมส่งเป็นคนกด</div>
+      )}
       {isOwner && o.status > 0 && o.status < 4 && (
         <div style={css("margin-top:10px;display:flex;flex-direction:column;gap:8px")}>
           <div style={css("display:flex;gap:8px")}>
-            <button onClick={() => onAdvance(o)} style={css("flex:1;height:40px;border:none;border-radius:10px;background:var(--acc);color:#fff;font-size:12.5px;font-weight:700;cursor:pointer")}>→ อัปเดตเป็น "{STEPS[Math.min(o.status, 3)]}"</button>
+            <button onClick={() => onAdvance(o)} style={css("flex:1;height:40px;border:none;border-radius:10px;background:var(--acc);color:#fff;font-size:12.5px;font-weight:700;cursor:pointer")}>→ อัปเดตเป็น "{stepsOf(o)[Math.min(o.status, 3)]}"</button>
             <button onClick={() => setCancelOpen(v => !v)} style={css("height:40px;padding:0 12px;border:1px solid #ffa8a8;border-radius:10px;background:none;color:#c92a2a;font-size:12px;font-weight:600;cursor:pointer")}>✕ ยกเลิก</button>
           </div>
           {cancelOpen && (
@@ -233,7 +243,7 @@ function Dash({ role }){
     if (!DB) return;
     setLoading(true);
     const cols = 'id,created_at,status,times,cancel_reason,customer_fname,customer_lname,customer_phone,paper,sides,copies,print_cost,bind_cost,delivery_cost,night_fee,total,files';
-    let r = await DB.from('orders').select(cols + ',payout_at').eq('ptype', 'pro').order('created_at', { ascending: false }).limit(2000);
+    let r = await DB.from('orders').select(cols + ',payout_at,pickup').eq('ptype', 'pro').order('created_at', { ascending: false }).limit(2000);
     if (r.error) {
       // ยังไม่มีคอลัมน์ payout_at — โหลดแบบไม่มีไปก่อน (ตั้งราคายังใช้ได้ แต่บันทึกการโอนยังไม่ได้)
       r = await DB.from('orders').select(cols).eq('ptype', 'pro').order('created_at', { ascending: false }).limit(2000);
@@ -266,6 +276,16 @@ function Dash({ role }){
     if (DB) { await DB.from('orders').update({ status: 0, cancel_reason: reason }).eq('id', o.id); await load(); }
     else setOrders(l => l.map(x => x.id === o.id ? { ...x, status: 0, cancel_reason: reason } : x));
   };
+  // ร้านพาร์ทเนอร์กดอัปเดตสถานะเอง — ผ่านฟังก์ชันปลอดภัยฝั่งฐานข้อมูล (partner_advance)
+  const partnerAdvance = async (o) => {
+    if (!DB) { // โหมดตัวอย่าง
+      setOrders(l => l.map(x => x.id === o.id ? { ...x, status: Math.min(x.status + 1, 4) } : x));
+      return;
+    }
+    const { data, error } = await DB.rpc('partner_advance', { oid: o.id });
+    if (error || !data) { alert('อัปเดตไม่สำเร็จ — เจ้าของร้าน MORE PRINT อาจยังไม่ได้เปิดระบบ (รัน SQL partner_advance) หรือขั้นนี้เป็นหน้าที่ของ MORE PRINT'); return; }
+    await load();
+  };
 
   // ── สถิติราย วัน/สัปดาห์/เดือน/ปี (ไม่รวมออเดอร์ที่ยกเลิก) ──
   const now = new Date();
@@ -282,6 +302,16 @@ function Dash({ role }){
   const periods = [['วันนี้', agg(today)], ['สัปดาห์นี้', agg(week)], ['เดือนนี้', agg(month)], ['ปีนี้', agg(year)]];
   const owed = valid.filter(o => jobValue(o) > 0 && !o.payout_at);
   const owedSum = owed.reduce((a, o) => a + partnerOf(o), 0);
+  // บันทึกข้อมูลออเดอร์รายเดือน (ดูย้อนหลังได้ตลอด — แถวออเดอร์เก็บถาวรในฐานข้อมูล)
+  const TH_M = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
+  const byM = {};
+  valid.forEach(o => {
+    const d = new Date(o.created_at);
+    const k = d.getFullYear() * 100 + d.getMonth();
+    if (!byM[k]) byM[k] = { y: d.getFullYear(), m: d.getMonth(), n: 0, job: 0 };
+    byM[k].n++; byM[k].job += jobValue(o);
+  });
+  const monthRows = Object.keys(byM).sort((a, b) => b - a).map(k => byM[k]);
   // ลูกค้างาน Pro
   const custMap = {};
   valid.forEach(o => {
@@ -334,11 +364,35 @@ function Dash({ role }){
           </div>
         </div>
 
+        {/* บันทึกข้อมูลออเดอร์รายเดือน */}
+        <div style={css("background:var(--card);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);overflow-x:auto")}>
+          <div style={css("padding:12px 16px 0;font-size:12.5px;font-weight:700;color:var(--sub)")}>📊 บันทึกออเดอร์รายเดือน</div>
+          <table style={css("border-collapse:collapse;width:100%;margin-top:6px")}>
+            <thead><tr>
+              {['เดือน', 'ออเดอร์', 'ยอดงานรวม', isOwner ? 'คอมเรา' : 'ส่วนของร้านคุณ'].map((h, i) => (
+                <th key={i} style={css("text-align:" + (i < 2 ? "left" : "right") + ";font-size:10.5px;color:var(--sub);font-weight:600;padding:6px 14px;border-bottom:1px solid var(--line);white-space:nowrap")}>{h}</th>
+              ))}
+            </tr></thead>
+            <tbody>
+              {monthRows.length === 0 && <tr><td colSpan="4" style={css("padding:14px;text-align:center;font-size:12px;color:var(--sub)")}>ยังไม่มีออเดอร์</td></tr>}
+              {monthRows.map((m, i) => (
+                <tr key={i}>
+                  <td style={css("padding:7px 14px;font-size:12px;font-weight:700;white-space:nowrap")}>{TH_M[m.m]} {(m.y + 543) % 100}</td>
+                  <td style={css("padding:7px 14px;font-size:12px;color:var(--sub)")}>{m.n}</td>
+                  <td style={css("padding:7px 14px;font-size:12px;text-align:right;font-family:'IBM Plex Mono',monospace")}>{baht(m.job)}</td>
+                  <td style={css("padding:7px 14px;font-size:12px;text-align:right;font-family:'IBM Plex Mono',monospace;font-weight:700;color:" + (isOwner ? "var(--acc)" : "var(--gold)"))}>{baht(m.job * (isOwner ? COMMISSION : 1 - COMMISSION))}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <div style={css("padding:6px 16px 12px")}></div>
+        </div>
+
         {/* รายการออเดอร์ Pro */}
         <div style={css("font-size:12.5px;font-weight:700;color:var(--sub)")}>📋 ออเดอร์งาน PRO ทั้งหมด ({orders.length})</div>
         {loading && <div style={css("text-align:center;color:var(--sub);font-size:13px;padding:16px 0")}>กำลังโหลด…</div>}
         {!loading && orders.length === 0 && <div style={css("text-align:center;color:var(--sub);font-size:13px;padding:24px 0")}>ยังไม่มีออเดอร์งาน Pro เข้ามา</div>}
-        {orders.map(o => <ProOrder key={o.id} o={o} isOwner={isOwner} payoutReady={payoutReady} onPrice={setPrice} onPayout={markPayout} onAdvance={advance} onCancel={cancelOrder}/>)}
+        {orders.map(o => <ProOrder key={o.id} o={o} isOwner={isOwner} payoutReady={payoutReady} onPrice={setPrice} onPayout={markPayout} onAdvance={advance} onCancel={cancelOrder} onPartnerAdvance={partnerAdvance}/>)}
 
         {/* ลูกค้างาน Pro — เจ้าของเห็นคนเดียว (ข้อมูลลูกค้าไม่เปิดให้พาร์ทเนอร์) */}
         {isOwner && customers.length > 0 && <div style={css("font-size:12.5px;font-weight:700;color:var(--sub);margin-top:6px")}>👥 ลูกค้างาน PRO ({customers.length})</div>}

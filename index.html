@@ -76,6 +76,10 @@ function pageRate(ptype, size, sides, totalPages){
   if (ptype === 'poster') return POSTER_PRICE[size] || 15;
   return 1;
 }
+// ขั้นสถานะของงาน Pro (ร้านอุดมสุขผลิต): แยกตามวิธีรับงาน
+const STEPS_PRO_SHIP = ['รับออเดอร์', 'กำลังผลิตสินค้า', 'กำลังจัดส่ง', 'ส่งแล้ว'];
+const STEPS_PRO_PICKUP = ['รับออเดอร์', 'กำลังผลิตสินค้า', 'เสร็จแล้ว รอมารับ', 'รับสินค้าแล้ว'];
+const stepsFor = (od) => !od ? null : od.pickup ? STEPS_PRO_PICKUP : (od.plabel || '').startsWith('PRO') ? STEPS_PRO_SHIP : null;
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 const FILE_BASE = (window.MP_CONFIG || {}).SUPABASE_URL ? (window.MP_CONFIG.SUPABASE_URL + '/storage/v1/object/public/uploads/') : '';
 const BANNER_THEMES = {
@@ -108,7 +112,7 @@ class App extends React.Component {
       screen: 'home', files: [], tier: 'standard', ptype: 'bw', paper: 'A4', sides: 1, bind: 'none', copies: 1,
       reviews: [], reviewsReady: false, revStars: 5, revText: '', trackStars: 5, trackText: '',
       alertPrompt: false, alertAck: false,
-      proType: 'plate', proSize: 'A0', proBind: 'ไสกาว', proQty: 100,
+      proType: 'plate', proSize: 'A0', proBind: 'ไสกาว', proQty: 100, proPickup: false,
       distKm: null, distSrc: '', trackOpen: false,
       point: '', addr: '', phone: '', time: '', express: false, slip: null,
       lat: null, lng: null, geoLabel: '', searchQ: '', searchResults: [], searching: false, locating: false,
@@ -173,7 +177,7 @@ class App extends React.Component {
       const od = JSON.parse(localStorage.getItem('mp_order') || 'null');
       if (od && od.id) {
         this.setState({
-          order: { id: od.id, total: od.total || 0, times: od.times || ['', '', '', ''], plabel: od.plabel || '', eta: od.eta || null },
+          order: { id: od.id, total: od.total || 0, times: od.times || ['', '', '', ''], plabel: od.plabel || '', eta: od.eta || null, pickup: !!od.pickup },
           trackStep: od.step || 1,
           cancelReason: od.cancelReason || ''
         });
@@ -480,11 +484,15 @@ class App extends React.Component {
     }
     // งาน Pro: ยังไม่กำหนดราคา — คิดค่าปริ้น ฿0 ไว้ก่อน (ลูกค้าชำระค่าส่ง) ร้านยืนยันราคาจริงทาง LINE
     if (s.tier === 'pro') { rate = 0; printCost = 0; heavyPages = 0; lightPages = 0; }
+    // งาน Pro เลือกมารับเองที่ร้านอุดมสุข = ไม่มีค่าส่ง ไม่ต้องปักหมุด
+    const proPickupOn = s.tier === 'pro' && s.proPickup;
+    if (proPickupOn) { deliveryFee = 0; farNote = false; outOfArea = false; }
     const bindCost = s.tier === 'pro' ? 0 : (s.bind === 'corner' ? 5 : s.bind === 'book' ? 40 : s.bind === 'landscape' ? 60 : 0) * s.copies;
-    const deliveryCost = deliveryFee + expressFee;
+    const deliveryCost = proPickupOn ? 0 : deliveryFee + expressFee;
+    const nightFee2 = proPickupOn ? 0 : nightFee; // มารับเอง ไม่มีค่าบริการกลางคืน/ด่วน
     return { pages, totalPages, sheets, rate, heavyPages, lightPages, printCost, bindCost, printTotal: printCost + bindCost,
-      deliveryFee, carJob, farNote, outOfArea, deliveryPending: km == null,
-      deliveryCost, nightFee, grandTotal: printCost + bindCost + deliveryCost + nightFee };
+      deliveryFee, carJob, farNote, outOfArea, proPickupOn, deliveryPending: !proPickupOn && km == null,
+      deliveryCost, nightFee: nightFee2, grandTotal: printCost + bindCost + deliveryCost + nightFee2 };
   }
 
   // เวลาผลิต+ส่งโดยประมาณของงานปัจจุบัน (นาที ยังไม่รวมคิว)
@@ -556,12 +564,19 @@ class App extends React.Component {
         paper: s.tier === 'pro' ? this.proLabel() : s.paper, sides: s.sides,
         bind: s.tier === 'pro' ? (s.proType === 'foldbook' ? s.proBind : 'none') : s.bind, copies: s.copies,
         point: s.geoLabel || '', lat: s.lat, lng: s.lng,
-        addr: s.addr, phone: s.phone, time: s.time, express: s.express, night: this.isNight(),
+        pickup: s.tier === 'pro' && s.proPickup,
+        addr: (s.tier === 'pro' && s.proPickup) ? '🏪 มารับเองที่ร้านอุดมสุขปริ้นติ้ง' : s.addr,
+        phone: s.phone, time: s.time, express: s.express, night: this.isNight(),
         print_cost: c.printCost, bind_cost: c.bindCost, delivery_cost: c.deliveryCost,
         night_fee: this.isNight() ? (CONFIG.nightFee ?? 10) : 0,
         total: c.grandTotal, status: 1, times: [t0, '', '', '']
       };
       let { error } = await this.db.from('orders').insert(payload);
+      if (error && (error.message || '').includes('pickup')) {
+        // ฐานข้อมูลยังไม่มีคอลัมน์ pickup — บันทึกแบบไม่มีไปก่อน ออเดอร์ต้องไม่หาย
+        const { pickup, ...restP } = payload;
+        ({ error } = await this.db.from('orders').insert(restP));
+      }
       if (error && (error.message || '').includes('ptype')) {
         // ฐานข้อมูลยังไม่มีคอลัมน์ ptype — บันทึกแบบไม่มีไปก่อน ออเดอร์ต้องไม่หาย
         const { ptype, ...rest } = payload;
@@ -796,6 +811,11 @@ class App extends React.Component {
       pickPro: () => this.setState({ tier: 'pro' }),
       proTypeOpts: PRO_TYPES.map(t => this.seg(t.icon + ' ' + t.label, s.proType === t.k,
         () => this.setState({ proType: t.k, proSize: (t.sizes || [''])[0], proQty: (t.qty || [100])[0], sides: t.k === 'foldbook' ? 2 : 1 }))),
+      proPickupOn: c.proPickupOn,
+      proPickupOpts: [
+        this.seg('🛵 ให้ MORE PRINT ไปส่งถึงที่ — คิดค่าส่งตามระยะทาง', !s.proPickup, () => this.setState({ proPickup: false })),
+        this.seg('🏪 มารับเองที่ร้านอุดมสุขปริ้นติ้ง (กังสดาล) — ฟรี ไม่มีค่าส่ง', s.proPickup, () => this.setState({ proPickup: true }))
+      ],
       proShowQty: !!((PRO_TYPES.find(t => t.k === s.proType) || {}).qty),
       proQtyOpts: (((PRO_TYPES.find(t => t.k === s.proType) || {}).qty) || []).map(n => this.seg(n + ' ชิ้น', s.proQty === n, () => this.setState({ proQty: n }))),
       proSizeOpts: ((PRO_TYPES.find(t => t.k === s.proType) || {}).sizes || []).map(sz => this.seg(sz, s.proSize === sz, () => this.setState({ proSize: sz }), true)),
@@ -884,14 +904,16 @@ class App extends React.Component {
       expressKnob: { width: '21px', height: '21px', borderRadius: '50%', background: '#fff', position: 'absolute', top: '3px', left: s.express ? '22px' : '3px', transition: 'left .2s', boxShadow: '0 1px 3px rgba(0,0,0,.3)' },
       deliveryWarn: '',
       toPay: () => {
-        if (s.lat == null) return this.showToast('ปักหมุดตำแหน่งส่งบนแผนที่ก่อนนะครับ 📍');
-        if (c.outOfArea) return this.showToast('งานขนาดใหญ่ส่งด้วยรถยนต์ได้ในระยะ 6 กม. — จุดนี้ไกลเกิน 🙏 สั่ง/ปรึกษาทาง LINE ' + ((window.MP_CONFIG || {}).LINE_OA_ID || '@346kifvy') + ' ได้ครับ');
-        if (!s.addr.trim()) return this.showToast('กรอกรายละเอียดที่อยู่ด้วยครับ 🏠');
+        if (!c.proPickupOn) { // มารับเองไม่ต้องปักหมุด/กรอกที่อยู่
+          if (s.lat == null) return this.showToast('ปักหมุดตำแหน่งส่งบนแผนที่ก่อนนะครับ 📍');
+          if (c.outOfArea) return this.showToast('งานขนาดใหญ่ส่งด้วยรถยนต์ได้ในระยะ 6 กม. — จุดนี้ไกลเกิน 🙏 สั่ง/ปรึกษาทาง LINE ' + ((window.MP_CONFIG || {}).LINE_OA_ID || '@346kifvy') + ' ได้ครับ');
+          if (!s.addr.trim()) return this.showToast('กรอกรายละเอียดที่อยู่ด้วยครับ 🏠');
+        }
         if (!s.phone) return this.showToast('ใส่เบอร์โทรผู้รับด้วยครับ 📞');
         this.setState({ screen: 'review' });
       },
       // ระยะทาง + ค่าส่งสด แสดงใต้แผนที่
-      distLine: s.lat == null ? ''
+      distLine: c.proPickupOn ? '' : s.lat == null ? ''
         : s.distKm == null ? '📏 กำลังวัดระยะทางจากร้าน…'
         : c.outOfArea ? '🚫 งานขนาดใหญ่ (ส่งด้วยรถยนต์) ไกลจากร้าน ~' + s.distKm.toFixed(1) + ' กม. — เกินพื้นที่ 6 กม. สั่งทาง LINE ได้ครับ'
         : (c.carJob ? '🚗' : '🏍️') + ' ระยะจากร้าน ~' + s.distKm.toFixed(1) + ' กม.' + (s.distSrc === 'est' ? ' (ประมาณ)' : '') + ' · ค่าส่ง ฿' + c.deliveryFee + (c.carJob ? ' (งานใหญ่ ส่งด้วยรถยนต์)' : '') + (c.farNote ? ' — ร้านจะนัดเวลาส่งล่วงหน้า' : ''),
@@ -916,7 +938,7 @@ class App extends React.Component {
         e.target.value = '';
       },
       confirmPay: () => {
-        if (this.db && !s.slip) return this.showToast('แนบสลิปโอนเงินก่อนยืนยันนะครับ 🧾');
+        if (this.db && !s.slip && c.grandTotal > 0) return this.showToast('แนบสลิปโอนเงินก่อนยืนยันนะครับ 🧾');
         const id = '#MP-' + Array.from(crypto.getRandomValues(new Uint8Array(8))).map(b => 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'[b % 31]).join('');
         const t0 = this.fmtTime(new Date());
         clearInterval(this.trackTimer);
@@ -932,10 +954,11 @@ class App extends React.Component {
         const etaBaseMin = this.etaMinutes();
         const eta = Date.now() + etaBaseMin * 60000;
         // ยืนยันแล้วล้างรายการงานทิ้ง — เข้ามาสั่งรอบหน้าต้องเป็นหน้าว่างพร้อมดรอปไฟล์ใหม่ ไม่มีไฟล์เก่าค้าง
-        this.setState({ order: { id, total: c.grandTotal, times: [t0, '', '', ''], plabel, eta }, trackStep: 1, cancelReason: '', screen: 'track',
-          files: [], slip: null, copies: 1, bind: 'none', express: false, tier: 'standard', ptype: 'bw', paper: 'A4', sides: 1, trackOpen: false });
+        const pickup = s.tier === 'pro' && s.proPickup;
+        this.setState({ order: { id, total: c.grandTotal, times: [t0, '', '', ''], plabel, eta, pickup }, trackStep: 1, cancelReason: '', screen: 'track',
+          files: [], slip: null, copies: 1, bind: 'none', express: false, tier: 'standard', ptype: 'bw', paper: 'A4', sides: 1, proPickup: false, trackOpen: false });
         // จำออเดอร์ไว้ในเครื่อง — ปิดเว็บแล้วกลับมา การติดตามยังอยู่
-        try { localStorage.setItem('mp_order', JSON.stringify({ id, total: c.grandTotal, times: [t0, '', '', ''], step: 1, plabel, eta })); } catch (e) {}
+        try { localStorage.setItem('mp_order', JSON.stringify({ id, total: c.grandTotal, times: [t0, '', '', ''], step: 1, plabel, eta, pickup })); } catch (e) {}
         // บวกเวลาตามคิวที่ค้างจริง (ออเดอร์ที่ยังไม่ออกส่ง) — รอ insert ลงฐานก่อนแล้วค่อยนับ
         if (this.db) setTimeout(async () => {
           try {
@@ -962,25 +985,29 @@ class App extends React.Component {
       },
       hasOrder: !!s.order, noOrder: !s.order,
       // ออเดอร์ที่ส่งแล้ว: หดเหลือแถบรหัสออเดอร์ แตะเพื่อกาง (ออเดอร์ที่ยังไม่จบแสดงเต็มตลอด)
+      trackPickup: !!(s.order && s.order.pickup),
       trackDelivered: !!s.order && step >= 4 && !cancelled,
       trackCollapsed: !!s.order && step >= 4 && !cancelled && !s.trackOpen,
       trackToggle: () => this.setState({ trackOpen: !s.trackOpen }),
       orderId: s.order ? s.order.id : '', paidTotal: s.order ? s.order.total : 0,
       cancelled, cancelReason: s.cancelReason,
-      trackLabel: s.order ? (cancelled ? 'ยกเลิกแล้ว' : STEPS[Math.min(step, 4) - 1]) : '',
+      trackLabel: s.order ? (cancelled ? 'ยกเลิกแล้ว' : (stepsFor(s.order) || STEPS)[Math.min(step, 4) - 1]) : '',
       trackBadgeSt: { fontFamily: "'IBM Plex Mono',monospace", fontSize: '11px', fontWeight: 600, padding: '3px 8px', borderRadius: '99px',
         color: cancelled ? '#c92a2a' : 'var(--acc)', background: cancelled ? '#ffe3e3' : 'var(--accSoft)' },
       trackBarSt: { height: '100%', background: 'var(--acc)', borderRadius: '99px', width: (step / 4 * 100) + '%' },
       etaLabel: (() => {
         if (cancelled) return '❌ ออเดอร์ถูกยกเลิก';
-        if (step >= 4) return '🛵 ส่งแล้ว เรียบร้อย ✓';
-        const base = step === 3 ? '🛵 ไรเดอร์กำลังไปหาคุณ' : step === 2 ? '🖨️ กำลังปริ้นเอกสารของคุณ' : '✅ ร้านรับออเดอร์แล้ว';
+        const pk = !!(s.order && s.order.pickup);
+        if (step >= 4) return pk ? '✅ รับสินค้าเรียบร้อยแล้ว ✓' : '🛵 ส่งแล้ว เรียบร้อย ✓';
+        if (pk && step === 3) return '📦 สินค้าเสร็จแล้ว — มารับที่ร้านอุดมสุขปริ้นติ้ง (กังสดาล) ได้เลยครับ';
+        const isPro = !!stepsFor(s.order);
+        const base = step === 3 ? '🛵 ไรเดอร์กำลังไปหาคุณ' : step === 2 ? (isPro ? '🖨️ กำลังผลิตสินค้าของคุณ' : '🖨️ กำลังปริ้นเอกสารของคุณ') : '✅ ร้านรับออเดอร์แล้ว';
         const eta = s.order && s.order.eta;
         if (!eta) return base;
-        if (Date.now() > eta) return base + ' · ใกล้ถึงแล้ว ร้านกำลังเร่งให้ครับ 🙏';
-        return base + ' · 🕐 คาดว่าได้รับ ~' + this.fmtTime(new Date(eta)) + ' น.';
+        if (Date.now() > eta) return base + ' · ใกล้เสร็จแล้ว ร้านกำลังเร่งให้ครับ 🙏';
+        return base + ' · 🕐 ' + (pk ? 'คาดว่างานเสร็จ' : 'คาดว่าได้รับ') + ' ~' + this.fmtTime(new Date(eta)) + ' น.';
       })(),
-      trackSteps: STEPS.map((label, i) => {
+      trackSteps: (stepsFor(s.order) || STEPS).map((label, i) => {
         const done = step > i, active = step === i + 1, last = i === 3;
         return {
           label, mark: done ? '✓' : String(i + 1),
@@ -1330,6 +1357,7 @@ class App extends React.Component {
                 {v.isPro && v.proShowSides && <div style={css("display:flex;flex-direction:column;gap:6px")}><div style={css("font-size:12px;font-weight:600;color:var(--sub)")}>ด้านที่พิมพ์</div><div style={css("display:flex;gap:8px")}>{v.proSidesOpts.map((o, i) => <button key={i} onClick={o.pick} style={o.st}>{o.label}</button>)}</div></div>}
                 {v.isPro && v.proShowBind && <div style={css("display:flex;flex-direction:column;gap:6px")}><div style={css("font-size:12px;font-weight:600;color:var(--sub)")}>ตัวเลือกเข้าเล่ม</div><div style={css("display:flex;flex-direction:column;gap:8px")}>{v.proBindOpts.map((o, i) => <button key={i} onClick={o.pick} style={{ ...o.st, width: '100%', boxSizing: 'border-box', minHeight: '44px', display: 'flex', alignItems: 'center', textAlign: 'left', fontSize: '13px' }}>{o.label}</button>)}</div></div>}
                 {v.isPro && v.proShowQty && <div style={css("display:flex;flex-direction:column;gap:6px")}><div style={css("font-size:12px;font-weight:600;color:var(--sub)")}>จำนวน</div><div style={css("display:flex;flex-direction:column;gap:8px")}>{v.proQtyOpts.map((o, i) => <button key={i} onClick={o.pick} style={{ ...o.st, width: '100%', boxSizing: 'border-box', minHeight: '44px', display: 'flex', alignItems: 'center', textAlign: 'left', fontSize: '13px' }}>{o.label}</button>)}</div></div>}
+                {v.isPro && <div style={css("display:flex;flex-direction:column;gap:6px")}><div style={css("font-size:12px;font-weight:600;color:var(--sub)")}>การรับงาน</div><div style={css("display:flex;flex-direction:column;gap:8px")}>{v.proPickupOpts.map((o, i) => <button key={i} onClick={o.pick} style={{ ...o.st, width: '100%', boxSizing: 'border-box', minHeight: '46px', display: 'flex', alignItems: 'center', textAlign: 'left', fontSize: '12.5px', lineHeight: 1.45 }}>{o.label}</button>)}</div></div>}
                 {v.isPro && <div style={css("font-size:11.5px;font-weight:700;color:var(--acc)")}>✓ ที่เลือก: {v.proPicked}{v.proShowBind ? ' · ' + (v.bindLabel || '') : ''}</div>}
                 <div style={css("font-size:11.5px;color:var(--acc);font-weight:600")}>💡 {v.rateHint}</div>
                 {v.colorNote && <div style={css("font-size:10.5px;color:var(--sub)")}>{v.colorNote}</div>}
@@ -1364,6 +1392,13 @@ class App extends React.Component {
           <div style={css("padding:18px 20px 110px;display:flex;flex-direction:column;gap:14px")}>
             <div style={css("font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:var(--sub);letter-spacing:1px")}>STEP 02 / 04 — จุดส่ง &amp; เวลารับงาน</div>
             <div style={css("background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px;box-shadow:var(--shadow)")}>
+              {v.proPickupOn && (
+                <div style={css("border:1.5px solid var(--acc);border-radius:12px;padding:12px 14px;background:var(--accSoft)")}>
+                  <div style={css("font-size:13.5px;font-weight:800;color:var(--acc)")}>🏪 มารับเองที่ร้านอุดมสุขปริ้นติ้ง (กังสดาล)</div>
+                  <div style={css("margin-top:4px;font-size:11.5px;color:var(--sub);line-height:1.6")}>ไม่มีค่าส่ง · ไม่ต้องปักหมุด — เมื่อสินค้าเสร็จ สถานะจะขึ้น "เสร็จแล้ว รอมารับ" แล้วมารับได้เลยครับ · <a href="https://maps.app.goo.gl/SshjXkvaCxvKPugL7" target="_blank" rel="noreferrer" style={css("color:var(--acc);font-weight:700")}>🧭 เปิดแผนที่ร้าน</a></div>
+                </div>
+              )}
+              {!v.proPickupOn && <React.Fragment>
               <div style={css("font-size:12px;font-weight:600;color:var(--sub);margin-bottom:8px")}>📍 ปักหมุดตำแหน่งส่งเอกสาร <span style={css("color:#d9480f")}>*</span></div>
               <div style={css("border:1.5px solid var(--acc);border-radius:12px;padding:10px 12px;background:var(--accSoft)")}>
                 <div style={css("font-size:12px;font-weight:700;color:var(--acc)")}>🗺️ วางลิงก์จาก Google Maps</div>
@@ -1399,6 +1434,7 @@ class App extends React.Component {
               <div style={css("margin-top:4px;font-size:11px;color:var(--acc);font-weight:600;line-height:1.5")}>💡 ค้นหาชื่อหอไม่เจอ? ไม่เป็นไร — แตะปักหมุดเองตรงที่พักของคุณ แล้วพิมพ์ชื่อหอ + รายละเอียดในช่องด้านล่างได้เลย</div>
               <div style={css("margin-top:12px;font-size:12px;font-weight:600;color:var(--sub)")}>รายละเอียดที่อยู่ (หอ / คณะ / บ้านเลขที่ / ซอย / จุดนัด) <span style={css("color:#d9480f")}>*</span></div>
               <input value={v.addr} onChange={v.setAddr} placeholder="เช่น หอ 9 ตึก B ชั้น 2, บ้านเลขที่ 123/4 ซอยมะลิวัลย์ 5" style={css("margin-top:6px;width:100%;box-sizing:border-box;height:42px;border:1px solid var(--line);border-radius:10px;background:var(--soft);color:var(--ink);padding:0 12px;font-size:13px;outline:none")}/>
+              </React.Fragment>}
               <div style={css("margin-top:10px;font-size:12px;font-weight:600;color:var(--sub)")}>เบอร์โทรผู้รับ <span style={css("color:#d9480f")}>*</span></div>
               <input value={v.phone} onChange={v.setPhone} placeholder="08x-xxx-xxxx" inputMode="tel" style={css("margin-top:6px;width:100%;box-sizing:border-box;height:42px;border:1px solid var(--line);border-radius:10px;background:var(--soft);color:var(--ink);padding:0 12px;font-size:13px;outline:none")}/>
             </div>
@@ -1539,7 +1575,7 @@ class App extends React.Component {
                     <span style={css("font-size:20px")}>✅</span>
                     <div style={css("flex:1;min-width:0")}>
                       <div style={css("font-family:'IBM Plex Mono',monospace;font-size:13.5px;font-weight:700")}>{v.orderId}</div>
-                      <div style={css("margin-top:2px;font-size:11px;color:var(--sub)")}>ส่งเรียบร้อยแล้ว · แตะเพื่อดูรายละเอียด</div>
+                      <div style={css("margin-top:2px;font-size:11px;color:var(--sub)")}>{v.trackPickup ? 'รับสินค้าแล้ว' : 'ส่งเรียบร้อยแล้ว'} · แตะเพื่อดูรายละเอียด</div>
                     </div>
                     <div style={v.trackBadgeSt}>{v.trackLabel}</div>
                     <span style={css("color:var(--sub);font-size:12px")}>▼</span>
