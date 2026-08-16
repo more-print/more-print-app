@@ -611,6 +611,8 @@ class App extends React.Component {
         ({ error } = await this.db.from('orders').insert(rest));
       }
       if (error) throw error;
+      // แจ้งเตือน LINE ทีมงาน (ยิงทิ้งไว้ — ถ้าระบบแจ้งเตือนยังไม่ตั้งค่า ออเดอร์ไม่กระทบ)
+      try { fetch((window.MP_CONFIG || {}).SUPABASE_URL + '/functions/v1/notify-order', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id }) }); } catch (e) {}
     } catch (e) {
       console.error('saveOrder:', e);
       this.showToast('⚠️ บันทึกออนไลน์ไม่สำเร็จ — ติดต่อร้านทาง LINE');
