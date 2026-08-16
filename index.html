@@ -412,6 +412,34 @@ class App extends React.Component {
     return { heavy, scanned: true, thumb };
   }
 
+  // อัปโหลดไฟล์ใหญ่ (>50MB) ตรงขึ้นคลัง B2 — ขอตั๋วจาก Edge Function b2-upload แล้วยิงตรง มีแถบ %
+  async uploadBig(it){
+    const cfg = window.MP_CONFIG || {};
+    const setF = (patch) => this.setState(st => ({ files: st.files.map(x => x.uid === it.uid ? { ...x, ...patch } : x) }));
+    if (!cfg.SUPABASE_URL) { setF({ upErr: true, up: 0 }); return; }
+    try {
+      setF({ up: 1, upErr: false, upDone: false });
+      const r = await fetch(cfg.SUPABASE_URL + '/functions/v1/b2-upload?action=upload-url');
+      const j = await r.json();
+      if (!r.ok || !j.uploadUrl) throw new Error('no-ticket');
+      const safe = it.name.replace(/[^\w.\-ก-๙เ-ไ]/g, '_');
+      const path = 'big/' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8) + '/' + safe;
+      await new Promise((resolve, reject) => {
+        const x = new XMLHttpRequest();
+        x.open('POST', j.uploadUrl);
+        x.setRequestHeader('Authorization', j.token);
+        x.setRequestHeader('X-Bz-File-Name', encodeURIComponent(path).replace(/%2F/gi, '/'));
+        x.setRequestHeader('Content-Type', 'application/pdf');
+        x.setRequestHeader('X-Bz-Content-Sha1', 'do_not_verify');
+        x.upload.onprogress = (ev) => { if (ev.total) setF({ up: Math.max(1, Math.round(ev.loaded / ev.total * 100)) }); };
+        x.onload = () => x.status === 200 ? resolve() : reject(new Error('up-' + x.status));
+        x.onerror = () => reject(new Error('net'));
+        x.send(it.file);
+      });
+      setF({ up: 100, upDone: true, b2Url: j.downloadBase + path });
+    } catch (e) { console.error('b2 upload:', e); setF({ upErr: true, up: 0 }); }
+  }
+
   // ล็อกอินด้วยโปรไฟล์ LINE (หลัง authorize ผ่าน LINE OA)
   async finishLineLogin(){
     try {
@@ -545,7 +573,7 @@ class App extends React.Component {
           const { error } = await this.db.storage.from('uploads').upload(path, f.file);
           if (error) { console.error('upload:', error); path = null; }
         }
-        files.push({ name: f.name, pages: f.pages, path, drive_url: f.big ? (f.driveUrl || '').trim() : null, auto: !!f.auto, heavy: f.heavy || 0, scanned: !!f.scanned });
+        files.push({ name: f.name, pages: f.pages, path, drive_url: f.big ? (f.b2Url || null) : null, auto: !!f.auto, heavy: f.heavy || 0, scanned: !!f.scanned });
       }
       // อัปโหลดสลิปโอนเงิน
       let slip_path = null;
@@ -770,32 +798,29 @@ class App extends React.Component {
         if (notPdf.length) this.showToast('❌ รับเฉพาะไฟล์ PDF นะครับ — ไฟล์แบบอื่นสั่งทาง LINE ' + ((window.MP_CONFIG || {}).LINE_OA_ID || '@346kifvy') + ' 💬');
         const pdfs = list.filter(isPdf);
         if (!pdfs.length) return;
-        // ไฟล์ใหญ่เกินโควต้าอัปโหลด → ยังรับออเดอร์ได้ แต่ให้ส่งผ่านลิงก์ Google Drive แทน
-        // (ยังนับหน้าจากไฟล์ในเครื่องลูกค้าได้ตามปกติ เพราะไม่ต้องอัปโหลด)
+        // ไฟล์ใหญ่เกิน 50MB → อัปโหลดตรงขึ้นคลังไฟล์ใหญ่ (B2) ทันทีแบบเบื้องหลัง มีแถบ % ให้ดู
+        // (นับหน้า+สแกนสีจากไฟล์ในเครื่องลูกค้าได้ตามปกติ ไม่ต้องรออัปโหลด)
         const ok = pdfs.map(f => ({
           uid: Date.now() + '-' + Math.random().toString(36).slice(2),
           name: f.name, pages: 1, file: f, counting: true, auto: false,
           big: f.size > MAX_MB * 1024 * 1024,
           sizeMB: Math.round(f.size / 1048576),
-          driveUrl: ''
+          up: 0, upDone: false, upErr: false, b2Url: ''
         }));
-        if (ok.some(x => x.big)) this.showToast('📁 ไฟล์ใหญ่เกิน ' + MAX_MB + 'MB — อัปโหลดขึ้น Google Drive แล้ววางลิงก์ในรายการด้านล่างได้เลยครับ');
+        if (ok.some(x => x.big)) this.showToast('📁 ไฟล์ใหญ่ — ระบบกำลังอัปโหลดให้อัตโนมัติ อยู่ในหน้านี้จนขึ้น ✓ นะครับ');
         const items = ok;
         this.setState(st => ({ files: st.files.concat(items) }));
         items.forEach(async (it) => {
+          if (it.big) this.uploadBig(it);
           const r = await this.countPages(it.file);
           this.setState(st => ({ files: st.files.map(x => x.uid === it.uid ? { ...x, pages: r.pages, auto: r.auto, heavy: r.heavy || 0, scanned: !!r.scanned, thumb: r.thumb || null, counting: false } : x) }));
         });
       },
-      addDriveOnly: () => this.setState(st => ({ files: st.files.concat([{
-        uid: Date.now() + '-' + Math.random().toString(36).slice(2),
-        name: 'ไฟล์จาก Google Drive', pages: 1, file: null, counting: false, auto: false, big: true, sizeMB: 0, driveUrl: ''
-      }]) })),
       files: s.files.map((f, i) => ({
         name: f.name, pages: f.pages, big: !!f.big, sizeMB: f.sizeMB || 0,
         thumb: f.thumb || null, heavy: f.heavy || 0, scanned: !!f.scanned,
-        driveUrl: f.driveUrl || '',
-        setDrive: (e) => { const v = e.target.value; this.setState(st => ({ files: st.files.map((x, j) => j === i ? { ...x, driveUrl: v } : x) })); },
+        up: f.up || 0, upDone: !!f.upDone, upErr: !!f.upErr,
+        retryUp: () => { const it = s.files[i]; if (it && it.big && it.file) this.uploadBig(it); },
         sub: f.counting ? '⏳ กำลังอ่านไฟล์ (นับหน้า + สแกนปริมาณสี)…' : ((f.auto ? '✓ นับหน้าให้อัตโนมัติแล้ว (แก้ได้ถ้าไม่ตรง)' : '✏️ ระบุจำนวนหน้าเองด้วยปุ่ม + / −') + (s.ptype === 'color' && f.scanned ? ' · 🎨 สีเยอะ ' + (f.heavy || 0) + ' หน้า' : '')),
         inc: () => this.setState(st => ({ files: st.files.map((x, j) => j === i ? { ...x, pages: x.pages + 1 } : x) })),
         dec: () => this.setState(st => ({ files: st.files.map((x, j) => j === i ? { ...x, pages: Math.max(1, x.pages - 1) } : x) })),
@@ -862,8 +887,8 @@ class App extends React.Component {
       toDelivery: () => {
         if (!s.files.length) return this.showToast('เพิ่มไฟล์ก่อนนะครับ 📄');
         if (s.files.some(f => f.counting)) return this.showToast('รอระบบอ่านไฟล์แป๊บนึงครับ ⏳');
-        const missing = s.files.find(f => f.big && !/^https?:\/\/(drive|docs)\.google\.com\//i.test((f.driveUrl || '').trim()));
-        if (missing) return this.showToast('วางลิงก์ Google Drive ของไฟล์ใหญ่ให้ครบก่อนนะครับ 🔗');
+        const bigPending = s.files.find(f => f.big && !f.upDone);
+        if (bigPending) return this.showToast(bigPending.upErr ? 'ไฟล์ใหญ่อัปโหลดไม่สำเร็จ — กดปุ่ม "ลองใหม่" ที่ไฟล์ก่อนนะครับ 🔁' : 'รอไฟล์ใหญ่อัปโหลดให้เสร็จก่อนนะครับ ⏳ (ดู % ที่รายการไฟล์)');
         this.setState({ screen: 'delivery' });
       },
       gmapLink: s.gmapLink, gmapBusy: s.gmapBusy,
@@ -1288,7 +1313,7 @@ class App extends React.Component {
               <div style={css("width:42px;height:42px;border-radius:10px;background:var(--accSoft);display:flex;align-items:center;justify-content:center;font-size:20px")}>📤</div>
               <div><div style={css("font-weight:600;font-size:14px;color:var(--acc)")}>+ เพิ่มไฟล์</div><div style={css("font-size:11px;color:var(--sub)")}>เฉพาะไฟล์ PDF · สูงสุด 50MB/ไฟล์ · นับหน้าให้อัตโนมัติ</div></div>
             </div>
-            <div style={css("margin-top:-6px;font-size:11px;color:var(--sub);line-height:1.6")}>📎 ไฟล์ใหญ่เกิน 50MB? แนบเป็น<b>ลิงก์ Google Drive</b>ได้เลย — <span onClick={v.addDriveOnly} style={css("color:var(--acc);font-weight:700;text-decoration:underline;cursor:pointer")}>+ เพิ่มลิงก์ Drive</span></div>
+            <div style={css("margin-top:-6px;font-size:11px;color:var(--sub);line-height:1.6")}>📎 ไฟล์ใหญ่กว่า 50MB (งานออกแบบ/สถาปัตย์) ก็ดรอปได้เลย — ระบบอัปโหลดให้อัตโนมัติพร้อมแถบ %</div>
             {v.files.map((f, i) => (
               <div key={i} style={css("background:var(--card);border:1px solid " + (f.big ? "#f0b429" : "var(--line)") + ";border-radius:12px;padding:10px 14px")}>
                 <div style={css("display:flex;align-items:center;gap:10px")}>
@@ -1305,9 +1330,19 @@ class App extends React.Component {
                 </div>
                 {f.big && (
                   <div style={css("margin-top:8px;padding-top:8px;border-top:1px dashed var(--line)")}>
-                    <div style={css("font-size:11.5px;font-weight:700;color:#a16207")}>⚠️ ไฟล์ใหญ่เกิน 50MB — ส่งผ่าน Google Drive แทน</div>
-                    <div style={css("margin-top:3px;font-size:10.5px;color:var(--sub);line-height:1.5")}>อัปโหลดไฟล์นี้ขึ้น Google Drive → กดแชร์ → ตั้งเป็น <b>"ทุกคนที่มีลิงก์"</b> → คัดลอกลิงก์มาวางด้านล่าง</div>
-                    <input value={f.driveUrl} onChange={f.setDrive} placeholder="https://drive.google.com/..." inputMode="url" style={css("margin-top:6px;width:100%;box-sizing:border-box;height:38px;border:1px solid " + (f.driveUrl ? "var(--acc)" : "#f0b429") + ";border-radius:9px;background:var(--soft);color:var(--ink);padding:0 10px;font-size:12px;outline:none")}/>
+                    {f.upDone ? (
+                      <div style={css("font-size:11.5px;font-weight:700;color:var(--acc)")}>✓ อัปโหลดไฟล์ใหญ่สำเร็จ ({f.sizeMB}MB)</div>
+                    ) : f.upErr ? (
+                      <div style={css("display:flex;align-items:center;gap:10px")}>
+                        <div style={css("flex:1;font-size:11.5px;font-weight:700;color:#c92a2a;line-height:1.5")}>❌ อัปโหลดไม่สำเร็จ (เน็ตหลุดหรือระบบไม่พร้อม)</div>
+                        <button onClick={f.retryUp} style={css("height:32px;padding:0 14px;border:none;border-radius:9px;background:var(--acc);color:#fff;font-size:11.5px;font-weight:700;cursor:pointer")}>🔁 ลองใหม่</button>
+                      </div>
+                    ) : (
+                      <React.Fragment>
+                        <div style={css("font-size:11px;font-weight:700;color:#a16207")}>⏫ กำลังอัปโหลดไฟล์ใหญ่… {f.up}% — อยู่ในหน้านี้จนเสร็จนะครับ</div>
+                        <div style={css("margin-top:5px;height:6px;background:var(--soft);border-radius:99px;overflow:hidden")}><div style={{ height: '100%', width: f.up + '%', background: 'var(--acc)', borderRadius: '99px', transition: 'width .3s' }}></div></div>
+                      </React.Fragment>
+                    )}
                   </div>
                 )}
               </div>
