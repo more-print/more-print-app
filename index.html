@@ -14,6 +14,7 @@
   a{color:#00b368}a:hover{color:#008a50}
   input,button{font-family:'IBM Plex Sans Thai',sans-serif}
   @keyframes mpPulse{0%,100%{opacity:1}50%{opacity:.35}}
+  @keyframes mpFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
 </style>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -1369,11 +1370,19 @@ class App extends React.Component {
             <div style={css("font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:var(--sub);letter-spacing:1px")}>STEP 01 / 04 — อัปโหลด &amp; ตัวเลือก</div>
             {v.alertBn && <div style={css("background:#fff0f0;border:1px solid #ffa8a8;border-radius:12px;padding:10px 14px;font-size:12px;color:#c92a2a;font-weight:700;line-height:1.5")}>⚠️ {v.alertBn.title}</div>}
             <input type="file" multiple accept=".pdf,application/pdf" ref={this.fileRef} onChange={v.onFiles} style={css("display:none")}/>
-            <div onClick={v.pickFiles} style={css("border:2px dashed var(--line);border-radius:14px;background:var(--card);padding:16px;display:flex;align-items:center;gap:12px;cursor:pointer")}>
-              <div style={css("width:42px;height:42px;border-radius:10px;background:var(--accSoft);display:flex;align-items:center;justify-content:center;font-size:20px")}>📤</div>
-              <div><div style={css("font-weight:600;font-size:14px;color:var(--acc)")}>+ เพิ่มไฟล์</div><div style={css("font-size:11px;color:var(--sub)")}>เฉพาะไฟล์ PDF · สูงสุด 50MB/ไฟล์ · นับหน้าให้อัตโนมัติ</div></div>
+            {/* กล่องดรอปไฟล์: แตะได้ทั้งกล่อง + รองรับลากไฟล์มาวางจริง (desktop) */}
+            <div onClick={v.pickFiles} onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); v.onFiles({ target: { files: e.dataTransfer.files, value: '' } }); }}
+              style={css("border:2.5px dashed var(--acc);border-radius:18px;background:var(--accSoft);padding:26px 16px 18px;text-align:center;cursor:pointer")}>
+              <div style={css("width:64px;height:64px;border-radius:50%;background:var(--card);margin:0 auto;display:flex;align-items:center;justify-content:center;font-size:29px;box-shadow:var(--shadow);animation:mpFloat 2.6s ease-in-out infinite")}>📤</div>
+              <div style={css("margin-top:12px;font-size:16.5px;font-weight:800;color:var(--acc)")}>+ แตะเพื่อเพิ่มไฟล์</div>
+              <div style={css("margin-top:4px;font-size:12px;color:var(--sub)")}>หรือลากไฟล์มาวางตรงนี้ · เพิ่มได้หลายไฟล์</div>
+              <div style={css("margin-top:13px;display:flex;justify-content:center;gap:6px;flex-wrap:wrap")}>
+                <span style={css("background:var(--card);border:1px solid var(--line);border-radius:99px;padding:5px 11px;font-size:10.5px;font-weight:600;color:var(--sub)")}>📄 PDF เท่านั้น</span>
+                <span style={css("background:var(--card);border:1px solid var(--line);border-radius:99px;padding:5px 11px;font-size:10.5px;font-weight:600;color:var(--sub)")}>🔢 นับหน้าให้อัตโนมัติ</span>
+                <span style={css("background:var(--card);border:1px solid var(--line);border-radius:99px;padding:5px 11px;font-size:10.5px;font-weight:600;color:var(--sub)")}>🐘 ไฟล์ใหญ่ก็ส่งได้</span>
+              </div>
             </div>
-            <div style={css("margin-top:-6px;font-size:11px;color:var(--sub);line-height:1.6")}>📎 ไฟล์ใหญ่กว่า 50MB (งานออกแบบ/สถาปัตย์) ก็ดรอปได้เลย — ระบบอัปโหลดให้อัตโนมัติพร้อมแถบ %</div>
+            <div style={css("margin-top:-6px;font-size:11px;color:var(--sub);line-height:1.6")}>📎 ไฟล์ใหญ่กว่า 50MB (งานออกแบบ/สถาปัตย์) ส่งได้เลย — ระบบอัปโหลดให้อัตโนมัติพร้อมแถบ %</div>
             {v.files.map((f, i) => (
               <div key={i} style={css("background:var(--card);border:1px solid " + (f.big ? "#f0b429" : "var(--line)") + ";border-radius:12px;padding:10px 14px")}>
                 <div style={css("display:flex;align-items:center;gap:10px")}>
