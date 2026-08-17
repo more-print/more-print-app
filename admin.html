@@ -365,12 +365,12 @@ function AdminApp(){
       .then(({ data }) => { if (data) setHistRows(data.filter(o => o.ptype !== 'pro')); });
   }, [tab, authed]);
 
-  // โหลดประวัติทั้งหมดสำหรับแท็บลูกค้า — รวมงาน Pro ด้วย จะได้เห็นภาพรวมว่าใครเป็นลูกค้าประจำจริงๆ
+  // โหลดประวัติทั้งหมดสำหรับแท็บลูกค้า — เฉพาะงาน Standard (ลูกค้างาน Pro แยกไปดูใน commission.html)
   React.useEffect(() => {
     if ((tab !== 'customers' && tab !== 'stats') || !authed || !DB) return;
     DB.from('orders').select('created_at,total,status,customer_phone,phone,customer_fname,customer_lname,ptype,paper,color')
       .order('created_at', { ascending: false }).limit(10000)
-      .then(({ data }) => { if (data) setCustRows(data); });
+      .then(({ data }) => { if (data) setCustRows(data.filter(o => o.ptype !== 'pro')); });
   }, [tab, authed]);
 
   // สรุปรายเดือน + รายปี (ไม่นับออเดอร์ที่ยกเลิก)
@@ -607,7 +607,7 @@ function AdminApp(){
   const revenue = todayActive.reduce((a, o) => a + (o.total || 0), 0);
   const pending = orders.filter(o => o.status >= 1 && o.status < 4).length;
 
-  // ── ลูกค้าประจำ: จัดกลุ่มตามเบอร์โทร รวมงาน Pro, ไม่นับออเดอร์ที่ยกเลิก ──
+  // ── ลูกค้าประจำ (เฉพาะงาน Standard): จัดกลุ่มตามเบอร์โทร ไม่นับออเดอร์ที่ยกเลิก ──
   // custRows = ประวัติเต็ม (โหลดตอนเปิดแท็บลูกค้า/สถิติ) — ยังไม่มาก็ใช้ orders ในหน้าไปก่อน
   const jobLabelOf = (o) => o.ptype === 'pro' ? ('✨ ' + (o.paper || 'PRO')) : (o.ptype ? (PTYPE_LABELS[o.ptype] || o.ptype) : (o.color ? 'สีเลเซอร์' : 'ขาวดำ'));
   const custMap = {};
@@ -1055,7 +1055,7 @@ function AdminApp(){
               )}
             </div>
           ))}
-          <div style={css("font-size:10.5px;color:var(--sub);text-align:center;line-height:1.6")}>นับเฉพาะออเดอร์ที่ไม่ถูกยกเลิก · รวมงาน Pro ด้วย · จัดกลุ่มตามเบอร์โทรลูกค้า</div>
+          <div style={css("font-size:10.5px;color:var(--sub);text-align:center;line-height:1.6")}>เฉพาะงาน Standard ไม่นับออเดอร์ที่ยกเลิก · จัดกลุ่มตามเบอร์โทรลูกค้า · ลูกค้าประจำงาน Pro ดูที่ 💰 งาน PRO</div>
         </div>
       )}
     </div>

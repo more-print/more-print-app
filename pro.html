@@ -312,14 +312,21 @@ function Dash({ role }){
     byM[k].n++; byM[k].job += jobValue(o);
   });
   const monthRows = Object.keys(byM).sort((a, b) => b - a).map(k => byM[k]);
-  // ลูกค้างาน Pro
+  // ลูกค้าประจำงาน Pro — พาร์ทเนอร์เห็นชื่อ+สถิติการสั่ง (เบอร์โทรยังปิดไว้เหมือนเดิม เห็นเฉพาะเจ้าของ)
   const custMap = {};
   valid.forEach(o => {
     const k = o.customer_phone || (o.customer_fname + ' ' + (o.customer_lname || ''));
-    if (!custMap[k]) custMap[k] = { name: (o.customer_fname + ' ' + (o.customer_lname || '')).trim(), phone: o.customer_phone || '', n: 0, spend: 0 };
-    custMap[k].n++; custMap[k].spend += jobValue(o);
+    if (!custMap[k]) custMap[k] = { name: (o.customer_fname + ' ' + (o.customer_lname || '')).trim(), phone: o.customer_phone || '', n: 0, spend: 0, jobs: {} };
+    const c = custMap[k];
+    c.n++; c.spend += jobValue(o);
+    const jl = o.paper || 'PRO';
+    c.jobs[jl] = (c.jobs[jl] || 0) + 1;
   });
-  const customers = Object.values(custMap).sort((a, b) => b.spend - a.spend);
+  const customers = Object.values(custMap).map(c => ({
+    ...c,
+    topJobs: Object.entries(c.jobs).sort((a, b) => b[1] - a[1]).slice(0, 2), // งานที่สั่งบ่อยสุด 2 อันดับ
+    tier: c.n >= 5 ? 2 : c.n >= 2 ? 1 : 0 // ⭐ประจำ ≥5 / 🔁ซ้ำ 2-4 / 🆕ใหม่
+  })).sort((a, b) => b.n - a.n || b.spend - a.spend);
 
   return (
     <div style={css("min-height:100vh;background:var(--bg)")}>
@@ -394,16 +401,23 @@ function Dash({ role }){
         {!loading && orders.length === 0 && <div style={css("text-align:center;color:var(--sub);font-size:13px;padding:24px 0")}>ยังไม่มีออเดอร์งาน Pro เข้ามา</div>}
         {orders.map(o => <ProOrder key={o.id} o={o} isOwner={isOwner} payoutReady={payoutReady} onPrice={setPrice} onPayout={markPayout} onAdvance={advance} onCancel={cancelOrder} onPartnerAdvance={partnerAdvance}/>)}
 
-        {/* ลูกค้างาน Pro — เจ้าของเห็นคนเดียว (ข้อมูลลูกค้าไม่เปิดให้พาร์ทเนอร์) */}
-        {isOwner && customers.length > 0 && <div style={css("font-size:12.5px;font-weight:700;color:var(--sub);margin-top:6px")}>👥 ลูกค้างาน PRO ({customers.length})</div>}
-        {isOwner && customers.map((cst, i) => (
-          <div key={i} style={css("background:var(--card);border:1px solid var(--line);border-radius:12px;padding:11px 14px;display:flex;align-items:center;gap:12px;box-shadow:var(--shadow)")}>
-            <div style={css("width:36px;height:36px;border-radius:50%;background:var(--accSoft);color:var(--acc);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:14px;flex:none")}>{(cst.name || '?').trim().charAt(0)}</div>
+        {/* ลูกค้าประจำงาน Pro — พาร์ทเนอร์เห็นชื่อ+ป้ายประจำ+งานที่สั่งบ่อย (เบอร์โทรเห็นเฉพาะเจ้าของ) */}
+        {customers.length > 0 && <div style={css("font-size:12.5px;font-weight:700;color:var(--sub);margin-top:6px")}>👥 ลูกค้าประจำงาน PRO ({customers.length} คน · ⭐ ประจำ {customers.filter(c => c.tier === 2).length} คน)</div>}
+        {customers.map((cst, i) => (
+          <div key={i} style={css("background:var(--card);border:1px solid " + (cst.tier === 2 ? "#ffd43b" : "var(--line)") + ";border-radius:12px;padding:11px 14px;display:flex;align-items:center;gap:12px;box-shadow:var(--shadow)")}>
+            <div style={css("width:36px;height:36px;border-radius:50%;background:var(--accSoft);color:var(--acc);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:" + (i < 3 ? "17px" : "14px") + ";flex:none")}>{i < 3 ? ['🥇', '🥈', '🥉'][i] : (cst.name || '?').trim().charAt(0)}</div>
             <div style={css("flex:1;min-width:0")}>
-              <div style={css("font-size:13px;font-weight:700")}>คุณ{cst.name || 'ไม่ระบุชื่อ'}</div>
-              <div style={css("font-size:11px;color:var(--sub)")}>{cst.phone}</div>
+              <div style={css("display:flex;align-items:center;gap:6px;min-width:0")}>
+                <span style={css("font-size:13px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap")}>คุณ{cst.name || 'ไม่ระบุชื่อ'}</span>
+                {cst.tier === 2 && <span style={css("flex:none;font-size:9px;font-weight:700;background:#fff3bf;color:#e8590c;border-radius:99px;padding:2px 7px")}>⭐ ประจำ</span>}
+                {cst.tier === 1 && <span style={css("flex:none;font-size:9px;font-weight:700;background:#e7f5ff;color:#1971c2;border-radius:99px;padding:2px 7px")}>🔁 มาซ้ำ</span>}
+                {cst.tier === 0 && <span style={css("flex:none;font-size:9px;font-weight:700;background:var(--soft);color:var(--sub);border-radius:99px;padding:2px 7px")}>🆕 ใหม่</span>}
+              </div>
+              <div style={css("margin-top:2px;font-size:11px;color:var(--sub);overflow:hidden;text-overflow:ellipsis;white-space:nowrap")}>
+                {isOwner && cst.phone ? <span><a href={'tel:' + String(cst.phone).replace(/[^0-9+]/g, '')} style={css("font-family:'IBM Plex Mono',monospace")}>{cst.phone}</a> · </span> : null}สั่งบ่อย: {cst.topJobs.map(([l, n]) => l + ' ×' + n).join(' · ')}
+              </div>
             </div>
-            <div style={css("text-align:right")}>
+            <div style={css("text-align:right;flex:none")}>
               <div style={css("font-family:'IBM Plex Mono',monospace;font-size:13px;font-weight:700;color:var(--acc)")}>{baht(cst.spend)}</div>
               <div style={css("font-size:10.5px;color:var(--sub)")}>{cst.n} ออเดอร์</div>
             </div>

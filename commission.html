@@ -241,6 +241,25 @@ function Dash(){
   });
   const months = Object.keys(byMonth).sort((a, b) => b - a).map(k => byMonth[k]);
 
+  // ── ลูกค้าประจำงาน PRO (เห็นเฉพาะเจ้าของที่นี่ — pro.html ของพาร์ทเนอร์ไม่มีข้อมูลลูกค้า) ──
+  // จัดกลุ่มตามเบอร์โทร ไม่นับที่ยกเลิก · ยอด = ค่างานจริง (ปริ้น+เข้าเล่ม ไม่รวมค่าส่ง)
+  const custMap = {};
+  orders.forEach(o => {
+    if (o.status === 0) return;
+    const k = o.customer_phone || o.customer_fname || '?';
+    if (!custMap[k]) custMap[k] = { name: ('คุณ' + (o.customer_fname || '') + ' ' + (o.customer_lname || '')).trim(), phone: o.customer_phone || '', count: 0, job: 0, last: o.created_at, jobs: {} };
+    const c = custMap[k];
+    c.count++; c.job += jobValue(o);
+    const jl = o.paper || 'PRO';
+    c.jobs[jl] = (c.jobs[jl] || 0) + 1;
+    if (o.created_at > c.last) c.last = o.created_at;
+  });
+  const customers = Object.values(custMap).map(c => ({
+    ...c,
+    topJobs: Object.entries(c.jobs).sort((a, b) => b[1] - a[1]).slice(0, 2), // งานที่สั่งบ่อยสุด 2 อันดับ
+    tier: c.count >= 5 ? 2 : c.count >= 2 ? 1 : 0
+  })).sort((a, b) => b.count - a.count || b.job - a.job);
+
   // ── ใบสรุปยอดประจำเดือน (บิลส่งให้ร้านพาร์ทเนอร์) ──
   if (bill) {
     const rows = done.filter(o => { const d = new Date(o.created_at); return d.getFullYear() === bill.y && d.getMonth() === bill.m; });
@@ -367,6 +386,35 @@ function Dash(){
             </tbody>
           </table>
           <div style={css("padding:8px 16px 12px")}></div>
+        </div>
+
+        {/* ลูกค้าประจำงาน PRO */}
+        <div style={css("background:var(--card);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);padding:12px 16px")}>
+          <div style={css("display:flex;align-items:center;gap:8px")}>
+            <div style={css("font-size:12.5px;font-weight:700;color:var(--sub);flex:1")}>👥 ลูกค้าประจำงาน PRO</div>
+            <span style={css("font-size:10.5px;color:var(--sub)")}>{customers.length} คน · ⭐ ประจำ {customers.filter(c => c.tier === 2).length} คน</span>
+          </div>
+          {customers.length === 0 && <div style={css("padding:14px 0;text-align:center;font-size:12px;color:var(--sub)")}>ยังไม่มีลูกค้างาน Pro</div>}
+          {customers.map((cst, i) => (
+            <div key={i} style={css("margin-top:10px;padding-top:10px;border-top:1px dashed var(--line);display:flex;align-items:center;gap:10px")}>
+              <div style={css("width:34px;height:34px;border-radius:50%;background:var(--accSoft);color:var(--acc);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:" + (i < 3 ? "17px" : "13px") + ";flex:none")}>{i < 3 ? ['🥇', '🥈', '🥉'][i] : (cst.name.replace('คุณ', '') || '?').trim().charAt(0)}</div>
+              <div style={css("flex:1;min-width:0")}>
+                <div style={css("display:flex;align-items:center;gap:6px;min-width:0")}>
+                  <span style={css("font-size:12.5px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap")}>{cst.name || 'ไม่ระบุชื่อ'}</span>
+                  {cst.tier === 2 && <span style={css("flex:none;font-size:9px;font-weight:700;background:#fff3bf;color:#e8590c;border-radius:99px;padding:2px 7px")}>⭐ ประจำ</span>}
+                  {cst.tier === 1 && <span style={css("flex:none;font-size:9px;font-weight:700;background:#e7f5ff;color:#1971c2;border-radius:99px;padding:2px 7px")}>🔁 มาซ้ำ</span>}
+                  {cst.tier === 0 && <span style={css("flex:none;font-size:9px;font-weight:700;background:var(--soft);color:var(--sub);border-radius:99px;padding:2px 7px")}>🆕 ใหม่</span>}
+                </div>
+                <div style={css("margin-top:2px;font-size:10.5px;color:var(--sub);overflow:hidden;text-overflow:ellipsis;white-space:nowrap")}>
+                  {cst.phone ? <a href={'tel:' + String(cst.phone).replace(/[^0-9+]/g, '')} style={css("font-family:'IBM Plex Mono',monospace")}>{cst.phone}</a> : 'ไม่มีเบอร์'} · สั่งบ่อย: {cst.topJobs.map(([l, n]) => l + ' ×' + n).join(' · ')}
+                </div>
+              </div>
+              <div style={css("text-align:right;flex:none")}>
+                <div style={css("font-family:'IBM Plex Mono',monospace;font-size:12.5px;font-weight:700;color:var(--acc)")}>{baht(cst.job)}</div>
+                <div style={css("font-size:10px;color:var(--sub)")}>{cst.count} งาน</div>
+              </div>
+            </div>
+          ))}
         </div>
 
         {/* รายงานทีละงาน */}
