@@ -349,6 +349,9 @@ function AdminApp(){
   const [bnBusy, setBnBusy] = React.useState(false);
 
   const [histRows, setHistRows] = React.useState(null);
+  const [custRows, setCustRows] = React.useState(null); // ประวัติทั้งหมดสำหรับแท็บลูกค้า (รวม Pro)
+  const [custSort, setCustSort] = React.useState('count');
+  const [custQ, setCustQ] = React.useState('');
   const [purgeBusy, setPurgeBusy] = React.useState(false);
   const [purgeConfirm, setPurgeConfirm] = React.useState(false);
   const [purgeResult, setPurgeResult] = React.useState('');
@@ -360,6 +363,14 @@ function AdminApp(){
     DB.from('orders').select('created_at,total,status,customer_phone,phone,ptype')
       .order('created_at', { ascending: false }).limit(10000)
       .then(({ data }) => { if (data) setHistRows(data.filter(o => o.ptype !== 'pro')); });
+  }, [tab, authed]);
+
+  // โหลดประวัติทั้งหมดสำหรับแท็บลูกค้า — รวมงาน Pro ด้วย จะได้เห็นภาพรวมว่าใครเป็นลูกค้าประจำจริงๆ
+  React.useEffect(() => {
+    if ((tab !== 'customers' && tab !== 'stats') || !authed || !DB) return;
+    DB.from('orders').select('created_at,total,status,customer_phone,phone,customer_fname,customer_lname,ptype,paper,color')
+      .order('created_at', { ascending: false }).limit(10000)
+      .then(({ data }) => { if (data) setCustRows(data); });
   }, [tab, authed]);
 
   // สรุปรายเดือน + รายปี (ไม่นับออเดอร์ที่ยกเลิก)
@@ -596,15 +607,28 @@ function AdminApp(){
   const revenue = todayActive.reduce((a, o) => a + (o.total || 0), 0);
   const pending = orders.filter(o => o.status >= 1 && o.status < 4).length;
 
-  // ลูกค้า (จัดกลุ่มตามเบอร์โทร)
+  // ── ลูกค้าประจำ: จัดกลุ่มตามเบอร์โทร รวมงาน Pro, ไม่นับออเดอร์ที่ยกเลิก ──
+  // custRows = ประวัติเต็ม (โหลดตอนเปิดแท็บลูกค้า/สถิติ) — ยังไม่มาก็ใช้ orders ในหน้าไปก่อน
+  const jobLabelOf = (o) => o.ptype === 'pro' ? ('✨ ' + (o.paper || 'PRO')) : (o.ptype ? (PTYPE_LABELS[o.ptype] || o.ptype) : (o.color ? 'สีเลเซอร์' : 'ขาวดำ'));
   const custMap = {};
-  orders.forEach(o => {
+  (custRows || orders).forEach(o => {
+    if (o.status === 0) return;
     const k = o.customer_phone || o.phone || '?';
-    if (!custMap[k]) custMap[k] = { name: ('คุณ' + (o.customer_fname || '') + ' ' + (o.customer_lname || '')).trim(), phone: k, count: 0, total: 0, last: o.created_at };
-    custMap[k].count++; custMap[k].total += o.total || 0;
-    if (o.created_at > custMap[k].last) custMap[k].last = o.created_at;
+    if (!custMap[k]) custMap[k] = { name: ('คุณ' + (o.customer_fname || '') + ' ' + (o.customer_lname || '')).trim(), phone: k, count: 0, total: 0, last: o.created_at, jobs: {} };
+    const c = custMap[k];
+    c.count++; c.total += o.total || 0;
+    const jl = jobLabelOf(o);
+    c.jobs[jl] = (c.jobs[jl] || 0) + 1;
+    if (o.created_at > c.last) c.last = o.created_at;
   });
-  const customers = Object.values(custMap).sort((a, b) => b.total - a.total);
+  const customers = Object.values(custMap).map(c => ({
+    ...c,
+    topJobs: Object.entries(c.jobs).sort((a, b) => b[1] - a[1]).slice(0, 2), // งานที่สั่งบ่อยสุด 2 อันดับ
+    tier: c.count >= 5 ? 2 : c.count >= 2 ? 1 : 0
+  })).sort((a, b) => custSort === 'total' ? b.total - a.total
+    : custSort === 'last' ? (b.last > a.last ? 1 : -1)
+    : (b.count - a.count || b.total - a.total));
+  const custShown = customers.filter(c => !custQ.trim() || (c.name + ' ' + c.phone).toLowerCase().includes(custQ.trim().toLowerCase()));
 
   // ── สถิติแดชบอร์ด ──
   const now = new Date();
@@ -975,20 +999,63 @@ function AdminApp(){
 
       {tab === 'customers' && (
         <div style={css("padding:14px 16px 40px;display:flex;flex-direction:column;gap:10px")}>
-          {customers.length === 0 && <div style={css("text-align:center;color:var(--sub);font-size:14px;padding:40px 0")}>ยังไม่มีข้อมูลลูกค้า</div>}
-          {customers.map((cst, i) => (
-            <div key={i} style={css("background:var(--card);border:1px solid var(--line);border-radius:14px;padding:13px 16px;display:flex;align-items:center;gap:12px;box-shadow:var(--shadow)")}>
-              <div style={css("width:40px;height:40px;border-radius:50%;background:var(--accSoft);color:var(--acc);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:15px;flex:none")}>{(cst.name.replace('คุณ', '') || '?').trim().charAt(0)}</div>
-              <div style={css("flex:1;min-width:0")}>
-                <div style={css("font-size:13.5px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap")}>{cst.name || 'ไม่ระบุชื่อ'}</div>
-                <div style={css("font-size:11.5px;color:var(--sub)")}><a href={'tel:' + cst.phone.replace(/[^0-9+]/g,'')} style={css("font-family:'IBM Plex Mono',monospace")}>{cst.phone}</a> · ล่าสุด {fmtWhen(cst.last)}</div>
+          {/* สรุปภาพรวม */}
+          <div style={css("display:flex;gap:8px")}>
+            <div style={css("flex:1;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px 12px;text-align:center")}>
+              <div style={css("font-family:'IBM Plex Mono',monospace;font-size:17px;font-weight:600")}>{customers.length}</div>
+              <div style={css("font-size:10.5px;color:var(--sub)")}>👥 ลูกค้าทั้งหมด</div>
+            </div>
+            <div style={css("flex:1;background:#fff3bf;border:1px solid #ffd43b;border-radius:12px;padding:10px 12px;text-align:center")}>
+              <div style={css("font-family:'IBM Plex Mono',monospace;font-size:17px;font-weight:600;color:#e8590c")}>{customers.filter(c => c.tier === 2).length}</div>
+              <div style={css("font-size:10.5px;color:#e8590c")}>⭐ ลูกค้าประจำ (5 ครั้งขึ้น)</div>
+            </div>
+            <div style={css("flex:1;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px 12px;text-align:center")}>
+              <div style={css("font-family:'IBM Plex Mono',monospace;font-size:17px;font-weight:600;color:#1971c2")}>{customers.filter(c => c.tier === 1).length}</div>
+              <div style={css("font-size:10.5px;color:var(--sub)")}>🔁 กลับมาซ้ำ (2-4 ครั้ง)</div>
+            </div>
+          </div>
+          <input value={custQ} onChange={e => setCustQ(e.target.value)} placeholder="🔍 ค้นหาชื่อหรือเบอร์โทร"
+            style={css("height:42px;padding:0 14px;border:1px solid var(--line);border-radius:12px;background:var(--card);color:var(--ink);font-size:13px;outline:none;font-family:inherit")}/>
+          <div style={css("display:flex;gap:6px")}>
+            {[['count', '🔥 สั่งบ่อยสุด'], ['total', '💰 ยอดสูงสุด'], ['last', '🕐 มาล่าสุด']].map(([k, label]) => (
+              <button key={k} onClick={() => setCustSort(k)} style={{ flex: 1, height: '36px', borderRadius: '10px', fontSize: '11.5px', fontWeight: 700, cursor: 'pointer',
+                border: custSort === k ? '1.5px solid var(--acc)' : '1px solid var(--line)',
+                background: custSort === k ? 'var(--accSoft)' : 'var(--card)', color: custSort === k ? 'var(--acc)' : 'var(--sub)' }}>{label}</button>
+            ))}
+          </div>
+          {custShown.length === 0 && <div style={css("text-align:center;color:var(--sub);font-size:14px;padding:40px 0")}>ยังไม่มีข้อมูลลูกค้า</div>}
+          {custShown.map((cst, i) => (
+            <div key={i} style={css("background:var(--card);border:1px solid " + (cst.tier === 2 ? "#ffd43b" : "var(--line)") + ";border-radius:14px;padding:13px 16px;box-shadow:var(--shadow)")}>
+              <div style={css("display:flex;align-items:center;gap:12px")}>
+                <div style={css("width:40px;height:40px;border-radius:50%;background:var(--accSoft);color:var(--acc);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:" + (i < 3 && custSort !== 'last' && !custQ.trim() ? "20px" : "15px") + ";flex:none")}>
+                  {i < 3 && custSort !== 'last' && !custQ.trim() ? ['🥇', '🥈', '🥉'][i] : (cst.name.replace('คุณ', '') || '?').trim().charAt(0)}
+                </div>
+                <div style={css("flex:1;min-width:0")}>
+                  <div style={css("display:flex;align-items:center;gap:6px;min-width:0")}>
+                    <div style={css("font-size:13.5px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap")}>{cst.name || 'ไม่ระบุชื่อ'}</div>
+                    {cst.tier === 2 && <span style={css("flex:none;font-size:9.5px;font-weight:700;background:#fff3bf;color:#e8590c;border-radius:99px;padding:2px 8px")}>⭐ ลูกค้าประจำ</span>}
+                    {cst.tier === 1 && <span style={css("flex:none;font-size:9.5px;font-weight:700;background:#e7f5ff;color:#1971c2;border-radius:99px;padding:2px 8px")}>🔁 กลับมาซ้ำ</span>}
+                    {cst.tier === 0 && <span style={css("flex:none;font-size:9.5px;font-weight:700;background:var(--soft);color:var(--sub);border-radius:99px;padding:2px 8px")}>🆕 ใหม่</span>}
+                  </div>
+                  <div style={css("margin-top:2px;font-size:11.5px;color:var(--sub)")}><a href={'tel:' + cst.phone.replace(/[^0-9+]/g,'')} style={css("font-family:'IBM Plex Mono',monospace")}>{cst.phone}</a> · ล่าสุด {fmtWhen(cst.last)}</div>
+                </div>
+                <div style={css("text-align:right;flex:none")}>
+                  <div style={css("font-family:'IBM Plex Mono',monospace;font-size:14px;font-weight:600;color:var(--acc)")}>฿{cst.total}</div>
+                  <div style={css("font-size:10.5px;color:var(--sub)")}>{cst.count} ออเดอร์</div>
+                </div>
               </div>
-              <div style={css("text-align:right;flex:none")}>
-                <div style={css("font-family:'IBM Plex Mono',monospace;font-size:14px;font-weight:600;color:var(--acc)")}>฿{cst.total}</div>
-                <div style={css("font-size:10.5px;color:var(--sub)")}>{cst.count} ออเดอร์</div>
-              </div>
+              {/* งานที่ลูกค้าคนนี้สั่งบ่อยสุด */}
+              {cst.topJobs.length > 0 && (
+                <div style={css("margin-top:9px;padding-top:8px;border-top:1px dashed var(--line);display:flex;align-items:center;gap:6px;flex-wrap:wrap")}>
+                  <span style={css("font-size:10px;color:var(--sub)")}>สั่งบ่อย:</span>
+                  {cst.topJobs.map(([label, n], j) => (
+                    <span key={j} style={css("font-size:10.5px;font-weight:600;background:var(--soft);border:1px solid var(--line);border-radius:99px;padding:3px 9px")}>{label} ×{n}</span>
+                  ))}
+                </div>
+              )}
             </div>
           ))}
+          <div style={css("font-size:10.5px;color:var(--sub);text-align:center;line-height:1.6")}>นับเฉพาะออเดอร์ที่ไม่ถูกยกเลิก · รวมงาน Pro ด้วย · จัดกลุ่มตามเบอร์โทรลูกค้า</div>
         </div>
       )}
     </div>
