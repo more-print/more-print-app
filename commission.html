@@ -177,6 +177,8 @@ function Dash(){
   const [orders, setOrders] = React.useState(DB ? [] : DEMO);
   const [loading, setLoading] = React.useState(!!DB);
   const [bill, setBill] = React.useState(null); // {y, m} = เปิดหน้าบิลของเดือนนั้น
+  const [period, setPeriod] = React.useState('day');
+  const [filter, setFilter] = React.useState('active');
   const load = React.useCallback(async () => {
     if (!DB) return;
     setLoading(true);
@@ -235,7 +237,9 @@ function Dash(){
     const ship = doneAll.filter(o => new Date(o.created_at) >= since).reduce((a, o) => a + shipOf(o), 0);
     return { n: rows.length, job, comm: job * COMMISSION, partner: job * (1 - COMMISSION), ship };
   };
-  const periods = [['วันนี้', agg(today)], ['เดือนนี้', agg(month)], ['ปีนี้', agg(year)]];
+  const PERIODS = [['day', 'วันนี้', today], ['month', 'เดือนนี้', month], ['year', 'ปีนี้', year]];
+  const curP = PERIODS.find(x => x[0] === period) || PERIODS[0];
+  const curAgg = agg(curP[2]);
   // สรุปรายเดือน
   const byMonth = {};
   const mk = (d) => d.getFullYear() * 100 + d.getMonth();
@@ -342,17 +346,31 @@ function Dash(){
       <div style={css("padding:14px 16px 40px;display:flex;flex-direction:column;gap:12px;max-width:760px;margin:0 auto")}>
         {!DB && <div style={css("background:var(--accSoft);border:1px solid var(--line);border-radius:12px;padding:10px 14px;font-size:12px;color:var(--acc)")}>⚠️ โหมดตัวอย่าง — ข้อมูลเป็นเพียงตัวอย่าง</div>}
 
-        {/* คอมที่ได้จริง (งานจบแล้ว) วันนี้/เดือน/ปี */}
-        <div style={css("display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px")}>
-          {periods.map(([label, a], i) => (
-            <div key={i} style={css("background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 12px;box-shadow:var(--shadow)")}>
-              <div style={css("font-size:11px;font-weight:700;color:var(--sub)")}>คอม{label}</div>
-              <div style={css("margin-top:4px;font-size:19px;font-weight:800;font-family:'IBM Plex Mono',monospace;color:var(--acc)")}>{baht(a.comm)}</div>
-              <div style={css("font-size:10.5px;color:var(--sub)")}>{a.n} งานจบแล้ว</div>
-              <div style={css("margin-top:6px;border-top:1px dashed var(--line);padding-top:5px;font-size:10.5px;color:var(--sub)")}>+ ค่าส่ง <b style={css("font-family:'IBM Plex Mono',monospace;color:var(--purple)")}>{baht(a.ship)}</b></div>
-              <div style={css("margin-top:2px;font-size:11px;font-weight:800")}>รวมของเรา <span style={css("font-family:'IBM Plex Mono',monospace;color:var(--green)")}>{baht(a.comm + a.ship)}</span></div>
+        {/* รายได้ — เลือกดูทีละช่วงเวลา */}
+        <div style={css("background:var(--card);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow);overflow:hidden")}>
+          <div style={css("display:flex;border-bottom:1px solid var(--line)")}>
+            {PERIODS.map(([k, label]) => (
+              <button key={k} onClick={() => setPeriod(k)} style={{ flex: 1, height: '40px', border: 'none', cursor: 'pointer', fontSize: '12px', fontWeight: 700,
+                fontFamily: 'inherit', background: period === k ? 'var(--accSoft)' : 'transparent', color: period === k ? 'var(--acc)' : 'var(--sub)',
+                borderBottom: period === k ? '2px solid var(--acc)' : '2px solid transparent' }}>{label}</button>
+            ))}
+          </div>
+          <div style={css("padding:16px 18px")}>
+            <div style={css("font-size:11.5px;color:var(--sub);font-weight:600")}>รายได้ของเรา{curP[1]}</div>
+            <div style={css("margin-top:3px;font-size:28px;font-weight:800;font-family:'IBM Plex Mono',monospace;color:var(--green)")}>{baht(curAgg.comm + curAgg.ship)}</div>
+            <div style={css("font-size:11.5px;color:var(--sub)")}>{curAgg.n} งานจบแล้ว</div>
+            <div style={css("margin-top:12px;display:flex;gap:10px")}>
+              <div style={css("flex:1;background:var(--soft);border-radius:12px;padding:10px 12px")}>
+                <div style={css("font-size:10.5px;color:var(--sub)")}>คอม {Math.round(COMMISSION * 100)}% จากค่างาน</div>
+                <div style={css("margin-top:2px;font-size:16px;font-weight:800;font-family:'IBM Plex Mono',monospace;color:var(--acc)")}>{baht(curAgg.comm)}</div>
+              </div>
+              <div style={css("flex:1;background:var(--soft);border-radius:12px;padding:10px 12px")}>
+                <div style={css("font-size:10.5px;color:var(--sub)")}>🛵 ค่าส่ง (ของเราเต็ม)</div>
+                <div style={css("margin-top:2px;font-size:16px;font-weight:800;font-family:'IBM Plex Mono',monospace;color:var(--purple)")}>{baht(curAgg.ship)}</div>
+              </div>
             </div>
-          ))}
+            <div style={css("margin-top:9px;font-size:10.5px;color:var(--sub);line-height:1.6")}>ยอดงานปริ้นรวม {baht(curAgg.job)} · ส่วนที่ให้{PARTNER_NAME} {baht(curAgg.partner)}</div>
+          </div>
         </div>
 
         {/* คอมรอรับจากงานที่ยังไม่จบ */}
@@ -423,11 +441,27 @@ function Dash(){
           ))}
         </div>
 
-        {/* รายงานทีละงาน */}
-        <div style={css("font-size:12.5px;font-weight:700;color:var(--sub)")}>🧾 รายละเอียดทีละงาน ({orders.length})</div>
-        {loading && <div style={css("text-align:center;color:var(--sub);font-size:13px;padding:16px 0")}>กำลังโหลด…</div>}
-        {!loading && orders.length === 0 && <div style={css("text-align:center;color:var(--sub);font-size:13px;padding:24px 0")}>ยังไม่มีงาน Pro เข้ามา</div>}
-        {orders.map(o => (
+        {/* รายงานทีละงาน — แยกตามสถานะ */}
+        {(() => {
+          const inWork = orders.filter(o => o.status > 0 && o.status < 4);
+          const doneL = orders.filter(o => o.status === 4);
+          const cancelL = orders.filter(o => o.status === 0);
+          const TABS = [['active', '🖨️ กำลังทำ', inWork], ['done', '✅ เสร็จแล้ว', doneL], ['cancel', '❌ ยกเลิก', cancelL]];
+          const cur = TABS.find(t => t[0] === filter) || TABS[0];
+          return (
+            <React.Fragment>
+              <div style={css("display:flex;gap:7px")}>
+                {TABS.map(([k, label, list]) => (
+                  <button key={k} onClick={() => setFilter(k)} style={{ flex: 1, height: '42px', borderRadius: '12px', cursor: 'pointer', fontSize: '11.5px', fontWeight: 700, fontFamily: 'inherit',
+                    border: filter === k ? '1.5px solid var(--acc)' : '1px solid var(--line)',
+                    background: filter === k ? 'var(--accSoft)' : 'var(--card)', color: filter === k ? 'var(--acc)' : 'var(--sub)' }}>
+                    {label} ({list.length})
+                  </button>
+                ))}
+              </div>
+              {loading && <div style={css("text-align:center;color:var(--sub);font-size:13px;padding:16px 0")}>กำลังโหลด…</div>}
+              {!loading && cur[2].length === 0 && <div style={css("text-align:center;color:var(--sub);font-size:13px;padding:28px 0")}>ไม่มีงานในหมวดนี้</div>}
+              {cur[2].map(o => (
           <div key={o.id} style={css("background:var(--card);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);padding:12px 16px" + (o.status === 0 ? ";opacity:.5" : ""))}>
             <div style={css("display:flex;align-items:center;gap:8px;flex-wrap:wrap")}>
               <span style={css("font-family:'IBM Plex Mono',monospace;font-size:12.5px;font-weight:600")}>{o.id}</span>
@@ -446,7 +480,10 @@ function Dash(){
             </div>
             <Manage o={o} onPrice={setPrice} onPayout={markPayout} onAdvance={advance} onCancel={cancelOrder}/>
           </div>
-        ))}
+              ))}
+            </React.Fragment>
+          );
+        })()}
       </div>
     </div>
   );

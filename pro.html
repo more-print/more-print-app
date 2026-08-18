@@ -238,6 +238,8 @@ function Dash({ role }){
   const [orders, setOrders] = React.useState(DB ? [] : DEMO);
   const [payoutReady, setPayoutReady] = React.useState(!DB);
   const [loading, setLoading] = React.useState(!!DB);
+  const [period, setPeriod] = React.useState('day');   // ช่วงเวลาที่เลือกดู
+  const [filter, setFilter] = React.useState('active'); // ตัวกรองสถานะออเดอร์
 
   const load = React.useCallback(async () => {
     if (!DB) return;
@@ -299,7 +301,9 @@ function Dash({ role }){
     const job = rows.reduce((a, o) => a + jobValue(o), 0);
     return { n: rows.length, job, comm: job * COMMISSION, partner: job * (1 - COMMISSION), unpriced: rows.filter(o => jobValue(o) === 0).length };
   };
-  const periods = [['วันนี้', agg(today)], ['สัปดาห์นี้', agg(week)], ['เดือนนี้', agg(month)], ['ปีนี้', agg(year)]];
+  const PERIODS = [['day', 'วันนี้', today], ['week', 'สัปดาห์นี้', week], ['month', 'เดือนนี้', month], ['year', 'ปีนี้', year]];
+  const curP = PERIODS.find(x => x[0] === period) || PERIODS[0];
+  const curAgg = agg(curP[2]);
   const owed = valid.filter(o => jobValue(o) > 0 && !o.payout_at);
   const owedSum = owed.reduce((a, o) => a + partnerOf(o), 0);
   // บันทึกข้อมูลออเดอร์รายเดือน (ดูย้อนหลังได้ตลอด — แถวออเดอร์เก็บถาวรในฐานข้อมูล)
@@ -346,19 +350,30 @@ function Dash({ role }){
       <div style={css("padding:14px 16px 40px;display:flex;flex-direction:column;gap:12px;max-width:760px;margin:0 auto")}>
         {!DB && <div style={css("background:var(--goldBg);border:1px solid #f0dfa6;border-radius:12px;padding:10px 14px;font-size:12px;color:var(--gold);line-height:1.6")}>⚠️ โหมดตัวอย่าง — ข้อมูลด้านล่างเป็นเพียงตัวอย่าง</div>}
 
-        {/* สถิติ 4 ช่วงเวลา */}
-        <div style={css("display:grid;grid-template-columns:1fr 1fr;gap:10px")}>
-          {periods.map(([label, a], i) => (
-            <div key={i} style={css("background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 14px;box-shadow:var(--shadow)")}>
-              <div style={css("font-size:11px;font-weight:700;color:var(--sub);letter-spacing:.5px")}>{label}</div>
-              <div style={css("margin-top:4px;font-size:20px;font-weight:800;font-family:'IBM Plex Mono',monospace;color:var(--acc)")}>{baht(a.job)}</div>
-              <div style={css("font-size:11px;color:var(--sub)")}>{a.n} ออเดอร์{a.unpriced ? ' (รอตั้งราคา ' + a.unpriced + ')' : ''} · ค่างานปริ้น ไม่รวมค่าส่ง</div>
-              <div style={css("margin-top:6px;font-size:11px;line-height:1.7")}>
-                <div style={css("display:flex;justify-content:space-between")}><span style={css("color:var(--sub)")}>{isOwner ? 'คอมเรา' : 'คอม MORE PRINT'} {Math.round(COMMISSION * 100)}%</span><span style={css("font-family:'IBM Plex Mono',monospace;font-weight:600;color:var(--acc)")}>{baht(a.comm)}</span></div>
-                <div style={css("display:flex;justify-content:space-between")}><span style={css("color:var(--sub)")}>{isOwner ? 'ส่งร้านพาร์ทเนอร์' : 'ส่วนของร้านคุณ'}</span><span style={css("font-family:'IBM Plex Mono',monospace;font-weight:600;color:var(--gold)")}>{baht(a.partner)}</span></div>
+        {/* สรุปยอด — เลือกดูทีละช่วงเวลา ไม่โชว์รวดเดียวทั้งหมดให้ลายตา */}
+        <div style={css("background:var(--card);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow);overflow:hidden")}>
+          <div style={css("display:flex;border-bottom:1px solid var(--line)")}>
+            {PERIODS.map(([k, label]) => (
+              <button key={k} onClick={() => setPeriod(k)} style={{ flex: 1, height: '40px', border: 'none', cursor: 'pointer', fontSize: '12px', fontWeight: 700,
+                fontFamily: 'inherit', background: period === k ? 'var(--accSoft)' : 'transparent', color: period === k ? 'var(--acc)' : 'var(--sub)',
+                borderBottom: period === k ? '2px solid var(--acc)' : '2px solid transparent' }}>{label}</button>
+            ))}
+          </div>
+          <div style={css("padding:16px 18px")}>
+            <div style={css("font-size:11.5px;color:var(--sub);font-weight:600")}>ยอดค่างานปริ้น{curP[1]} (ไม่รวมค่าส่ง)</div>
+            <div style={css("margin-top:3px;font-size:28px;font-weight:800;font-family:'IBM Plex Mono',monospace;color:var(--acc)")}>{baht(curAgg.job)}</div>
+            <div style={css("font-size:11.5px;color:var(--sub)")}>{curAgg.n} ออเดอร์{curAgg.unpriced ? ' · รอตั้งราคา ' + curAgg.unpriced : ''}</div>
+            <div style={css("margin-top:12px;display:flex;gap:10px")}>
+              <div style={css("flex:1;background:var(--soft);border-radius:12px;padding:10px 12px")}>
+                <div style={css("font-size:10.5px;color:var(--sub)")}>{isOwner ? 'คอมเรา' : 'คอม MORE PRINT'} {Math.round(COMMISSION * 100)}%</div>
+                <div style={css("margin-top:2px;font-size:16px;font-weight:800;font-family:'IBM Plex Mono',monospace;color:var(--acc)")}>{baht(curAgg.comm)}</div>
+              </div>
+              <div style={css("flex:1;background:var(--goldBg);border-radius:12px;padding:10px 12px")}>
+                <div style={css("font-size:10.5px;color:var(--gold)")}>{isOwner ? 'ส่งร้านพาร์ทเนอร์' : 'ส่วนของร้านคุณ'}</div>
+                <div style={css("margin-top:2px;font-size:16px;font-weight:800;font-family:'IBM Plex Mono',monospace;color:var(--gold)")}>{baht(curAgg.partner)}</div>
               </div>
             </div>
-          ))}
+          </div>
         </div>
 
         {/* ยอดค้างโอน */}
@@ -395,11 +410,30 @@ function Dash({ role }){
           <div style={css("padding:6px 16px 12px")}></div>
         </div>
 
-        {/* รายการออเดอร์ Pro */}
-        <div style={css("font-size:12.5px;font-weight:700;color:var(--sub)")}>📋 ออเดอร์งาน PRO ทั้งหมด ({orders.length})</div>
-        {loading && <div style={css("text-align:center;color:var(--sub);font-size:13px;padding:16px 0")}>กำลังโหลด…</div>}
-        {!loading && orders.length === 0 && <div style={css("text-align:center;color:var(--sub);font-size:13px;padding:24px 0")}>ยังไม่มีออเดอร์งาน Pro เข้ามา</div>}
-        {orders.map(o => <ProOrder key={o.id} o={o} isOwner={isOwner} payoutReady={payoutReady} onPrice={setPrice} onPayout={markPayout} onAdvance={advance} onCancel={cancelOrder} onPartnerAdvance={partnerAdvance}/>)}
+        {/* รายการออเดอร์ Pro — แยกตามสถานะ ไม่ปนกัน */}
+        {(() => {
+          const inWork = orders.filter(o => o.status > 0 && o.status < 4);
+          const doneL = orders.filter(o => o.status === 4);
+          const cancelL = orders.filter(o => o.status === 0);
+          const TABS = [['active', '🖨️ กำลังทำ', inWork], ['done', '✅ เสร็จแล้ว', doneL], ['cancel', '❌ ยกเลิก', cancelL]];
+          const cur = TABS.find(t => t[0] === filter) || TABS[0];
+          return (
+            <React.Fragment>
+              <div style={css("display:flex;gap:7px")}>
+                {TABS.map(([k, label, list]) => (
+                  <button key={k} onClick={() => setFilter(k)} style={{ flex: 1, height: '42px', borderRadius: '12px', cursor: 'pointer', fontSize: '11.5px', fontWeight: 700, fontFamily: 'inherit',
+                    border: filter === k ? '1.5px solid var(--acc)' : '1px solid var(--line)',
+                    background: filter === k ? 'var(--accSoft)' : 'var(--card)', color: filter === k ? 'var(--acc)' : 'var(--sub)' }}>
+                    {label} ({list.length})
+                  </button>
+                ))}
+              </div>
+              {loading && <div style={css("text-align:center;color:var(--sub);font-size:13px;padding:16px 0")}>กำลังโหลด…</div>}
+              {!loading && cur[2].length === 0 && <div style={css("text-align:center;color:var(--sub);font-size:13px;padding:28px 0")}>ไม่มีออเดอร์ในหมวดนี้</div>}
+              {cur[2].map(o => <ProOrder key={o.id} o={o} isOwner={isOwner} payoutReady={payoutReady} onPrice={setPrice} onPayout={markPayout} onAdvance={advance} onCancel={cancelOrder} onPartnerAdvance={partnerAdvance}/>)}
+            </React.Fragment>
+          );
+        })()}
 
         {/* ลูกค้าประจำงาน Pro — พาร์ทเนอร์เห็นชื่อ+ป้ายประจำ+งานที่สั่งบ่อย (เบอร์โทรเห็นเฉพาะเจ้าของ) */}
         {customers.length > 0 && <div style={css("font-size:12.5px;font-weight:700;color:var(--sub);margin-top:6px")}>👥 ลูกค้าประจำงาน PRO ({customers.length} คน · ⭐ ประจำ {customers.filter(c => c.tier === 2).length} คน)</div>}
