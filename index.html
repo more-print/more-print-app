@@ -45,6 +45,34 @@ const CONFIG = { nightOverride: 'auto', nightFee: 10, expressFee: 20, expressEna
   cancelWindowMin: 10, // ลูกค้ายกเลิกเองได้ภายในกี่นาทีหลังชำระ (ต้องยังสถานะ "รับออเดอร์") — SQL customer_cancel ใช้เลขเดียวกัน แก้ต้องแก้คู่กัน
   etaProMin: { plate: 90, plateBig: 180, poster: 45, foldbook: 90, portfolio: 60, sticker: 90, namecard: 90, standee: 90 } };
 
+
+// ── ไอคอนแถบเมนูล่าง (SVG ฝังในไฟล์ — คมทุกขนาด + เปลี่ยนสีตามแท็บที่เลือกอัตโนมัติ) ──
+const NAV_ICON = {
+  home: (
+    <svg width="23" height="23" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+      <path d="M12.7 3.25a1 1 0 0 0-1.4 0L2.6 11.6a1 1 0 1 0 1.36 1.47l7.34-6.9a1 1 0 0 1 1.4 0l7.34 6.9a1 1 0 1 0 1.36-1.47l-3.16-2.97V4.35a.85.85 0 0 0-.85-.85h-1.2a.85.85 0 0 0-.85.85v1.13Z"/>
+      <path d="M12.68 8.62a1 1 0 0 0-1.36 0l-6.06 5.65a1 1 0 0 0-.32.73V20a1.3 1.3 0 0 0 1.3 1.3h3.02a1.1 1.1 0 0 0 1.1-1.1v-3.06a1.64 1.64 0 0 1 3.28 0v3.06a1.1 1.1 0 0 0 1.1 1.1h3.02a1.3 1.3 0 0 0 1.3-1.3v-5a1 1 0 0 0-.32-.73Z"/>
+    </svg>
+  ),
+  order: (
+    <svg width="23" height="23" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+      <path d="M16.6 4.5a1.6 1.6 0 0 1 2 1.1l3 10.4a1.6 1.6 0 0 1-1 2l-2 .7 1.1-11.9a2.4 2.4 0 0 0-2-2.6Z" opacity=".55"/>
+      <path d="M13.9 3.1a1.6 1.6 0 0 1 1.8 1.4l1 11a1.6 1.6 0 0 1-1.4 1.7l-3.1.3 1-14.2Z" opacity=".78"/>
+      <path d="M4.6 3.9 7.9 3.6v2.1a1 1 0 0 1-1.1 1l-2.2-.2ZM8.9 3.5l4.6-.4a1.6 1.6 0 0 1 1.7 1.4l1 11a1.6 1.6 0 0 1-1.4 1.7l-8 .8a1.6 1.6 0 0 1-1.7-1.5l-.8-9.4 2.5.2A2 2 0 0 0 8.9 5.7Zm-2 4.9a.5.5 0 0 0 .1 1l5.5-.5a.5.5 0 1 0-.1-1Zm.3 2.7a.5.5 0 0 0 .1 1l5.5-.5a.5.5 0 1 0-.1-1Zm.3 2.7a.5.5 0 0 0 .1 1l5.5-.5a.5.5 0 1 0-.1-1Z"/>
+    </svg>
+  ),
+  track: (
+    <svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" aria-hidden="true">
+      <path d="M9.4 2.2h5.2" strokeWidth="2.4"/>
+      <path d="M12 2.4v2.3"/>
+      <path d="m18.6 5.6 1.7-1.6"/>
+      <path d="M7.1 7.4a7.3 7.3 0 1 1-.6 10.5" />
+      <path d="M2.6 9.4h4.1M3.5 12.8h2.9M2.6 16.2h4.1"/>
+      <path d="M15.6 9.3 12 11.6" strokeWidth="3.1"/>
+    </svg>
+  )
+};
+
 // ── ประเภทงานปริ้น + เรทราคา (ตามป้ายราคาหน้าร้าน) ──
 // งาน Standard มีแค่ 2 ประเภท (งานใหญ่/พิเศษไปทาง Pro) — ptype เก่า laser/portfolio/poster ยังแสดงในหลังบ้านได้
 const PRINT_TYPES = [
@@ -1317,8 +1345,8 @@ class App extends React.Component {
           logo: (<svg width="42" height="42" viewBox="0 0 42 42"><defs><radialGradient id="igG" cx="30%" cy="107%" r="150%"><stop offset="0%" stopColor="#fdf497"/><stop offset="9%" stopColor="#fdf497"/><stop offset="45%" stopColor="#fd5949"/><stop offset="60%" stopColor="#d6249f"/><stop offset="90%" stopColor="#285AEB"/></radialGradient></defs><rect width="42" height="42" rx="12" fill="url(#igG)"/><rect x="11.5" y="11.5" width="19" height="19" rx="5.5" fill="none" stroke="#fff" strokeWidth="2.2"/><circle cx="21" cy="21" r="4.6" fill="none" stroke="#fff" strokeWidth="2.2"/><circle cx="26.8" cy="15.2" r="1.5" fill="#fff"/></svg>) }
       ].map(l => ({ ...l, go: () => window.open(l.url, '_blank') })),
       navItems: [
-        { icon: '🏠', label: 'หน้าแรก', k: 'home' }, { icon: '🧾', label: 'สั่งปริ้น', k: 'order' },
-        { icon: '🛵', label: 'ติดตาม', k: 'track' }, { icon: '🏪', label: 'เกี่ยวกับเรา', k: 'about' }
+        { label: 'หน้าแรก', k: 'home' }, { label: 'สั่งปริ้น', k: 'order' },
+        { label: 'ติดตาม', k: 'track' }, { label: 'เกี่ยวกับเรา', k: 'about' }
       ].map(n => ({
         ...n,
         pick: () => {
@@ -1326,6 +1354,7 @@ class App extends React.Component {
           if (n.k === 'order' && s.banners.some(b => b.color === 'alert') && !s.alertAck) return this.setState({ alertPrompt: true });
           this.setState({ screen: n.k });
         },
+        on: this.state.screen === n.k,
         st: { textAlign: 'center', cursor: 'pointer', minWidth: '58px', padding: '4px 0', color: this.state.screen === n.k ? 'var(--acc)' : 'var(--sub)' }
       }))
     };
@@ -2118,7 +2147,14 @@ class App extends React.Component {
         {v.notLogin && (
           <div style={css("position:sticky;bottom:0;margin-top:auto;background:var(--card);border-top:1px solid var(--line);display:flex;justify-content:space-around;padding:10px 8px 14px;z-index:20")}>
             {v.navItems.map((n, i) => (
-              <div key={i} onClick={n.pick} style={n.st}><div style={css("font-size:18px")}>{n.icon}</div><div style={css("font-size:10px;font-weight:600;margin-top:2px")}>{n.label}</div></div>
+              <div key={i} onClick={n.pick} style={n.st}>
+                <div style={css("height:23px;display:flex;align-items:center;justify-content:center")}>
+                  {n.k === 'about'
+                    ? <img src="assets/logo-icon.png" alt="" style={{ height: '21px', width: 'auto', display: 'block', opacity: n.on ? 1 : .4 }}/>
+                    : NAV_ICON[n.k]}
+                </div>
+                <div style={css("font-size:10px;font-weight:600;margin-top:3px")}>{n.label}</div>
+              </div>
             ))}
           </div>
         )}
