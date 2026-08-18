@@ -1302,11 +1302,11 @@ class App extends React.Component {
             )}
             <div style={css("padding:20px 20px 0")}>
               <div style={css("font-size:23px;font-weight:700;line-height:1.35;text-wrap:pretty")}>ส่งไฟล์ตอนนี้<br/>เอกสารถึงมือ ทุกที่รอบ มข.</div>
-              <div style={css("margin-top:6px;font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--sub)")}>B/W ฿1 · COLOR ฿5 · DELIVERY เริ่ม ฿{v.deliveryBase}</div>
+              <div style={css("margin-top:6px;font-size:12px;color:var(--sub)")}>เอกสารขาวดำ 1 บาท · ปริ้นสี 5 บาท · ส่งเริ่มต้น {v.deliveryBase} บาท</div>
               <div onClick={v.startOrder} style={css("margin-top:16px;border:2px dashed var(--line);border-radius:16px;background:var(--card);padding:22px 16px;display:flex;flex-direction:column;align-items:center;gap:8px;cursor:pointer;box-shadow:var(--shadow)")}>
                 <div style={css("width:56px;height:56px;border-radius:14px;background:#fff;border:1px solid var(--line);display:flex;align-items:center;justify-content:center;overflow:hidden")}><img src="assets/logo-icon.png" alt="MORE PRINT" style={css("width:46px;height:auto;display:block")}/></div>
                 <div style={css("font-weight:600;font-size:14px;color:var(--acc)")}>แตะเพื่ออัปโหลดไฟล์</div>
-                <div style={css("font-size:11.5px;color:var(--sub)")}>เฉพาะไฟล์ PDF (สูงสุด 50MB/ไฟล์) · นับหน้าอัตโนมัติ</div>
+                <div style={css("font-size:11.5px;color:var(--sub)")}>ไฟล์ PDF · นับหน้าให้อัตโนมัติ</div>
               </div>
               <button onClick={v.startOrder} style={css("margin-top:12px;width:100%;height:50px;border:none;border-radius:14px;background:var(--acc);color:#fff;font-size:16px;font-weight:700;cursor:pointer")}>เริ่มสั่งปริ้น · คำนวณราคาทันที</button>
             </div>
