@@ -1142,6 +1142,7 @@ class App extends React.Component {
       // ── แชทกับร้าน (ต่อออเดอร์) ──
       chatOn: !!s.order && !s.chatOff,
       chatMsgs: (s.chat || []).map(m => ({ id: m.id, mine: m.sender === 'customer', body: m.body,
+        img: m.img ? FILE_BASE + m.img : (m.img_url || ''),
         time: m.created_at ? this.fmtTime(new Date(m.created_at)) : '' })),
       chatEmpty: (s.chat || []).length === 0,
       chatUnread: (s.chat || []).filter(m => m.sender === 'shop' && !m.seen_by_customer).length,
@@ -1149,7 +1150,7 @@ class App extends React.Component {
         const l = s.chat || [];
         if (!l.length) return 'สอบถามเรื่องออเดอร์นี้กับร้านได้เลย';
         const last = l[l.length - 1];
-        return (last.sender === 'shop' ? 'ร้าน: ' : 'คุณ: ') + last.body;
+        return (last.sender === 'shop' ? 'ร้าน: ' : 'คุณ: ') + (last.img ? '📸 ' : '') + last.body;
       })(),
       chatText: s.chatText, chatBusy: s.chatBusy,
       setChatText: (e) => this.setState({ chatText: e.target.value }),
@@ -1905,6 +1906,11 @@ class App extends React.Component {
                 <div key={m.id} style={{ display: 'flex', justifyContent: m.mine ? 'flex-end' : 'flex-start' }}>
                   <div style={{ maxWidth: '80%', background: m.mine ? 'var(--acc)' : 'var(--card)', color: m.mine ? '#fff' : 'var(--ink)',
                     border: m.mine ? 'none' : '1px solid var(--line)', borderRadius: '15px', padding: '9px 13px', fontSize: '13px', lineHeight: 1.55, whiteSpace: 'pre-wrap', wordBreak: 'break-word', boxShadow: 'var(--shadow)' }}>
+                    {m.img && (
+                      <a href={m.img} target="_blank" rel="noreferrer" style={{ display: 'block', marginBottom: '6px' }}>
+                        <img src={m.img} alt="รูปจากร้าน" style={{ maxWidth: '100%', maxHeight: '280px', borderRadius: '10px', display: 'block', background: 'var(--soft)' }}/>
+                      </a>
+                    )}
                     {m.body}
                     <div style={{ marginTop: '3px', fontSize: '9.5px', opacity: .75, fontFamily: "'IBM Plex Mono',monospace" }}>{m.time}</div>
                   </div>
