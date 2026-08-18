@@ -79,7 +79,7 @@ const fmtWhen = (iso) => {
   return (sameDay ? 'วันนี้ ' : d.getDate() + '/' + (d.getMonth()+1) + ' ') + fmtTime(d);
 };
 const fileUrl = (path) => path && CFG.SUPABASE_URL ? CFG.SUPABASE_URL + '/storage/v1/object/public/uploads/' + path : null;
-const PTYPE_LABELS = { bw: 'เอกสารขาวดำ', laser: 'ขาวดำเลเซอร์', color: 'เอกสารสี', portfolio: 'Portfolio', poster: 'โปสเตอร์', pro: '✨ PRO พรีเมียม' };
+const PTYPE_LABELS = { bw: 'ปริ้นขาวดำ', laser: 'ขาวดำเลเซอร์', color: 'ปริ้นสี', portfolio: 'Portfolio', poster: 'โปสเตอร์', pro: '✨ PRO พรีเมียม' };
 
 // ── แบ่งโซนส่งของจากพิกัดหมุดลูกค้า (สำหรับจ่ายงานไรเดอร์) ──
 const ZONES = [
@@ -103,7 +103,7 @@ function zoneOf(lat, lng){
 const ZONE_NAMES = ['ในมอ', 'กังสดาล', 'หลังมอ', 'โคลัมโบ', 'นอกเขต'];
 const zoneStyleByName = (n) => n === 'ในมอ' ? ZONE_IN_CAMPUS : n === 'นอกเขต' ? ZONE_OUT : (ZONES.find(z => z.name === n) || ZONE_OUT);
 const optionsLabel = (o) => [
-  o.ptype ? (PTYPE_LABELS[o.ptype] || o.ptype) : (o.color ? 'สี' : 'ขาวดำ'),
+  o.ptype ? (PTYPE_LABELS[o.ptype] || o.ptype) : (o.color ? 'ปริ้นสี' : 'ปริ้นขาวดำ'),
   o.paper,
   o.ptype === 'poster' ? null : (o.sides === 2 ? 'หน้า-หลัง' : 'หน้าเดียว'),
   o.bind === 'book' ? 'เข้าเล่ม' : o.bind === 'corner' ? 'เย็บมุม' : o.bind === 'landscape' ? 'เล่มแนวนอน' : 'ไม่เข้าเล่ม',
@@ -529,7 +529,7 @@ function AdminApp(){
     const rows = orders.map(o => [
       o.id, new Date(o.created_at).toLocaleString('th-TH'), STL[o.status] != null ? STL[o.status] : o.status,
       ((o.customer_fname || '') + ' ' + (o.customer_lname || '')).trim(), o.customer_phone || '', o.customer_email || '',
-      o.ptype ? (PTYPE_LABELS[o.ptype] || o.ptype) : (o.color ? 'เอกสารสี' : 'ขาวดำ'), o.paper || '',
+      o.ptype ? (PTYPE_LABELS[o.ptype] || o.ptype) : (o.color ? 'ปริ้นสี' : 'ปริ้นขาวดำ'), o.paper || '',
       o.sides === 2 ? 'หน้า-หลัง' : 'หน้าเดียว',
       o.bind === 'book' ? 'เข้าเล่ม' : o.bind === 'corner' ? 'เย็บมุม' : o.bind === 'landscape' ? 'เล่มแนวนอน' : 'ไม่เข้าเล่ม',
       o.copies || 1, (o.files || []).reduce((a, f) => a + (f.pages || 0), 0),
@@ -609,7 +609,7 @@ function AdminApp(){
 
   // ── ลูกค้าประจำ (เฉพาะงาน Standard): จัดกลุ่มตามเบอร์โทร ไม่นับออเดอร์ที่ยกเลิก ──
   // custRows = ประวัติเต็ม (โหลดตอนเปิดแท็บลูกค้า/สถิติ) — ยังไม่มาก็ใช้ orders ในหน้าไปก่อน
-  const jobLabelOf = (o) => o.ptype === 'pro' ? ('✨ ' + (o.paper || 'PRO')) : (o.ptype ? (PTYPE_LABELS[o.ptype] || o.ptype) : (o.color ? 'เอกสารสี' : 'ขาวดำ'));
+  const jobLabelOf = (o) => o.ptype === 'pro' ? ('✨ ' + (o.paper || 'PRO')) : (o.ptype ? (PTYPE_LABELS[o.ptype] || o.ptype) : (o.color ? 'ปริ้นสี' : 'ปริ้นขาวดำ'));
   const custMap = {};
   (custRows || orders).forEach(o => {
     if (o.status === 0) return;

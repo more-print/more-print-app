@@ -48,8 +48,8 @@ const CONFIG = { nightOverride: 'auto', nightFee: 10, expressFee: 20, expressEna
 // ── ประเภทงานปริ้น + เรทราคา (ตามป้ายราคาหน้าร้าน) ──
 // งาน Standard มีแค่ 2 ประเภท (งานใหญ่/พิเศษไปทาง Pro) — ptype เก่า laser/portfolio/poster ยังแสดงในหลังบ้านได้
 const PRINT_TYPES = [
-  { k: 'bw', icon: '📄', label: 'เอกสารขาวดำ', desc: 'แผ่นละ ฿1 · เกิน 30 แผ่นลดเหลือ 75/50 สต.' },
-  { k: 'color', icon: '🎨', label: 'เอกสารสี', desc: '฿5-7/หน้า ตามปริมาณสี สแกนให้อัตโนมัติ' }
+  { k: 'bw', icon: '📄', label: 'ปริ้นขาวดำ', desc: 'แผ่นละ ฿1 · เกิน 30 แผ่นลดเหลือ 75/50 สต.' },
+  { k: 'color', icon: '🎨', label: 'ปริ้นสี', desc: '฿5-7/หน้า ตามปริมาณสี สแกนให้อัตโนมัติ' }
 ];
 const SIZE_BY_TYPE = { bw: ['A4'], color: ['A4'] };
 // แคตตาล็อกงาน Pro (ร้านอุดมสุขปริ้นติ้ง) — ราคายืนยันทาง LINE ก่อนเริ่มงาน
@@ -146,8 +146,8 @@ class App extends React.Component {
     }
     // โหมดตัวอย่าง (ยังไม่เชื่อมฐานข้อมูล): โชว์รีวิวตัวอย่างไว้ดูหน้าตา
     if (!this.db) this.setState({ reviewsReady: true, reviews: [
-      { id: 3, name: 'มินตรา', stars: 5, comment: 'ส่งไวมาก งานคมชัด แนะนำเลยค่ะ', ptype: 'เอกสารสี', auto: false, created_at: new Date().toISOString() },
-      { id: 2, name: 'ก้อง', stars: 5, comment: null, ptype: 'เอกสารขาวดำ', auto: true, created_at: new Date().toISOString() },
+      { id: 3, name: 'มินตรา', stars: 5, comment: 'ส่งไวมาก งานคมชัด แนะนำเลยค่ะ', ptype: 'ปริ้นสี', auto: false, created_at: new Date().toISOString() },
+      { id: 2, name: 'ก้อง', stars: 5, comment: null, ptype: 'ปริ้นขาวดำ', auto: true, created_at: new Date().toISOString() },
       { id: 1, name: 'boat', stars: 4, comment: 'ดีครับ ราคาโอเค ส่งตรงเวลา', ptype: null, auto: false, created_at: new Date().toISOString() }
     ] });
     // ⚠️ ด่านล็อกอินต้องมาก่อนเสมอ — ไม่มีบัญชี = หน้า login เท่านั้น
@@ -1434,7 +1434,7 @@ class App extends React.Component {
                 <div style={{ fontSize: '22px', flex: 'none' }}>🖨️</div>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: '13.5px', fontWeight: 700, color: !v.isPro ? 'var(--acc)' : 'var(--ink)' }}>Standard — งานปริ้นทั่วไป</div>
-                  <div style={{ fontSize: '11px', color: 'var(--sub)', marginTop: '1px' }}>เอกสารขาวดำ · เอกสารสี · กระดาษ A4 ราคาปกติ</div>
+                  <div style={{ fontSize: '11px', color: 'var(--sub)', marginTop: '1px' }}>ปริ้นขาวดำ · ปริ้นสี · กระดาษ A4 ราคาปกติ</div>
                 </div>
                 <div style={{ width: '20px', height: '20px', borderRadius: '50%', flex: 'none', boxSizing: 'border-box',
                   border: !v.isPro ? '6px solid var(--acc)' : '2px solid var(--line)', background: '#fff' }}></div>
