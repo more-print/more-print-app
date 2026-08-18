@@ -119,7 +119,7 @@ class App extends React.Component {
       distKm: null, distSrc: '', trackOpen: false,
       point: '', addr: '', phone: '', time: '', express: false, slip: null,
       lat: null, lng: null, geoLabel: '', searchQ: '', searchResults: [], searching: false, locating: false,
-      gmapLink: '', gmapBusy: false,
+      gmapLink: '', gmapBusy: false, pinSrc: '',
       banners: [],
       order: null, trackStep: 1, cancelReason: '', toast: '', now: new Date(),
       selfCancelArm: false, selfCancelBusy: false,
@@ -221,7 +221,8 @@ class App extends React.Component {
       m.on('moveend', () => {
         const el = document.getElementById('mpPin'); if (el) el.style.transform = 'translate(-50%,-100%)';
         const c = m.getCenter();
-        this.setState({ lat: c.lat, lng: c.lng });
+        this._pinSeq = (this._pinSeq || 0) + 1;
+        this.setState({ lat: c.lat, lng: c.lng, pinSrc: 'map' });
         clearTimeout(this._revTimer);
         this._revTimer = setTimeout(() => this.reverseGeocode(c.lat, c.lng), 600);
         this.updateDistance(c.lat, c.lng);
@@ -234,6 +235,7 @@ class App extends React.Component {
     }
   }
   setPin(lat, lng, move){
+    this._pinSeq = (this._pinSeq || 0) + 1; // นับทุกครั้งที่จุดส่งเปลี่ยน (ใช้กันลิงก์ที่แกะเสร็จช้าทับของใหม่)
     this.setState({ lat, lng });
     if (this._map) this._map.setView([lat, lng], 17); // เลื่อนแผนที่มาที่จุด (หมุดอยู่กลางจออยู่แล้ว)
     clearTimeout(this._revTimer);
@@ -321,6 +323,7 @@ class App extends React.Component {
     return { lat, lng };
   }
   async useGmapLink(){
+    const pinAtStart = this._pinSeq || 0; // จำสถานะหมุดตอนกดปุ่ม
     const raw = (this.state.gmapLink || '').trim();
     const urlm = raw.match(/https?:\/\/\S+/);
     if (!urlm) return this.showToast('วางลิงก์จาก Google Maps ก่อนนะครับ 🔗');
@@ -347,7 +350,12 @@ class App extends React.Component {
       this.setState({ gmapBusy: false });
     }
     if (!pt) return this.showToast('อ่านพิกัดจากลิงก์ไม่สำเร็จ 🙏 ลองค้นหาชื่อสถานที่หรือปักหมุดเองแทนครับ');
-    this.setState({ gmapLink: '' });
+    // ระหว่างรอแกะลิงก์ ถ้าลูกค้าขยับหมุดเอง = ถือว่าอันหลังสุดคือสิ่งที่ลูกค้าต้องการ ไม่ทับทิ้ง
+    if ((this._pinSeq || 0) !== pinAtStart) {
+      this.setState({ gmapLink: '' });
+      return this.showToast('คุณย้ายหมุดหลังวางลิงก์ — ระบบใช้ตำแหน่งหมุดล่าสุดที่คุณเลือกครับ 📍');
+    }
+    this.setState({ gmapLink: '', pinSrc: 'link' });
     this.setPin(pt.lat, pt.lng, true);
     this.showToast('📍 ปักหมุดตามลิงก์ Google Maps แล้ว!');
   }
@@ -1009,6 +1017,7 @@ class App extends React.Component {
       toPay: () => {
         if (!c.proPickupOn) { // มารับเองไม่ต้องปักหมุด/กรอกที่อยู่
           if (s.lat == null) return this.showToast('ปักหมุดตำแหน่งส่งบนแผนที่ก่อนนะครับ 📍');
+          if (c.deliveryPending) return this.showToast('กำลังวัดระยะทางจากร้าน รอสักครู่นะครับ ⏳ (ค่าส่งจะอัปเดตเอง)');
           if (c.outOfArea) return this.showToast('ส่งด้วยรถยนต์ได้ในระยะ 6 กม. — จุดนี้ไกลเกิน 🙏 เลือกส่งด้วยมอเตอร์ไซค์ (ไม่จำกัดระยะ) หรือปรึกษาทาง LINE ' + ((window.MP_CONFIG || {}).LINE_OA_ID || '@346kifvy') + ' ได้ครับ');
           if (!s.addr.trim()) return this.showToast('กรอกรายละเอียดที่อยู่ด้วยครับ 🏠');
         }
@@ -1024,10 +1033,11 @@ class App extends React.Component {
       vehicleLabel: s.vehicle === 'car' ? '🚗 รถยนต์' : '🏍️ มอเตอร์ไซค์',
       // ระยะทาง + ค่าส่งสด แสดงใต้แผนที่
       distLine: c.proPickupOn ? '' : s.lat == null ? ''
-        : s.distKm == null ? '📏 กำลังวัดระยะทางจากร้าน…'
+        : s.distKm == null ? '⏳ กำลังวัดระยะทางจริง… ค่าส่งจะอัปเดตอัตโนมัติ (กดต่อไปได้เมื่อวัดเสร็จ)'
         : c.outOfArea ? '🚫 รถยนต์ส่งได้ไม่เกิน 6 กม. — จุดนี้ห่าง ~' + s.distKm.toFixed(1) + ' กม. เลือกมอเตอร์ไซค์แทนได้ครับ'
-        : (c.carJob ? '🚗' : '🏍️') + ' ระยะจากร้าน ~' + s.distKm.toFixed(1) + ' กม.' + (s.distSrc === 'est' ? ' (ประมาณ)' : '') + ' · ค่าส่ง ฿' + c.deliveryFee + (c.farNote ? ' — ร้านจะนัดเวลาส่งล่วงหน้า' : ''),
+        : (s.pinSrc === 'link' ? '🔗 จุดจากลิงก์ Google Maps · ' : s.pinSrc === 'map' ? '📍 จุดที่คุณปักเอง · ' : '') + (c.carJob ? '🚗' : '🏍️') + ' ระยะจากร้าน ~' + s.distKm.toFixed(1) + ' กม.' + (s.distSrc === 'est' ? ' (ประมาณ)' : '') + ' · ค่าส่ง ฿' + c.deliveryFee + (c.farNote ? ' — ร้านจะนัดเวลาส่งล่วงหน้า' : ''),
       distOut: !!c.outOfArea,
+      measuring: !c.proPickupOn && s.lat != null && c.deliveryPending,
       deliveryFee: c.deliveryFee, deliveryPending: c.deliveryPending,
       // หน้าตรวจสอบออเดอร์ก่อนชำระเงิน
       goPay: () => this.setState({ screen: 'pay' }),
@@ -1666,7 +1676,7 @@ class App extends React.Component {
               </div>
             </div>
             {v.deliveryWarn && <div style={css("font-size:12px;color:#d9480f")}>{v.deliveryWarn}</div>}
-            <button onClick={v.toPay} style={css("width:100%;height:50px;border:none;border-radius:14px;background:var(--acc);color:#fff;font-size:15px;font-weight:700;cursor:pointer")}>ต่อไป: ตรวจสอบออเดอร์ →</button>
+            <button onClick={v.toPay} style={css("width:100%;height:50px;border:none;border-radius:14px;background:var(--acc);color:#fff;font-size:15px;font-weight:700;cursor:pointer" + (v.measuring ? ";opacity:.55" : ""))}>{v.measuring ? '⏳ กำลังวัดระยะทาง…' : 'ต่อไป: ตรวจสอบออเดอร์ →'}</button>
           </div>
         )}
 
