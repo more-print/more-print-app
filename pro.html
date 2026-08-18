@@ -168,7 +168,7 @@ function ProOrder({ o, isOwner, payoutReady, onPrice, onPayout, onAdvance, onCan
       <div style={css("margin-top:5px;font-size:12px;color:var(--sub)")}>
         {fmtWhen(o.created_at)} · คุณ{o.customer_fname} {o.customer_lname || ''}{isOwner && o.customer_phone ? <span> · <a href={'tel:' + String(o.customer_phone || '').replace(/[^0-9+]/g, '')}>{o.customer_phone}</a></span> : null}
       </div>
-      <div style={css("margin-top:4px;font-size:12px;font-weight:600")}>✨ {o.paper} · {o.sides === 2 ? 'หน้า-หลัง' : 'หน้าเดียว'} · {o.copies || 1} ชุด <span style={css("color:var(--sub);font-weight:400")}>· ค่าส่ง {baht((o.delivery_cost || 0) + (o.night_fee || 0))} ({isOwner ? 'ของเรา ไม่คิดคอม' : 'MORE PRINT จัดส่งเอง'})</span></div>
+      <div style={css("margin-top:4px;font-size:12px;font-weight:600")}>✨ {o.paper} · {o.sides === 2 ? 'หน้า-หลัง' : 'หน้าเดียว'} · {o.copies || 1} ชุด <span style={css("color:var(--sub);font-weight:400")}>· 🛵 ค่าส่ง {baht((o.delivery_cost || 0) + (o.night_fee || 0))} — {isOwner ? 'ของ MORE PRINT ไม่เข้าสูตรคอม' : 'MORE PRINT รับไปเต็ม ไม่หักจากส่วนแบ่งคุณ'}</span></div>
       {(o.files || []).length > 0 && (
         <div style={css("margin-top:8px;display:flex;flex-direction:column;gap:5px")}>
           {(o.files || []).map((f, i) => (
@@ -352,7 +352,7 @@ function Dash({ role }){
             <div key={i} style={css("background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 14px;box-shadow:var(--shadow)")}>
               <div style={css("font-size:11px;font-weight:700;color:var(--sub);letter-spacing:.5px")}>{label}</div>
               <div style={css("margin-top:4px;font-size:20px;font-weight:800;font-family:'IBM Plex Mono',monospace;color:var(--acc)")}>{baht(a.job)}</div>
-              <div style={css("font-size:11px;color:var(--sub)")}>{a.n} ออเดอร์{a.unpriced ? ' (รอตั้งราคา ' + a.unpriced + ')' : ''}</div>
+              <div style={css("font-size:11px;color:var(--sub)")}>{a.n} ออเดอร์{a.unpriced ? ' (รอตั้งราคา ' + a.unpriced + ')' : ''} · ค่างานปริ้น ไม่รวมค่าส่ง</div>
               <div style={css("margin-top:6px;font-size:11px;line-height:1.7")}>
                 <div style={css("display:flex;justify-content:space-between")}><span style={css("color:var(--sub)")}>{isOwner ? 'คอมเรา' : 'คอม MORE PRINT'} {Math.round(COMMISSION * 100)}%</span><span style={css("font-family:'IBM Plex Mono',monospace;font-weight:600;color:var(--acc)")}>{baht(a.comm)}</span></div>
                 <div style={css("display:flex;justify-content:space-between")}><span style={css("color:var(--sub)")}>{isOwner ? 'ส่งร้านพาร์ทเนอร์' : 'ส่วนของร้านคุณ'}</span><span style={css("font-family:'IBM Plex Mono',monospace;font-weight:600;color:var(--gold)")}>{baht(a.partner)}</span></div>

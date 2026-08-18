@@ -53,10 +53,10 @@ const stepsOf = (o) => o && o.pickup
   : ['รับออเดอร์', 'กำลังผลิตสินค้า', 'กำลังจัดส่ง', 'ส่งแล้ว'];
 
 const DEMO = [
-  { id: '#MP-PRO101', created_at: new Date().toISOString(), status: 4, print_cost: 600, bind_cost: 0, slip_path: 'x/slip.jpg', payout_at: new Date().toISOString(), customer_fname: 'สมชาย', paper: 'A1', copies: 2 },
-  { id: '#MP-PRO102', created_at: new Date(Date.now() - 20*3600000).toISOString(), status: 4, print_cost: 250, bind_cost: 0, slip_path: 'x/slip.jpg', payout_at: null, customer_fname: 'มินตรา', paper: 'A2', copies: 1 },
+  { id: '#MP-PRO101', created_at: new Date().toISOString(), status: 4, print_cost: 600, bind_cost: 0, delivery_cost: 69, night_fee: 0, slip_path: 'x/slip.jpg', payout_at: new Date().toISOString(), customer_fname: 'สมชาย', paper: 'A1', copies: 2 },
+  { id: '#MP-PRO102', created_at: new Date(Date.now() - 20*3600000).toISOString(), status: 4, print_cost: 250, bind_cost: 0, delivery_cost: 37, night_fee: 10, slip_path: 'x/slip.jpg', payout_at: null, customer_fname: 'มินตรา', paper: 'A2', copies: 1 },
   { id: '#MP-PRO103', created_at: new Date(Date.now() - 3*3600000).toISOString(), status: 2, print_cost: 1000, bind_cost: 0, slip_path: 'x/slip.jpg', payout_at: null, customer_fname: 'ต้นกล้า', paper: 'A0', copies: 1 },
-  { id: '#MP-PRO104', created_at: new Date(Date.now() - 40*24*3600000).toISOString(), status: 4, print_cost: 480, bind_cost: 0, slip_path: 'x/slip.jpg', payout_at: new Date().toISOString(), customer_fname: 'boat', paper: 'A2', copies: 3 }
+  { id: '#MP-PRO104', created_at: new Date(Date.now() - 40*24*3600000).toISOString(), status: 4, print_cost: 480, bind_cost: 0, delivery_cost: 89, night_fee: 0, slip_path: 'x/slip.jpg', payout_at: new Date().toISOString(), customer_fname: 'boat', paper: 'A2', copies: 3 }
 ];
 
 function Login({ onOk }){
@@ -223,22 +223,25 @@ function Dash(){
   const year = new Date(now.getFullYear(), 0, 1);
   // รับรู้รายได้เมื่องานจบ (ส่งถึงมือลูกค้า = สถานะ 4) — งานระหว่างทางแยกเป็น "คอมรอรับ"
   const done = orders.filter(o => o.status === 4 && jobValue(o) > 0);
+  // ค่าส่ง = รายได้ของ MORE PRINT เต็มจำนวน (เราวิ่งส่งเอง) — ไม่เข้าสูตรหารคอมกับร้านพาร์ทเนอร์
+  // นับจากงานที่จบทุกใบ แม้ยังไม่ได้ตั้งราคาปริ้น เพราะค่าส่งลูกค้าจ่ายมาแล้วตั้งแต่ต้น
+  const doneAll = orders.filter(o => o.status === 4);
+  const shipOf = (o) => (o.delivery_cost || 0) + (o.night_fee || 0);
   const pending = orders.filter(o => o.status > 0 && o.status < 4);
   const pendingComm = pending.reduce((a, o) => a + jobValue(o) * COMMISSION, 0);
   const agg = (since) => {
     const rows = done.filter(o => new Date(o.created_at) >= since);
     const job = rows.reduce((a, o) => a + jobValue(o), 0);
-    return { n: rows.length, job, comm: job * COMMISSION, partner: job * (1 - COMMISSION) };
+    const ship = doneAll.filter(o => new Date(o.created_at) >= since).reduce((a, o) => a + shipOf(o), 0);
+    return { n: rows.length, job, comm: job * COMMISSION, partner: job * (1 - COMMISSION), ship };
   };
   const periods = [['วันนี้', agg(today)], ['เดือนนี้', agg(month)], ['ปีนี้', agg(year)]];
   // สรุปรายเดือน
   const byMonth = {};
-  done.forEach(o => {
-    const d = new Date(o.created_at);
-    const k = d.getFullYear() * 100 + d.getMonth();
-    if (!byMonth[k]) byMonth[k] = { y: d.getFullYear(), m: d.getMonth(), n: 0, job: 0 };
-    byMonth[k].n++; byMonth[k].job += jobValue(o);
-  });
+  const mk = (d) => d.getFullYear() * 100 + d.getMonth();
+  const ensureM = (d) => { const k = mk(d); if (!byMonth[k]) byMonth[k] = { y: d.getFullYear(), m: d.getMonth(), n: 0, job: 0, ship: 0 }; return byMonth[k]; };
+  done.forEach(o => { const b = ensureM(new Date(o.created_at)); b.n++; b.job += jobValue(o); });
+  doneAll.forEach(o => { ensureM(new Date(o.created_at)).ship += shipOf(o); });
   const months = Object.keys(byMonth).sort((a, b) => b - a).map(k => byMonth[k]);
 
   // ── ลูกค้าประจำงาน PRO (เห็นเฉพาะเจ้าของที่นี่ — pro.html ของพาร์ทเนอร์ไม่มีข้อมูลลูกค้า) ──
@@ -346,6 +349,8 @@ function Dash(){
               <div style={css("font-size:11px;font-weight:700;color:var(--sub)")}>คอม{label}</div>
               <div style={css("margin-top:4px;font-size:19px;font-weight:800;font-family:'IBM Plex Mono',monospace;color:var(--acc)")}>{baht(a.comm)}</div>
               <div style={css("font-size:10.5px;color:var(--sub)")}>{a.n} งานจบแล้ว</div>
+              <div style={css("margin-top:6px;border-top:1px dashed var(--line);padding-top:5px;font-size:10.5px;color:var(--sub)")}>+ ค่าส่ง <b style={css("font-family:'IBM Plex Mono',monospace;color:var(--purple)")}>{baht(a.ship)}</b></div>
+              <div style={css("margin-top:2px;font-size:11px;font-weight:800")}>รวมของเรา <span style={css("font-family:'IBM Plex Mono',monospace;color:var(--green)")}>{baht(a.comm + a.ship)}</span></div>
             </div>
           ))}
         </div>
@@ -365,12 +370,12 @@ function Dash(){
           <div style={css("padding:12px 16px 0;font-size:12.5px;font-weight:700;color:var(--sub)")}>📅 สรุปรายเดือน (เฉพาะงานที่จบแล้ว)</div>
           <table style={css("margin-top:6px")}>
             <thead><tr>
-              {['เดือน', 'งาน', 'ยอดเต็ม 100%', 'คอมเรา ' + Math.round(COMMISSION * 100) + '%', 'ให้' + PARTNER_NAME.replace('ร้าน', ''), ''].map((h, i) => (
+              {['เดือน', 'งาน', 'ยอดงานปริ้น', 'คอมเรา ' + Math.round(COMMISSION * 100) + '%', 'ให้' + PARTNER_NAME.replace('ร้าน', ''), 'ค่าส่ง (ของเรา)', ''].map((h, i) => (
                 <th key={i} style={css("text-align:" + (i < 2 ? "left" : "right") + ";font-size:10.5px;color:var(--sub);font-weight:600;padding:6px 12px;border-bottom:1px solid var(--line);white-space:nowrap")}>{h}</th>
               ))}
             </tr></thead>
             <tbody>
-              {months.length === 0 && <tr><td colSpan="6" style={css("padding:16px;text-align:center;font-size:12px;color:var(--sub)")}>ยังไม่มีงานที่จบ</td></tr>}
+              {months.length === 0 && <tr><td colSpan="7" style={css("padding:16px;text-align:center;font-size:12px;color:var(--sub)")}>ยังไม่มีงานที่จบ</td></tr>}
               {months.map((m, i) => (
                 <tr key={i}>
                   <td style={css("padding:7px 12px;font-size:12px;font-weight:700;white-space:nowrap")}>{TH_MONTHS[m.m]} {(m.y + 543) % 100}</td>
@@ -378,6 +383,7 @@ function Dash(){
                   <td style={css("padding:7px 12px;font-size:12px;text-align:right;font-family:'IBM Plex Mono',monospace")}>{baht(m.job)}</td>
                   <td style={css("padding:7px 12px;font-size:12px;text-align:right;font-family:'IBM Plex Mono',monospace;font-weight:700;color:var(--acc)")}>{baht(m.job * COMMISSION)}</td>
                   <td style={css("padding:7px 12px;font-size:12px;text-align:right;font-family:'IBM Plex Mono',monospace;color:var(--purple)")}>{baht(m.job * (1 - COMMISSION))}</td>
+                  <td style={css("padding:7px 12px;font-size:12px;text-align:right;font-family:'IBM Plex Mono',monospace;font-weight:700;color:var(--green)")}>{baht(m.ship)}</td>
                   <td style={css("padding:7px 12px;text-align:right")}>
                     <button onClick={() => setBill({ y: m.y, m: m.m })} style={css("height:30px;padding:0 12px;border:1px solid var(--acc);border-radius:9px;background:var(--accSoft);color:var(--acc);font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap")}>🧾 ออกบิล</button>
                   </td>
@@ -430,13 +436,14 @@ function Dash(){
               {o.status === 0 && <span style={css("font-size:10.5px;font-weight:700;color:#c92a2a;background:#ffe3e3;padding:2px 9px;border-radius:99px")}>ยกเลิก</span>}
             </div>
             <div style={css("margin-top:7px")}><Pipeline o={o}/></div>
-            {jobValue(o) > 0 && (
-              <div style={css("margin-top:8px;display:flex;gap:14px;flex-wrap:wrap;font-size:11.5px")}>
-                <span style={css("color:var(--sub)")}>ยอดเต็ม <b style={css("font-family:'IBM Plex Mono',monospace;color:var(--ink)")}>{baht(jobValue(o))}</b></span>
+            <div style={css("margin-top:8px;display:flex;gap:14px;flex-wrap:wrap;font-size:11.5px")}>
+              {jobValue(o) > 0 && <React.Fragment>
+                <span style={css("color:var(--sub)")}>ค่างานปริ้น <b style={css("font-family:'IBM Plex Mono',monospace;color:var(--ink)")}>{baht(jobValue(o))}</b></span>
                 <span style={css("color:var(--sub)")}>คอมเรา <b style={css("font-family:'IBM Plex Mono',monospace;color:var(--acc)")}>{baht(jobValue(o) * COMMISSION)}</b></span>
                 <span style={css("color:var(--sub)")}>ให้ร้านอุดมสุข <b style={css("font-family:'IBM Plex Mono',monospace;color:var(--purple)")}>{baht(jobValue(o) * (1 - COMMISSION))}</b></span>
-              </div>
-            )}
+              </React.Fragment>}
+              {shipOf(o) > 0 && <span style={css("color:var(--sub)")}>🛵 ค่าส่ง (ของเราเต็ม) <b style={css("font-family:'IBM Plex Mono',monospace;color:var(--green)")}>{baht(shipOf(o))}</b></span>}
+            </div>
             <Manage o={o} onPrice={setPrice} onPayout={markPayout} onAdvance={advance} onCancel={cancelOrder}/>
           </div>
         ))}
