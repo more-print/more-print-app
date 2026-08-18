@@ -123,6 +123,7 @@ class App extends React.Component {
       banners: [],
       order: null, trackStep: 1, cancelReason: '', toast: '', now: new Date(),
       selfCancelArm: false, selfCancelBusy: false,
+      chat: null, chatText: '', chatBusy: false, chatOff: false, // แชทกับร้าน (ตาราง messages)
       user: null, authMode: 'login', authBusy: false,
       emailIn: '', passIn: '',
       regFname: '', regLname: '', regEmail: '', regPass1: '', regPass2: ''
@@ -185,6 +186,7 @@ class App extends React.Component {
           trackStep: od.step || 1,
           cancelReason: od.cancelReason || ''
         });
+        if (this.db) setTimeout(() => this.loadChat(), 400);
         if (this.db && od.step !== 0 && (od.step || 1) < 4) this.startPolling(od.id);
         else if (this.db) this.fetchOrderStatus(od.id);
       }
@@ -192,6 +194,8 @@ class App extends React.Component {
     const t = new Date(Date.now() + 90 * 60000);
     this.setState({ time: String(t.getHours()).padStart(2, '0') + ':' + String(Math.floor(t.getMinutes() / 15) * 15).padStart(2, '0') });
     this.clockTimer = setInterval(() => this.setState({ now: new Date() }), 30000);
+    // โหลดข้อความใหม่จากร้านขณะเปิดหน้าติดตาม (ทำงานต่อแม้ออเดอร์ส่งแล้ว)
+    this.chatTimer = setInterval(() => { if (this.state.screen === 'track' && this.state.order) this.loadChat(); }, 8000);
     this.syncNight();
   }
   componentDidUpdate(){ this.syncNight(); this.syncMap(); }
@@ -727,6 +731,32 @@ class App extends React.Component {
     } catch (e) { fail('ยกเลิกไม่สำเร็จ ลองอีกครั้งครับ 🙏'); }
   }
 
+  // ── แชทกับร้าน (ต้องรู้รหัสออเดอร์ของตัวเอง — ผ่าน RPC เท่านั้น) ──
+  loadChat(){
+    const s = this.state;
+    if (!this.db || !s.order || s.chatOff) return;
+    this.db.rpc('get_messages', { oid: s.order.id }).then(({ data, error }) => {
+      if (error) { this.setState({ chatOff: true }); return; } // ยังไม่ได้สร้างตาราง — ซ่อนไปเงียบ ๆ
+      this.setState({ chat: data || [] });
+      if ((data || []).some(m => m.sender === 'shop' && !m.seen_by_customer)) this.db.rpc('mark_read', { oid: s.order.id });
+    });
+  }
+  sendChat(){
+    const s = this.state, body = (s.chatText || '').trim();
+    if (!body || s.chatBusy || !s.order) return;
+    if (!this.db) { // โหมดตัวอย่าง
+      this.setState({ chat: [...(s.chat || []), { id: Date.now(), sender: 'customer', body, created_at: new Date().toISOString() }], chatText: '' });
+      return;
+    }
+    this.setState({ chatBusy: true });
+    this.db.rpc('post_message', { oid: s.order.id, body }).then(({ error }) => {
+      this.setState({ chatBusy: false });
+      if (error) return this.showToast('ส่งข้อความไม่สำเร็จ ลองอีกครั้งครับ 🙏');
+      this.setState({ chatText: '' });
+      this.loadChat();
+    });
+  }
+
   vals(){
     const s = this.state, c = this.calc(), night = this.isNight();
     const set = (k) => (v) => this.setState({ [k]: v });
@@ -1102,6 +1132,15 @@ class App extends React.Component {
           tt: { fontSize: '13px', fontWeight: done || active ? 700 : 500, color: done || active ? 'var(--ink)' : 'var(--sub)' }
         };
       }),
+      // ── แชทกับร้าน (ต่อออเดอร์) ──
+      chatOn: !!s.order && !s.chatOff,
+      chatMsgs: (s.chat || []).map(m => ({ id: m.id, mine: m.sender === 'customer', body: m.body,
+        time: m.created_at ? this.fmtTime(new Date(m.created_at)) : '' })),
+      chatEmpty: (s.chat || []).length === 0,
+      chatText: s.chatText, chatBusy: s.chatBusy,
+      setChatText: (e) => this.setState({ chatText: e.target.value }),
+      sendChat: () => this.sendChat(),
+      chatKey: (e) => { if (e.key === 'Enter') this.sendChat(); },
       // ── ประกาศแจ้งปัญหา/งานล่าช้า (เปิด-ปิดจากหลังบ้าน ผ่านแบนเนอร์ชนิด alert) ──
       alertBn: (() => { const a = s.banners.find(b => b.color === 'alert'); return a ? { title: a.title || '', subtitle: a.subtitle || '' } : null; })(),
       alertPrompt: s.alertPrompt,
@@ -1769,6 +1808,30 @@ class App extends React.Component {
                       <textarea value={v.trackText} onChange={v.setTrackText} placeholder="ชื่นชมหรือแนะนำให้ร้านปรับปรุง (ไม่บังคับ)" style={css("margin-top:8px;width:100%;box-sizing:border-box;min-height:54px;border:1px solid var(--line);border-radius:10px;background:var(--soft);color:var(--ink);padding:8px 10px;font-size:12.5px;outline:none;resize:vertical;font-family:inherit")}/>
                       <button onClick={v.sendTrackReview} style={css("margin-top:8px;width:100%;height:42px;border:none;border-radius:10px;background:var(--acc);color:#fff;font-size:13.5px;font-weight:700;cursor:pointer")}>ส่งรีวิว</button>
                     </div>
+                )}
+                {/* ── แชทกับร้าน (ของออเดอร์นี้) ── */}
+                {v.chatOn && (
+                  <div style={css("background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px;box-shadow:var(--shadow)")}>
+                    <div style={css("font-size:13.5px;font-weight:700")}>💬 แชทกับร้าน</div>
+                    <div style={css("margin-top:2px;font-size:11px;color:var(--sub);line-height:1.5")}>สอบถามหรือแจ้งรายละเอียดเพิ่มเติมของออเดอร์นี้ได้เลยครับ</div>
+                    <div style={css("margin-top:10px;max-height:260px;overflow-y:auto;display:flex;flex-direction:column;gap:7px")}>
+                      {v.chatEmpty && <div style={css("font-size:11.5px;color:var(--sub);text-align:center;padding:10px 0;line-height:1.6")}>ยังไม่มีข้อความ — พิมพ์ทักร้านได้เลย<br/>ร้านจะตอบในหน้านี้ครับ</div>}
+                      {v.chatMsgs.map(m => (
+                        <div key={m.id} style={{ display: 'flex', justifyContent: m.mine ? 'flex-end' : 'flex-start' }}>
+                          <div style={{ maxWidth: '80%', background: m.mine ? 'var(--acc)' : 'var(--soft)', color: m.mine ? '#fff' : 'var(--ink)',
+                            border: m.mine ? 'none' : '1px solid var(--line)', borderRadius: '13px', padding: '8px 12px', fontSize: '12.5px', lineHeight: 1.5, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+                            {m.body}
+                            <div style={{ marginTop: '3px', fontSize: '9.5px', opacity: .75, fontFamily: "'IBM Plex Mono',monospace" }}>{m.time}</div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    <div style={css("margin-top:10px;display:flex;gap:7px")}>
+                      <input value={v.chatText} onChange={v.setChatText} onKeyDown={v.chatKey} maxLength={500} placeholder="พิมพ์ข้อความ…"
+                        style={css("flex:1;min-width:0;box-sizing:border-box;height:42px;border:1px solid var(--line);border-radius:11px;background:var(--soft);color:var(--ink);padding:0 12px;font-size:13px;outline:none;font-family:inherit")}/>
+                      <button onClick={v.sendChat} disabled={v.chatBusy || !v.chatText.trim()} style={css("flex:none;height:42px;padding:0 18px;border:none;border-radius:11px;background:var(--acc);color:#fff;font-size:13px;font-weight:700;cursor:pointer" + (v.chatBusy || !v.chatText.trim() ? ";opacity:.5" : ""))}>ส่ง</button>
+                    </div>
+                  </div>
                 )}
                 <button onClick={v.newOrder} style={css("width:100%;height:46px;border:1px solid var(--line);border-radius:14px;background:var(--card);color:var(--ink);font-size:14px;font-weight:600;cursor:pointer")}>+ สั่งปริ้นใหม่</button>
               </React.Fragment>
