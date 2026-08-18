@@ -112,6 +112,7 @@ class App extends React.Component {
     this.slipRef = React.createRef();
     this.state = {
       screen: 'home', files: [], tier: 'standard', ptype: 'bw', paper: 'A4', sides: 1, bind: 'none', copies: 1,
+      vehicle: 'bike', // พาหนะส่งที่ลูกค้าเลือกเอง: 'bike' มอเตอร์ไซค์ · 'car' รถยนต์ (ใช้ทั้ง Standard และ Pro)
       reviews: [], reviewsReady: false, revStars: 5, revText: '', trackStars: 5, trackText: '',
       alertPrompt: false, alertAck: false,
       proType: 'plate', proSize: 'A0', proBind: 'ไสกาว', proQty: 100, proPickup: false,
@@ -477,9 +478,9 @@ class App extends React.Component {
     const s = this.state;
     const nightFee = this.isNight() ? (CONFIG.nightFee ?? 10) : 0;
     const expressFee = (CONFIG.expressEnabled !== false && s.express) ? (CONFIG.expressFee ?? 20) : 0;
-    // ค่าส่ง 2 ชั้นตามระยะถนนจริง — ระบบเลือกพาหนะเองจากประเภทงาน (ยังไม่ปักหมุด = โชว์ราคาเริ่มต้น)
+    // ค่าส่ง 2 ชั้นตามระยะถนนจริง — ลูกค้าเลือกพาหนะเอง (ยังไม่ปักหมุด = โชว์ราคาเริ่มต้น)
     const km = s.distKm;
-    const carJob = this.needsCar();
+    const carJob = s.vehicle === 'car';
     const tiers = CONFIG.carTiers || [[2, 69], [4, 89], [6, 129]];
     let deliveryFee, farNote = false, outOfArea = false;
     if (carJob) {
@@ -536,8 +537,8 @@ class App extends React.Component {
     return m[s.proType] ?? 90;
   }
 
-  // งานขนาดใหญ่ต้องส่งด้วยรถยนต์: Standy และเพลทขนาด A3 ขึ้นไป (A3/A2/A1/A0)
-  needsCar(){
+  // งานใหญ่ (Standy / เพลท A3 ขึ้นไป) — ไม่บังคับรถยนต์แล้ว แค่ใช้ "แนะนำ" ให้ลูกค้าเห็นตอนเลือกพาหนะ
+  bigJob(){
     const s = this.state;
     return s.tier === 'pro' && (s.proType === 'standee' || (s.proType === 'plate' && ['A0', 'A1', 'A2', 'A3'].includes(s.proSize)));
   }
@@ -598,7 +599,8 @@ class App extends React.Component {
         point: s.geoLabel || '', lat: s.lat, lng: s.lng,
         pickup: s.tier === 'pro' && s.proPickup,
         line_uid: (s.user && s.user.line_uid) || null, // ไว้แจ้งเตือนลูกค้าทาง LINE (เฉพาะคนล็อกอินด้วย LINE)
-        addr: (s.tier === 'pro' && s.proPickup) ? '🏪 มารับเองที่ร้านอุดมสุขปริ้นติ้ง' : s.addr,
+        // นำหน้าที่อยู่ด้วยพาหนะที่ลูกค้าเลือก — ไรเดอร์/หลังบ้านเห็นทันทีว่าต้องใช้รถอะไร (ไม่ต้องเพิ่มคอลัมน์ใหม่)
+        addr: (s.tier === 'pro' && s.proPickup) ? '🏪 มารับเองที่ร้านอุดมสุขปริ้นติ้ง' : (s.vehicle === 'car' ? '🚗 ' : '🏍️ ') + s.addr,
         phone: s.phone, time: '', express: s.express, night: this.isNight(),
         print_cost: c.printCost, bind_cost: c.bindCost, delivery_cost: c.deliveryCost,
         night_fee: this.isNight() ? (CONFIG.nightFee ?? 10) : 0,
@@ -972,17 +974,24 @@ class App extends React.Component {
       toPay: () => {
         if (!c.proPickupOn) { // มารับเองไม่ต้องปักหมุด/กรอกที่อยู่
           if (s.lat == null) return this.showToast('ปักหมุดตำแหน่งส่งบนแผนที่ก่อนนะครับ 📍');
-          if (c.outOfArea) return this.showToast('งานขนาดใหญ่ส่งด้วยรถยนต์ได้ในระยะ 6 กม. — จุดนี้ไกลเกิน 🙏 สั่ง/ปรึกษาทาง LINE ' + ((window.MP_CONFIG || {}).LINE_OA_ID || '@346kifvy') + ' ได้ครับ');
+          if (c.outOfArea) return this.showToast('ส่งด้วยรถยนต์ได้ในระยะ 6 กม. — จุดนี้ไกลเกิน 🙏 เลือกส่งด้วยมอเตอร์ไซค์ (ไม่จำกัดระยะ) หรือปรึกษาทาง LINE ' + ((window.MP_CONFIG || {}).LINE_OA_ID || '@346kifvy') + ' ได้ครับ');
           if (!s.addr.trim()) return this.showToast('กรอกรายละเอียดที่อยู่ด้วยครับ 🏠');
         }
         if (!s.phone) return this.showToast('ใส่เบอร์โทรผู้รับด้วยครับ 📞');
         this.setState({ screen: 'review' });
       },
+      // ── เลือกพาหนะส่งเอง (ทั้ง Standard และ Pro) — ราคาใช้เกณฑ์เดิม ──
+      vehicleOpts: [
+        { k: 'bike', icon: '🏍️', name: 'มอเตอร์ไซค์', desc: 'เริ่ม ฿' + (CONFIG.deliveryBase ?? 19) + ' +฿' + (CONFIG.bikePerKm ?? 6) + '/กม. · ไม่จำกัดระยะ' },
+        { k: 'car', icon: '🚗', name: 'รถยนต์', desc: 'งานใหญ่/กันงานพับ · ฿69-129 ตามระยะ (ไม่เกิน 6 กม.)' }
+      ].map(o => ({ ...o, on: s.vehicle === o.k, pick: () => this.setState({ vehicle: o.k }) })),
+      vehicleHint: this.bigJob() ? '💡 งานชิ้นใหญ่แบบนี้แนะนำรถยนต์ครับ จะได้ไม่พับ/ยับระหว่างทาง' : '',
+      vehicleLabel: s.vehicle === 'car' ? '🚗 รถยนต์' : '🏍️ มอเตอร์ไซค์',
       // ระยะทาง + ค่าส่งสด แสดงใต้แผนที่
       distLine: c.proPickupOn ? '' : s.lat == null ? ''
         : s.distKm == null ? '📏 กำลังวัดระยะทางจากร้าน…'
-        : c.outOfArea ? '🚫 งานขนาดใหญ่ (ส่งด้วยรถยนต์) ไกลจากร้าน ~' + s.distKm.toFixed(1) + ' กม. — เกินพื้นที่ 6 กม. สั่งทาง LINE ได้ครับ'
-        : (c.carJob ? '🚗' : '🏍️') + ' ระยะจากร้าน ~' + s.distKm.toFixed(1) + ' กม.' + (s.distSrc === 'est' ? ' (ประมาณ)' : '') + ' · ค่าส่ง ฿' + c.deliveryFee + (c.carJob ? ' (งานใหญ่ ส่งด้วยรถยนต์)' : '') + (c.farNote ? ' — ร้านจะนัดเวลาส่งล่วงหน้า' : ''),
+        : c.outOfArea ? '🚫 รถยนต์ส่งได้ไม่เกิน 6 กม. — จุดนี้ห่าง ~' + s.distKm.toFixed(1) + ' กม. เลือกมอเตอร์ไซค์แทนได้ครับ'
+        : (c.carJob ? '🚗' : '🏍️') + ' ระยะจากร้าน ~' + s.distKm.toFixed(1) + ' กม.' + (s.distSrc === 'est' ? ' (ประมาณ)' : '') + ' · ค่าส่ง ฿' + c.deliveryFee + (c.farNote ? ' — ร้านจะนัดเวลาส่งล่วงหน้า' : ''),
       distOut: !!c.outOfArea,
       deliveryFee: c.deliveryFee, deliveryPending: c.deliveryPending,
       // หน้าตรวจสอบออเดอร์ก่อนชำระเงิน
@@ -1023,7 +1032,7 @@ class App extends React.Component {
         const pickup = s.tier === 'pro' && s.proPickup;
         const ts = Date.now(); // เวลาชำระ — ใช้นับถอยหลังช่วงที่ลูกค้ายกเลิกเองได้
         this.setState({ order: { id, total: c.grandTotal, times: [t0, '', '', ''], plabel, eta, pickup, ts }, trackStep: 1, cancelReason: '', screen: 'track',
-          files: [], slip: null, copies: 1, bind: 'none', express: false, tier: 'standard', ptype: 'bw', paper: 'A4', sides: 1, proPickup: false, trackOpen: false, selfCancelArm: false });
+          files: [], slip: null, copies: 1, bind: 'none', express: false, tier: 'standard', ptype: 'bw', paper: 'A4', sides: 1, proPickup: false, vehicle: 'bike', trackOpen: false, selfCancelArm: false });
         // จำออเดอร์ไว้ในเครื่อง — ปิดเว็บแล้วกลับมา การติดตามยังอยู่
         try { localStorage.setItem('mp_order', JSON.stringify({ id, total: c.grandTotal, times: [t0, '', '', ''], step: 1, plabel, eta, pickup, ts })); } catch (e) {}
         // บวกเวลาตามคิวที่ค้างจริง (ออเดอร์ที่ยังไม่ออกส่ง) — รอ insert ลงฐานก่อนแล้วค่อยนับ
@@ -1504,6 +1513,21 @@ class App extends React.Component {
                 </div>
               )}
               {!v.proPickupOn && <React.Fragment>
+              {/* เลือกพาหนะส่งเอง — ราคาเปลี่ยนทันทีตามที่เลือก */}
+              <div style={css("font-size:12px;font-weight:600;color:var(--sub);margin-bottom:8px")}>🚚 เลือกวิธีจัดส่ง <span style={css("color:#d9480f")}>*</span></div>
+              <div style={css("display:flex;flex-direction:column;gap:8px;margin-bottom:14px")}>
+                {v.vehicleOpts.map((o, i) => (
+                  <div key={i} onClick={o.pick} style={css("border:" + (o.on ? "1.5px solid var(--acc)" : "1px solid var(--line)") + ";border-radius:12px;padding:11px 14px;background:" + (o.on ? "var(--accSoft)" : "var(--card)") + ";display:flex;align-items:center;gap:11px;cursor:pointer")}>
+                    <div style={css("font-size:22px;flex:none")}>{o.icon}</div>
+                    <div style={css("flex:1;min-width:0")}>
+                      <div style={css("font-size:13.5px;font-weight:700;color:" + (o.on ? "var(--acc)" : "var(--ink)"))}>{o.name}</div>
+                      <div style={css("margin-top:1px;font-size:11px;color:var(--sub);line-height:1.5")}>{o.desc}</div>
+                    </div>
+                    <div style={css("width:20px;height:20px;border-radius:50%;flex:none;border:2px solid " + (o.on ? "var(--acc)" : "var(--line)") + ";display:flex;align-items:center;justify-content:center")}>{o.on && <div style={css("width:10px;height:10px;border-radius:50%;background:var(--acc)")}></div>}</div>
+                  </div>
+                ))}
+                {v.vehicleHint && <div style={css("font-size:11px;color:var(--acc);font-weight:600;line-height:1.5")}>{v.vehicleHint}</div>}
+              </div>
               <div style={css("font-size:12px;font-weight:600;color:var(--sub);margin-bottom:8px")}>📍 ปักหมุดตำแหน่งส่งเอกสาร <span style={css("color:#d9480f")}>*</span></div>
               <div style={css("border:1.5px solid var(--acc);border-radius:12px;padding:10px 12px;background:var(--accSoft)")}>
                 <div style={css("font-size:12px;font-weight:700;color:var(--acc)")}>🗺️ วางลิงก์จาก Google Maps</div>
@@ -1603,6 +1627,7 @@ class App extends React.Component {
             <div style={css("background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px;box-shadow:var(--shadow)")}>
               <div style={css("font-size:11px;font-weight:700;color:var(--sub);letter-spacing:.5px")}>📍 จัดส่ง</div>
               <div style={css("margin-top:8px;display:flex;flex-direction:column;gap:5px;font-size:12.5px")}>
+                {!v.proPickupOn && <div><span style={css("color:var(--sub)")}>ส่งด้วย: </span>{v.vehicleLabel}</div>}
                 <div><span style={css("color:var(--sub)")}>ที่อยู่: </span>{v.destLabel}</div>
                 <div><span style={css("color:var(--sub)")}>เบอร์ผู้รับ: </span><span style={css("font-family:'IBM Plex Mono',monospace")}>{v.phone}</span></div>
               </div>
