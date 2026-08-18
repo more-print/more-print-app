@@ -119,7 +119,7 @@ class App extends React.Component {
       distKm: null, distSrc: '', trackOpen: false,
       point: '', addr: '', phone: '', time: '', express: false, slip: null,
       lat: null, lng: null, geoLabel: '', searchQ: '', searchResults: [], searching: false, locating: false,
-      gmapLink: '', gmapBusy: false, pinSrc: '', pinMode: '', mapLocked: false, // '' ยังไม่เลือก · 'link' วางลิงก์ · 'map' ปักหมุดเอง · mapLocked = ล็อกหมุดหลังวางลิงก์
+      gmapLink: '', gmapBusy: false, pinSrc: '', pinMode: '', mapLocked: false, gpsAcc: null, gpsConfirm: false, // '' ยังไม่เลือก · 'link' วางลิงก์ · 'map' ปักหมุดเอง · mapLocked = ล็อกหมุดหลังวางลิงก์
       banners: [],
       order: null, trackStep: 1, cancelReason: '', toast: '', now: new Date(),
       selfCancelArm: false, selfCancelBusy: false,
@@ -224,7 +224,7 @@ class App extends React.Component {
         if (this.state.mapLocked) return; // ล็อกหมุดอยู่ ห้ามเปลี่ยนจุดส่ง
         const c = m.getCenter();
         this._pinSeq = (this._pinSeq || 0) + 1;
-        this.setState({ lat: c.lat, lng: c.lng, pinSrc: 'map' });
+        this.setState({ lat: c.lat, lng: c.lng, pinSrc: 'map', gpsConfirm: false });
         clearTimeout(this._revTimer);
         this._revTimer = setTimeout(() => this.reverseGeocode(c.lat, c.lng), 600);
         this.updateDistance(c.lat, c.lng);
@@ -287,12 +287,25 @@ class App extends React.Component {
     } catch (e) {}
   }
   locateMe(silent){
-    if (!navigator.geolocation) { if (!silent) this.showToast('เบราว์เซอร์ไม่รองรับระบุตำแหน่ง'); return; }
+    if (!navigator.geolocation) { if (!silent) this.showToast('เบราว์เซอร์ไม่รองรับระบุตำแหน่ง — ค้นหาชื่อสถานที่หรือลากหมุดแทนได้ครับ 📍'); return; }
     this.setState({ locating: true });
     navigator.geolocation.getCurrentPosition(
-      (pos) => { this.setState({ locating: false, pinSrc: 'gps' }); this.setPin(pos.coords.latitude, pos.coords.longitude, true); },
-      () => { this.setState({ locating: false }); if (!silent) this.showToast('ระบุตำแหน่งไม่ได้ — แตะแผนที่ปักหมุดเองได้เลยครับ 📍'); },
-      { enableHighAccuracy: true, timeout: 8000 }
+      (pos) => {
+        // acc = รัศมีความคลาดเคลื่อน (เมตร) — บนคอม/โน้ตบุ๊กมักหลักร้อยถึงหลักพัน เพราะใช้ WiFi/IP ไม่ใช่ GPS
+        const acc = Math.round(pos.coords.accuracy || 0);
+        this.setState({ locating: false, pinSrc: 'gps', gpsAcc: acc, gpsConfirm: true });
+        this.setPin(pos.coords.latitude, pos.coords.longitude, true);
+      },
+      (err) => {
+        this.setState({ locating: false });
+        if (silent) return;
+        const code = err && err.code;
+        this.showToast(code === 1
+          ? 'เบราว์เซอร์ปิดสิทธิ์ตำแหน่งไว้ 🔒 กดไอคอนรูปกุญแจ/🔒 ข้างช่อง URL แล้วอนุญาต "ตำแหน่งที่ตั้ง" จากนั้นลองใหม่ครับ'
+          : 'หาตำแหน่งไม่สำเร็จ (คอมพิวเตอร์มักหาไม่เจอ) — ค้นหาชื่อหอ หรือเลื่อนแผนที่ปักหมุดเองได้เลยครับ 📍');
+      },
+      // คอมหาตำแหน่งช้ากว่ามือถือ ให้เวลามากขึ้นและไม่ใช้ค่าที่จำไว้เก่า
+      { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 }
     );
   }
   async doSearch(){
@@ -1058,6 +1071,11 @@ class App extends React.Component {
       // แผนที่โผล่เมื่อ: โหมดปักหมุด หรือ โหมดลิงก์ที่วางลิงก์สำเร็จแล้ว
       showMap: s.pinMode === 'map' || (s.pinMode === 'link' && s.lat != null),
       mapLocked: s.mapLocked,
+      // ── กล่องยืนยันตำแหน่งหลังกดใช้ตำแหน่งปัจจุบัน (สำคัญกับคอม/โน้ตบุ๊กที่ตำแหน่งไม่แม่น) ──
+      gpsConfirm: s.gpsConfirm && s.lat != null,
+      gpsAccText: s.gpsAcc == null ? '' : (s.gpsAcc >= 1000 ? '~' + (s.gpsAcc / 1000).toFixed(1) + ' กม.' : '~' + s.gpsAcc + ' ม.'),
+      gpsRough: (s.gpsAcc || 0) > 150, // เกิน 150 ม. = หยาบ (มักเป็นเครื่องคอมที่ใช้ WiFi/IP)
+      gpsOk: () => this.setState({ gpsConfirm: false }),
       unlockMap: () => { this.setState({ mapLocked: false }); this.showToast('ปลดล็อกแล้ว — เลื่อนแผนที่ปรับหมุดได้เลยครับ 🔓'); },
       relinkMap: () => this.setState({ mapLocked: false, lat: null, lng: null, distKm: null, pinSrc: '', geoLabel: '' }),
       pinModeOpts: [
@@ -1697,6 +1715,19 @@ class App extends React.Component {
                 {!v.mapLocked && <button onClick={v.locateMe} title="ใช้ตำแหน่งปัจจุบันของฉัน" style={css("position:absolute;right:12px;bottom:12px;z-index:902;width:46px;height:46px;border-radius:50%;border:none;background:#fff;box-shadow:0 2px 10px rgba(0,0,0,.3);font-size:21px;cursor:pointer;display:flex;align-items:center;justify-content:center")}>{v.locating ? '⏳' : '🎯'}</button>}
                 {v.mapLocked && <div style={css("position:absolute;left:0;right:0;bottom:0;z-index:903;background:rgba(0,0,0,.62);color:#fff;padding:8px 12px;font-size:11.5px;font-weight:600;text-align:center")}>🔒 ล็อกหมุดไว้แล้ว — กันเลื่อนพลาด</div>}
               </div>}
+              {v.gpsConfirm && (
+                <div style={css("margin-top:8px;border:1.5px solid " + (v.gpsRough ? "#f0b429" : "var(--acc)") + ";background:" + (v.gpsRough ? "#fff7e0" : "var(--accSoft)") + ";border-radius:12px;padding:11px 13px")}>
+                  <div style={css("font-size:12.5px;font-weight:700;color:" + (v.gpsRough ? "#a16207" : "var(--acc)"))}>
+                    🎯 ได้ตำแหน่งของคุณแล้ว {v.gpsAccText && '(คลาดเคลื่อน ' + v.gpsAccText + ')'}
+                  </div>
+                  <div style={css("margin-top:3px;font-size:11px;line-height:1.6;color:" + (v.gpsRough ? "#a16207" : "var(--sub)"))}>
+                    {v.gpsRough
+                      ? 'สั่งจากคอมพิวเตอร์ตำแหน่งมักไม่แม่น — ดูบนแผนที่แล้วเลื่อนหมุดให้ตรงจุดส่งจริงก่อนยืนยันนะครับ'
+                      : 'ตรวจดูบนแผนที่ว่าหมุดตรงจุดส่งจริงไหม เลื่อนปรับได้'}
+                  </div>
+                  <button onClick={v.gpsOk} style={css("margin-top:9px;width:100%;height:38px;border:none;border-radius:10px;background:" + (v.gpsRough ? "#a16207" : "var(--acc)") + ";color:#fff;font-size:12.5px;font-weight:700;cursor:pointer;font-family:inherit")}>✓ ยืนยันว่าหมุดตรงจุดส่งแล้ว</button>
+                </div>
+              )}
               {v.mapLocked
                 ? <div style={css("margin-top:7px;display:flex;gap:7px")}>
                     <button onClick={v.unlockMap} style={css("flex:1;height:38px;border:1px solid var(--line);border-radius:10px;background:var(--card);color:var(--ink);font-size:11.5px;font-weight:700;cursor:pointer;font-family:inherit")}>🔓 ปรับหมุดเอง</button>
