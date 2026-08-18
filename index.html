@@ -119,7 +119,7 @@ class App extends React.Component {
       distKm: null, distSrc: '', trackOpen: false,
       point: '', addr: '', phone: '', time: '', express: false, slip: null,
       lat: null, lng: null, geoLabel: '', searchQ: '', searchResults: [], searching: false, locating: false,
-      gmapLink: '', gmapBusy: false, pinSrc: '', pinMode: '', // '' ยังไม่เลือก · 'link' วางลิงก์ · 'map' ปักหมุดเอง
+      gmapLink: '', gmapBusy: false, pinSrc: '', pinMode: '', mapLocked: false, // '' ยังไม่เลือก · 'link' วางลิงก์ · 'map' ปักหมุดเอง · mapLocked = ล็อกหมุดหลังวางลิงก์
       banners: [],
       order: null, trackStep: 1, cancelReason: '', toast: '', now: new Date(),
       selfCancelArm: false, selfCancelBusy: false,
@@ -220,6 +220,8 @@ class App extends React.Component {
       m.on('movestart', () => { const el = document.getElementById('mpPin'); if (el) el.style.transform = 'translate(-50%,-125%)'; });
       m.on('moveend', () => {
         const el = document.getElementById('mpPin'); if (el) el.style.transform = 'translate(-50%,-100%)';
+        if (this._progMove) { this._progMove = false; clearTimeout(this._progTimer); return; } // ระบบเลื่อนเอง ไม่ใช่ลูกค้า
+        if (this.state.mapLocked) return; // ล็อกหมุดอยู่ ห้ามเปลี่ยนจุดส่ง
         const c = m.getCenter();
         this._pinSeq = (this._pinSeq || 0) + 1;
         this.setState({ lat: c.lat, lng: c.lng, pinSrc: 'map' });
@@ -227,17 +229,30 @@ class App extends React.Component {
         this._revTimer = setTimeout(() => this.reverseGeocode(c.lat, c.lng), 600);
         this.updateDistance(c.lat, c.lng);
       });
-      m.on('click', (e) => m.panTo(e.latlng)); // แตะตรงไหน แผนที่เลื่อนให้หมุดไปตรงนั้น
+      m.on('click', (e) => { if (!this.state.mapLocked) m.panTo(e.latlng); }); // แตะตรงไหน หมุดวิ่งไป (ยกเว้นตอนล็อก)
       this._map = m;
       if (this.state.lat == null && this.state.pinMode === 'map') this.locateMe(true);
     } else if (!onDelivery && this._map) {
       this._map.remove(); this._map = null; this._marker = null;
     }
+    // ล็อก/ปลดล็อกการเลื่อนแผนที่จริง ๆ (กันนิ้วปัดโดนแล้วจุดส่งเปลี่ยน)
+    if (this._map) {
+      const lock = !!this.state.mapLocked;
+      ['dragging', 'touchZoom', 'doubleClickZoom', 'scrollWheelZoom', 'boxZoom', 'keyboard'].forEach(h => {
+        if (this._map[h]) lock ? this._map[h].disable() : this._map[h].enable();
+      });
+    }
   }
   setPin(lat, lng, move){
     this._pinSeq = (this._pinSeq || 0) + 1; // นับทุกครั้งที่จุดส่งเปลี่ยน (ใช้กันลิงก์ที่แกะเสร็จช้าทับของใหม่)
     this.setState({ lat, lng });
-    if (this._map) this._map.setView([lat, lng], 17); // เลื่อนแผนที่มาที่จุด (หมุดอยู่กลางจออยู่แล้ว)
+    if (this._map) {
+      // ธงบอกว่าการเลื่อนครั้งนี้ระบบสั่งเอง ไม่ใช่ลูกค้าลาก — moveend จะได้ไม่เปลี่ยนป้ายที่มาของหมุด
+      this._progMove = true;
+      clearTimeout(this._progTimer);
+      this._progTimer = setTimeout(() => { this._progMove = false; }, 900);
+      this._map.setView([lat, lng], 17); // เลื่อนแผนที่มาที่จุด (หมุดอยู่กลางจออยู่แล้ว)
+    }
     clearTimeout(this._revTimer);
     this._revTimer = setTimeout(() => this.reverseGeocode(lat, lng), 600);
     this.updateDistance(lat, lng);
@@ -355,9 +370,9 @@ class App extends React.Component {
       this.setState({ gmapLink: '' });
       return this.showToast('คุณย้ายหมุดหลังวางลิงก์ — ระบบใช้ตำแหน่งหมุดล่าสุดที่คุณเลือกครับ 📍');
     }
-    this.setState({ gmapLink: '', pinSrc: 'link' });
+    this.setState({ gmapLink: '', pinSrc: 'link', mapLocked: true });
     this.setPin(pt.lat, pt.lng, true);
-    this.showToast('📍 ปักหมุดตามลิงก์ Google Maps แล้ว!');
+    this.showToast('📍 ปักหมุดตามลิงก์แล้ว — ล็อกไว้กันเลื่อนพลาด 🔒');
   }
 
   // ── นับจำนวนหน้าอัตโนมัติ ──
@@ -1040,10 +1055,15 @@ class App extends React.Component {
       measuring: !c.proPickupOn && s.lat != null && c.deliveryPending,
       // ── เลือกวิธีบอกจุดส่ง (กันลูกค้าสับสนว่าจะใช้ลิงก์หรือปักหมุด) ──
       pinMode: s.pinMode, pinModeLink: s.pinMode === 'link', pinModeMap: s.pinMode === 'map',
+      // แผนที่โผล่เมื่อ: โหมดปักหมุด หรือ โหมดลิงก์ที่วางลิงก์สำเร็จแล้ว
+      showMap: s.pinMode === 'map' || (s.pinMode === 'link' && s.lat != null),
+      mapLocked: s.mapLocked,
+      unlockMap: () => { this.setState({ mapLocked: false }); this.showToast('ปลดล็อกแล้ว — เลื่อนแผนที่ปรับหมุดได้เลยครับ 🔓'); },
+      relinkMap: () => this.setState({ mapLocked: false, lat: null, lng: null, distKm: null, pinSrc: '', geoLabel: '' }),
       pinModeOpts: [
         { k: 'link', icon: '🔗', name: 'ก๊อปลิงก์จาก Google Maps', sub: 'แม่นที่สุด — แชร์ลิงก์ที่อยู่มาวาง' },
         { k: 'map', icon: '📍', name: 'ปักหมุดเอง', sub: 'ใช้ตำแหน่งปัจจุบัน หรือเลื่อนแผนที่' }
-      ].map(o => ({ ...o, on: s.pinMode === o.k, pick: () => this.setState({ pinMode: o.k }) })),
+      ].map(o => ({ ...o, on: s.pinMode === o.k, pick: () => this.setState({ pinMode: o.k, mapLocked: false }) })),
       resetPinMode: () => this.setState({ pinMode: '' }),
       deliveryFee: c.deliveryFee, deliveryPending: c.deliveryPending,
       // หน้าตรวจสอบออเดอร์ก่อนชำระเงิน
@@ -1668,14 +1688,21 @@ class App extends React.Component {
                 </div>
               )}
               </React.Fragment>}
-              {v.pinMode && <div style={css("margin-top:10px;position:relative;border-radius:14px;overflow:hidden;border:1px solid var(--line);box-shadow:var(--shadow)")}>
+              {v.pinModeLink && !v.showMap && <div style={css("margin-top:10px;background:var(--soft);border:1px dashed var(--line);border-radius:12px;padding:16px;text-align:center;font-size:11.5px;color:var(--sub);line-height:1.7")}>🔗 วางลิงก์แล้วกด "ตกลง"<br/>ระบบจะปักหมุดให้อัตโนมัติแล้วโชว์แผนที่ยืนยัน</div>}
+              {v.showMap && <div style={css("margin-top:10px;position:relative;border-radius:14px;overflow:hidden;border:1px solid " + (v.mapLocked ? "var(--acc)" : "var(--line)") + ";box-shadow:var(--shadow)")}>
                 <div id="mpMap" style={css("height:300px;position:relative;z-index:0")}></div>
                 {/* หมุดกลางจอ (แบบแอปเรียกรถ) — ไม่รับการแตะ ให้แผนที่ข้างใต้รับแทน */}
                 <div style={css("position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:10px;height:4px;background:rgba(0,0,0,.28);border-radius:50%;z-index:900;pointer-events:none")}></div>
                 <div id="mpPin" style={css("position:absolute;left:50%;top:50%;transform:translate(-50%,-100%);z-index:901;pointer-events:none;font-size:40px;line-height:1;transition:transform .18s ease;filter:drop-shadow(0 4px 4px rgba(0,0,0,.35))")}>📍</div>
-                <button onClick={v.locateMe} title="ใช้ตำแหน่งปัจจุบันของฉัน" style={css("position:absolute;right:12px;bottom:12px;z-index:902;width:46px;height:46px;border-radius:50%;border:none;background:#fff;box-shadow:0 2px 10px rgba(0,0,0,.3);font-size:21px;cursor:pointer;display:flex;align-items:center;justify-content:center")}>{v.locating ? '⏳' : '🎯'}</button>
+                {!v.mapLocked && <button onClick={v.locateMe} title="ใช้ตำแหน่งปัจจุบันของฉัน" style={css("position:absolute;right:12px;bottom:12px;z-index:902;width:46px;height:46px;border-radius:50%;border:none;background:#fff;box-shadow:0 2px 10px rgba(0,0,0,.3);font-size:21px;cursor:pointer;display:flex;align-items:center;justify-content:center")}>{v.locating ? '⏳' : '🎯'}</button>}
+                {v.mapLocked && <div style={css("position:absolute;left:0;right:0;bottom:0;z-index:903;background:rgba(0,0,0,.62);color:#fff;padding:8px 12px;font-size:11.5px;font-weight:600;text-align:center")}>🔒 ล็อกหมุดไว้แล้ว — กันเลื่อนพลาด</div>}
               </div>}
-              {v.pinMode && <div style={css("margin-top:6px;font-size:11px;color:var(--sub);line-height:1.6")}>{v.pinModeLink ? 'ตรวจดูว่าหมุดตรงจุดส่งจริงไหม — เลื่อนแผนที่แก้ได้' : 'เลื่อนแผนที่ให้หมุด 📍 ชี้ตรงจุดส่ง · แตะจุดไหนหมุดวิ่งไปให้'}</div>}
+              {v.mapLocked
+                ? <div style={css("margin-top:7px;display:flex;gap:7px")}>
+                    <button onClick={v.unlockMap} style={css("flex:1;height:38px;border:1px solid var(--line);border-radius:10px;background:var(--card);color:var(--ink);font-size:11.5px;font-weight:700;cursor:pointer;font-family:inherit")}>🔓 ปรับหมุดเอง</button>
+                    <button onClick={v.relinkMap} style={css("flex:1;height:38px;border:1px solid var(--line);border-radius:10px;background:var(--card);color:var(--ink);font-size:11.5px;font-weight:700;cursor:pointer;font-family:inherit")}>🔗 วางลิงก์ใหม่</button>
+                  </div>
+                : v.showMap && <div style={css("margin-top:6px;font-size:11px;color:var(--sub);line-height:1.6")}>{v.pinModeLink ? 'ตรวจดูว่าหมุดตรงจุดส่งจริงไหม — เลื่อนแผนที่แก้ได้' : 'เลื่อนแผนที่ให้หมุด 📍 ชี้ตรงจุดส่ง · แตะจุดไหนหมุดวิ่งไปให้'}</div>}
               {v.distLine && <div style={css("margin-top:7px;border-radius:11px;padding:9px 12px;font-size:12px;font-weight:700;line-height:1.55;" + (v.distOut ? "background:#fff0f0;border:1px solid #ffa8a8;color:#c92a2a" : "background:var(--accSoft);border:1px solid var(--acc);color:var(--acc)"))}>{v.distLine}</div>}
               {v.pinModeMap && <div style={css("margin-top:4px;font-size:11px;color:var(--acc);font-weight:600;line-height:1.5")}>💡 ค้นหาชื่อหอไม่เจอ? ไม่เป็นไร — แตะปักหมุดเองตรงที่พักของคุณ แล้วพิมพ์ชื่อหอ + รายละเอียดในช่องด้านล่างได้เลย</div>}
               <div style={css("margin-top:12px;font-size:12px;font-weight:600;color:var(--sub)")}>รายละเอียดที่อยู่ (หอ / คณะ / บ้านเลขที่ / ซอย / จุดนัด) <span style={css("color:#d9480f")}>*</span></div>
