@@ -49,7 +49,7 @@ const CONFIG = { nightOverride: 'auto', nightFee: 10, expressFee: 20, expressEna
 // งาน Standard มีแค่ 2 ประเภท (งานใหญ่/พิเศษไปทาง Pro) — ptype เก่า laser/portfolio/poster ยังแสดงในหลังบ้านได้
 const PRINT_TYPES = [
   { k: 'bw', icon: '📄', label: 'เอกสารขาวดำ', desc: 'แผ่นละ ฿1 · เกิน 30 แผ่นลดเหลือ 75/50 สต.' },
-  { k: 'color', icon: '🎨', label: 'สีเลเซอร์', desc: '฿5-7/หน้า ตามปริมาณสี สแกนให้อัตโนมัติ' }
+  { k: 'color', icon: '🎨', label: 'เอกสารสี', desc: '฿5-7/หน้า ตามปริมาณสี สแกนให้อัตโนมัติ' }
 ];
 const SIZE_BY_TYPE = { bw: ['A4'], color: ['A4'] };
 // แคตตาล็อกงาน Pro (ร้านอุดมสุขปริ้นติ้ง) — ราคายืนยันทาง LINE ก่อนเริ่มงาน
@@ -145,7 +145,7 @@ class App extends React.Component {
     }
     // โหมดตัวอย่าง (ยังไม่เชื่อมฐานข้อมูล): โชว์รีวิวตัวอย่างไว้ดูหน้าตา
     if (!this.db) this.setState({ reviewsReady: true, reviews: [
-      { id: 3, name: 'มินตรา', stars: 5, comment: 'ส่งไวมาก งานคมชัด แนะนำเลยค่ะ', ptype: 'สีเลเซอร์', auto: false, created_at: new Date().toISOString() },
+      { id: 3, name: 'มินตรา', stars: 5, comment: 'ส่งไวมาก งานคมชัด แนะนำเลยค่ะ', ptype: 'เอกสารสี', auto: false, created_at: new Date().toISOString() },
       { id: 2, name: 'ก้อง', stars: 5, comment: null, ptype: 'เอกสารขาวดำ', auto: true, created_at: new Date().toISOString() },
       { id: 1, name: 'boat', stars: 4, comment: 'ดีครับ ราคาโอเค ส่งตรงเวลา', ptype: null, auto: false, created_at: new Date().toISOString() }
     ] });
@@ -518,6 +518,7 @@ class App extends React.Component {
     // งาน Pro เลือกมารับเองที่ร้านอุดมสุข = ไม่มีค่าส่ง ไม่ต้องปักหมุด
     const proPickupOn = s.tier === 'pro' && s.proPickup;
     if (proPickupOn) { deliveryFee = 0; farNote = false; outOfArea = false; }
+    // 'landscape' (เล่มแนวนอน) ถูกตัดออกจากตัวเลือกแล้ว — เก็บสูตรราคาไว้ให้ออเดอร์เก่าที่เคยเลือกยังแสดงถูก
     const bindCost = s.tier === 'pro' ? 0 : (s.bind === 'corner' ? 5 : s.bind === 'book' ? 40 : s.bind === 'landscape' ? 60 : 0) * s.copies;
     const deliveryCost = proPickupOn ? 0 : deliveryFee + expressFee;
     const nightFee2 = proPickupOn ? 0 : nightFee; // มารับเอง ไม่มีค่าบริการกลางคืน/ด่วน
@@ -898,7 +899,7 @@ class App extends React.Component {
       showSides: s.tier !== 'pro' && (s.ptype === 'bw' || s.ptype === 'laser' || s.ptype === 'color'),
       sidesOpts: [this.seg('หน้าเดียว', s.sides === 1, () => this.setState({ sides: 1 }), true), this.seg('หน้า-หลัง' + (s.tier !== 'pro' && s.ptype === 'bw' ? ' (ถูกกว่า)' : ''), s.sides === 2, () => this.setState({ sides: 2 }), true)],
       showBind: s.tier !== 'pro' && s.ptype !== 'poster',
-      bindOpts: [this.seg('ไม่เข้าเล่ม', s.bind === 'none', () => this.setState({ bind: 'none' })), this.seg('เย็บมุม +฿5', s.bind === 'corner', () => this.setState({ bind: 'corner' })), this.seg('เข้าเล่ม +฿40', s.bind === 'book', () => this.setState({ bind: 'book' })), this.seg('เล่มแนวนอน +฿60', s.bind === 'landscape', () => this.setState({ bind: 'landscape' }))],
+      bindOpts: [this.seg('ไม่เข้าเล่ม', s.bind === 'none', () => this.setState({ bind: 'none' })), this.seg('เย็บมุม +฿5', s.bind === 'corner', () => this.setState({ bind: 'corner' })), this.seg('เข้าเล่ม +฿40', s.bind === 'book', () => this.setState({ bind: 'book' }))],
       copies: s.copies,
       copyInc: () => this.setState(st => ({ copies: st.copies + 1 })),
       copyDec: () => this.setState(st => ({ copies: Math.max(1, st.copies - 1) })),
@@ -1424,7 +1425,7 @@ class App extends React.Component {
                 <div style={{ fontSize: '22px', flex: 'none' }}>🖨️</div>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: '13.5px', fontWeight: 700, color: !v.isPro ? 'var(--acc)' : 'var(--ink)' }}>Standard — งานปริ้นทั่วไป</div>
-                  <div style={{ fontSize: '11px', color: 'var(--sub)', marginTop: '1px' }}>เอกสารขาวดำ · ปริ้นสีเลเซอร์ · กระดาษ A4 ราคาปกติ</div>
+                  <div style={{ fontSize: '11px', color: 'var(--sub)', marginTop: '1px' }}>เอกสารขาวดำ · เอกสารสี · กระดาษ A4 ราคาปกติ</div>
                 </div>
                 <div style={{ width: '20px', height: '20px', borderRadius: '50%', flex: 'none', boxSizing: 'border-box',
                   border: !v.isPro ? '6px solid var(--acc)' : '2px solid var(--line)', background: '#fff' }}></div>
