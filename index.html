@@ -182,7 +182,8 @@ class App extends React.Component {
       const od = JSON.parse(localStorage.getItem('mp_order') || 'null');
       if (od && od.id) {
         this.setState({
-          order: { id: od.id, total: od.total || 0, times: od.times || ['', '', '', ''], plabel: od.plabel || '', eta: od.eta || null, pickup: !!od.pickup, ts: od.ts || null },
+          order: { id: od.id, total: od.total || 0, times: od.times || ['', '', '', ''], plabel: od.plabel || '', eta: od.eta || null, pickup: !!od.pickup, ts: od.ts || null,
+            addr: od.addr || '', phone: od.phone || '', veh: od.veh || '', copies: od.copies || 0, pages: od.pages || 0 },
           trackStep: od.step || 1,
           cancelReason: od.cancelReason || ''
         });
@@ -1065,10 +1066,12 @@ class App extends React.Component {
         // ยืนยันแล้วล้างรายการงานทิ้ง — เข้ามาสั่งรอบหน้าต้องเป็นหน้าว่างพร้อมดรอปไฟล์ใหม่ ไม่มีไฟล์เก่าค้าง
         const pickup = s.tier === 'pro' && s.proPickup;
         const ts = Date.now(); // เวลาชำระ — ใช้นับถอยหลังช่วงที่ลูกค้ายกเลิกเองได้
-        this.setState({ order: { id, total: c.grandTotal, times: [t0, '', '', ''], plabel, eta, pickup, ts }, trackStep: 1, cancelReason: '', screen: 'track',
+        const oaddr = pickup ? '🏪 มารับเองที่ร้านอุดมสุขปริ้นติ้ง' : s.addr;
+        const oveh = pickup ? '' : (s.vehicle === 'car' ? '🚗 รถยนต์' : '🏍️ มอเตอร์ไซค์');
+        this.setState({ order: { id, total: c.grandTotal, times: [t0, '', '', ''], plabel, eta, pickup, ts, addr: oaddr, phone: s.phone, veh: oveh, copies: s.copies, pages: c.totalPages }, trackStep: 1, cancelReason: '', screen: 'track',
           files: [], slip: null, copies: 1, bind: 'none', express: false, tier: 'standard', ptype: 'bw', paper: 'A4', sides: 1, proPickup: false, vehicle: 'bike', trackOpen: false, selfCancelArm: false });
         // จำออเดอร์ไว้ในเครื่อง — ปิดเว็บแล้วกลับมา การติดตามยังอยู่
-        try { localStorage.setItem('mp_order', JSON.stringify({ id, total: c.grandTotal, times: [t0, '', '', ''], step: 1, plabel, eta, pickup, ts })); } catch (e) {}
+        try { localStorage.setItem('mp_order', JSON.stringify({ id, total: c.grandTotal, times: [t0, '', '', ''], step: 1, plabel, eta, pickup, ts, addr: oaddr, phone: s.phone, veh: oveh, copies: s.copies, pages: c.totalPages })); } catch (e) {}
         // บวกเวลาตามคิวที่ค้างจริง (ออเดอร์ที่ยังไม่ออกส่ง) — รอ insert ลงฐานก่อนแล้วค่อยนับ
         if (this.db) setTimeout(async () => {
           try {
@@ -1152,6 +1155,22 @@ class App extends React.Component {
       setChatText: (e) => this.setState({ chatText: e.target.value }),
       sendChat: () => this.sendChat(),
       openChat: () => { this.setState({ screen: 'chat' }); setTimeout(() => this.loadChat(), 60); },
+      // การ์ดสรุปออเดอร์ที่โชว์บนสุดของห้องแชท (ร้านจะได้รู้ว่าคุยเรื่องงานไหน)
+      chatOrder: s.order ? {
+        id: s.order.id, total: s.order.total || 0,
+        job: s.order.plabel || 'งานปริ้น',
+        qty: (s.order.pages ? s.order.pages + ' หน้า' : '') + (s.order.copies ? (s.order.pages ? ' · ' : '') + s.order.copies + ' ชุด' : ''),
+        phone: s.order.phone || '', addr: s.order.addr || '',
+        veh: s.order.veh || '', status: s.order ? (cancelled ? 'ยกเลิกแล้ว' : (stepsFor(s.order) || STEPS)[Math.min(step, 4) - 1]) : ''
+      } : null,
+      // ข้อความสำเร็จรูป — แตะแล้วส่งทันที
+      chatQuick: [
+        { icon: '✏️', label: 'แก้ไขงานปริ้น', text: 'ขอแก้ไขรายละเอียดงานปริ้นครับ/ค่ะ' },
+        { icon: '❌', label: 'สั่งผิด ขอคืนเงิน', text: 'สั่งผิดครับ/ค่ะ ขอยกเลิกและขอคืนเงินได้ไหมครับ/คะ' },
+        { icon: '📍', label: 'แก้ที่อยู่จัดส่ง', text: 'ขอแก้ที่อยู่จัดส่งครับ/ค่ะ' },
+        { icon: '⏰', label: 'สอบถามความคืบหน้า', text: 'ตอนนี้งานถึงไหนแล้วครับ/คะ' },
+        { icon: '🧾', label: 'สอบถามราคา', text: 'ขอสอบถามเรื่องราคาครับ/ค่ะ' }
+      ].map(q => ({ ...q, pick: () => { this.setState({ chatText: q.text }, () => this.sendChat()); } })),
       chatKey: (e) => { if (e.key === 'Enter') this.sendChat(); },
       // ── ประกาศแจ้งปัญหา/งานล่าช้า (เปิด-ปิดจากหลังบ้าน ผ่านแบนเนอร์ชนิด alert) ──
       alertBn: (() => { const a = s.banners.find(b => b.color === 'alert'); return a ? { title: a.title || '', subtitle: a.subtitle || '' } : null; })(),
@@ -1854,10 +1873,29 @@ class App extends React.Component {
               </div>
             </div>
             <div style={css("flex:1;overflow-y:auto;padding:16px 20px;display:flex;flex-direction:column;gap:9px;min-height:0")}>
+              {/* การ์ดสรุปออเดอร์ที่กำลังคุยถึง */}
+              {v.chatOrder && (
+                <div style={css("background:var(--card);border:1px solid var(--line);border-radius:14px;padding:13px 15px;box-shadow:var(--shadow)")}>
+                  <div style={css("font-size:12.5px;font-weight:800")}>รายละเอียดออเดอร์</div>
+                  <div style={css("margin-top:9px;display:flex;align-items:center;gap:11px")}>
+                    <div style={css("width:46px;height:46px;border-radius:11px;background:var(--accSoft);display:flex;align-items:center;justify-content:center;font-size:22px;flex:none")}>🖨️</div>
+                    <div style={css("flex:1;min-width:0")}>
+                      <div style={css("font-size:13px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap")}>{v.chatOrder.job}</div>
+                      <div style={css("margin-top:2px;font-size:11.5px;color:var(--sub)")}>{v.chatOrder.qty}{v.chatOrder.qty ? ' · ' : ''}<b style={css("color:var(--acc);font-family:'IBM Plex Mono',monospace")}>฿{v.chatOrder.total}</b></div>
+                    </div>
+                    <span style={v.trackBadgeSt}>{v.chatOrder.status}</span>
+                  </div>
+                  <div style={css("margin-top:11px;display:flex;flex-direction:column;gap:6px;font-size:11.5px")}>
+                    <div style={css("display:flex;gap:10px")}><span style={css("color:var(--sub);flex:none;white-space:nowrap")}>หมายเลขออเดอร์</span><span style={css("flex:1;text-align:right;font-family:'IBM Plex Mono',monospace;font-weight:600")}>{v.chatOrder.id}</span></div>
+                    {v.chatOrder.phone && <div style={css("display:flex;gap:10px")}><span style={css("color:var(--sub);flex:none;white-space:nowrap")}>เบอร์ผู้รับ</span><span style={css("flex:1;text-align:right;font-family:'IBM Plex Mono',monospace")}>{v.chatOrder.phone}</span></div>}
+                    {v.chatOrder.veh && <div style={css("display:flex;gap:10px")}><span style={css("color:var(--sub);flex:none;white-space:nowrap")}>จัดส่งโดย</span><span style={css("flex:1;text-align:right")}>{v.chatOrder.veh}</span></div>}
+                    {v.chatOrder.addr && <div style={css("display:flex;gap:10px")}><span style={css("color:var(--sub);flex:none;white-space:nowrap")}>ที่อยู่</span><span style={css("flex:1;text-align:right;line-height:1.5")}>{v.chatOrder.addr}</span></div>}
+                  </div>
+                </div>
+              )}
               {v.chatEmpty && (
-                <div style={css("margin:auto;text-align:center;color:var(--sub);padding:20px")}>
-                  <div style={css("font-size:34px")}>💬</div>
-                  <div style={css("margin-top:8px;font-size:13px;line-height:1.7")}>ยังไม่มีข้อความ<br/>สอบถามหรือแจ้งรายละเอียดเพิ่มเติมของออเดอร์นี้ได้เลยครับ</div>
+                <div style={css("text-align:center;color:var(--sub);padding:14px 20px")}>
+                  <div style={css("font-size:12.5px;line-height:1.7")}>เลือกหัวข้อด้านล่าง หรือพิมพ์ข้อความถึงร้านได้เลยครับ</div>
                 </div>
               )}
               {v.chatMsgs.map(m => (
@@ -1870,7 +1908,12 @@ class App extends React.Component {
                 </div>
               ))}
             </div>
-            <div style={css("padding:10px 16px 14px;border-top:1px solid var(--line);background:var(--card);display:flex;gap:8px")}>
+            <div style={css("border-top:1px solid var(--line);background:var(--card);padding:9px 12px 0;display:flex;gap:7px;overflow-x:auto")}>
+              {v.chatQuick.map((q, i) => (
+                <button key={i} onClick={q.pick} disabled={v.chatBusy} style={css("flex:none;height:32px;padding:0 12px;border:1px solid var(--line);border-radius:99px;background:var(--soft);color:var(--ink);font-size:11.5px;font-weight:600;cursor:pointer;white-space:nowrap;font-family:inherit")}>{q.icon} {q.label}</button>
+              ))}
+            </div>
+            <div style={css("padding:10px 16px 14px;background:var(--card);display:flex;gap:8px")}>
               <input value={v.chatText} onChange={v.setChatText} onKeyDown={v.chatKey} maxLength={500} placeholder="พิมพ์ข้อความ…"
                 style={css("flex:1;min-width:0;box-sizing:border-box;height:44px;border:1px solid var(--line);border-radius:22px;background:var(--soft);color:var(--ink);padding:0 16px;font-size:13.5px;outline:none;font-family:inherit")}/>
               <button onClick={v.sendChat} disabled={v.chatBusy || !v.chatText.trim()} style={css("flex:none;width:44px;height:44px;border:none;border-radius:50%;background:var(--acc);color:#fff;font-size:17px;font-weight:700;cursor:pointer" + (v.chatBusy || !v.chatText.trim() ? ";opacity:.45" : ""))}>➤</button>
