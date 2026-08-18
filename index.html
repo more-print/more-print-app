@@ -121,6 +121,20 @@ const SIZE_BY_TYPE = { bw: ['A4'], color: ['A4'] };
 // แคตตาล็อกงาน Pro (ร้านอุดมสุขปริ้นติ้ง) — ราคายืนยันทาง LINE ก่อนเริ่มงาน
 
 
+
+// ── ไอคอนมารับเองที่ร้าน (มือรับกล่องพัสดุ) ──
+const ICON_HANDOVER = (
+  <svg width="27" height="27" viewBox="0 0 100 100" fill="none" stroke="currentColor" strokeWidth="5.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <path d="M56 21.5c-2.6-1.6-8.6-6.2-8.6-10.4a4.7 4.7 0 0 1 8.6 2.3 4.7 4.7 0 0 1 8.6-2.3c0 4.2-6 8.8-8.6 10.4z"/>
+    <rect x="37" y="21.5" width="38" height="11.5" rx="2.2"/>
+    <path d="M41.5 33v22.6a2.4 2.4 0 0 0 2.4 2.4h24.2a2.4 2.4 0 0 0 2.4-2.4V33"/>
+    <path d="M56 21.5V58"/>
+    <path d="M8.5 74.5 15 70.6l3.6 6.6 5.2 10.2-5.6 3.2"/>
+    <path d="M22.6 76c4-5.2 10.4-9.4 15.4-9.4h13.6a4.9 4.9 0 0 1 0 9.8h-7.4"/>
+    <path d="M58.4 76.2 68.6 70a5.1 5.1 0 0 1 6.4 7.7L59.6 90.4a8 8 0 0 1-5 1.8H27.8"/>
+  </svg>
+);
+
 // ── ไอคอนบริการส่ง (มอเตอร์ไซค์ส่งของ) — currentColor จะได้เขียวตอนเลือก ทั้งกลางวัน/กลางคืน ──
 const ICON_SCOOTER = (
   <svg width="27" height="27" viewBox="0 0 128 84" fill="currentColor" aria-hidden="true">
@@ -1096,7 +1110,7 @@ class App extends React.Component {
       proPickupOn: c.proPickupOn,
       proPickupOpts: [
         { svg: ICON_SCOOTER, name: 'บริการส่ง', sub: 'คิดราคาตามระยะทาง', on: !s.proPickup, pick: () => this.setState({ proPickup: false }) },
-        { icon: '🏪', name: 'มารับเองที่ร้าน', sub: 'ฟรี · ร้านอุดมสุขปริ้นติ้ง (กังสดาล)', on: s.proPickup, pick: () => this.setState({ proPickup: true }) }
+        { svg: ICON_HANDOVER, name: 'มารับเองที่ร้าน', sub: 'ฟรี · ร้านอุดมสุขปริ้นติ้ง (กังสดาล)', on: s.proPickup, pick: () => this.setState({ proPickup: true }) }
       ],
       proShowQty: !!((PRO_TYPES.find(t => t.k === s.proType) || {}).qty),
       proQtyOpts: (((PRO_TYPES.find(t => t.k === s.proType) || {}).qty) || []).map(n => this.seg(n + ' ชิ้น', s.proQty === n, () => this.setState({ proQty: n }))),
