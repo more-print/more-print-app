@@ -2150,7 +2150,11 @@ class App extends React.Component {
               <div key={i} onClick={n.pick} style={n.st}>
                 <div style={css("height:23px;display:flex;align-items:center;justify-content:center")}>
                   {n.k === 'about'
-                    ? <img src="assets/logo-icon.png" alt="" style={{ height: '21px', width: 'auto', display: 'block', opacity: n.on ? 1 : .4 }}/>
+                    ? <img src="assets/logo-icon.png" alt="" style={Object.assign(
+                        { height: '21px', width: 'auto', display: 'block', opacity: n.on ? 1 : .45 },
+                        // ไฟล์โลโก้เป็นพื้นขาวทึบ — โหมดกลางคืนกลับสี+ผสมแบบ screen เพื่อคัดพื้นขาวออก เหลือแต่ตัวโลโก้สีขาว
+                        v.night ? { filter: 'invert(1) hue-rotate(180deg)', mixBlendMode: 'screen' } : {}
+                      )}/>
                     : NAV_ICON[n.k]}
                 </div>
                 <div style={css("font-size:10px;font-weight:600;margin-top:3px")}>{n.label}</div>
