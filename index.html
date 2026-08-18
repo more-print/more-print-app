@@ -195,7 +195,7 @@ class App extends React.Component {
     this.setState({ time: String(t.getHours()).padStart(2, '0') + ':' + String(Math.floor(t.getMinutes() / 15) * 15).padStart(2, '0') });
     this.clockTimer = setInterval(() => this.setState({ now: new Date() }), 30000);
     // โหลดข้อความใหม่จากร้านขณะเปิดหน้าติดตาม (ทำงานต่อแม้ออเดอร์ส่งแล้ว)
-    this.chatTimer = setInterval(() => { if (this.state.screen === 'track' && this.state.order) this.loadChat(); }, 8000);
+    this.chatTimer = setInterval(() => { if ((this.state.screen === 'track' || this.state.screen === 'chat') && this.state.order) this.loadChat(); }, 8000);
     this.syncNight();
   }
   componentDidUpdate(){ this.syncNight(); this.syncMap(); }
@@ -740,8 +740,7 @@ class App extends React.Component {
       this.setState({ chat: data || [] });
       // นับว่าอ่านแล้วเฉพาะตอนกล่องแชทโผล่ให้เห็น (ออเดอร์ที่ย่อไว้ยังไม่นับว่าอ่าน)
       const st = this.state;
-      const collapsed = st.trackStep >= 4 && !st.trackOpen;
-      if (!collapsed && st.screen === 'track' && (data || []).some(m => m.sender === 'shop' && !m.seen_by_customer)) {
+      if (st.screen === 'chat' && (data || []).some(m => m.sender === 'shop' && !m.seen_by_customer)) {
         this.db.rpc('mark_read', { oid: s.order.id }).then(() => this.setState({ chat: (data || []).map(m => ({ ...m, seen_by_customer: true })) }));
       }
     });
@@ -777,7 +776,7 @@ class App extends React.Component {
       headStatus: night ? 'NIGHT MODE 22–06' : 'เปิด 24 ชม.',
       nightFee: CONFIG.nightFee ?? 25, expressFee: CONFIG.expressFee ?? 20, deliveryBase: CONFIG.deliveryBase ?? 10,
       isLogin: s.screen === 'login',
-      notLogin: s.screen !== 'login',
+      notLogin: s.screen !== 'login' && s.screen !== 'chat',
       authMode: s.authMode, authBusy: s.authBusy,
       goLoginMode: () => this.setState({ authMode: 'login' }),
       goRegisterMode: () => this.setState({ authMode: 'register' }),
@@ -855,9 +854,9 @@ class App extends React.Component {
       userPic: (s.user && s.user.picture) || '',
       userInitial: s.user ? ((s.user.fname || '?').trim().charAt(0) || '?') : '',
       banners: s.banners,
-      isHome: s.screen === 'home', isOrder: s.screen === 'order', isDelivery: s.screen === 'delivery', isReview: s.screen === 'review', isPay: s.screen === 'pay', isTrack: s.screen === 'track', isAbout: s.screen === 'about',
-      showBack: s.screen === 'order' || s.screen === 'delivery' || s.screen === 'review' || s.screen === 'pay',
-      goBack: () => this.setState({ screen: s.screen === 'pay' ? 'review' : s.screen === 'review' ? 'delivery' : s.screen === 'delivery' ? 'order' : 'home' }),
+      isHome: s.screen === 'home', isOrder: s.screen === 'order', isDelivery: s.screen === 'delivery', isReview: s.screen === 'review', isPay: s.screen === 'pay', isTrack: s.screen === 'track', isAbout: s.screen === 'about', isChat: s.screen === 'chat',
+      showBack: s.screen === 'order' || s.screen === 'delivery' || s.screen === 'review' || s.screen === 'pay' || s.screen === 'chat',
+      goBack: () => this.setState({ screen: s.screen === 'chat' ? 'track' : s.screen === 'pay' ? 'review' : s.screen === 'review' ? 'delivery' : s.screen === 'delivery' ? 'order' : 'home' }),
       startOrder: () => {
         if (!s.user) { this.setState({ screen: 'login' }); return this.showToast('เข้าสู่ระบบก่อนสั่งปริ้นนะครับ 🙏'); }
         // มีประกาศแจ้งปัญหา/ล่าช้า → ถามลูกค้าก่อนหนึ่งครั้งว่ายังจะสั่งต่อไหม
@@ -1143,9 +1142,16 @@ class App extends React.Component {
         time: m.created_at ? this.fmtTime(new Date(m.created_at)) : '' })),
       chatEmpty: (s.chat || []).length === 0,
       chatUnread: (s.chat || []).filter(m => m.sender === 'shop' && !m.seen_by_customer).length,
+      chatPreview: (() => {
+        const l = s.chat || [];
+        if (!l.length) return 'สอบถามเรื่องออเดอร์นี้กับร้านได้เลย';
+        const last = l[l.length - 1];
+        return (last.sender === 'shop' ? 'ร้าน: ' : 'คุณ: ') + last.body;
+      })(),
       chatText: s.chatText, chatBusy: s.chatBusy,
       setChatText: (e) => this.setState({ chatText: e.target.value }),
       sendChat: () => this.sendChat(),
+      openChat: () => { this.setState({ screen: 'chat' }); setTimeout(() => this.loadChat(), 60); },
       chatKey: (e) => { if (e.key === 'Enter') this.sendChat(); },
       // ── ประกาศแจ้งปัญหา/งานล่าช้า (เปิด-ปิดจากหลังบ้าน ผ่านแบนเนอร์ชนิด alert) ──
       alertBn: (() => { const a = s.banners.find(b => b.color === 'alert'); return a ? { title: a.title || '', subtitle: a.subtitle || '' } : null; })(),
@@ -1776,30 +1782,16 @@ class App extends React.Component {
                           <div style={css("padding-bottom:16px")}><div style={sv.tt}>{sv.label}</div><div style={css("font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:var(--sub)")}>{sv.time}</div></div>
                         </div>
                       ))}</div>
-                      {/* ── แชทของออเดอร์นี้ (อยู่ในใบเดียวกัน) ── */}
+                      {/* ── ปุ่มเข้าห้องแชทของออเดอร์นี้ ── */}
                       {v.chatOn && (
-                        <div style={css("margin-top:4px;border-top:1px dashed var(--line);padding-top:12px")}>
-                          <div style={css("display:flex;align-items:center;gap:7px")}>
-                            <span style={css("font-size:13px;font-weight:700")}>💬 แชทเรื่องออเดอร์นี้</span>
-                            <span style={css("font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--sub);background:var(--soft);border-radius:99px;padding:2px 8px")}>{v.orderId}</span>
+                        <div onClick={v.openChat} style={css("margin-top:4px;border-top:1px dashed var(--line);padding-top:12px;display:flex;align-items:center;gap:11px;cursor:pointer")}>
+                          <div style={css("width:38px;height:38px;border-radius:11px;background:var(--accSoft);display:flex;align-items:center;justify-content:center;font-size:19px;flex:none")}>💬</div>
+                          <div style={css("flex:1;min-width:0")}>
+                            <div style={css("font-size:13.5px;font-weight:700")}>แชทกับร้าน</div>
+                            <div style={css("margin-top:1px;font-size:11px;color:var(--sub);overflow:hidden;text-overflow:ellipsis;white-space:nowrap")}>{v.chatPreview}</div>
                           </div>
-                          <div style={css("margin-top:9px;max-height:240px;overflow-y:auto;display:flex;flex-direction:column;gap:7px")}>
-                            {v.chatEmpty && <div style={css("font-size:11.5px;color:var(--sub);text-align:center;padding:8px 0;line-height:1.6")}>สอบถามหรือแจ้งรายละเอียดเพิ่มเติมของออเดอร์นี้ได้เลยครับ</div>}
-                            {v.chatMsgs.map(m => (
-                              <div key={m.id} style={{ display: 'flex', justifyContent: m.mine ? 'flex-end' : 'flex-start' }}>
-                                <div style={{ maxWidth: '80%', background: m.mine ? 'var(--acc)' : 'var(--soft)', color: m.mine ? '#fff' : 'var(--ink)',
-                                  border: m.mine ? 'none' : '1px solid var(--line)', borderRadius: '13px', padding: '8px 12px', fontSize: '12.5px', lineHeight: 1.5, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
-                                  {m.body}
-                                  <div style={{ marginTop: '3px', fontSize: '9.5px', opacity: .75, fontFamily: "'IBM Plex Mono',monospace" }}>{m.time}</div>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                          <div style={css("margin-top:9px;display:flex;gap:7px")}>
-                            <input value={v.chatText} onChange={v.setChatText} onKeyDown={v.chatKey} maxLength={500} placeholder="พิมพ์ข้อความถึงร้าน…"
-                              style={css("flex:1;min-width:0;box-sizing:border-box;height:40px;border:1px solid var(--line);border-radius:11px;background:var(--soft);color:var(--ink);padding:0 12px;font-size:12.5px;outline:none;font-family:inherit")}/>
-                            <button onClick={v.sendChat} disabled={v.chatBusy || !v.chatText.trim()} style={css("flex:none;height:40px;padding:0 16px;border:none;border-radius:11px;background:var(--acc);color:#fff;font-size:12.5px;font-weight:700;cursor:pointer" + (v.chatBusy || !v.chatText.trim() ? ";opacity:.5" : ""))}>ส่ง</button>
-                          </div>
+                          {v.chatUnread > 0 && <span style={css("flex:none;font-size:10.5px;font-weight:700;color:#fff;background:#c92a2a;border-radius:99px;padding:3px 9px")}>{v.chatUnread}</span>}
+                          <span style={css("color:var(--sub);font-size:15px;flex:none")}>›</span>
                         </div>
                       )}
                     </div>
@@ -1848,6 +1840,41 @@ class App extends React.Component {
             {v.noOrder && (
               <div style={css("text-align:center;padding:50px 20px;color:var(--sub)")}><div style={css("font-size:36px")}>🗒️</div><div style={css("margin-top:10px;font-size:14px")}>ยังไม่มีออเดอร์ — เริ่มสั่งปริ้นได้เลย</div><button onClick={v.startOrder} style={css("margin-top:16px;height:44px;padding:0 22px;border:none;border-radius:12px;background:var(--acc);color:#fff;font-size:14px;font-weight:700;cursor:pointer")}>เริ่มสั่งปริ้น</button></div>
             )}
+          </div>
+        )}
+
+        {/* ── หน้าแชทกับร้าน (ห้องแชทเดี่ยวของออเดอร์นั้น) ── */}
+        {v.isChat && (
+          <div style={css("flex:1;display:flex;flex-direction:column;min-height:0")}>
+            <div style={css("padding:12px 20px;border-bottom:1px solid var(--line);background:var(--card);display:flex;align-items:center;gap:9px")}>
+              <div style={css("width:34px;height:34px;border-radius:50%;background:var(--accSoft);display:flex;align-items:center;justify-content:center;font-size:17px;flex:none")}>🖨️</div>
+              <div style={css("flex:1;min-width:0")}>
+                <div style={css("font-size:13.5px;font-weight:700")}>MORE PRINT</div>
+                <div style={css("font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--sub)")}>ออเดอร์ {v.orderId} · {v.trackLabel}</div>
+              </div>
+            </div>
+            <div style={css("flex:1;overflow-y:auto;padding:16px 20px;display:flex;flex-direction:column;gap:9px;min-height:0")}>
+              {v.chatEmpty && (
+                <div style={css("margin:auto;text-align:center;color:var(--sub);padding:20px")}>
+                  <div style={css("font-size:34px")}>💬</div>
+                  <div style={css("margin-top:8px;font-size:13px;line-height:1.7")}>ยังไม่มีข้อความ<br/>สอบถามหรือแจ้งรายละเอียดเพิ่มเติมของออเดอร์นี้ได้เลยครับ</div>
+                </div>
+              )}
+              {v.chatMsgs.map(m => (
+                <div key={m.id} style={{ display: 'flex', justifyContent: m.mine ? 'flex-end' : 'flex-start' }}>
+                  <div style={{ maxWidth: '80%', background: m.mine ? 'var(--acc)' : 'var(--card)', color: m.mine ? '#fff' : 'var(--ink)',
+                    border: m.mine ? 'none' : '1px solid var(--line)', borderRadius: '15px', padding: '9px 13px', fontSize: '13px', lineHeight: 1.55, whiteSpace: 'pre-wrap', wordBreak: 'break-word', boxShadow: 'var(--shadow)' }}>
+                    {m.body}
+                    <div style={{ marginTop: '3px', fontSize: '9.5px', opacity: .75, fontFamily: "'IBM Plex Mono',monospace" }}>{m.time}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div style={css("padding:10px 16px 14px;border-top:1px solid var(--line);background:var(--card);display:flex;gap:8px")}>
+              <input value={v.chatText} onChange={v.setChatText} onKeyDown={v.chatKey} maxLength={500} placeholder="พิมพ์ข้อความ…"
+                style={css("flex:1;min-width:0;box-sizing:border-box;height:44px;border:1px solid var(--line);border-radius:22px;background:var(--soft);color:var(--ink);padding:0 16px;font-size:13.5px;outline:none;font-family:inherit")}/>
+              <button onClick={v.sendChat} disabled={v.chatBusy || !v.chatText.trim()} style={css("flex:none;width:44px;height:44px;border:none;border-radius:50%;background:var(--acc);color:#fff;font-size:17px;font-weight:700;cursor:pointer" + (v.chatBusy || !v.chatText.trim() ? ";opacity:.45" : ""))}>➤</button>
+            </div>
           </div>
         )}
 
