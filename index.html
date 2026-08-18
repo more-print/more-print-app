@@ -982,10 +982,10 @@ class App extends React.Component {
       },
       // ── เลือกพาหนะส่งเอง (ทั้ง Standard และ Pro) — ราคาใช้เกณฑ์เดิม ──
       vehicleOpts: [
-        { k: 'bike', icon: '🏍️', name: 'มอเตอร์ไซค์', desc: 'เริ่ม ฿' + (CONFIG.deliveryBase ?? 19) + ' +฿' + (CONFIG.bikePerKm ?? 6) + '/กม. · ไม่จำกัดระยะ' },
-        { k: 'car', icon: '🚗', name: 'รถยนต์', desc: 'งานใหญ่/กันงานพับ · ฿69-129 ตามระยะ (ไม่เกิน 6 กม.)' }
+        { k: 'bike', icon: '🏍️', name: 'มอเตอร์ไซค์', desc: 'เริ่ม ฿' + (CONFIG.deliveryBase ?? 19) + ' · ส่งได้ทุกระยะ' },
+        { k: 'car', icon: '🚗', name: 'รถยนต์', desc: '฿69-129 · งานใหญ่ ไม่เกิน 6 กม.' }
       ].map(o => ({ ...o, on: s.vehicle === o.k, pick: () => this.setState({ vehicle: o.k }) })),
-      vehicleHint: this.bigJob() ? '💡 งานชิ้นใหญ่แบบนี้แนะนำรถยนต์ครับ จะได้ไม่พับ/ยับระหว่างทาง' : '',
+      vehicleHint: this.bigJob() ? '💡 งานใหญ่แนะนำรถยนต์ กันงานยับ' : '',
       vehicleLabel: s.vehicle === 'car' ? '🚗 รถยนต์' : '🏍️ มอเตอร์ไซค์',
       // ระยะทาง + ค่าส่งสด แสดงใต้แผนที่
       distLine: c.proPickupOn ? '' : s.lat == null ? ''
