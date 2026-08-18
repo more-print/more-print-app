@@ -880,8 +880,8 @@ class App extends React.Component {
         () => this.setState({ proType: t.k, proSize: (t.sizes || [''])[0], proQty: (t.qty || [100])[0], sides: t.k === 'foldbook' ? 2 : 1 }))),
       proPickupOn: c.proPickupOn,
       proPickupOpts: [
-        this.seg('🛵 ให้ MORE PRINT ไปส่งถึงที่ — คิดค่าส่งตามระยะทาง', !s.proPickup, () => this.setState({ proPickup: false })),
-        this.seg('🏪 มารับเองที่ร้านอุดมสุขปริ้นติ้ง (กังสดาล) — ฟรี ไม่มีค่าส่ง', s.proPickup, () => this.setState({ proPickup: true }))
+        { icon: '🛵', name: 'บริการส่ง', sub: 'คิดราคาตามระยะทาง', on: !s.proPickup, pick: () => this.setState({ proPickup: false }) },
+        { icon: '🏪', name: 'มารับเองที่ร้าน', sub: 'ฟรี · ร้านอุดมสุขปริ้นติ้ง (กังสดาล)', on: s.proPickup, pick: () => this.setState({ proPickup: true }) }
       ],
       proShowQty: !!((PRO_TYPES.find(t => t.k === s.proType) || {}).qty),
       proQtyOpts: (((PRO_TYPES.find(t => t.k === s.proType) || {}).qty) || []).map(n => this.seg(n + ' ชิ้น', s.proQty === n, () => this.setState({ proQty: n }))),
@@ -1471,7 +1471,18 @@ class App extends React.Component {
                 {v.isPro && v.proShowSides && <div style={css("display:flex;flex-direction:column;gap:6px")}><div style={css("font-size:12px;font-weight:600;color:var(--sub)")}>ด้านที่พิมพ์</div><div style={css("display:flex;gap:8px")}>{v.proSidesOpts.map((o, i) => <button key={i} onClick={o.pick} style={o.st}>{o.label}</button>)}</div></div>}
                 {v.isPro && v.proShowBind && <div style={css("display:flex;flex-direction:column;gap:6px")}><div style={css("font-size:12px;font-weight:600;color:var(--sub)")}>ตัวเลือกเข้าเล่ม</div><div style={css("display:flex;flex-direction:column;gap:8px")}>{v.proBindOpts.map((o, i) => <button key={i} onClick={o.pick} style={{ ...o.st, width: '100%', boxSizing: 'border-box', minHeight: '44px', display: 'flex', alignItems: 'center', textAlign: 'left', fontSize: '13px' }}>{o.label}</button>)}</div></div>}
                 {v.isPro && v.proShowQty && <div style={css("display:flex;flex-direction:column;gap:6px")}><div style={css("font-size:12px;font-weight:600;color:var(--sub)")}>จำนวน</div><div style={css("display:flex;flex-direction:column;gap:8px")}>{v.proQtyOpts.map((o, i) => <button key={i} onClick={o.pick} style={{ ...o.st, width: '100%', boxSizing: 'border-box', minHeight: '44px', display: 'flex', alignItems: 'center', textAlign: 'left', fontSize: '13px' }}>{o.label}</button>)}</div></div>}
-                {v.isPro && <div style={css("display:flex;flex-direction:column;gap:6px")}><div style={css("font-size:12px;font-weight:600;color:var(--sub)")}>การรับงาน</div><div style={css("display:flex;flex-direction:column;gap:8px")}>{v.proPickupOpts.map((o, i) => <button key={i} onClick={o.pick} style={{ ...o.st, width: '100%', boxSizing: 'border-box', minHeight: '46px', display: 'flex', alignItems: 'center', textAlign: 'left', fontSize: '12.5px', lineHeight: 1.45 }}>{o.label}</button>)}</div></div>}
+                {v.isPro && <div style={css("display:flex;flex-direction:column;gap:6px")}><div style={css("font-size:12px;font-weight:600;color:var(--sub)")}>การรับงาน</div><div style={css("display:flex;flex-direction:column;gap:8px")}>
+                  {v.proPickupOpts.map((o, i) => (
+                    <div key={i} onClick={o.pick} style={css("border:" + (o.on ? "1.5px solid var(--acc)" : "1px solid var(--line)") + ";border-radius:12px;padding:11px 14px;background:" + (o.on ? "var(--accSoft)" : "var(--card)") + ";display:flex;align-items:center;gap:11px;cursor:pointer")}>
+                      <div style={css("font-size:22px;flex:none")}>{o.icon}</div>
+                      <div style={css("flex:1;min-width:0")}>
+                        <div style={css("font-size:13.5px;font-weight:700;color:" + (o.on ? "var(--acc)" : "var(--ink)"))}>{o.name}</div>
+                        <div style={css("margin-top:1px;font-size:11px;color:var(--sub);line-height:1.5")}>{o.sub}</div>
+                      </div>
+                      <div style={css("width:20px;height:20px;border-radius:50%;flex:none;border:2px solid " + (o.on ? "var(--acc)" : "var(--line)") + ";display:flex;align-items:center;justify-content:center")}>{o.on && <div style={css("width:10px;height:10px;border-radius:50%;background:var(--acc)")}></div>}</div>
+                    </div>
+                  ))}
+                </div></div>}
                 {v.isPro && <div style={css("font-size:11.5px;font-weight:700;color:var(--acc)")}>✓ ที่เลือก: {v.proPicked}{v.proShowBind ? ' · ' + (v.bindLabel || '') : ''}</div>}
                 <div style={css("font-size:11.5px;color:var(--acc);font-weight:600")}>💡 {v.rateHint}</div>
                 {v.colorNote && <div style={css("font-size:10.5px;color:var(--sub)")}>{v.colorNote}</div>}
