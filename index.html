@@ -119,6 +119,54 @@ const PRINT_TYPES = [
 ];
 const SIZE_BY_TYPE = { bw: ['A4'], color: ['A4'] };
 // แคตตาล็อกงาน Pro (ร้านอุดมสุขปริ้นติ้ง) — ราคายืนยันทาง LINE ก่อนเริ่มงาน
+
+// ── ไอคอนประเภทงาน Pro (ชุด 100×100 stroke 6 · ใช้ currentColor จะได้เป็นสีเขียวตอนเลือก ทั้งกลางวัน/กลางคืน) ──
+const proIcon = (paths) => (
+  <svg width="22" height="22" viewBox="0 0 100 100" fill="none" stroke="currentColor" strokeWidth="6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{paths}</svg>
+);
+const ICON_PRO = {
+  plate: proIcon(<React.Fragment>
+    <rect x="26" y="14" width="48" height="72" rx="6"/>
+    <rect x="36" y="27" width="12" height="8" rx="3" fill="currentColor" stroke="none"/>
+    <rect x="53" y="27" width="12" height="8" rx="3" fill="currentColor" stroke="none"/>
+    <path d="M36 50h26M36 64h17"/>
+  </React.Fragment>),
+  poster: proIcon(<React.Fragment>
+    <rect x="28" y="14" width="44" height="72" rx="6"/>
+    <path d="M39 28h22"/>
+    <rect x="37" y="40" width="26" height="20" rx="3" fill="currentColor" stroke="none"/>
+    <path d="M39 72h18"/>
+  </React.Fragment>),
+  foldbook: proIcon(<React.Fragment>
+    <path d="M30 45 76 24v58a4 4 0 0 1-4 4H34a4 4 0 0 1-4-4z"/>
+    <path d="M43 58h20M43 70h20"/>
+  </React.Fragment>),
+  portfolio: proIcon(<React.Fragment>
+    <path d="M30 14h26l18 18v50a4 4 0 0 1-4 4H30a4 4 0 0 1-4-4V18a4 4 0 0 1 4-4z"/>
+    <path d="M56 14v14a4 4 0 0 0 4 4h14"/>
+    <rect x="36" y="42" width="28" height="28" rx="4"/>
+    <circle cx="50" cy="53" r="5" fill="currentColor" stroke="none"/>
+    <path d="M41 66c1.6-5 4.8-7.5 9-7.5s7.4 2.5 9 7.5z" fill="currentColor" stroke="none"/>
+  </React.Fragment>),
+  sticker: proIcon(<React.Fragment>
+    <path d="M26 20a6 6 0 0 1 6-6h36a6 6 0 0 1 6 6v34L54 86H32a6 6 0 0 1-6-6z"/>
+    <path d="M74 54H60a6 6 0 0 0-6 6v26"/>
+    <path d="m46 26 4.4 9 9.9 1.4-7.2 7 1.7 9.9L46 48.6l-8.8 4.7 1.7-9.9-7.2-7 9.9-1.4z" fill="currentColor" stroke="none"/>
+  </React.Fragment>),
+  namecard: proIcon(<React.Fragment>
+    <rect x="14" y="30" width="72" height="42" rx="7"/>
+    <circle cx="36" cy="45" r="5.5" fill="currentColor" stroke="none"/>
+    <path d="M27 60c1.7-5.4 5-8 9-8s7.3 2.6 9 8z" fill="currentColor" stroke="none"/>
+    <path d="M55 44h20M55 57h13"/>
+  </React.Fragment>),
+  standee: proIcon(<React.Fragment>
+    <rect x="30" y="16" width="40" height="52" rx="6"/>
+    <rect x="39" y="28" width="22" height="12" rx="3" fill="currentColor" stroke="none"/>
+    <path d="M39 51h22"/>
+    <path d="M50 68v14M34 84h32"/>
+  </React.Fragment>)
+};
+
 const PRO_TYPES = [
   { k: 'plate', icon: '🪧', label: 'เพลท', sizes: ['A0', 'A1', 'A2', 'A3', 'A4'] },
   { k: 'poster', icon: '🖼️', label: 'โปสเตอร์', sizes: ['A3', 'A4', 'A5'], sidesOpt: true },
@@ -1021,8 +1069,11 @@ class App extends React.Component {
       isPro: s.tier === 'pro',
       pickStandard: () => this.setState({ tier: 'standard', paper: SIZE_BY_TYPE[s.ptype][0] }),
       pickPro: () => this.setState({ tier: 'pro' }),
-      proTypeOpts: PRO_TYPES.map(t => this.seg(t.icon + ' ' + t.label, s.proType === t.k,
-        () => this.setState({ proType: t.k, proSize: (t.sizes || [''])[0], proQty: (t.qty || [100])[0], sides: t.k === 'foldbook' ? 2 : 1 }))),
+      proTypeOpts: PRO_TYPES.map(t => ({
+        ...this.seg(t.label, s.proType === t.k,
+          () => this.setState({ proType: t.k, proSize: (t.sizes || [''])[0], proQty: (t.qty || [100])[0], sides: t.k === 'foldbook' ? 2 : 1 })),
+        svg: ICON_PRO[t.k]
+      })),
       proPickupOn: c.proPickupOn,
       proPickupOpts: [
         { icon: '🛵', name: 'บริการส่ง', sub: 'คิดราคาตามระยะทาง', on: !s.proPickup, pick: () => this.setState({ proPickup: false }) },
@@ -1681,7 +1732,11 @@ class App extends React.Component {
                       border: t.on ? '6px solid var(--acc)' : '2px solid var(--line)', background: '#fff' }}></div>
                   </div>
                 ))}
-                {v.isPro && <div style={css("display:flex;flex-direction:column;gap:6px")}><div style={css("font-size:12px;font-weight:600;color:var(--sub)")}>ประเภทงาน Pro (ร้านอุดมสุขปริ้นติ้ง)</div><div style={css("display:flex;flex-direction:column;gap:8px")}>{v.proTypeOpts.map((o, i) => <button key={i} onClick={o.pick} style={{ ...o.st, width: '100%', boxSizing: 'border-box', minHeight: '46px', display: 'flex', alignItems: 'center', textAlign: 'left', fontSize: '13px' }}>{o.label}</button>)}</div></div>}
+                {v.isPro && <div style={css("display:flex;flex-direction:column;gap:6px")}><div style={css("font-size:12px;font-weight:600;color:var(--sub)")}>ประเภทงาน Pro (ร้านอุดมสุขปริ้นติ้ง)</div><div style={css("display:flex;flex-direction:column;gap:8px")}>{v.proTypeOpts.map((o, i) => (
+                  <button key={i} onClick={o.pick} style={{ ...o.st, width: '100%', boxSizing: 'border-box', minHeight: '46px', display: 'flex', alignItems: 'center', gap: '10px', textAlign: 'left', fontSize: '13px' }}>
+                    <span style={{ flex: 'none', lineHeight: 0 }}>{o.svg}</span>{o.label}
+                  </button>
+                ))}</div></div>}
                 {v.isPro && v.proSizeOpts.length > 0 && <div style={css("display:flex;flex-direction:column;gap:6px")}><div style={css("font-size:12px;font-weight:600;color:var(--sub)")}>ขนาด</div><div style={css("display:flex;gap:8px;flex-wrap:wrap")}>{v.proSizeOpts.map((o, i) => <button key={i} onClick={o.pick} style={o.st}>{o.label}</button>)}</div></div>}
                 {v.isPro && v.proShowSides && <div style={css("display:flex;flex-direction:column;gap:6px")}><div style={css("font-size:12px;font-weight:600;color:var(--sub)")}>ด้านที่พิมพ์</div><div style={css("display:flex;gap:8px")}>{v.proSidesOpts.map((o, i) => <button key={i} onClick={o.pick} style={o.st}>{o.label}</button>)}</div></div>}
                 {v.isPro && v.proShowBind && <div style={css("display:flex;flex-direction:column;gap:6px")}><div style={css("font-size:12px;font-weight:600;color:var(--sub)")}>ตัวเลือกเข้าเล่ม</div><div style={css("display:flex;flex-direction:column;gap:8px")}>{v.proBindOpts.map((o, i) => <button key={i} onClick={o.pick} style={{ ...o.st, width: '100%', boxSizing: 'border-box', minHeight: '44px', display: 'flex', alignItems: 'center', textAlign: 'left', fontSize: '13px' }}>{o.label}</button>)}</div></div>}
