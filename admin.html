@@ -466,8 +466,27 @@ function AdminApp(){
   const [bnBusy, setBnBusy] = React.useState(false);
 
   const [histRows, setHistRows] = React.useState(null);
+  const [threads, setThreads] = React.useState(null); // รายการห้องแชททั้งหมด (แท็บแชท)
+  const [openChat, setOpenChat] = React.useState(null); // order_id ของห้องที่กำลังเปิด
   const [unreadMap, setUnreadMap] = React.useState({}); // {order_id: จำนวนข้อความใหม่จากลูกค้า}
   const clearUnread = React.useCallback((oid) => setUnreadMap(m => { const n = { ...m }; delete n[oid]; return n; }), []);
+  // รายการห้องแชท (เรียงข้อความล่าสุดขึ้นก่อน) — โหลดเมื่อเปิดแท็บแชท
+  React.useEffect(() => {
+    if (tab !== 'chats' || !authed) return;
+    if (!DB) { setThreads([{ id: '#MP-4512', last: DEMO_MSGS[1], unread: 1 }]); return; }
+    const load = async () => {
+      const { data, error } = await DB.from('messages').select('*').order('id', { ascending: false }).limit(1000);
+      if (error) { setThreads('missing'); return; }
+      const map = {};
+      (data || []).forEach(m => {
+        if (!map[m.order_id]) map[m.order_id] = { id: m.order_id, last: m, unread: 0 };
+        if (m.sender === 'customer' && !m.seen_by_shop) map[m.order_id].unread++;
+      });
+      setThreads(Object.values(map));
+    };
+    load(); const t = setInterval(load, 10000); return () => clearInterval(t);
+  }, [tab, authed]);
+
   // นับข้อความใหม่จากลูกค้าทุก 10 วิ (เงียบ ๆ ถ้ายังไม่ได้สร้างตาราง messages)
   React.useEffect(() => {
     if (!DB || !authed) return;
@@ -846,10 +865,13 @@ function AdminApp(){
       </div>
 
       <div style={css("padding:16px 16px 0;display:flex;gap:8px")}>
-        {[['orders', '📋 ออเดอร์'], ['stats', '📊 สถิติ'], ['customers', '👥 ลูกค้า'], ['banners', '📢 โปรโมชัน']].map(([k, label]) => (
+        {[['orders', '📋 ออเดอร์'], ['chats', '💬 แชท'], ['stats', '📊 สถิติ'], ['customers', '👥 ลูกค้า'], ['banners', '📢 โปรโม']].map(([k, label]) => (
           <button key={k} onClick={() => setTab(k)} style={{ flex: 1, height: '42px', borderRadius: '12px', fontSize: '11.5px', fontWeight: 700, cursor: 'pointer', padding: '0 2px',
             border: tab === k ? '1.5px solid var(--acc)' : '1px solid var(--line)',
-            background: tab === k ? 'var(--accSoft)' : 'var(--card)', color: tab === k ? 'var(--acc)' : 'var(--sub)' }}>{label}</button>
+            background: tab === k ? 'var(--accSoft)' : 'var(--card)', color: tab === k ? 'var(--acc)' : 'var(--sub)', position: 'relative' }}>
+            {label}
+            {k === 'chats' && Object.keys(unreadMap).length > 0 && <span style={{ position: 'absolute', top: '4px', right: '6px', minWidth: '15px', height: '15px', borderRadius: '99px', background: '#c92a2a', color: '#fff', fontSize: '9.5px', fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 4px' }}>{Object.values(unreadMap).reduce((a, n) => a + n, 0)}</span>}
+          </button>
         ))}
       </div>
 
@@ -915,6 +937,61 @@ function AdminApp(){
             </div>
           )}
           {shown.map(o => <OrderCard key={o.id} o={o} onAdvance={advance} onCancel={cancel} onRemove={removeOrder} busy={busyId === o.id} unread={unreadMap[o.id] || 0} onSeen={clearUnread}/>)}
+        </div>
+      )}
+
+      {tab === 'chats' && (
+        <div style={css("padding:14px 16px 40px;display:flex;flex-direction:column;gap:10px")}>
+          {threads === 'missing' && <div style={css("background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px;font-size:12.5px;color:var(--sub);line-height:1.7")}>💬 ระบบแชทยังไม่เปิด — ต้องรัน SQL สร้างตาราง messages ก่อนครับ</div>}
+          {threads === null && <div style={css("text-align:center;color:var(--sub);font-size:13px;padding:26px 0")}>กำลังโหลด…</div>}
+
+          {/* ── ห้องสนทนาที่เปิดอยู่ ── */}
+          {openChat && (() => {
+            const ord = orders.find(x => x.id === openChat) || { id: openChat };
+            return (
+              <React.Fragment>
+                <div style={css("background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 14px;box-shadow:var(--shadow);display:flex;align-items:center;gap:11px")}>
+                  <button onClick={() => setOpenChat(null)} style={css("flex:none;width:34px;height:34px;border:1px solid var(--line);border-radius:10px;background:var(--soft);color:var(--ink);font-size:15px;cursor:pointer")}>‹</button>
+                  <div style={css("flex:1;min-width:0")}>
+                    <div style={css("font-size:13.5px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap")}>คุณ{ord.customer_fname || 'ลูกค้า'} {ord.customer_lname || ''}</div>
+                    <div style={css("margin-top:1px;font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:var(--sub)")}>{ord.id}{ord.total != null ? ' · ฿' + ord.total : ''}{ord.status != null ? ' · ' + (ord.status === 0 ? 'ยกเลิก' : STEPS[Math.min(ord.status, 4) - 1]) : ''}</div>
+                  </div>
+                  {ord.customer_phone && <a href={'tel:' + String(ord.customer_phone).replace(/[^0-9+]/g, '')} style={css("flex:none;font-size:11.5px;font-weight:700;background:var(--accSoft);color:var(--acc);padding:7px 12px;border-radius:9px;text-decoration:none")}>📞 โทร</a>}
+                </div>
+                {ord.addr && <div style={css("background:var(--soft);border:1px solid var(--line);border-radius:12px;padding:9px 12px;font-size:11.5px;line-height:1.6")}>📍 {ord.addr}{ord.phone ? ' · ' + ord.phone : ''}</div>}
+                <Chat o={ord} onSeen={clearUnread}/>
+              </React.Fragment>
+            );
+          })()}
+
+          {/* ── รายการห้องแชททั้งหมด (ยังไม่ตอบขึ้นก่อน) ── */}
+          {!openChat && Array.isArray(threads) && threads.length === 0 && (
+            <div style={css("text-align:center;color:var(--sub);font-size:13px;padding:36px 0;line-height:1.8")}>ยังไม่มีลูกค้าทักเข้ามา<br/><span style={css("font-size:11.5px")}>ข้อความจากลูกค้าทุกออเดอร์จะมารวมที่นี่</span></div>
+          )}
+          {!openChat && Array.isArray(threads) && threads.slice().sort((a, b) => (b.unread - a.unread) || (b.last.id - a.last.id)).map(th => {
+            const ord = orders.find(x => x.id === th.id) || {};
+            const mine = th.last.sender === 'shop';
+            return (
+              <div key={th.id} onClick={() => setOpenChat(th.id)} style={css("background:var(--card);border:1px solid " + (th.unread ? "#ffa8a8" : "var(--line)") + ";border-radius:14px;padding:12px 14px;box-shadow:var(--shadow);display:flex;align-items:center;gap:12px;cursor:pointer")}>
+                <div style={css("width:42px;height:42px;border-radius:50%;background:" + (th.unread ? "#ffe3e3" : "var(--accSoft)") + ";color:" + (th.unread ? "#c92a2a" : "var(--acc)") + ";display:flex;align-items:center;justify-content:center;font-weight:700;font-size:16px;flex:none")}>
+                  {(ord.customer_fname || '?').trim().charAt(0)}
+                </div>
+                <div style={css("flex:1;min-width:0")}>
+                  <div style={css("display:flex;align-items:center;gap:7px")}>
+                    <span style={css("font-size:13px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap")}>คุณ{ord.customer_fname || 'ลูกค้า'} {ord.customer_lname || ''}</span>
+                    <span style={css("flex:none;font-family:'IBM Plex Mono',monospace;font-size:9.5px;color:var(--sub);background:var(--soft);border-radius:99px;padding:2px 7px")}>{th.id}</span>
+                  </div>
+                  <div style={css("margin-top:2px;font-size:11.5px;color:" + (th.unread ? "var(--ink)" : "var(--sub)") + ";font-weight:" + (th.unread ? "600" : "400") + ";overflow:hidden;text-overflow:ellipsis;white-space:nowrap")}>
+                    {mine ? 'คุณ: ' : ''}{th.last.img ? '📸 ' : ''}{th.last.body}
+                  </div>
+                </div>
+                <div style={css("text-align:right;flex:none;display:flex;flex-direction:column;align-items:flex-end;gap:4px")}>
+                  <span style={css("font-size:10px;color:var(--sub);white-space:nowrap")}>{fmtWhen(th.last.created_at)}</span>
+                  {th.unread > 0 && <span style={css("font-size:10px;font-weight:700;color:#fff;background:#c92a2a;border-radius:99px;padding:2px 8px")}>{th.unread}</span>}
+                </div>
+              </div>
+            );
+          })}
         </div>
       )}
 
