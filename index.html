@@ -353,7 +353,7 @@ class App extends React.Component {
         this.setState({
           order: { id: od.id, total: od.total || 0, times: od.times || ['', '', '', ''], plabel: od.plabel || '', eta: od.eta || null, pickup: !!od.pickup, ts: od.ts || null,
             addr: od.addr || '', phone: od.phone || '', veh: od.veh || '', copies: od.copies || 0, pages: od.pages || 0 },
-          trackStep: od.step || 1,
+          trackStep: od.step == null ? 1 : od.step, // step 0 (ยกเลิก) เป็น falsy — ห้ามใช้ || 1
           cancelReason: od.cancelReason || ''
         });
         if (this.db) setTimeout(() => this.loadChat(), 400);
@@ -949,7 +949,7 @@ class App extends React.Component {
         // (เว้นออเดอร์อายุ < 5 นาที กันชนกับเคสบันทึกออนไลน์ไม่สำเร็จ)
         const od = (() => { try { return JSON.parse(localStorage.getItem('mp_order') || 'null'); } catch (e) { return null; } })();
         const ageMin = od && od.ts ? (Date.now() - od.ts) / 60000 : 999;
-        if (ageMin > 5 && this.state.trackStep !== 0) {
+        if (ageMin > 5 && this.state.trackStep !== 0 && this.state.trackStep < 4) { // ใบที่ส่งสำเร็จแล้วโดนร้านลบทีหลัง = งานจบปกติ ไม่ใช่ถูกยกเลิก
           clearInterval(this.trackTimer);
           const rsn = 'ออเดอร์นี้ถูกยกเลิกและลบออกจากระบบโดยร้านแล้ว — ถ้าโอนเงินไปแล้ว ทักแชทร้านทาง LINE เพื่อขอคืนได้เลยครับ';
           this.setState(st => st.order && st.order.id === id ? { trackStep: 0, cancelReason: rsn } : null);
@@ -1102,7 +1102,7 @@ class App extends React.Component {
     clearInterval(this.trackTimer);
     this.setState({
       order: { id: o.id, total: o.total || 0, times: o.times || ['', '', '', ''], plabel: o.plabel || '', eta: o.eta || null, pickup: !!o.pickup, ts: o.ts || null, addr: o.addr || '', phone: o.phone || '', veh: o.veh || '', copies: o.copies || 0, pages: o.pages || 0 },
-      trackStep: o.step || 1, cancelReason: o.cancelReason || '', chat: [], trackOpen: false, trackMin: false, selfCancelArm: false
+      trackStep: o.step == null ? 1 : o.step, cancelReason: o.cancelReason || '', chat: [], trackOpen: true, trackMin: false, selfCancelArm: false // ระวัง: step 0 (ยกเลิก) เป็น falsy ห้ามใช้ || 1 · trackOpen true = ใบที่เพิ่งแตะเลือกกางให้เห็นทันทีเสมอ
     }, () => {
       if (this.db && o.step !== 0 && (o.step || 1) < 4) this.startPolling(o.id);
       else if (this.db) this.fetchOrderStatus(o.id);
@@ -1112,6 +1112,19 @@ class App extends React.Component {
   // ออเดอร์ที่ยกเลิกแล้ว: โชว์ให้ลูกค้าเห็นเหตุผล 2 ชั่วโมง แล้วเก็บกวาดออกจากหน้าจอเอง (นโยบายร้าน — ของเก่าที่ไม่มีเวลายกเลิก = ลบทันที)
   purgeCancelledLocal(){
     const gone = (step, at) => step === 0 && Date.now() - (at || 0) > 2 * 60 * 60 * 1000;
+    try {
+      // ตัวกวาดเก็บตก: ใบไหนสถานะถึง "ส่งแล้ว/รับแล้ว" ไม่ว่ามาจากเส้นทางไหน ต้องเข้าประวัติเสมอ (addHistory กันซ้ำเองด้วยรหัส)
+      const l0 = this.readOrderList();
+      const done = l0.filter(o => (o.step || 1) >= 4);
+      if (done.length) {
+        done.forEach(o => this.addHistory(o));
+        const keep0 = l0.filter(o => (o.step || 1) < 4);
+        localStorage.setItem('mp_orders', JSON.stringify(keep0));
+        this.setState({ orderList: keep0 });
+      }
+      const odD = JSON.parse(localStorage.getItem('mp_order') || 'null');
+      if (odD && (odD.step || 1) >= 4) this.addHistory(odD);
+    } catch (e) {}
     try {
       // กวาดในลิสต์รวมทุกออเดอร์
       const l = this.readOrderList();
@@ -2410,7 +2423,7 @@ class App extends React.Component {
                       <div style={css("margin-top:2px;font-size:10.5px;color:var(--sub);overflow:hidden;text-overflow:ellipsis;white-space:nowrap")}>{o.plabel || 'งานปริ้น'} · แตะเพื่อดู</div>
                     </div>
                     <span style={css("flex:none;font-size:10.5px;font-weight:700;padding:3px 9px;border-radius:99px;" + (o.step === 0 ? "color:#c92a2a;background:#ffe3e3" : "color:var(--acc);background:var(--accSoft)"))}>{o.statusLabel}</span>
-                    <span style={css("color:var(--sub);font-size:13px;flex:none")}>›</span>
+                    <span style={css("color:var(--sub);font-size:12px;flex:none")}>▼</span>
                   </div>
                 ))}
               </div>
