@@ -10,6 +10,12 @@
   --bg:#f5f4f8;--card:#ffffff;--ink:#111111;--sub:#8a8a90;--line:#e5e3ec;--soft:#f0eef6;
   --acc:#7048e8;--accSoft:#f0ebff;--gold:#a16207;--goldBg:#fff7e0;--shadow:0 2px 10px rgba(0,0,0,.06)}
   input,button,select,textarea{font-family:'IBM Plex Sans Thai',sans-serif}
+  .mp-side{position:fixed;top:0;left:0;bottom:0;width:212px;background:#1c1533;z-index:60;display:flex;flex-direction:column;padding:18px 12px 14px;box-sizing:border-box;transition:transform .22s ease;overflow-y:auto}
+  .mp-scrim{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:55;display:none}
+  .mp-main{min-width:0}
+  .mp-burger{display:none}
+  @media(min-width:901px){ .mp-main{margin-left:212px} .mp-close{display:none} }
+  @media(max-width:900px){ .mp-side{transform:translateX(-105%)} .mp-side.open{transform:translateX(0)} .mp-scrim.show{display:block} .mp-burger{display:flex} }
 </style>
 <script src="./config.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -238,6 +244,8 @@ function Dash({ role }){
   const [orders, setOrders] = React.useState(DB ? [] : DEMO);
   const [payoutReady, setPayoutReady] = React.useState(!DB);
   const [loading, setLoading] = React.useState(!!DB);
+  const [page, setPage] = React.useState('home');      // เมนูซ้าย: home/orders/sales/customers
+  const [navOpen, setNavOpen] = React.useState(false);
   const [period, setPeriod] = React.useState('day');   // ช่วงเวลาที่เลือกดู
   const [chartMode, setChartMode] = React.useState('d'); // กราฟ: d รายวัน · m รายเดือน · y รายปี
   const [filter, setFilter] = React.useState('active'); // ตัวกรองสถานะออเดอร์
@@ -370,9 +378,35 @@ function Dash({ role }){
     tier: c.n >= 5 ? 2 : c.n >= 2 ? 1 : 0 // ⭐ประจำ ≥5 / 🔁ซ้ำ 2-4 / 🆕ใหม่
   })).sort((a, b) => b.n - a.n || b.spend - a.spend);
 
+  const NAV = [['home', '🏠', 'ภาพรวม'], ['orders', '📋', 'ออเดอร์'], ['sales', '📈', 'ยอดขาย'], ['customers', '👥', 'ลูกค้า']];
   return (
+    <div>
+      {/* ── แถบเมนูซ้าย (ตามเรฟ) ── */}
+      <div className={"mp-side" + (navOpen ? " open" : "")}>
+        <div style={css("display:flex;align-items:center;gap:10px;padding:2px 8px 14px;border-bottom:1px solid #34275e")}>
+          <div style={css("font-size:22px;flex:none")}>✨</div>
+          <div style={css("min-width:0")}>
+            <div style={css("font-family:'Montserrat',sans-serif;font-weight:800;font-size:13.5px;letter-spacing:1px;color:#fff")}><span style={css("color:#b197fc")}>MORE</span> PRINT <span style={css("color:#b197fc")}>PRO</span></div>
+            <div style={css("font-size:9.5px;color:#8f83b8;margin-top:2px")}>หลังบ้านร้านพาร์ทเนอร์</div>
+          </div>
+          <button className="mp-close" onClick={() => setNavOpen(false)} style={css("margin-left:auto;background:none;border:none;color:#8f83b8;font-size:16px;cursor:pointer;flex:none")}>✕</button>
+        </div>
+        <div style={css("margin-top:12px;display:flex;flex-direction:column;gap:4px;flex:1")}>
+          {NAV.map(([k, ic, label]) => (
+            <button key={k} onClick={() => { setPage(k); setNavOpen(false); }} style={{ display: 'flex', alignItems: 'center', gap: '10px', height: '42px', padding: '0 12px', borderRadius: '11px', border: 'none', cursor: 'pointer', fontFamily: 'inherit', fontSize: '13px', fontWeight: 700, textAlign: 'left',
+              background: page === k ? 'var(--acc)' : 'transparent', color: page === k ? '#fff' : '#c8bfe8' }}>
+              <span style={css("font-size:16px")}>{ic}</span>{label}
+            </button>
+          ))}
+        </div>
+        {DB && <button onClick={() => DB.auth.signOut().then(() => location.reload())} style={css("display:flex;align-items:center;gap:10px;height:42px;padding:0 12px;border-radius:11px;border:1px solid #34275e;background:none;color:#8f83b8;cursor:pointer;font-family:inherit;font-size:12.5px;font-weight:700")}>⎋ ออกจากระบบ</button>}
+      </div>
+      <div className={"mp-scrim" + (navOpen ? " show" : "")} onClick={() => setNavOpen(false)}></div>
+
+      <div className="mp-main">
     <div style={css("min-height:100vh;background:var(--bg)")}>
       <div style={css("background:#1c1533;color:#fff;padding:16px 18px;display:flex;align-items:center;gap:12px;position:sticky;top:0;z-index:10")}>
+        <button className="mp-burger" onClick={() => setNavOpen(true)} style={css("background:#34275e;border:none;color:#fff;width:38px;height:38px;border-radius:10px;font-size:17px;cursor:pointer;align-items:center;justify-content:center;flex:none")}>☰</button>
         <div style={css("font-size:22px")}>✨</div>
         <div style={css("flex:1;min-width:0")}>
           <div style={css("font-family:'Montserrat',sans-serif;font-weight:800;font-size:15px;letter-spacing:1px")}><span style={css("color:#b197fc")}>MORE</span> PRINT <span style={css("color:#b197fc")}>PRO</span></div>
@@ -382,13 +416,14 @@ function Dash({ role }){
         {isOwner && <a href="commission.html" style={css("color:#ffd43b;font-size:11.5px;font-weight:700;text-decoration:none")}>💰 ค่าคอม</a>}
         {isOwner && <a href="admin.html" style={css("color:#b197fc;font-size:11.5px;font-weight:700;text-decoration:none")}>← หลังบ้านหลัก</a>}
         <button onClick={load} style={css("height:32px;padding:0 12px;border:1px solid #4c3d80;border-radius:9px;background:none;color:#fff;font-size:11.5px;cursor:pointer")}>{loading ? '…' : '⟳ รีเฟรช'}</button>
-        {DB && <button onClick={() => DB.auth.signOut().then(() => location.reload())} style={css("height:32px;padding:0 10px;border:1px solid #4c3d80;border-radius:9px;background:none;color:#b197fc;font-size:11.5px;cursor:pointer;white-space:nowrap")}>ออกจากระบบ</button>}
+
       </div>
 
       <div style={css("padding:14px 16px 40px;display:flex;flex-direction:column;gap:12px;max-width:760px;margin:0 auto")}>
         {!DB && <div style={css("background:var(--goldBg);border:1px solid #f0dfa6;border-radius:12px;padding:10px 14px;font-size:12px;color:var(--gold);line-height:1.6")}>⚠️ โหมดตัวอย่าง — ข้อมูลด้านล่างเป็นเพียงตัวอย่าง</div>}
 
         {/* ภาพรวมร้านวันนี้ (แบบแดชบอร์ด) */}
+        {page === 'home' && <React.Fragment>
         <div>
           <div style={css("font-size:17px;font-weight:800")}>ภาพรวมร้านค้า</div>
           <div style={css("font-size:11px;color:var(--sub);margin-top:2px")}>{new Date().toLocaleDateString('th-TH', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</div>
@@ -408,6 +443,10 @@ function Dash({ role }){
           ))}
         </div>
 
+        </React.Fragment>}
+
+        {/* ── หมวดยอดขาย ── */}
+        {page === 'sales' && <React.Fragment>
         {/* สรุปยอด — เลือกดูทีละช่วงเวลา ไม่โชว์รวดเดียวทั้งหมดให้ลายตา */}
         <div style={css("background:var(--card);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow);overflow:hidden")}>
           <div style={css("display:flex;border-bottom:1px solid var(--line)")}>
@@ -456,6 +495,8 @@ function Dash({ role }){
           <div style={css("margin-top:8px;font-size:10.5px;color:var(--sub)")}>ยอดค่างานปริ้นของออเดอร์ที่ไม่ถูกยกเลิก</div>
         </div>
 
+        </React.Fragment>}
+        {page === 'home' && <React.Fragment>
         {/* ยอดค้างโอน */}
         <div style={css("background:var(--goldBg);border:1.5px solid #f0c36d;border-radius:14px;padding:13px 16px;display:flex;align-items:center;gap:12px")}>
           <div style={css("font-size:26px")}>💸</div>
@@ -466,6 +507,8 @@ function Dash({ role }){
           </div>
         </div>
 
+        </React.Fragment>}
+        {page === 'sales' && <React.Fragment>
         {/* บันทึกข้อมูลออเดอร์รายเดือน */}
         <div style={css("background:var(--card);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);overflow-x:auto")}>
           <div style={css("padding:12px 16px 0;font-size:12.5px;font-weight:700;color:var(--sub)")}>📊 บันทึกออเดอร์รายเดือน</div>
@@ -490,8 +533,10 @@ function Dash({ role }){
           <div style={css("padding:6px 16px 12px")}></div>
         </div>
 
-        {/* รายการออเดอร์ Pro — แยกตามสถานะ ไม่ปนกัน */}
-        {(() => {
+        </React.Fragment>}
+
+        {/* ── หมวดออเดอร์ ── */}
+        {page === 'orders' && (() => {
           // ออเดอร์ตามช่วงเวลาที่เลือกด้านบน (วันนี้/สัปดาห์/เดือน/ปี)
           // ยกเว้น "กำลังทำ" — งานค้างต้องเห็นเสมอไม่ว่าเลือกช่วงไหน จะได้ไม่มีงานตกหล่น
           const inPeriod = (o) => new Date(o.created_at) >= curP[2];
@@ -502,7 +547,15 @@ function Dash({ role }){
           const cur = TABS.find(t => t[0] === filter) || TABS[0];
           return (
             <React.Fragment>
-              <div style={css("font-size:13px;font-weight:700")}>📋 ออเดอร์{curP[1]} <span style={css("font-size:10.5px;font-weight:400;color:var(--sub)")}>· เปลี่ยนช่วงเวลาได้ที่แถบบนสุด · งานที่ยังไม่เสร็จแสดงทุกช่วงเสมอ</span></div>
+              <div style={css("font-size:17px;font-weight:800")}>ออเดอร์</div>
+              <div style={css("display:flex;gap:6px")}>
+                {PERIODS.map(([k, label]) => (
+                  <button key={k} onClick={() => setPeriod(k)} style={{ flex: 1, height: '34px', borderRadius: '99px', cursor: 'pointer', fontSize: '11px', fontWeight: 700, fontFamily: 'inherit',
+                    border: period === k ? '1.5px solid var(--acc)' : '1px solid var(--line)',
+                    background: period === k ? 'var(--accSoft)' : 'var(--card)', color: period === k ? 'var(--acc)' : 'var(--sub)' }}>{label}</button>
+                ))}
+              </div>
+              <div style={css("font-size:10.5px;color:var(--sub)")}>รายการเสร็จแล้ว/ยกเลิกกรองตามช่วงที่เลือก · งานที่ยังไม่เสร็จแสดงทุกช่วงเสมอ</div>
               <div style={css("display:flex;gap:7px")}>
                 {TABS.map(([k, label, list]) => (
                   <button key={k} onClick={() => setFilter(k)} style={{ flex: 1, height: '42px', borderRadius: '12px', cursor: 'pointer', fontSize: '11.5px', fontWeight: 700, fontFamily: 'inherit',
@@ -519,9 +572,10 @@ function Dash({ role }){
           );
         })()}
 
-        {/* ลูกค้าประจำงาน Pro — พาร์ทเนอร์เห็นชื่อ+ป้ายประจำ+งานที่สั่งบ่อย (เบอร์โทรเห็นเฉพาะเจ้าของ) */}
-        {customers.length > 0 && <div style={css("font-size:12.5px;font-weight:700;color:var(--sub);margin-top:6px")}>👥 ลูกค้าประจำงาน PRO ({customers.length} คน · ⭐ ประจำ {customers.filter(c => c.tier === 2).length} คน)</div>}
-        {customers.map((cst, i) => (
+        {/* ── หมวดลูกค้า ── */}
+        {page === 'customers' && customers.length === 0 && <div style={css("text-align:center;color:var(--sub);font-size:13px;padding:30px 0")}>ยังไม่มีลูกค้างาน Pro</div>}
+        {page === 'customers' && customers.length > 0 && <div style={css("font-size:12.5px;font-weight:700;color:var(--sub);margin-top:6px")}>👥 ลูกค้าประจำงาน PRO ({customers.length} คน · ⭐ ประจำ {customers.filter(c => c.tier === 2).length} คน)</div>}
+        {page === 'customers' && customers.map((cst, i) => (
           <div key={i} style={css("background:var(--card);border:1px solid " + (cst.tier === 2 ? "#ffd43b" : "var(--line)") + ";border-radius:12px;padding:11px 14px;display:flex;align-items:center;gap:12px;box-shadow:var(--shadow)")}>
             <div style={css("width:36px;height:36px;border-radius:50%;background:var(--accSoft);color:var(--acc);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:" + (i < 3 ? "17px" : "14px") + ";flex:none")}>{i < 3 ? ['🥇', '🥈', '🥉'][i] : (cst.name || '?').trim().charAt(0)}</div>
             <div style={css("flex:1;min-width:0")}>
@@ -541,6 +595,8 @@ function Dash({ role }){
             </div>
           </div>
         ))}
+      </div>
+    </div>
       </div>
     </div>
   );

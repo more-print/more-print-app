@@ -12,6 +12,12 @@
   a{color:#00b368}a:hover{color:#008a50}
   input,button,select{font-family:'IBM Plex Sans Thai',sans-serif}
   @keyframes mpPulse{0%,100%{opacity:1}50%{opacity:.35}}
+  .mp-side{position:fixed;top:0;left:0;bottom:0;width:212px;background:#161612;z-index:60;display:flex;flex-direction:column;padding:18px 12px 14px;box-sizing:border-box;transition:transform .22s ease;overflow-y:auto}
+  .mp-scrim{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:55;display:none}
+  .mp-main{min-width:0}
+  .mp-burger{display:none}
+  @media(min-width:901px){ .mp-main{margin-left:212px} .mp-close{display:none} }
+  @media(max-width:900px){ .mp-side{transform:translateX(-105%)} .mp-side.open{transform:translateX(0)} .mp-scrim.show{display:block} .mp-burger{display:flex} }
 </style>
 <script src="./config.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -451,6 +457,7 @@ function OrderCard({ o, onAdvance, onCancel, onRemove, busy, unread, onSeen }){
 function AdminApp(){
   const [authed, setAuthed] = React.useState(!DB);
   const [tab, setTab] = React.useState('home');
+  const [navOpen, setNavOpen] = React.useState(false);
   const [orders, setOrders] = React.useState(DB ? [] : DEMO_ORDERS);
   const [loading, setLoading] = React.useState(!!DB);
   const [busyId, setBusyId] = React.useState(null);
@@ -851,10 +858,42 @@ function AdminApp(){
   const shown = zoneFilter === 'all' ? statusShown
     : statusShown.filter(o => { const z = zoneOf(o.lat, o.lng); return z && z.name === zoneFilter; });
 
+  const NAV = [
+    ['home', '🏠', 'ภาพรวม'], ['orders', '📋', 'ออเดอร์'], ['chats', '💬', 'ข้อความ'],
+    ['stats', '📈', 'ยอดขาย'], ['customers', '👥', 'ลูกค้า'], ['banners', '📢', 'โปรโมชั่น']
+  ];
+  const unreadTotal = Object.values(unreadMap).reduce((a, n) => a + n, 0);
   return (
+    <div>
+      {/* ── แถบเมนูซ้าย (ตามเรฟ) ── */}
+      <div className={"mp-side" + (navOpen ? " open" : "")}>
+        <div style={css("display:flex;align-items:center;gap:10px;padding:2px 8px 14px;border-bottom:1px solid #2b2b27")}>
+          <div style={css("width:38px;height:38px;border-radius:50%;background:#fff;display:flex;align-items:center;justify-content:center;overflow:hidden;flex:none")}><img src="assets/logo-icon.png" alt="" style={css("width:27px;height:auto;display:block")}/></div>
+          <div style={css("min-width:0")}>
+            <div style={css("font-family:'Montserrat',sans-serif;font-weight:800;font-size:13.5px;letter-spacing:1px;color:#fff")}><span style={css("color:var(--accBright)")}>MORE</span> PRINT</div>
+            <div style={css("font-size:9.5px;color:#96968c;margin-top:2px")}>หลังบ้านร้าน (Standard)</div>
+          </div>
+          <button className="mp-close" onClick={() => setNavOpen(false)} style={css("margin-left:auto;background:none;border:none;color:#96968c;font-size:16px;cursor:pointer;flex:none")}>✕</button>
+        </div>
+        <div style={css("margin-top:12px;display:flex;flex-direction:column;gap:4px;flex:1")}>
+          {NAV.map(([k, ic, label]) => (
+            <button key={k} onClick={() => { setTab(k); setNavOpen(false); }} style={{ display: 'flex', alignItems: 'center', gap: '10px', height: '42px', padding: '0 12px', borderRadius: '11px', border: 'none', cursor: 'pointer', fontFamily: 'inherit', fontSize: '13px', fontWeight: 700, textAlign: 'left', position: 'relative',
+              background: tab === k ? 'var(--acc)' : 'transparent', color: tab === k ? '#fff' : '#c9c9c2' }}>
+              <span style={css("font-size:16px")}>{ic}</span>{label}
+              {k === 'chats' && unreadTotal > 0 && <span style={css("margin-left:auto;min-width:17px;height:17px;border-radius:99px;background:#c92a2a;color:#fff;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;padding:0 5px")}>{unreadTotal}</span>}
+            </button>
+          ))}
+          <a href="commission.html" style={css("display:flex;align-items:center;gap:10px;height:42px;padding:0 12px;border-radius:11px;font-size:13px;font-weight:700;color:#e6c366;text-decoration:none")}><span style={css("font-size:16px")}>💰</span>งาน PRO / ค่าคอม</a>
+        </div>
+        {DB && <button onClick={() => DB.auth.signOut().then(() => location.reload())} style={css("display:flex;align-items:center;gap:10px;height:42px;padding:0 12px;border-radius:11px;border:1px solid #2b2b27;background:none;color:#96968c;cursor:pointer;font-family:inherit;font-size:12.5px;font-weight:700")}>⎋ ออกจากระบบ</button>}
+      </div>
+      <div className={"mp-scrim" + (navOpen ? " show" : "")} onClick={() => setNavOpen(false)}></div>
+
+      <div className="mp-main">
     <div style={css("max-width:560px;margin:0 auto;min-height:100vh;display:flex;flex-direction:column;color:var(--ink)")}>
       <div style={css("background:var(--head);color:#fff;padding:14px 20px;display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;z-index:10")}>
         <div style={css("display:flex;align-items:center;gap:10px")}>
+          <button className="mp-burger" onClick={() => setNavOpen(true)} style={css("background:#2a2a2a;border:none;color:#fff;width:38px;height:38px;border-radius:10px;font-size:17px;cursor:pointer;align-items:center;justify-content:center;flex:none")}>☰</button>
           <div style={css("width:40px;height:40px;border-radius:50%;background:#fff;display:flex;align-items:center;justify-content:center;overflow:hidden;box-shadow:0 0 0 2px rgba(255,255,255,.15)")}><img src="assets/logo-icon.png" alt="" style={css("width:29px;height:auto;display:block")}/></div>
           <div>
             <div style={css("font-family:'Montserrat',sans-serif;font-weight:800;font-size:16px;letter-spacing:1.2px;line-height:1")}><span style={css("color:var(--accBright)")}>MORE</span> <span style={css("color:#fff")}>PRINT</span></div>
@@ -862,9 +901,7 @@ function AdminApp(){
           </div>
         </div>
         <div style={css("display:flex;align-items:center;gap:10px")}>
-          <a href="commission.html" style={css("background:#a16207;color:#fff;height:32px;padding:0 12px;border-radius:9px;font-size:11.5px;font-weight:700;text-decoration:none;display:flex;align-items:center")}>💰 งาน PRO</a>
           {DB && <button onClick={refresh} style={css("background:#2a2a2a;border:none;color:#fff;height:32px;padding:0 12px;border-radius:9px;font-size:12px;cursor:pointer")}>⟳ รีเฟรช</button>}
-          {DB && <button onClick={() => DB.auth.signOut().then(() => location.reload())} style={css("background:none;border:1px solid #444;color:#bbb;height:32px;padding:0 10px;border-radius:9px;font-size:11px;cursor:pointer")}>ออก</button>}
           <div style={css("font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--accBright);display:flex;align-items:center;gap:5px")}>
             <span style={css("animation:mpPulse 2s infinite")}>●</span>{DB ? (lastSync ? 'SYNC ' + fmtTime(lastSync) : 'ONLINE') : 'DEMO'}
           </div>
@@ -876,17 +913,6 @@ function AdminApp(){
           ⚠️ <b>โหมดตัวอย่าง</b> — ยังไม่ได้เชื่อมฐานข้อมูล ข้อมูลด้านล่างเป็นเพียงตัวอย่าง เชื่อม Supabase ใน <span style={css("font-family:'IBM Plex Mono',monospace")}>config.js</span> เพื่อเห็นออเดอร์จริงจากลูกค้า
         </div>
       )}
-
-      <div style={css("padding:16px 16px 0;display:flex;gap:8px;overflow-x:auto")}>
-        {[['home', '🏠 หน้าหลัก'], ['orders', '📋 ออเดอร์'], ['chats', '💬 แชท'], ['stats', '📊 สถิติ'], ['customers', '👥 ลูกค้า'], ['banners', '📢 โปรโม']].map(([k, label]) => (
-          <button key={k} onClick={() => setTab(k)} style={{ flex: 'none', height: '42px', borderRadius: '12px', fontSize: '11.5px', fontWeight: 700, cursor: 'pointer', padding: '0 13px',
-            border: tab === k ? '1.5px solid var(--acc)' : '1px solid var(--line)',
-            background: tab === k ? 'var(--accSoft)' : 'var(--card)', color: tab === k ? 'var(--acc)' : 'var(--sub)', position: 'relative' }}>
-            {label}
-            {k === 'chats' && Object.keys(unreadMap).length > 0 && <span style={{ position: 'absolute', top: '4px', right: '6px', minWidth: '15px', height: '15px', borderRadius: '99px', background: '#c92a2a', color: '#fff', fontSize: '9.5px', fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 4px' }}>{Object.values(unreadMap).reduce((a, n) => a + n, 0)}</span>}
-          </button>
-        ))}
-      </div>
 
       {tab === 'home' && (
         <div style={css("padding:14px 16px 40px;display:flex;flex-direction:column;gap:12px")}>
@@ -1382,6 +1408,8 @@ function AdminApp(){
           <div style={css("font-size:10.5px;color:var(--sub);text-align:center;line-height:1.6")}>เฉพาะงาน Standard ไม่นับออเดอร์ที่ยกเลิก · จัดกลุ่มตามเบอร์โทรลูกค้า · ลูกค้าประจำงาน Pro ดูที่ 💰 งาน PRO</div>
         </div>
       )}
+    </div>
+      </div>
     </div>
   );
 }
