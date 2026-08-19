@@ -1047,12 +1047,12 @@ class App extends React.Component {
   }
 
   // ── แชทกับร้าน (ต้องรู้รหัสออเดอร์ของตัวเอง — ผ่าน RPC เท่านั้น) ──
-  // ออเดอร์ที่ยกเลิกแล้ว: โชว์ให้ลูกค้าเห็นเหตุผล 15 นาที แล้วเก็บกวาดออกจากหน้าจอเอง (นโยบายร้าน — ของเก่าที่ไม่มีเวลายกเลิก = ลบทันที)
+  // ออเดอร์ที่ยกเลิกแล้ว: โชว์ให้ลูกค้าเห็นเหตุผล 2 ชั่วโมง แล้วเก็บกวาดออกจากหน้าจอเอง (นโยบายร้าน — ของเก่าที่ไม่มีเวลายกเลิก = ลบทันที)
   purgeCancelledLocal(){
     try {
       const od = JSON.parse(localStorage.getItem('mp_order') || 'null');
       if (!od || od.step !== 0) return;
-      if (Date.now() - (od.cancelledAt || 0) > 15 * 60 * 1000) {
+      if (Date.now() - (od.cancelledAt || 0) > 2 * 60 * 60 * 1000) {
         localStorage.removeItem('mp_order');
         clearInterval(this.trackTimer);
         this.setState(st => (st.order && st.trackStep === 0) ? { order: null, cancelReason: '', chat: [], trackOpen: false, selfCancelArm: false } : null);

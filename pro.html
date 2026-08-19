@@ -332,8 +332,8 @@ function Dash({ role }){
   const [chartMode, setChartMode] = React.useState('d'); // กราฟ: d รายวัน · m รายเดือน · y รายปี
   const [filter, setFilter] = React.useState('active'); // ตัวกรองสถานะออเดอร์
 
-  // ออเดอร์ที่ยกเลิกเกิน 15 นาที = ลบถาวรอัตโนมัติ (นโยบายร้าน) — พาร์ทเนอร์ลบผ่าน RPC, เจ้าของลบตรง
-  const cancelledExpired = (o) => o.status === 0 && o.cancelled_at && (Date.now() - new Date(o.cancelled_at).getTime() > 15 * 60 * 1000);
+  // ออเดอร์ที่ยกเลิกเกิน 2 ชั่วโมง = ลบถาวรอัตโนมัติ (นโยบายร้าน) — พาร์ทเนอร์ลบผ่าน RPC, เจ้าของลบตรง
+  const cancelledExpired = (o) => o.status === 0 && o.cancelled_at && (Date.now() - new Date(o.cancelled_at).getTime() > 2 * 60 * 60 * 1000);
   const purgeCancelled = (rows) => {
     rows.filter(cancelledExpired).slice(0, 6).forEach(async (o) => {
       try {

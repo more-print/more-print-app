@@ -638,8 +638,8 @@ function AdminApp(){
     else setBanners(l => l.filter(x => x.color !== 'alert'));
   };
 
-  // ออเดอร์ที่ยกเลิกเกิน 15 นาที = ลบถาวรอัตโนมัติจากทุกที่ (นโยบายร้าน) — ต้องมีคอลัมน์ cancelled_at (trigger ในฐานข้อมูลตีเวลาให้)
-  const cancelledExpired = (o) => o.status === 0 && o.cancelled_at && (Date.now() - new Date(o.cancelled_at).getTime() > 15 * 60 * 1000);
+  // ออเดอร์ที่ยกเลิกเกิน 2 ชั่วโมง = ลบถาวรอัตโนมัติจากทุกที่ (นโยบายร้าน) — ต้องมีคอลัมน์ cancelled_at (trigger ในฐานข้อมูลตีเวลาให้)
+  const cancelledExpired = (o) => o.status === 0 && o.cancelled_at && (Date.now() - new Date(o.cancelled_at).getTime() > 2 * 60 * 60 * 1000);
   const purgeCancelled = (rows) => {
     rows.filter(cancelledExpired).slice(0, 6).forEach(async (o) => {
       try {

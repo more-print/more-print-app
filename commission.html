@@ -301,8 +301,8 @@ function Dash(){
   const [navOpen, setNavOpen] = React.useState(false);
   const [billListOpen, setBillListOpen] = React.useState(false); // กดปุ่มก่อน ระบบถึงสร้างรอบบิลให้
   const [billMode, setBillMode] = React.useState('w'); // ตัดบิลโอนให้พาร์ทเนอร์: w รายสัปดาห์ (ตัด อา. 23:59) · d รายวัน (ตัดเที่ยงคืน)
-  // ออเดอร์ที่ยกเลิกเกิน 15 นาที = ลบถาวรอัตโนมัติจากทุกที่ (นโยบายร้าน)
-  const cancelledExpired = (o) => o.status === 0 && o.cancelled_at && (Date.now() - new Date(o.cancelled_at).getTime() > 15 * 60 * 1000);
+  // ออเดอร์ที่ยกเลิกเกิน 2 ชั่วโมง = ลบถาวรอัตโนมัติจากทุกที่ (นโยบายร้าน)
+  const cancelledExpired = (o) => o.status === 0 && o.cancelled_at && (Date.now() - new Date(o.cancelled_at).getTime() > 2 * 60 * 60 * 1000);
   const purgeCancelled = (rows) => {
     rows.filter(cancelledExpired).slice(0, 6).forEach(async (o) => {
       try {
