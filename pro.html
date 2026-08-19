@@ -332,17 +332,31 @@ function Dash({ role }){
   const [chartMode, setChartMode] = React.useState('d'); // กราฟ: d รายวัน · m รายเดือน · y รายปี
   const [filter, setFilter] = React.useState('active'); // ตัวกรองสถานะออเดอร์
 
+  // ออเดอร์ที่ยกเลิกเกิน 15 นาที = ลบถาวรอัตโนมัติ (นโยบายร้าน) — พาร์ทเนอร์ลบผ่าน RPC, เจ้าของลบตรง
+  const cancelledExpired = (o) => o.status === 0 && o.cancelled_at && (Date.now() - new Date(o.cancelled_at).getTime() > 15 * 60 * 1000);
+  const purgeCancelled = (rows) => {
+    rows.filter(cancelledExpired).slice(0, 6).forEach(async (o) => {
+      try {
+        const paths = (o.files || []).map(f => f.path).filter(Boolean);
+        if (o.slip_path) paths.push(o.slip_path);
+        if (paths.length) await DB.storage.from('uploads').remove(paths);
+        if (isOwner) await DB.from('orders').delete().eq('id', o.id);
+        else await DB.rpc('partner_delete', { oid: o.id });
+      } catch (e) {}
+    });
+  };
   const load = React.useCallback(async () => {
     if (!DB) return;
     setLoading(true);
     const cols = 'id,created_at,status,times,cancel_reason,customer_fname,customer_lname,customer_phone,paper,sides,copies,print_cost,bind_cost,delivery_cost,night_fee,total,files,slip_path,addr,point,lat,lng';
-    let r = await DB.from('orders').select(cols + ',payout_at,pickup').eq('ptype', 'pro').order('created_at', { ascending: false }).limit(2000);
+    let r = await DB.from('orders').select(cols + ',payout_at,pickup,cancelled_at').eq('ptype', 'pro').order('created_at', { ascending: false }).limit(2000);
+    if (r.error) r = await DB.from('orders').select(cols + ',payout_at,pickup').eq('ptype', 'pro').order('created_at', { ascending: false }).limit(2000); // ยังไม่รัน SQL ลบอัตโนมัติ
     if (r.error) {
       // ยังไม่มีคอลัมน์ payout_at — โหลดแบบไม่มีไปก่อน (ตั้งราคายังใช้ได้ แต่บันทึกการโอนยังไม่ได้)
       r = await DB.from('orders').select(cols).eq('ptype', 'pro').order('created_at', { ascending: false }).limit(2000);
       setPayoutReady(false);
     } else setPayoutReady(true);
-    if (!r.error && r.data) setOrders(r.data);
+    if (!r.error && r.data) { setOrders(r.data.filter(o => !cancelledExpired(o))); purgeCancelled(r.data); }
     setLoading(false);
   }, []);
   React.useEffect(() => { load(); }, [load]);

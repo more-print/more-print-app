@@ -638,12 +638,28 @@ function AdminApp(){
     else setBanners(l => l.filter(x => x.color !== 'alert'));
   };
 
+  // ออเดอร์ที่ยกเลิกเกิน 15 นาที = ลบถาวรอัตโนมัติจากทุกที่ (นโยบายร้าน) — ต้องมีคอลัมน์ cancelled_at (trigger ในฐานข้อมูลตีเวลาให้)
+  const cancelledExpired = (o) => o.status === 0 && o.cancelled_at && (Date.now() - new Date(o.cancelled_at).getTime() > 15 * 60 * 1000);
+  const purgeCancelled = (rows) => {
+    rows.filter(cancelledExpired).slice(0, 6).forEach(async (o) => {
+      try {
+        const paths = (o.files || []).map(f => f.path).filter(Boolean);
+        if (o.slip_path) paths.push(o.slip_path);
+        if (paths.length) await DB.storage.from('uploads').remove(paths); // ลบไฟล์+สลิปด้วย — แชทถูก trigger ในฐานข้อมูลลบตามเอง
+        await DB.from('orders').delete().eq('id', o.id);
+      } catch (e) {}
+    });
+  };
   const refresh = React.useCallback(async () => {
     if (!DB) return;
     try {
       const { data, error } = await DB.from('orders').select('*').order('created_at', { ascending: false }).limit(1000);
       // งาน Pro แยกไปบริหารที่ pro.html (ของร้านพาร์ทเนอร์) — หลังบ้านหลักเห็นเฉพาะงาน Standard ของเรา
-      if (!error && data) { setOrders(data.filter(o => o.ptype !== 'pro')); setLastSync(new Date()); }
+      if (!error && data) {
+        setOrders(data.filter(o => o.ptype !== 'pro' && !cancelledExpired(o)));
+        setLastSync(new Date());
+        purgeCancelled(data); // แอดมินเก็บกวาดให้ทุกประเภทงาน รวมงาน Pro ด้วย
+      }
     } catch (e) { console.error(e); }
     setLoading(false);
   }, []);

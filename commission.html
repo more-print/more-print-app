@@ -301,14 +301,27 @@ function Dash(){
   const [navOpen, setNavOpen] = React.useState(false);
   const [billListOpen, setBillListOpen] = React.useState(false); // กดปุ่มก่อน ระบบถึงสร้างรอบบิลให้
   const [billMode, setBillMode] = React.useState('w'); // ตัดบิลโอนให้พาร์ทเนอร์: w รายสัปดาห์ (ตัด อา. 23:59) · d รายวัน (ตัดเที่ยงคืน)
+  // ออเดอร์ที่ยกเลิกเกิน 15 นาที = ลบถาวรอัตโนมัติจากทุกที่ (นโยบายร้าน)
+  const cancelledExpired = (o) => o.status === 0 && o.cancelled_at && (Date.now() - new Date(o.cancelled_at).getTime() > 15 * 60 * 1000);
+  const purgeCancelled = (rows) => {
+    rows.filter(cancelledExpired).slice(0, 6).forEach(async (o) => {
+      try {
+        const paths = (o.files || []).map(f => f.path).filter(Boolean);
+        if (o.slip_path) paths.push(o.slip_path);
+        if (paths.length) await DB.storage.from('uploads').remove(paths);
+        await DB.from('orders').delete().eq('id', o.id);
+      } catch (e) {}
+    });
+  };
   const load = React.useCallback(async () => {
     if (!DB) return;
     setLoading(true);
     const cols = 'id,created_at,status,print_cost,bind_cost,slip_path,customer_fname,paper,copies';
     const colsFull = cols + ',payout_at,pickup,sides,customer_lname,customer_phone,delivery_cost,night_fee,times,cancel_reason,files,total,addr,point,lat,lng';
-    let r = await DB.from('orders').select(colsFull).eq('ptype', 'pro').order('created_at', { ascending: false }).limit(3000);
+    let r = await DB.from('orders').select(colsFull + ',cancelled_at').eq('ptype', 'pro').order('created_at', { ascending: false }).limit(3000);
+    if (r.error) r = await DB.from('orders').select(colsFull).eq('ptype', 'pro').order('created_at', { ascending: false }).limit(3000); // ยังไม่รัน SQL ลบอัตโนมัติ
     if (r.error) r = await DB.from('orders').select(cols).eq('ptype', 'pro').order('created_at', { ascending: false }).limit(3000);
-    if (!r.error && r.data) setOrders(r.data);
+    if (!r.error && r.data) { setOrders(r.data.filter(o => !cancelledExpired(o))); purgeCancelled(r.data); }
     setLoading(false);
   }, []);
 

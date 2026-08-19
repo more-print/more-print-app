@@ -362,7 +362,8 @@ class App extends React.Component {
     } catch (e) {}
     const t = new Date(Date.now() + 90 * 60000);
     this.setState({ time: String(t.getHours()).padStart(2, '0') + ':' + String(Math.floor(t.getMinutes() / 15) * 15).padStart(2, '0') });
-    this.clockTimer = setInterval(() => this.setState({ now: new Date() }), 30000);
+    this.clockTimer = setInterval(() => { this.setState({ now: new Date() }); this.purgeCancelledLocal(); }, 30000);
+    this.purgeCancelledLocal();
     // โหลดข้อความใหม่จากร้านขณะเปิดหน้าติดตาม (ทำงานต่อแม้ออเดอร์ส่งแล้ว)
     this.chatTimer = setInterval(() => { if ((this.state.screen === 'track' || this.state.screen === 'chat') && (this.state.chatFor || this.state.order)) this.loadChat(); }, 8000);
     this.syncNight();
@@ -945,7 +946,7 @@ class App extends React.Component {
           clearInterval(this.trackTimer);
           const rsn = 'ออเดอร์นี้ถูกยกเลิกและลบออกจากระบบโดยร้านแล้ว — ถ้าโอนเงินไปแล้ว ทักแชทร้านทาง LINE เพื่อขอคืนได้เลยครับ';
           this.setState(st => st.order && st.order.id === id ? { trackStep: 0, cancelReason: rsn } : null);
-          try { if (od && od.id === id) { od.step = 0; od.cancelReason = rsn; localStorage.setItem('mp_order', JSON.stringify(od)); } } catch (e) {}
+          try { if (od && od.id === id) { od.step = 0; od.cancelReason = rsn; if (!od.cancelledAt) od.cancelledAt = Date.now(); localStorage.setItem('mp_order', JSON.stringify(od)); } } catch (e) {}
         }
         return;
       }
@@ -960,6 +961,7 @@ class App extends React.Component {
             od.step = row.status;
             od.times = row.times || od.times;
             od.cancelReason = row.cancel_reason || '';
+            if (row.status === 0 && !od.cancelledAt) od.cancelledAt = Date.now(); // จดเวลายกเลิก — ครบ 15 นาทีจะเก็บกวาดออกจากหน้าจอเอง
             localStorage.setItem('mp_order', JSON.stringify(od));
           }
         } catch (e) {}
@@ -1017,7 +1019,7 @@ class App extends React.Component {
       clearInterval(this.trackTimer);
       this.setState({ trackStep: 0, cancelReason: reason, selfCancelArm: false, selfCancelBusy: false });
       try { const od = JSON.parse(localStorage.getItem('mp_order') || 'null');
-        if (od && od.id === s.order.id) { od.step = 0; od.cancelReason = reason; localStorage.setItem('mp_order', JSON.stringify(od)); } } catch (e) {}
+        if (od && od.id === s.order.id) { od.step = 0; od.cancelReason = reason; od.cancelledAt = Date.now(); localStorage.setItem('mp_order', JSON.stringify(od)); } } catch (e) {}
       this.showToast('ยกเลิกออเดอร์เรียบร้อยครับ ↩️');
     };
     if (!this.db) return markCancelled(); // โหมดตัวอย่าง: จำลองยกเลิกในเครื่อง
@@ -1032,7 +1034,7 @@ class App extends React.Component {
         const rsn = 'ออเดอร์นี้ถูกยกเลิกและลบออกจากระบบโดยร้านแล้ว — ถ้าโอนเงินไปแล้ว ทักแชทร้านทาง LINE เพื่อขอคืนได้เลยครับ';
         this.setState({ trackStep: 0, cancelReason: rsn, selfCancelArm: false, selfCancelBusy: false });
         try { const od = JSON.parse(localStorage.getItem('mp_order') || 'null');
-          if (od && od.id === s.order.id) { od.step = 0; od.cancelReason = rsn; localStorage.setItem('mp_order', JSON.stringify(od)); } } catch (e) {}
+          if (od && od.id === s.order.id) { od.step = 0; od.cancelReason = rsn; if (!od.cancelledAt) od.cancelledAt = Date.now(); localStorage.setItem('mp_order', JSON.stringify(od)); } } catch (e) {}
         return this.showToast('ออเดอร์นี้ถูกยกเลิกโดยร้านไปแล้วครับ');
       }
       if (data === 'printing') { fail('ร้านเริ่มทำงานนี้แล้ว ยกเลิกจากหน้าเว็บไม่ได้ — รีบทักแชทร้านเลยครับ 💬'); return this.fetchOrderStatus(s.order.id); }
@@ -1045,6 +1047,18 @@ class App extends React.Component {
   }
 
   // ── แชทกับร้าน (ต้องรู้รหัสออเดอร์ของตัวเอง — ผ่าน RPC เท่านั้น) ──
+  // ออเดอร์ที่ยกเลิกแล้ว: โชว์ให้ลูกค้าเห็นเหตุผล 15 นาที แล้วเก็บกวาดออกจากหน้าจอเอง (นโยบายร้าน — ของเก่าที่ไม่มีเวลายกเลิก = ลบทันที)
+  purgeCancelledLocal(){
+    try {
+      const od = JSON.parse(localStorage.getItem('mp_order') || 'null');
+      if (!od || od.step !== 0) return;
+      if (Date.now() - (od.cancelledAt || 0) > 15 * 60 * 1000) {
+        localStorage.removeItem('mp_order');
+        clearInterval(this.trackTimer);
+        this.setState(st => (st.order && st.trackStep === 0) ? { order: null, cancelReason: '', chat: [], trackOpen: false, selfCancelArm: false } : null);
+      }
+    } catch (e) {}
+  }
   // เก็บออเดอร์ที่จบแล้ว (ส่งสำเร็จ/ลูกค้ารับแล้ว) เข้าประวัติในเครื่อง — กันซ้ำด้วยรหัสออเดอร์
   addHistory(){
     try {
