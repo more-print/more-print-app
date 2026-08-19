@@ -774,7 +774,9 @@ class App extends React.Component {
     // ขาวดำ: คิดต่อแผ่นกระดาษจริง — หน้า-หลัง 1 แผ่นจุ 2 หน้า (เศษหน้าคี่ปัดขึ้นเป็นแผ่นเต็มรายไฟล์)
     let sheets = totalPages;
     if (s.ptype === 'bw') {
-      const perCopy = s.sides === 2 ? s.files.reduce((a, f) => a + Math.ceil(f.pages / 2), 0) : pages;
+      // การกำหนดหน้า (nup): รวมหลายหน้าลงแผ่นเดียว = กระดาษลดลง ราคาลดตามจริง — หน้า-หลังจุเพิ่มอีกเท่าตัว
+      const perSheet = ((s.tier !== 'pro' && (s.nup || 1) > 1) ? s.nup : 1) * (s.sides === 2 ? 2 : 1);
+      const perCopy = perSheet > 1 ? s.files.reduce((a, f) => a + Math.ceil(f.pages / perSheet), 0) : pages;
       sheets = perCopy * s.copies;
       rate = bwSheetRate(sheets, s.sides);
       printCost = Math.ceil(sheets * rate);
@@ -785,7 +787,9 @@ class App extends React.Component {
       const heavy = s.files.reduce((a, f) => a + Math.min(f.heavy || 0, f.pages), 0);
       heavyPages = heavy * s.copies;
       lightPages = totalPages - heavyPages;
-      printCost = Math.ceil(lightPages * (CONFIG.colorLightPrice ?? 5) + heavyPages * (CONFIG.colorHeavyPrice ?? 7));
+      // การกำหนดหน้า (nup): หลายหน้าลงแผ่นเดียว = ราคาหารตามจำนวนหน้าต่อแผ่นที่ลูกค้าเลือก
+      const nupC = (s.tier !== 'pro' && (s.nup || 1) > 1) ? s.nup : 1;
+      printCost = Math.ceil((lightPages * (CONFIG.colorLightPrice ?? 5) + heavyPages * (CONFIG.colorHeavyPrice ?? 7)) / nupC);
     }
     // งาน Pro: ยังไม่กำหนดราคา — คิดค่าปริ้น ฿0 ไว้ก่อน (ลูกค้าชำระค่าส่ง) ร้านยืนยันราคาจริงทาง LINE
     if (s.tier === 'pro') { rate = 0; printCost = 0; heavyPages = 0; lightPages = 0; }
@@ -1261,7 +1265,7 @@ class App extends React.Component {
         : s.ptype === 'poster' ? '* กระดาษอาร์ตมัน/ด้าน ราคาเท่ากัน' : '',
       colorBreak: s.tier === 'pro' ? ''
         : s.ptype === 'color' && c.heavyPages > 0 ? '🎨 สีน้อย ' + c.lightPages + ' หน้า × ฿' + (CONFIG.colorLightPrice ?? 5) + ' + สีเยอะ ' + c.heavyPages + ' หน้า × ฿' + (CONFIG.colorHeavyPrice ?? 7)
-        : s.ptype === 'bw' && s.sides === 2 && c.sheets > 0 ? '📄 หน้า-หลังใช้กระดาษ ' + c.sheets + ' แผ่น × ฿' + (Math.round(c.rate * 1000) / 1000) + '/แผ่น' : '',
+        : s.ptype === 'bw' && (s.sides === 2 || (s.nup || 1) > 1) && c.sheets > 0 ? '📄 ใช้กระดาษจริง ' + c.sheets + ' แผ่น × ฿' + (Math.round(c.rate * 1000) / 1000) + '/แผ่น' : '',
       typeLabel: s.tier === 'pro' ? '✨ PRO พรีเมียม' : ((PRINT_TYPES.find(t => t.k === s.ptype) || {}).label || ''),
       pageSummary: c.pages + ' หน้า × ' + s.copies + ' ชุด (' + (s.tier === 'pro' ? 'PRO ' + this.proLabel() : ((PRINT_TYPES.find(t => t.k === s.ptype) || {}).label || '') + ' ' + s.paper) + ')',
       printCost: c.printCost, bindCost: c.bindCost, printTotal: c.printTotal,
