@@ -559,27 +559,47 @@ class App extends React.Component {
     if (!urlm) return this.showToast('วางลิงก์จาก Google Maps ก่อนนะครับ 🔗');
     const url = urlm[0];
     let pt = this.extractLatLng(url);
+    let finalUrl = url;
     if (!pt) {
       // ลิงก์สั้นจากปุ่มแชร์ (maps.app.goo.gl) — ให้ตัวแกะลิงก์ของร้าน (Edge Function) ตามไปอ่าน URL ปลายทาง
       this.setState({ gmapBusy: true });
       const cfg = window.MP_CONFIG || {};
+      // fetch พร้อมเวลาหมดอายุ — เน็ตช้า/ตัวกลางล่มต้องไม่ค้างนาฬิกาทรายไม่จบ
+      const tfetch = (u, ms) => { const c = new AbortController(); const t = setTimeout(() => c.abort(), ms); return fetch(u, { signal: c.signal }).finally(() => clearTimeout(t)); };
       try {
-        const r = await fetch(cfg.SUPABASE_URL + '/functions/v1/smart-handler?u=' + encodeURIComponent(url));
+        const r = await tfetch(cfg.SUPABASE_URL + '/functions/v1/smart-handler?u=' + encodeURIComponent(url), 10000);
         if (r.ok) {
           const j = await r.json();
-          if (j.final) pt = this.extractLatLng(j.final);
+          if (j.final) { finalUrl = j.final; pt = this.extractLatLng(j.final); }
         }
       } catch (e) {}
-      if (!pt) {
-        // ตัวกลางสำรอง
+      if (!pt && finalUrl === url) {
+        // ตัวกลางสำรอง (เฉพาะกรณีตัวแกะลิงก์หลักไม่ตอบ)
         try {
-          const r2 = await fetch('https://api.allorigins.win/raw?url=' + encodeURIComponent(url));
-          if (r2.ok) pt = this.extractLatLng(await r2.text());
+          const r2 = await tfetch('https://api.allorigins.win/raw?url=' + encodeURIComponent(url), 8000);
+          if (r2.ok) {
+            const tx = await r2.text();
+            pt = this.extractLatLng(tx);
+            const mm = tx.match(/https:\/\/www\.google\.com\/maps\?q=[^"'\\\s]+/);
+            if (!pt && mm) finalUrl = mm[0];
+          }
         } catch (e) {}
       }
       this.setState({ gmapBusy: false });
     }
-    if (!pt) return this.showToast('อ่านพิกัดจากลิงก์ไม่สำเร็จ 🙏 ลองค้นหาชื่อสถานที่หรือปักหมุดเองแทนครับ');
+    if (!pt) {
+      // ลิงก์แชร์ "ร้าน/สถานที่" แบบใหม่ของ Google ไม่มีตัวเลขพิกัดใน URL แล้ว (มีแต่ชื่อ+ที่อยู่ใน q=)
+      // → ดึงชื่อไปค้นหาในแผนที่ให้เลย ลูกค้าแตะผลที่ตรงหรือเลื่อนหมุดเองต่อได้ทันที
+      const qm = finalUrl.match(/[?&]q=([^&]+)/);
+      let name = '';
+      try { name = qm ? decodeURIComponent(qm[1].replace(/\+/g, ' ')) : ''; } catch (e) {}
+      if (name && !/^-?\d/.test(name.trim())) {
+        const short = name.split(',')[0].trim().slice(0, 60);
+        this.setState({ gmapLink: '', pinMode: 'map', mapLocked: false, searchQ: short }, () => this.doSearch());
+        return this.showToast('ลิงก์แบบใหม่ของ Google ไม่บอกพิกัด 🙏 ค้นหา "' + short + '" ให้แล้ว — แตะผลที่ตรง หรือเลื่อนแผนที่ปักหมุดเองครับ');
+      }
+      return this.showToast('อ่านพิกัดจากลิงก์ไม่สำเร็จ 🙏 ลองค้นหาชื่อสถานที่หรือปักหมุดเองแทนครับ');
+    }
     // ระหว่างรอแกะลิงก์ ถ้าลูกค้าขยับหมุดเอง = ถือว่าอันหลังสุดคือสิ่งที่ลูกค้าต้องการ ไม่ทับทิ้ง
     if ((this._pinSeq || 0) !== pinAtStart) {
       this.setState({ gmapLink: '' });
@@ -2020,7 +2040,7 @@ class App extends React.Component {
                 </div>
               )}
               </React.Fragment>}
-              {v.pinModeLink && !v.showMap && <div style={css("margin-top:10px;background:var(--soft);border:1px dashed var(--line);border-radius:12px;padding:16px;text-align:center;font-size:11.5px;color:var(--sub);line-height:1.7")}>🔗 วางลิงก์แล้วกด "ตกลง"<br/>ระบบจะปักหมุดให้อัตโนมัติแล้วโชว์แผนที่ยืนยัน</div>}
+              {v.pinModeLink && !v.showMap && <div style={css("margin-top:10px;background:var(--soft);border:1px dashed var(--line);border-radius:12px;padding:16px;text-align:center;font-size:11.5px;color:var(--sub);line-height:1.7")}>🔗 วางลิงก์แล้วกด "ตกลง"<br/>ระบบจะปักหมุดให้อัตโนมัติแล้วโชว์แผนที่ยืนยัน<br/>💡 แชร์แบบ "ปักหมุด" (กดค้างบนแผนที่ก่อนแชร์) แม่นยำสุด</div>}
               {v.showMap && <div style={css("margin-top:10px;position:relative;border-radius:14px;overflow:hidden;border:1px solid " + (v.mapLocked ? "var(--acc)" : "var(--line)") + ";box-shadow:var(--shadow)")}>
                 <div id="mpMap" style={css("height:300px;position:relative;z-index:0")}></div>
                 {/* หมุดกลางจอ (แบบแอปเรียกรถ) — ไม่รับการแตะ ให้แผนที่ข้างใต้รับแทน */}
