@@ -283,6 +283,7 @@ class App extends React.Component {
       // ประวัติการสั่ง (เก็บในเครื่อง): ออเดอร์ที่ผลิต/ส่งสำเร็จแล้ว ทั้ง standard และ pro
       history: (() => { try { return JSON.parse(localStorage.getItem('mp_history') || '[]'); } catch (e) { return []; } })(),
       histOpen: null, chatFor: null, chatFrom: 'track',
+      orderList: (() => { try { return JSON.parse(localStorage.getItem('mp_orders') || '[]'); } catch (e) { return []; } })(),
       point: '', addr: '', phone: '', time: '', express: false, slip: null,
       lat: null, lng: null, geoLabel: '', searchQ: '', searchResults: [], searching: false, locating: false,
       gmapLink: '', gmapBusy: false, pinSrc: '', pinMode: '', mapLocked: false, gpsAcc: null, gpsConfirm: false, geoHelp: '', // '' ยังไม่เลือก · 'link' วางลิงก์ · 'map' ปักหมุดเอง · mapLocked = ล็อกหมุดหลังวางลิงก์
@@ -358,11 +359,17 @@ class App extends React.Component {
         if (this.db) setTimeout(() => this.loadChat(), 400);
         if (this.db && od.step !== 0 && (od.step || 1) < 4) this.startPolling(od.id);
         else if (this.db) this.fetchOrderStatus(od.id);
+        // ย้ายเข้าระบบลิสต์หลายออเดอร์ (mp_orders) — ใบที่จบแล้วส่งเข้าประวัติแทน
+        if (!this.readOrderList().some(x => x.id === od.id)) {
+          if ((od.step || 1) >= 4) this.addHistory(od);
+          else this.upsertOrderList(od);
+        }
       }
     } catch (e) {}
+    if (this.db) setTimeout(() => this.refreshOrderList(), 1200);
     const t = new Date(Date.now() + 90 * 60000);
     this.setState({ time: String(t.getHours()).padStart(2, '0') + ':' + String(Math.floor(t.getMinutes() / 15) * 15).padStart(2, '0') });
-    this.clockTimer = setInterval(() => { this.setState({ now: new Date() }); this.purgeCancelledLocal(); }, 30000);
+    this.clockTimer = setInterval(() => { this.setState({ now: new Date() }); this.purgeCancelledLocal(); this.refreshOrderList(); }, 30000);
     this.purgeCancelledLocal();
     // โหลดข้อความใหม่จากร้านขณะเปิดหน้าติดตาม (ทำงานต่อแม้ออเดอร์ส่งแล้ว)
     this.chatTimer = setInterval(() => { if ((this.state.screen === 'track' || this.state.screen === 'chat') && (this.state.chatFor || this.state.order)) this.loadChat(); }, 8000);
@@ -946,7 +953,7 @@ class App extends React.Component {
           clearInterval(this.trackTimer);
           const rsn = 'ออเดอร์นี้ถูกยกเลิกและลบออกจากระบบโดยร้านแล้ว — ถ้าโอนเงินไปแล้ว ทักแชทร้านทาง LINE เพื่อขอคืนได้เลยครับ';
           this.setState(st => st.order && st.order.id === id ? { trackStep: 0, cancelReason: rsn } : null);
-          try { if (od && od.id === id) { od.step = 0; od.cancelReason = rsn; if (!od.cancelledAt) od.cancelledAt = Date.now(); localStorage.setItem('mp_order', JSON.stringify(od)); } } catch (e) {}
+          try { if (od && od.id === id) { od.step = 0; od.cancelReason = rsn; if (!od.cancelledAt) od.cancelledAt = Date.now(); localStorage.setItem('mp_order', JSON.stringify(od)); this.upsertOrderList(od); } } catch (e) {}
         }
         return;
       }
@@ -961,12 +968,13 @@ class App extends React.Component {
             od.step = row.status;
             od.times = row.times || od.times;
             od.cancelReason = row.cancel_reason || '';
-            if (row.status === 0 && !od.cancelledAt) od.cancelledAt = Date.now(); // จดเวลายกเลิก — ครบ 15 นาทีจะเก็บกวาดออกจากหน้าจอเอง
+            if (row.status === 0 && !od.cancelledAt) od.cancelledAt = Date.now(); // จดเวลายกเลิก — ครบกำหนดจะเก็บกวาดออกจากหน้าจอเอง
             localStorage.setItem('mp_order', JSON.stringify(od));
+            this.upsertOrderList(od);
           }
         } catch (e) {}
         if (row.status === 0 || row.status >= 4) clearInterval(this.trackTimer);
-        if (row.status >= 4) { this.maybeAutoReview(id); this.addHistory(); }
+        if (row.status >= 4) { this.maybeAutoReview(id); this.addHistory(); this.dropFromOrderList(id); }
       }
     } catch (e) {}
   }
@@ -1019,7 +1027,7 @@ class App extends React.Component {
       clearInterval(this.trackTimer);
       this.setState({ trackStep: 0, cancelReason: reason, selfCancelArm: false, selfCancelBusy: false });
       try { const od = JSON.parse(localStorage.getItem('mp_order') || 'null');
-        if (od && od.id === s.order.id) { od.step = 0; od.cancelReason = reason; od.cancelledAt = Date.now(); localStorage.setItem('mp_order', JSON.stringify(od)); } } catch (e) {}
+        if (od && od.id === s.order.id) { od.step = 0; od.cancelReason = reason; od.cancelledAt = Date.now(); localStorage.setItem('mp_order', JSON.stringify(od)); this.upsertOrderList(od); } } catch (e) {}
       this.showToast('ยกเลิกออเดอร์เรียบร้อยครับ ↩️');
     };
     if (!this.db) return markCancelled(); // โหมดตัวอย่าง: จำลองยกเลิกในเครื่อง
@@ -1034,7 +1042,7 @@ class App extends React.Component {
         const rsn = 'ออเดอร์นี้ถูกยกเลิกและลบออกจากระบบโดยร้านแล้ว — ถ้าโอนเงินไปแล้ว ทักแชทร้านทาง LINE เพื่อขอคืนได้เลยครับ';
         this.setState({ trackStep: 0, cancelReason: rsn, selfCancelArm: false, selfCancelBusy: false });
         try { const od = JSON.parse(localStorage.getItem('mp_order') || 'null');
-          if (od && od.id === s.order.id) { od.step = 0; od.cancelReason = rsn; if (!od.cancelledAt) od.cancelledAt = Date.now(); localStorage.setItem('mp_order', JSON.stringify(od)); } } catch (e) {}
+          if (od && od.id === s.order.id) { od.step = 0; od.cancelReason = rsn; if (!od.cancelledAt) od.cancelledAt = Date.now(); localStorage.setItem('mp_order', JSON.stringify(od)); this.upsertOrderList(od); } } catch (e) {}
         return this.showToast('ออเดอร์นี้ถูกยกเลิกโดยร้านไปแล้วครับ');
       }
       if (data === 'printing') { fail('ร้านเริ่มทำงานนี้แล้ว ยกเลิกจากหน้าเว็บไม่ได้ — รีบทักแชทร้านเลยครับ 💬'); return this.fetchOrderStatus(s.order.id); }
@@ -1047,12 +1055,76 @@ class App extends React.Component {
   }
 
   // ── แชทกับร้าน (ต้องรู้รหัสออเดอร์ของตัวเอง — ผ่าน RPC เท่านั้น) ──
+  // ── รายการออเดอร์ทั้งหมดของลูกค้า (mp_orders): สั่งหลายใบไล่เลี่ยกัน ติดตามได้ครบทุกใบ ──
+  readOrderList(){ try { return JSON.parse(localStorage.getItem('mp_orders') || '[]'); } catch (e) { return []; } }
+  upsertOrderList(od){
+    try {
+      if (!od || !od.id) return;
+      const l = this.readOrderList();
+      const i = l.findIndex(x => x.id === od.id);
+      if (i >= 0) l[i] = { ...l[i], ...od }; else l.unshift(od);
+      const cut = l.slice(0, 10);
+      localStorage.setItem('mp_orders', JSON.stringify(cut));
+      this.setState({ orderList: cut });
+    } catch (e) {}
+  }
+  dropFromOrderList(id){
+    try {
+      const l = this.readOrderList().filter(x => x.id !== id);
+      localStorage.setItem('mp_orders', JSON.stringify(l));
+      this.setState({ orderList: l });
+    } catch (e) {}
+  }
+  // เช็คสถานะออเดอร์ใบอื่นๆ ในลิสต์ (ตัวที่เลือกดูมี startPolling ทุก 8 วิดูแลอยู่แล้ว) — เรียกทุก 30 วิ
+  refreshOrderList(){
+    if (!this.db) return;
+    const sel = (this.state.order || {}).id;
+    (this.state.orderList || []).forEach(o => {
+      if (o.id === sel || o.step === 0 || (o.step || 1) >= 4) return;
+      this.db.rpc('get_order_status', { oid: o.id }).then(({ data, error }) => {
+        if (error) return;
+        const row = Array.isArray(data) ? data[0] : data;
+        if (!row) {
+          // ออเดอร์หายจากฐานข้อมูล (ร้านยกเลิกแล้วลบ) — เว้นใบที่เพิ่งสั่งไม่เกิน 5 นาที
+          if (Date.now() - (o.ts || 0) > 5 * 60000) this.upsertOrderList({ ...o, step: 0, cancelReason: 'ออเดอร์นี้ถูกยกเลิกและลบออกจากระบบโดยร้านแล้ว — ถ้าโอนเงินไปแล้ว ทักแชทร้านทาง LINE เพื่อขอคืนได้เลยครับ', cancelledAt: o.cancelledAt || Date.now() });
+          return;
+        }
+        const nd = { ...o, step: row.status, times: row.times || o.times, cancelReason: row.cancel_reason || '' };
+        if (row.status === 0 && !nd.cancelledAt) nd.cancelledAt = Date.now();
+        if (row.status >= 4) { this.addHistory(nd); this.maybeAutoReview(o.id); this.dropFromOrderList(o.id); return; } // จบแล้ว → ย้ายไปหน้าประวัติ
+        this.upsertOrderList(nd);
+      });
+    });
+  }
+  // ลูกค้าแตะเลือกออเดอร์ใบอื่นจากลิสต์ → สลับหน้าติดตาม+แชทมาที่ใบนั้น
+  pickOrder(o){
+    try { localStorage.setItem('mp_order', JSON.stringify(o)); } catch (e) {}
+    clearInterval(this.trackTimer);
+    this.setState({
+      order: { id: o.id, total: o.total || 0, times: o.times || ['', '', '', ''], plabel: o.plabel || '', eta: o.eta || null, pickup: !!o.pickup, ts: o.ts || null, addr: o.addr || '', phone: o.phone || '', veh: o.veh || '', copies: o.copies || 0, pages: o.pages || 0 },
+      trackStep: o.step || 1, cancelReason: o.cancelReason || '', chat: [], trackOpen: false, trackMin: false, selfCancelArm: false
+    }, () => {
+      if (this.db && o.step !== 0 && (o.step || 1) < 4) this.startPolling(o.id);
+      else if (this.db) this.fetchOrderStatus(o.id);
+      if (this.db) this.loadChat();
+    });
+  }
   // ออเดอร์ที่ยกเลิกแล้ว: โชว์ให้ลูกค้าเห็นเหตุผล 2 ชั่วโมง แล้วเก็บกวาดออกจากหน้าจอเอง (นโยบายร้าน — ของเก่าที่ไม่มีเวลายกเลิก = ลบทันที)
   purgeCancelledLocal(){
+    const gone = (step, at) => step === 0 && Date.now() - (at || 0) > 2 * 60 * 60 * 1000;
+    try {
+      // กวาดในลิสต์รวมทุกออเดอร์
+      const l = this.readOrderList();
+      const keep = l.filter(o => !gone(o.step, o.cancelledAt));
+      if (keep.length !== l.length) {
+        localStorage.setItem('mp_orders', JSON.stringify(keep));
+        this.setState({ orderList: keep });
+      }
+    } catch (e) {}
     try {
       const od = JSON.parse(localStorage.getItem('mp_order') || 'null');
       if (!od || od.step !== 0) return;
-      if (Date.now() - (od.cancelledAt || 0) > 2 * 60 * 60 * 1000) {
+      if (gone(od.step, od.cancelledAt)) {
         localStorage.removeItem('mp_order');
         clearInterval(this.trackTimer);
         this.setState(st => (st.order && st.trackStep === 0) ? { order: null, cancelReason: '', chat: [], trackOpen: false, selfCancelArm: false } : null);
@@ -1060,9 +1132,9 @@ class App extends React.Component {
     } catch (e) {}
   }
   // เก็บออเดอร์ที่จบแล้ว (ส่งสำเร็จ/ลูกค้ารับแล้ว) เข้าประวัติในเครื่อง — กันซ้ำด้วยรหัสออเดอร์
-  addHistory(){
+  addHistory(src){
     try {
-      const o = this.state.order;
+      const o = src || this.state.order;
       if (!o || !o.id) return;
       const h = JSON.parse(localStorage.getItem('mp_history') || '[]');
       if (h.some(x => x.id === o.id)) return;
@@ -1188,7 +1260,7 @@ class App extends React.Component {
       doLogout: () => {
         if (this.auth) this.auth.auth.signOut();
         try { if (this._liffReady && window.liff.isLoggedIn()) window.liff.logout(); } catch (e) {}
-        try { localStorage.removeItem('mp_user'); localStorage.removeItem('mp_order'); } catch (e) {}
+        try { localStorage.removeItem('mp_user'); localStorage.removeItem('mp_order'); localStorage.removeItem('mp_orders'); } catch (e) {}
         clearInterval(this.trackTimer);
         this.setState({ order: null, trackStep: 1, cancelReason: '' });
         this.setState({ user: null, emailIn: '', passIn: '', regFname: '', regLname: '', regEmail: '', regPass1: '', regPass2: '', authMode: 'login', screen: 'login' });
@@ -1464,7 +1536,11 @@ class App extends React.Component {
         this.setState({ order: { id, total: c.grandTotal, times: [t0, '', '', ''], plabel, eta, pickup, ts, addr: oaddr, phone: s.phone, veh: oveh, copies: s.copies, pages: c.totalPages }, trackStep: 1, cancelReason: '', screen: 'track',
           files: [], slip: null, copies: 1, bind: 'none', express: false, tier: 'standard', ptype: 'bw', paper: 'A4', sides: 1, orient: 'portrait', nup: 1, proPickup: false, vehicle: 'bike', trackOpen: false, trackMin: false, histOpen: null, chatFor: null, chatFrom: 'track', selfCancelArm: false, couponCode: '', couponOk: null });
         // จำออเดอร์ไว้ในเครื่อง — ปิดเว็บแล้วกลับมา การติดตามยังอยู่
-        try { localStorage.setItem('mp_order', JSON.stringify({ id, total: c.grandTotal, times: [t0, '', '', ''], step: 1, plabel, eta, pickup, ts, addr: oaddr, phone: s.phone, veh: oveh, copies: s.copies, pages: c.totalPages })); } catch (e) {}
+        try {
+          const nod = { id, total: c.grandTotal, times: [t0, '', '', ''], step: 1, plabel, eta, pickup, ts, addr: oaddr, phone: s.phone, veh: oveh, copies: s.copies, pages: c.totalPages };
+          localStorage.setItem('mp_order', JSON.stringify(nod));
+          this.upsertOrderList(nod); // สั่งหลายใบไล่เลี่ยกัน — ทุกใบอยู่ในลิสต์ติดตาม
+        } catch (e) {}
         // บวกเวลาตามคิวที่ค้างจริง (ออเดอร์ที่ยังไม่ออกส่ง) — รอ insert ลงฐานก่อนแล้วค่อยนับ
         if (this.db) setTimeout(async () => {
           try {
@@ -1500,6 +1576,10 @@ class App extends React.Component {
       histOpen: s.histOpen,
       histToggle: (id) => this.setState({ histOpen: s.histOpen === id ? null : id }),
       histWhen: (t) => { try { const d = new Date(t); return d.toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit' }) + ' · ' + this.fmtTime(d); } catch (e) { return ''; } },
+      // ลิสต์ทุกออเดอร์ที่ยังติดตามอยู่ (ตัวที่กำลังดูอยู่แยกโชว์เป็นการ์ดใหญ่)
+      orderList: s.orderList || [],
+      otherOrders: (s.orderList || []).filter(o => !s.order || o.id !== s.order.id).map(o => ({ ...o, statusLabel: o.step === 0 ? 'ยกเลิกแล้ว' : (stepsFor(o) || STEPS)[Math.min(o.step || 1, 4) - 1] })),
+      pickOrder: (o) => this.pickOrder(o),
       orderId: s.order ? s.order.id : '', paidTotal: s.order ? s.order.total : 0,
       cancelled, cancelReason: s.cancelReason,
       // ── ลูกค้ายกเลิกเอง: ปุ่มโผล่เฉพาะช่วง "รับออเดอร์" + ยังไม่เกินเวลา (นาฬิกา s.now เดินทุก 30 วิ ตัวเลขนับถอยหลังจึงสดเสมอ) ──
@@ -2318,6 +2398,23 @@ class App extends React.Component {
         {/* ── Track ── */}
         {v.isTrack && (
           <div style={css("padding:18px 20px 110px;display:flex;flex-direction:column;gap:14px")}>
+            {/* ลูกค้าสั่งหลายใบไล่เลี่ยกัน — ลิสต์ทุกออเดอร์ แตะใบไหนก็สลับไปดูใบนั้น */}
+            {v.otherOrders.length > 0 && (
+              <div style={css("display:flex;flex-direction:column;gap:8px")}>
+                <div style={css("font-size:12px;font-weight:700;color:var(--sub)")}>📋 ออเดอร์อื่นของคุณ ({v.otherOrders.length})</div>
+                {v.otherOrders.map(o => (
+                  <div key={o.id} onClick={() => v.pickOrder(o)} style={css("background:var(--card);border:1px solid var(--line);border-radius:13px;padding:12px 15px;display:flex;align-items:center;gap:10px;cursor:pointer;box-shadow:var(--shadow)")}>
+                    <span style={css("font-size:18px;flex:none")}>{o.step === 0 ? '❌' : '🖨️'}</span>
+                    <div style={css("flex:1;min-width:0")}>
+                      <div style={css("font-family:'IBM Plex Mono',monospace;font-size:12.5px;font-weight:700")}>{o.id}</div>
+                      <div style={css("margin-top:2px;font-size:10.5px;color:var(--sub);overflow:hidden;text-overflow:ellipsis;white-space:nowrap")}>{o.plabel || 'งานปริ้น'} · แตะเพื่อดู</div>
+                    </div>
+                    <span style={css("flex:none;font-size:10.5px;font-weight:700;padding:3px 9px;border-radius:99px;" + (o.step === 0 ? "color:#c92a2a;background:#ffe3e3" : "color:var(--acc);background:var(--accSoft)"))}>{o.statusLabel}</span>
+                    <span style={css("color:var(--sub);font-size:13px;flex:none")}>›</span>
+                  </div>
+                ))}
+              </div>
+            )}
             {v.hasOrder && (
               <React.Fragment>
                 {v.cancelled && !v.trackCollapsed && (
@@ -2417,7 +2514,7 @@ class App extends React.Component {
                 <button onClick={v.newOrder} style={css("width:100%;height:46px;border:1px solid var(--line);border-radius:14px;background:var(--card);color:var(--ink);font-size:14px;font-weight:600;cursor:pointer")}>+ สั่งปริ้นใหม่</button>
               </React.Fragment>
             )}
-            {v.noOrder && (
+            {v.noOrder && v.otherOrders.length === 0 && (
               <div style={css("text-align:center;padding:50px 20px;color:var(--sub)")}><div style={css("font-size:36px")}>🗒️</div><div style={css("margin-top:10px;font-size:14px")}>ยังไม่มีออเดอร์ — เริ่มสั่งปริ้นได้เลย</div><button onClick={v.startOrder} style={css("margin-top:16px;height:44px;padding:0 22px;border:none;border-radius:12px;background:var(--acc);color:#fff;font-size:14px;font-weight:700;cursor:pointer")}>เริ่มสั่งปริ้น</button></div>
             )}
           </div>
