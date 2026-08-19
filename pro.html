@@ -63,9 +63,9 @@ const commOf = (o) => jobValue(o) * COMMISSION;
 const partnerOf = (o) => jobValue(o) - commOf(o);
 
 const DEMO = [
-  { id: '#MP-PRO001', created_at: new Date(Date.now() - 2*3600000).toISOString(), status: 2, customer_fname: 'สมชาย', customer_lname: 'ใจดี', customer_phone: '081-111-2222', paper: 'A1', sides: 1, copies: 2, print_cost: 600, bind_cost: 0, delivery_cost: 39, night_fee: 0, total: 639, payout_at: null, files: [{ name: 'โปสเตอร์งานวิจัย.pdf', pages: 1, path: null, drive_url: 'https://drive.google.com/file/d/demo' }] },
+  { id: '#MP-PRO001', created_at: new Date(Date.now() - 2*3600000).toISOString(), status: 2, customer_fname: 'สมชาย', customer_lname: 'ใจดี', customer_phone: '081-111-2222', paper: 'A1', sides: 1, copies: 2, addr: '🏍️ หอ 9 ตึก B ชั้น 2', lat: 16.4712, lng: 102.8221, print_cost: 600, bind_cost: 0, delivery_cost: 39, night_fee: 0, total: 639, payout_at: null, files: [{ name: 'โปสเตอร์งานวิจัย.pdf', pages: 1, path: null, drive_url: 'https://drive.google.com/file/d/demo' }] },
   { id: '#MP-PRO002', created_at: new Date(Date.now() - 26*3600000).toISOString(), status: 2, customer_fname: 'มินตรา', customer_lname: 'พาเพลิน', customer_phone: '095-333-4444', paper: 'A2', sides: 2, copies: 1, print_cost: 250, bind_cost: 0, delivery_cost: 0, night_fee: 0, total: 250, payout_at: null, pickup: true },
-  { id: '#MP-PRO003', created_at: new Date(Date.now() - 30*3600000).toISOString(), status: 4, customer_fname: 'ต้นกล้า', customer_lname: 'เรียนดี', customer_phone: '062-555-6666', paper: 'A3', sides: 1, copies: 5, print_cost: 0, bind_cost: 0, delivery_cost: 39, night_fee: 0, total: 39, payout_at: null }
+  { id: '#MP-PRO003', created_at: new Date(Date.now() - 30*3600000).toISOString(), status: 4, customer_fname: 'ต้นกล้า', customer_lname: 'เรียนดี', customer_phone: '062-555-6666', paper: 'A3', sides: 1, copies: 5, addr: '🚗 คณะสถาปัตย์ มข.', print_cost: 0, bind_cost: 0, delivery_cost: 39, night_fee: 0, total: 39, payout_at: null }
 ];
 
 function ProLogin({ onOk }){
@@ -178,7 +178,10 @@ function ProOrder({ o, isOwner, payoutReady, onPrice, onPayout, onAdvance, onCan
       <div style={css("margin-top:4px;font-size:12px;font-weight:600")}>✨ {o.paper} · {o.sides === 2 ? 'หน้า-หลัง' : 'หน้าเดียว'} · {o.copies || 1} ชุด</div>
       {!o.pickup && (o.addr || o.point) && (
         <div style={css("margin-top:4px;font-size:11.5px;color:var(--sub);line-height:1.6")}>📍 {(o.addr || o.point || '').replace(/^(🚗|🏍️)\s*/, '')}
-          {o.lat != null && o.lng != null && <a href={'https://www.google.com/maps?q=' + o.lat + ',' + o.lng} target="_blank" rel="noreferrer" style={css("margin-left:8px;font-weight:700;color:var(--acc)")}>🧭 นำทาง</a>}
+          <a href={o.lat != null && o.lng != null
+              ? 'https://www.google.com/maps?q=' + o.lat + ',' + o.lng
+              : 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(String(o.addr || o.point || '').replace(/^(🚗|🏍️)\s*/, ''))}
+            target="_blank" rel="noreferrer" style={css("margin-left:8px;font-weight:700;color:var(--acc)")}>🧭 นำทาง</a>
         </div>
       )}
       {o.slip_path && fileUrl(o.slip_path) && (

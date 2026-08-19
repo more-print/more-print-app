@@ -12,6 +12,12 @@
   input,button{font-family:'IBM Plex Sans Thai',sans-serif}
   table{border-collapse:collapse;width:100%}
   @media print{ .no-print{display:none!important} body{background:#fff} }
+  .mp-side{position:fixed;top:0;left:0;bottom:0;width:212px;background:#2b2413;z-index:60;display:flex;flex-direction:column;padding:18px 12px 14px;box-sizing:border-box;transition:transform .22s ease;overflow-y:auto}
+  .mp-scrim{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:55;display:none}
+  .mp-main{min-width:0}
+  .mp-burger{display:none}
+  @media(min-width:901px){ .mp-main{margin-left:212px} .mp-close{display:none} }
+  @media(max-width:900px){ .mp-side{transform:translateX(-105%)} .mp-side.open{transform:translateX(0)} .mp-scrim.show{display:block} .mp-burger{display:flex} }
 </style>
 <script src="./config.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -261,7 +267,10 @@ function Manage({ o, onPrice, onPayout, onAdvance, onCancel, onRemove }){
       {/* ที่อยู่จัดส่ง + นำทาง + สลิป (เท่าหลังบ้าน Standard) */}
       {!o.pickup && (o.addr || o.point) && (
         <div style={css("font-size:11.5px;color:var(--sub);line-height:1.6")}>📍 {o.addr || o.point}
-          {o.lat != null && o.lng != null && <a href={'https://www.google.com/maps?q=' + o.lat + ',' + o.lng} target="_blank" rel="noreferrer" style={css("margin-left:8px;font-weight:700;color:var(--acc)")}>🧭 นำทาง</a>}
+          <a href={o.lat != null && o.lng != null
+              ? 'https://www.google.com/maps?q=' + o.lat + ',' + o.lng
+              : 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(String(o.addr || o.point || '').replace(/^(🚗|🏍️)\s*/, ''))}
+            target="_blank" rel="noreferrer" style={css("margin-left:8px;font-weight:700;color:var(--acc)")}>🧭 นำทาง</a>
         </div>
       )}
       {o.slip_path && fileUrl(o.slip_path) && (
@@ -288,6 +297,8 @@ function Dash(){
   const [period, setPeriod] = React.useState('day');
   const [filter, setFilter] = React.useState('active');
   const [chartMode, setChartMode] = React.useState('d'); // กราฟรายได้: d รายวัน · m รายเดือน · y รายปี
+  const [page, setPage] = React.useState('home');      // เมนูซ้าย: home/orders/income/bills/customers
+  const [navOpen, setNavOpen] = React.useState(false);
   const [billListOpen, setBillListOpen] = React.useState(false); // กดปุ่มก่อน ระบบถึงสร้างรอบบิลให้
   const [billMode, setBillMode] = React.useState('w'); // ตัดบิลโอนให้พาร์ทเนอร์: w รายสัปดาห์ (ตัด อา. 23:59) · d รายวัน (ตัดเที่ยงคืน)
   const load = React.useCallback(async () => {
@@ -516,22 +527,47 @@ function Dash(){
   }
 
   return (
+    <div>
+      {/* ── แถบเมนูซ้าย (แบบเดียวกับ pro.html) ── */}
+      <div className={"mp-side" + (navOpen ? " open" : "")}>
+        <div style={css("display:flex;align-items:center;gap:10px;padding:2px 8px 14px;border-bottom:1px solid #4a3d1c")}>
+          <div style={css("font-size:22px;flex:none")}>💰</div>
+          <div style={css("min-width:0")}>
+            <div style={css("font-family:'Montserrat',sans-serif;font-weight:800;font-size:13px;letter-spacing:1px;color:#fff")}><span style={css("color:#ffd43b")}>MORE</span> PRINT</div>
+            <div style={css("font-size:9.5px;color:#b3a26b;margin-top:2px")}>ค่าคอมงาน PRO (เจ้าของ)</div>
+          </div>
+          <button className="mp-close" onClick={() => setNavOpen(false)} style={css("margin-left:auto;background:none;border:none;color:#b3a26b;font-size:16px;cursor:pointer;flex:none")}>✕</button>
+        </div>
+        <div style={css("margin-top:12px;display:flex;flex-direction:column;gap:4px;flex:1")}>
+          {[['home', '🏠', 'ภาพรวม'], ['orders', '📋', 'งาน PRO'], ['income', '📈', 'รายได้'], ['bills', '🧾', 'ตัดบิล'], ['customers', '👥', 'ลูกค้า']].map(([k, ic, label]) => (
+            <button key={k} onClick={() => { setPage(k); setNavOpen(false); }} style={{ display: 'flex', alignItems: 'center', gap: '10px', height: '42px', padding: '0 12px', borderRadius: '11px', border: 'none', cursor: 'pointer', fontFamily: 'inherit', fontSize: '13px', fontWeight: 700, textAlign: 'left',
+              background: page === k ? 'var(--acc)' : 'transparent', color: page === k ? '#fff' : '#d8c99a' }}>
+              <span style={css("font-size:16px")}>{ic}</span>{label}
+            </button>
+          ))}
+          <a href="admin.html" style={css("display:flex;align-items:center;gap:10px;height:42px;padding:0 12px;border-radius:11px;font-size:13px;font-weight:700;color:#8fd6a8;text-decoration:none")}><span style={css("font-size:16px")}>🖨️</span>หลังบ้านหลัก</a>
+        </div>
+        {DB && <button onClick={() => DB.auth.signOut().then(() => location.reload())} style={css("display:flex;align-items:center;gap:10px;height:42px;padding:0 12px;border-radius:11px;border:1px solid #4a3d1c;background:none;color:#b3a26b;cursor:pointer;font-family:inherit;font-size:12.5px;font-weight:700")}>⎋ ออกจากระบบ</button>}
+      </div>
+      <div className={"mp-scrim" + (navOpen ? " show" : "")} onClick={() => setNavOpen(false)}></div>
+
+      <div className="mp-main">
     <div style={css("min-height:100vh;background:var(--bg)")}>
       <div style={css("background:#2b2413;color:#fff;padding:16px 18px;display:flex;align-items:center;gap:12px;position:sticky;top:0;z-index:10")}>
+        <button className="mp-burger" onClick={() => setNavOpen(true)} style={css("background:#4a3d1c;border:none;color:#fff;width:38px;height:38px;border-radius:10px;font-size:17px;cursor:pointer;align-items:center;justify-content:center;flex:none")}>☰</button>
         <div style={css("font-size:22px")}>💰</div>
         <div style={css("flex:1;min-width:0")}>
           <div style={css("font-family:'Montserrat',sans-serif;font-weight:800;font-size:15px;letter-spacing:1px")}><span style={css("color:#ffd43b")}>MORE</span> PRINT <span style={css("color:#ffd43b")}>COMMISSION</span></div>
           <div style={css("font-family:'IBM Plex Mono',monospace;font-size:9.5px;letter-spacing:2px;color:#e6c366")}>คอม {Math.round(COMMISSION * 100)}% จากงาน PRO · {PARTNER_NAME}</div>
         </div>
         {!DB && <span style={css("font-size:10px;font-weight:700;background:#f59f00;color:#2b2413;padding:3px 10px;border-radius:99px")}>DEMO</span>}
-        <a href="admin.html" style={css("color:#e6c366;font-size:11.5px;font-weight:700;text-decoration:none")}>← หลัก</a>
         <button onClick={load} style={css("height:32px;padding:0 10px;border:1px solid #6b5c2e;border-radius:9px;background:none;color:#fff;font-size:11.5px;cursor:pointer")}>{loading ? '…' : '⟳'}</button>
-        {DB && <button onClick={() => DB.auth.signOut().then(() => location.reload())} style={css("height:32px;padding:0 10px;border:1px solid #6b5c2e;border-radius:9px;background:none;color:#e6c366;font-size:11.5px;cursor:pointer;white-space:nowrap")}>ออกจากระบบ</button>}
       </div>
 
       <div style={css("padding:14px 16px 40px;display:flex;flex-direction:column;gap:12px;max-width:760px;margin:0 auto")}>
         {!DB && <div style={css("background:var(--accSoft);border:1px solid var(--line);border-radius:12px;padding:10px 14px;font-size:12px;color:var(--acc)")}>⚠️ โหมดตัวอย่าง — ข้อมูลเป็นเพียงตัวอย่าง</div>}
 
+        {(page === 'home' || page === 'income') && <React.Fragment>
         {/* รายได้ — เลือกดูทีละช่วงเวลา */}
         <div style={css("background:var(--card);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow);overflow:hidden")}>
           <div style={css("display:flex;border-bottom:1px solid var(--line)")}>
@@ -559,6 +595,8 @@ function Dash(){
           </div>
         </div>
 
+        </React.Fragment>}
+        {page === 'income' && <React.Fragment>
         {/* กราฟรายได้ของเรา */}
         <div style={css("background:var(--card);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow);padding:14px 16px")}>
           <div style={css("display:flex;align-items:center;gap:8px")}>
@@ -581,6 +619,8 @@ function Dash(){
           <div style={css("margin-top:8px;font-size:10.5px;color:var(--sub)")}>คอม 33% + ค่าส่ง จากงานที่จบแล้ว (นับตามวันที่สั่ง)</div>
         </div>
 
+        </React.Fragment>}
+        {page === 'home' && <React.Fragment>
         {/* คอมรอรับจากงานที่ยังไม่จบ */}
         <div style={css("background:var(--card);border:1.5px dashed var(--acc);border-radius:14px;padding:12px 16px;display:flex;align-items:center;gap:12px")}>
           <div style={css("font-size:24px")}>⏳</div>
@@ -591,6 +631,8 @@ function Dash(){
           <div style={css("font-family:'IBM Plex Mono',monospace;font-size:18px;font-weight:800;color:var(--acc)")}>{baht(pendingComm)}</div>
         </div>
 
+        </React.Fragment>}
+        {page === 'income' && <React.Fragment>
         {/* สรุปรายเดือน */}
         <div style={css("background:var(--card);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);overflow-x:auto")}>
           <div style={css("padding:12px 16px 0;font-size:12.5px;font-weight:700;color:var(--sub)")}>📅 สรุปรายเดือน (เฉพาะงานที่จบแล้ว)</div>
@@ -620,6 +662,8 @@ function Dash(){
           <div style={css("padding:8px 16px 12px")}></div>
         </div>
 
+        </React.Fragment>}
+        {page === 'bills' && <React.Fragment>
         {/* ตัดบิลโอนให้ร้านอุดมสุข (กดปุ่มก่อน ระบบถึงคำนวณรอบให้ — ไม่ทำเองอัตโนมัติ) */}
         <div style={css("background:var(--card);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow);padding:14px 16px")}>
           <div style={css("display:flex;align-items:center;gap:8px;flex-wrap:wrap")}>
@@ -657,6 +701,8 @@ function Dash(){
           )}
         </div>
 
+        </React.Fragment>}
+        {page === 'customers' && <React.Fragment>
         {/* ลูกค้าประจำงาน PRO */}
         <div style={css("background:var(--card);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);padding:12px 16px")}>
           <div style={css("display:flex;align-items:center;gap:8px")}>
@@ -686,8 +732,8 @@ function Dash(){
           ))}
         </div>
 
-        {/* รายงานทีละงาน — แยกตามสถานะ */}
-        {(() => {
+        </React.Fragment>}
+        {page === 'orders' && (() => {
           // งานตามช่วงเวลาที่เลือกด้านบน — "กำลังทำ" โชว์ทุกใบเสมอ กันงานค้างตกหล่น
           const inPeriod = (o) => new Date(o.created_at) >= curP[2];
           const inWork = orders.filter(o => o.status > 0 && o.status < 4);
@@ -733,6 +779,8 @@ function Dash(){
             </React.Fragment>
           );
         })()}
+      </div>
+    </div>
       </div>
     </div>
   );
