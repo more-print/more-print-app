@@ -1444,10 +1444,10 @@ class App extends React.Component {
         this.showToast('รับออเดอร์แล้ว! 🎉');
       },
       hasOrder: !!s.order, noOrder: !s.order,
-      // ออเดอร์ที่ส่งแล้ว: หดเหลือแถบรหัสออเดอร์ แตะเพื่อกาง (ออเดอร์ที่ยังไม่จบแสดงเต็มตลอด)
+      // ออเดอร์ที่จบแล้ว (ส่งสำเร็จ/ยกเลิก): หดเหลือแถบรหัสออเดอร์ แตะเพื่อกาง (ออเดอร์ที่ยังทำอยู่แสดงเต็มตลอด)
       trackPickup: !!(s.order && s.order.pickup),
       trackDelivered: !!s.order && step >= 4 && !cancelled,
-      trackCollapsed: !!s.order && step >= 4 && !cancelled && !s.trackOpen,
+      trackCollapsed: !!s.order && (step >= 4 || cancelled) && !s.trackOpen,
       trackToggle: () => this.setState({ trackOpen: !s.trackOpen }),
       orderId: s.order ? s.order.id : '', paidTotal: s.order ? s.order.total : 0,
       cancelled, cancelReason: s.cancelReason,
@@ -2266,7 +2266,7 @@ class App extends React.Component {
           <div style={css("padding:18px 20px 110px;display:flex;flex-direction:column;gap:14px")}>
             {v.hasOrder && (
               <React.Fragment>
-                {v.cancelled && (
+                {v.cancelled && !v.trackCollapsed && (
                   <div style={css("background:#fff0f0;border:1px solid #ffc9c9;border-radius:14px;padding:14px 16px")}>
                     <div style={css("font-size:14.5px;font-weight:700;color:#c92a2a")}>{v.selfCancelled ? '↩️ คุณยกเลิกออเดอร์นี้แล้ว' : '❌ ออเดอร์ถูกยกเลิกโดยร้าน'}</div>
                     {!v.selfCancelled && v.cancelReason && <div style={css("margin-top:6px;font-size:13px;color:#a61e1e;line-height:1.5")}><b>เหตุผล:</b> {v.cancelReason}</div>}
@@ -2275,10 +2275,10 @@ class App extends React.Component {
                 )}
                 {v.trackCollapsed ? (
                   <div onClick={v.trackToggle} style={css("background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px;display:flex;align-items:center;gap:11px;cursor:pointer;box-shadow:var(--shadow)")}>
-                    <span style={css("font-size:20px")}>✅</span>
+                    <span style={css("font-size:20px")}>{v.cancelled ? (v.selfCancelled ? '↩️' : '❌') : '✅'}</span>
                     <div style={css("flex:1;min-width:0")}>
                       <div style={css("font-family:'IBM Plex Mono',monospace;font-size:13.5px;font-weight:700")}>{v.orderId}</div>
-                      <div style={css("margin-top:2px;font-size:11px;color:var(--sub)")}>{v.chatUnread > 0 ? 'ร้านส่งข้อความมา · แตะเพื่ออ่าน' : (v.trackPickup ? 'รับสินค้าแล้ว' : 'ส่งเรียบร้อยแล้ว') + ' · แตะเพื่อดูรายละเอียด'}</div>
+                      <div style={css("margin-top:2px;font-size:11px;color:var(--sub)")}>{v.chatUnread > 0 ? 'ร้านส่งข้อความมา · แตะเพื่ออ่าน' : (v.cancelled ? 'ออเดอร์ถูกยกเลิก' : v.trackPickup ? 'รับสินค้าแล้ว' : 'ส่งเรียบร้อยแล้ว') + ' · แตะเพื่อดูรายละเอียด'}</div>
                     </div>
                     {v.chatUnread > 0 && <span style={css("flex:none;font-size:10.5px;font-weight:700;color:#fff;background:#c92a2a;border-radius:99px;padding:3px 9px")}>💬 {v.chatUnread}</span>}
                     <div style={v.trackBadgeSt}>{v.trackLabel}</div>
