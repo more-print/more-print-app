@@ -271,6 +271,8 @@ class App extends React.Component {
       order: null, trackStep: 1, cancelReason: '', toast: '', now: new Date(),
       selfCancelArm: false, selfCancelBusy: false,
       chat: null, chatText: '', chatBusy: false, chatOff: false, // แชทกับร้าน (ตาราง messages)
+      profOpen: '', profFname: '', profLname: '', profPhone: '', // หน้า My Profile (หมวดที่กางอยู่ + ฟอร์มแก้ชื่อ/เบอร์)
+      couponCode: '', couponOk: null, couponBusy: false, // โค้ดส่วนลดที่หน้าชำระเงิน (couponOk = {code,kind,value})
       user: null, authMode: 'login', authBusy: false,
       emailIn: '', passIn: '',
       regFname: '', regLname: '', regEmail: '', regPass1: '', regPass2: ''
@@ -442,6 +444,44 @@ class App extends React.Component {
     if (safari) return 'safari';     // Safari บน Mac
     return 'other';                   // Chrome / Edge / Firefox
   }
+  // ── โค้ดส่วนลด: ตรวจกับฐานข้อมูลผ่าน RPC check_coupon (ปลอมฝั่งเว็บไม่ได้ ราคาจริงคิดจากผลตรวจ) ──
+  applyCoupon(){
+    const s = this.state, code = (s.couponCode || '').trim().toUpperCase();
+    if (!code) return this.showToast('พิมพ์โค้ดส่วนลดก่อนนะครับ 🎟️');
+    if (!this.db) { // โหมดตัวอย่าง
+      if (code === 'DEMO10') { this.setState({ couponOk: { code, kind: 'percent', value: 10 } }); return this.showToast('ใช้โค้ดสำเร็จ! ลด 10% 🎉'); }
+      return this.showToast('โค้ดไม่ถูกต้องหรือหมดอายุ ❌');
+    }
+    this.setState({ couponBusy: true });
+    this.db.rpc('check_coupon', { code_in: code }).then(({ data, error }) => {
+      this.setState({ couponBusy: false });
+      if (error) return this.showToast('ระบบคูปองยังไม่เปิดใช้งานครับ');
+      const c = Array.isArray(data) ? data[0] : data;
+      if (!c || !c.code) { this.setState({ couponOk: null }); return this.showToast('โค้ดไม่ถูกต้อง หมดอายุ หรือถูกใช้ครบแล้ว ❌'); }
+      this.setState({ couponOk: { code: c.code, kind: c.kind, value: Number(c.value), min_total: Number(c.min_total || 0) } });
+      this.showToast('ใช้โค้ดสำเร็จ! 🎉 ' + (c.kind === 'percent' ? 'ลด ' + c.value + '%' : 'ลด ฿' + c.value));
+    });
+  }
+
+  // ── ที่อยู่จัดส่งประจำ (จำจากออเดอร์ที่สั่งสำเร็จ เก็บในเครื่องลูกค้า สูงสุด 4 ที่) ──
+  loadAddrs(){ try { return JSON.parse(localStorage.getItem('mp_addrs') || '[]'); } catch (e) { return []; } }
+  saveAddr(a){
+    try {
+      const list = this.loadAddrs().filter(x => x.addr !== a.addr);
+      list.unshift(a);
+      localStorage.setItem('mp_addrs', JSON.stringify(list.slice(0, 4)));
+    } catch (e) {}
+  }
+  removeAddr(addr){
+    try { localStorage.setItem('mp_addrs', JSON.stringify(this.loadAddrs().filter(x => x.addr !== addr))); } catch (e) {}
+    this.setState({});
+  }
+  pickAddr(a){
+    this.setState({ addr: a.addr, vehicle: a.veh || 'bike', pinMode: 'map', pinSrc: 'saved', mapLocked: false });
+    if (a.lat != null) this.setPin(a.lat, a.lng, true);
+    this.showToast('ใช้ที่อยู่ประจำแล้ว 🏠 เช็คหมุดบนแผนที่อีกทีนะครับ');
+  }
+
   // เบอร์โทร: รับเฉพาะตัวเลข 10 หลัก + ใส่ขีด 083-xxx-xxxx ให้เองตอนพิมพ์ (พิมพ์ตัวอักษรมา = ตัดทิ้งทันที)
   fmtPhone(v){
     const d = String(v || '').replace(/\D/g, '').slice(0, 10);
@@ -726,9 +766,17 @@ class App extends React.Component {
     const bindCost = s.tier === 'pro' ? 0 : (s.bind === 'corner' ? 5 : s.bind === 'book' ? 40 : s.bind === 'landscape' ? 60 : 0) * s.copies;
     const deliveryCost = proPickupOn ? 0 : deliveryFee + expressFee;
     const nightFee2 = proPickupOn ? 0 : nightFee; // มารับเอง ไม่มีค่าบริการกลางคืน/ด่วน
+    // ── โค้ดส่วนลด: หักจากยอดรวมท้ายสุด (ไม่ติดลบ) ──
+    const beforeDiscount = printCost + bindCost + deliveryCost + nightFee2;
+    let discount = 0;
+    const cp = s.couponOk;
+    if (cp && beforeDiscount >= (cp.min_total || 0)) {
+      discount = cp.kind === 'percent' ? Math.floor(beforeDiscount * cp.value / 100) : Math.min(cp.value, beforeDiscount);
+    }
     return { pages, totalPages, sheets, rate, heavyPages, lightPages, printCost, bindCost, printTotal: printCost + bindCost,
       deliveryFee, carJob, farNote, outOfArea, proPickupOn, deliveryPending: !proPickupOn && km == null,
-      deliveryCost, nightFee: nightFee2, grandTotal: printCost + bindCost + deliveryCost + nightFee2 };
+      deliveryCost, nightFee: nightFee2, discount, coupon: discount > 0 ? cp.code : null,
+      grandTotal: Math.max(0, beforeDiscount - discount) };
   }
 
   // เวลาผลิต+ส่งโดยประมาณของงานปัจจุบัน (นาที ยังไม่รวมคิว)
@@ -807,9 +855,14 @@ class App extends React.Component {
         phone: s.phone, time: '', express: s.express, night: this.isNight(),
         print_cost: c.printCost, bind_cost: c.bindCost, delivery_cost: c.deliveryCost,
         night_fee: this.isNight() ? (CONFIG.nightFee ?? 10) : 0,
-        total: c.grandTotal, status: 1, times: [t0, '', '', '']
+        total: c.grandTotal, status: 1, times: [t0, '', '', ''],
+        coupon: c.coupon || null, discount: c.discount || 0
       };
       let { error } = await this.db.from('orders').insert(payload);
+      if (error && ((error.message || '').includes('coupon') || (error.message || '').includes('discount'))) {
+        const { coupon, discount, ...restC } = payload;
+        ({ error } = await this.db.from('orders').insert(restC));
+      }
       if (error && (error.message || '').includes('line_uid')) {
         // ฐานข้อมูลยังไม่มีคอลัมน์ line_uid — บันทึกแบบไม่มีไปก่อน ออเดอร์ต้องไม่หาย
         const { line_uid, ...restL } = payload;
@@ -828,6 +881,7 @@ class App extends React.Component {
       if (error) throw error;
       // แจ้งเตือน LINE ทีมงาน (ยิงทิ้งไว้ — ถ้าระบบแจ้งเตือนยังไม่ตั้งค่า ออเดอร์ไม่กระทบ)
       try { fetch((window.MP_CONFIG || {}).SUPABASE_URL + '/functions/v1/notify-order', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id }) }); } catch (e) {}
+      if (c.coupon) { try { this.db.rpc('use_coupon', { code_in: c.coupon }); } catch (e) {} }
     } catch (e) {
       console.error('saveOrder:', e);
       this.showToast('⚠️ บันทึกออนไลน์ไม่สำเร็จ — ติดต่อร้านทาง LINE');
@@ -1055,9 +1109,9 @@ class App extends React.Component {
       userPic: (s.user && s.user.picture) || '',
       userInitial: s.user ? ((s.user.fname || '?').trim().charAt(0) || '?') : '',
       banners: s.banners,
-      isHome: s.screen === 'home', isOrder: s.screen === 'order', isDelivery: s.screen === 'delivery', isReview: s.screen === 'review', isPay: s.screen === 'pay', isTrack: s.screen === 'track', isAbout: s.screen === 'about', isChat: s.screen === 'chat',
-      showBack: s.screen === 'order' || s.screen === 'delivery' || s.screen === 'review' || s.screen === 'pay' || s.screen === 'chat',
-      goBack: () => this.setState({ screen: s.screen === 'chat' ? 'track' : s.screen === 'pay' ? 'review' : s.screen === 'review' ? 'delivery' : s.screen === 'delivery' ? 'order' : 'home' }),
+      isHome: s.screen === 'home', isOrder: s.screen === 'order', isDelivery: s.screen === 'delivery', isReview: s.screen === 'review', isPay: s.screen === 'pay', isTrack: s.screen === 'track', isAbout: s.screen === 'about', isChat: s.screen === 'chat', isProfile: s.screen === 'profile',
+      showBack: s.screen === 'order' || s.screen === 'delivery' || s.screen === 'review' || s.screen === 'pay' || s.screen === 'chat' || s.screen === 'profile',
+      goBack: () => this.setState({ screen: s.screen === 'chat' ? 'track' : s.screen === 'profile' ? 'home' : s.screen === 'pay' ? 'review' : s.screen === 'review' ? 'delivery' : s.screen === 'delivery' ? 'order' : 'home' }),
       startOrder: () => {
         if (!s.user) { this.setState({ screen: 'login' }); return this.showToast('เข้าสู่ระบบก่อนสั่งปริ้นนะครับ 🙏'); }
         // มีประกาศแจ้งปัญหา/ล่าช้า → ถามลูกค้าก่อนหนึ่งครั้งว่ายังจะสั่งต่อไหม
@@ -1232,10 +1286,12 @@ class App extends React.Component {
       distLine: c.proPickupOn ? '' : s.lat == null ? ''
         : s.distKm == null ? '⏳ กำลังวัดระยะทางจริง… ค่าส่งจะอัปเดตอัตโนมัติ (กดต่อไปได้เมื่อวัดเสร็จ)'
         : c.outOfArea ? '🚫 รถยนต์ส่งได้ไม่เกิน 6 กม. — จุดนี้ห่าง ~' + s.distKm.toFixed(1) + ' กม. เลือกมอเตอร์ไซค์แทนได้ครับ'
-        : (s.pinSrc === 'link' ? '🔗 จุดจากลิงก์ Google Maps · ' : s.pinSrc === 'gps' ? '🎯 ตำแหน่งปัจจุบันของคุณ · ' : s.pinSrc === 'map' ? '📍 จุดที่คุณปักเอง · ' : '') + (c.carJob ? '🚗' : '🏍️') + ' ระยะจากร้าน ~' + s.distKm.toFixed(1) + ' กม.' + (s.distSrc === 'est' ? ' (ประมาณ)' : '') + ' · ค่าส่ง ฿' + c.deliveryFee + (c.farNote ? ' — ร้านจะนัดเวลาส่งล่วงหน้า' : ''),
+        : (s.pinSrc === 'link' ? '🔗 จุดจากลิงก์ Google Maps · ' : s.pinSrc === 'gps' ? '🎯 ตำแหน่งปัจจุบันของคุณ · ' : s.pinSrc === 'saved' ? '🏠 ที่อยู่ประจำของคุณ · ' : s.pinSrc === 'map' ? '📍 จุดที่คุณปักเอง · ' : '') + (c.carJob ? '🚗' : '🏍️') + ' ระยะจากร้าน ~' + s.distKm.toFixed(1) + ' กม.' + (s.distSrc === 'est' ? ' (ประมาณ)' : '') + ' · ค่าส่ง ฿' + c.deliveryFee + (c.farNote ? ' — ร้านจะนัดเวลาส่งล่วงหน้า' : ''),
       distOut: !!c.outOfArea,
       measuring: !c.proPickupOn && s.lat != null && c.deliveryPending,
       // ── เลือกวิธีบอกจุดส่ง (กันลูกค้าสับสนว่าจะใช้ลิงก์หรือปักหมุด) ──
+      // ── ที่อยู่จัดส่งประจำ ──
+      savedAddrs: this.loadAddrs().map(a => ({ ...a, pick: () => this.pickAddr(a), del: (e) => { e.stopPropagation(); this.removeAddr(a.addr); } })),
       pinMode: s.pinMode, pinModeLink: s.pinMode === 'link', pinModeMap: s.pinMode === 'map',
       // แผนที่โผล่เมื่อ: โหมดปักหมุด หรือ โหมดลิงก์ที่วางลิงก์สำเร็จแล้ว
       showMap: s.pinMode === 'map' || (s.pinMode === 'link' && s.lat != null),
@@ -1306,8 +1362,10 @@ class App extends React.Component {
         const ts = Date.now(); // เวลาชำระ — ใช้นับถอยหลังช่วงที่ลูกค้ายกเลิกเองได้
         const oaddr = pickup ? '🏪 มารับเองที่ร้านอุดมสุขปริ้นติ้ง' : s.addr;
         const oveh = pickup ? '' : (s.vehicle === 'car' ? '🚗 รถยนต์' : '🏍️ มอเตอร์ไซค์');
+        // จำเป็นที่อยู่จัดส่งประจำ ไว้เลือกซ้ำรอบหน้า
+        if (!pickup && s.addr.trim() && s.lat != null) this.saveAddr({ addr: s.addr.trim(), lat: s.lat, lng: s.lng, veh: s.vehicle, ts: Date.now() });
         this.setState({ order: { id, total: c.grandTotal, times: [t0, '', '', ''], plabel, eta, pickup, ts, addr: oaddr, phone: s.phone, veh: oveh, copies: s.copies, pages: c.totalPages }, trackStep: 1, cancelReason: '', screen: 'track',
-          files: [], slip: null, copies: 1, bind: 'none', express: false, tier: 'standard', ptype: 'bw', paper: 'A4', sides: 1, proPickup: false, vehicle: 'bike', trackOpen: false, selfCancelArm: false });
+          files: [], slip: null, copies: 1, bind: 'none', express: false, tier: 'standard', ptype: 'bw', paper: 'A4', sides: 1, proPickup: false, vehicle: 'bike', trackOpen: false, selfCancelArm: false, couponCode: '', couponOk: null });
         // จำออเดอร์ไว้ในเครื่อง — ปิดเว็บแล้วกลับมา การติดตามยังอยู่
         try { localStorage.setItem('mp_order', JSON.stringify({ id, total: c.grandTotal, times: [t0, '', '', ''], step: 1, plabel, eta, pickup, ts, addr: oaddr, phone: s.phone, veh: oveh, copies: s.copies, pages: c.totalPages })); } catch (e) {}
         // บวกเวลาตามคิวที่ค้างจริง (ออเดอร์ที่ยังไม่ออกส่ง) — รอ insert ลงฐานก่อนแล้วค่อยนับ
@@ -1465,6 +1523,34 @@ class App extends React.Component {
       },
       newOrder: () => this.setState({ screen: 'order', files: [], copies: 1, slip: null }),
       toast: s.toast,
+      // ── โค้ดส่วนลด (หน้าชำระเงิน) ──
+      couponCode: s.couponCode, couponBusy: s.couponBusy, couponOk: s.couponOk,
+      setCouponCode: (e) => this.setState({ couponCode: e.target.value.toUpperCase() }),
+      applyCoupon: () => this.applyCoupon(),
+      clearCoupon: () => this.setState({ couponOk: null, couponCode: '' }),
+      discount: c.discount || 0,
+
+      // ── หน้า My Profile ──
+      openProfile: () => { const u = s.user || {}; this.setState({ screen: 'profile', profOpen: '', profFname: u.fname || '', profLname: u.lname || '', profPhone: this.fmtPhone(u.phone || '') }); },
+      profOpen: s.profOpen,
+      profToggle: (k) => () => this.setState({ profOpen: s.profOpen === k ? '' : k }),
+      profFname: s.profFname, profLname: s.profLname, profPhone: s.profPhone,
+      setProfFname: (e) => this.setState({ profFname: e.target.value }),
+      setProfLname: (e) => this.setState({ profLname: e.target.value }),
+      setProfPhone: (e) => this.setState({ profPhone: this.fmtPhone(e.target.value) }),
+      profLineOn: !!(s.user && s.user.line_uid),
+      profSave: () => {
+        const fname = s.profFname.trim();
+        if (!fname) return this.showToast('ใส่ชื่อด้วยครับ 🙏');
+        const ph = s.profPhone.replace(/\D/g, '');
+        if (ph && (ph.length !== 10 || ph[0] !== '0')) return this.showToast('เบอร์โทรต้องเป็นตัวเลข 10 หลัก ขึ้นต้นด้วย 0 ครับ 📞');
+        const user = { ...(s.user || {}), fname, lname: s.profLname.trim(), phone: s.profPhone };
+        try { localStorage.setItem('mp_user', JSON.stringify(user)); } catch (e) {}
+        this.setState({ user, phone: s.profPhone || s.phone });
+        this.showToast('บันทึกข้อมูลแล้ว ✓');
+      },
+      profGoTrack: () => this.setState({ screen: 'track' }),
+
       // ── หน้า "เกี่ยวกับเรา": ช่องทางติดต่อ/ติดตามทุกช่องทาง (เพิ่มความน่าเชื่อถือ) ──
       // โลโก้วาดเป็น SVG ฝังในไฟล์ — คมทุกขนาด ไม่ต้องพึ่งรูปนอก/ลิงก์ไม่มีวันเสีย
       aboutLinks: [
@@ -1506,7 +1592,7 @@ class App extends React.Component {
             <div style={css("font-family:'Montserrat',sans-serif;font-weight:800;font-size:19px;letter-spacing:1.5px;line-height:1")}><span style={css("color:var(--accBright)")}>MORE</span> <span style={css("color:#fff")}>PRINT</span></div>
           </div>
           {v.userName
-            ? <div style={css("display:flex;align-items:center;gap:7px;background:#2a2a2a;padding:4px 11px 4px 5px;border-radius:99px;max-width:150px;flex:none")}>
+            ? <div onClick={v.openProfile} style={css("display:flex;align-items:center;gap:7px;background:#2a2a2a;padding:4px 11px 4px 5px;border-radius:99px;max-width:150px;flex:none;cursor:pointer")}>
                 {v.userPic
                   ? <img src={v.userPic} alt="" referrerPolicy="no-referrer" style={css("width:26px;height:26px;border-radius:50%;object-fit:cover;display:block;flex:none;background:#444")}/>
                   : <div style={css("width:26px;height:26px;border-radius:50%;background:var(--acc);color:#fff;display:flex;align-items:center;justify-content:center;font-size:12.5px;font-weight:700;flex:none")}>{v.userInitial}</div>}
@@ -1838,6 +1924,27 @@ class App extends React.Component {
                 </div>
               )}
               {!v.proPickupOn && <React.Fragment>
+              {/* ที่อยู่จัดส่งประจำ — เลือกปุ๊บ กรอกที่อยู่+ปักหมุด+เลือกรถให้ครบทันที */}
+              {v.savedAddrs.length > 0 && (
+                <div style={css("margin-bottom:14px")}>
+                  <div style={css("font-size:12px;font-weight:600;color:var(--sub);margin-bottom:7px")}>🏠 ที่อยู่จัดส่งประจำ <span style={css("font-weight:400")}>— แตะเพื่อใช้เลย</span></div>
+                  <div style={css("display:flex;flex-direction:column;gap:7px")}>
+                    {v.savedAddrs.map((a, i) => (
+                      <div key={i} onClick={a.pick} style={css("border:1px solid var(--line);border-radius:12px;padding:10px 13px;background:var(--card);display:flex;align-items:center;gap:10px;cursor:pointer")}>
+                        <span style={css("font-size:17px;flex:none")}>{i === 0 ? '⭐' : '🏠'}</span>
+                        <div style={css("flex:1;min-width:0")}>
+                          <div style={css("font-size:12.5px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap")}>{a.addr}</div>
+                          <div style={css("margin-top:1px;font-size:10px;color:var(--sub)")}>{a.veh === 'car' ? '🚗 รถยนต์' : '🏍️ มอเตอร์ไซค์'}{i === 0 ? ' · ใช้ล่าสุด' : ''}</div>
+                        </div>
+                        <span onClick={a.del} style={css("flex:none;color:var(--sub);font-size:13px;padding:4px 6px;cursor:pointer")}>✕</span>
+                      </div>
+                    ))}
+                  </div>
+                  <div style={css("display:flex;align-items:center;gap:10px;color:var(--sub);font-size:11px;margin:10px 0 0")}>
+                    <div style={css("flex:1;height:1px;background:var(--line)")}></div>หรือกรอกที่อยู่ใหม่<div style={css("flex:1;height:1px;background:var(--line)")}></div>
+                  </div>
+                </div>
+              )}
               {/* เลือกพาหนะส่งเอง — ราคาเปลี่ยนทันทีตามที่เลือก */}
               <div style={css("font-size:12px;font-weight:600;color:var(--sub);margin-bottom:8px")}>🚚 เลือกวิธีจัดส่ง <span style={css("color:#d9480f")}>*</span></div>
               <div style={css("display:flex;flex-direction:column;gap:8px;margin-bottom:14px")}>
@@ -2048,9 +2155,31 @@ class App extends React.Component {
                 <div style={css("display:flex;justify-content:space-between")}><span style={css("color:var(--sub)")}>เข้าเล่ม</span><span style={css("font-family:'IBM Plex Mono',monospace")}>฿{v.bindCost}</span></div>
                 <div style={css("display:flex;justify-content:space-between")}><span style={css("color:var(--sub)")}>ค่าส่ง {v.deliveryLabel}</span><span style={css("font-family:'IBM Plex Mono',monospace")}>฿{v.deliveryCost}</span></div>
                 {v.night && <div style={css("display:flex;justify-content:space-between")}><span style={css("color:var(--warnInk)")}>ค่าบริการกลางคืน</span><span style={css("font-family:'IBM Plex Mono',monospace;color:var(--warnInk)")}>฿{v.nightFee}</span></div>}
+                {v.discount > 0 && <div style={css("display:flex;justify-content:space-between")}><span style={css("color:#c92a2a;font-weight:700")}>🎟️ ส่วนลด ({v.couponOk.code})</span><span style={css("font-family:'IBM Plex Mono',monospace;color:#c92a2a;font-weight:700")}>−฿{v.discount}</span></div>}
                 <div style={css("display:flex;justify-content:space-between;font-size:12px")}><span style={css("color:var(--sub)")}>ส่งที่</span><span style={css("text-align:right;max-width:60%")}>{v.destLabel}</span></div>
               </div>
               <div style={css("margin-top:12px;border-top:2px dashed var(--line);padding-top:10px;display:flex;justify-content:space-between;align-items:baseline")}><span style={css("font-weight:700;font-size:14px")}>ยอดชำระ</span><span style={css("font-family:'IBM Plex Mono',monospace;font-size:26px;font-weight:600;color:var(--acc)")}>฿{v.grandTotal}</span></div>
+            </div>
+
+            {/* โค้ดส่วนลด */}
+            <div style={css("background:var(--card);border:1px solid var(--line);border-radius:14px;padding:13px 16px")}>
+              {v.couponOk
+                ? <div style={css("display:flex;align-items:center;gap:10px")}>
+                    <span style={css("font-size:18px;flex:none")}>🎟️</span>
+                    <div style={css("flex:1;min-width:0")}>
+                      <div style={css("font-size:12.5px;font-weight:700;color:var(--acc)")}>ใช้โค้ด {v.couponOk.code} แล้ว</div>
+                      <div style={css("font-size:11px;color:var(--sub)")}>{v.discount > 0 ? 'ลดไป ฿' + v.discount : 'ยอดยังไม่ถึงขั้นต่ำของโค้ดนี้'}</div>
+                    </div>
+                    <span onClick={v.clearCoupon} style={css("flex:none;font-size:11.5px;color:#c92a2a;font-weight:700;cursor:pointer")}>ยกเลิกโค้ด</span>
+                  </div>
+                : <React.Fragment>
+                    <div style={css("font-size:12px;font-weight:700")}>🎟️ มีโค้ดส่วนลด?</div>
+                    <div style={css("margin-top:8px;display:flex;gap:8px")}>
+                      <input value={v.couponCode} onChange={v.setCouponCode} placeholder="พิมพ์โค้ด เช่น SAVE10" maxLength={20}
+                        style={css("flex:1;min-width:0;box-sizing:border-box;height:42px;border:1px solid var(--line);border-radius:10px;background:var(--soft);color:var(--ink);padding:0 12px;font-size:13px;outline:none;text-transform:uppercase;font-family:'IBM Plex Mono',monospace")}/>
+                      <button onClick={v.applyCoupon} disabled={v.couponBusy} style={css("flex:none;height:42px;padding:0 16px;border:none;border-radius:10px;background:var(--acc);color:#fff;font-size:13px;font-weight:700;cursor:pointer" + (v.couponBusy ? ";opacity:.6" : ""))}>{v.couponBusy ? '⏳' : 'ใช้โค้ด'}</button>
+                    </div>
+                  </React.Fragment>}
             </div>
             <div style={css("background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px;display:flex;flex-direction:column;align-items:center;gap:10px")}>
               {/* QR พร้อมเพย์จริงของร้าน (Make by KBank) — กดค้างที่รูปเพื่อบันทึก/สแกนจากอัลบั้มได้ */}
@@ -2227,6 +2356,100 @@ class App extends React.Component {
                 style={css("flex:1;min-width:0;box-sizing:border-box;height:44px;border:1px solid var(--line);border-radius:22px;background:var(--soft);color:var(--ink);padding:0 16px;font-size:13.5px;outline:none;font-family:inherit")}/>
               <button onClick={v.sendChat} disabled={v.chatBusy || !v.chatText.trim()} style={css("flex:none;width:44px;height:44px;border:none;border-radius:50%;background:var(--acc);color:#fff;font-size:17px;font-weight:700;cursor:pointer" + (v.chatBusy || !v.chatText.trim() ? ";opacity:.45" : ""))}>➤</button>
             </div>
+          </div>
+        )}
+
+        {/* ── My Profile: ข้อมูลลูกค้า 6 หมวด ── */}
+        {v.isProfile && (
+          <div style={css("padding:18px 20px 110px;display:flex;flex-direction:column;gap:10px")}>
+            <div style={css("background:var(--card);border:1px solid var(--line);border-radius:16px;padding:18px;display:flex;align-items:center;gap:13px;box-shadow:var(--shadow)")}>
+              {v.userPic
+                ? <img src={v.userPic} alt="" referrerPolicy="no-referrer" style={css("width:52px;height:52px;border-radius:50%;object-fit:cover;flex:none;background:var(--soft)")}/>
+                : <div style={css("width:52px;height:52px;border-radius:50%;background:var(--accSoft);color:var(--acc);display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:800;flex:none")}>{(v.userName || '?').charAt(0)}</div>}
+              <div style={css("flex:1;min-width:0")}>
+                <div style={css("font-size:15.5px;font-weight:800")}>คุณ{v.userName}</div>
+                <div style={css("margin-top:2px;font-size:11px;color:var(--sub)")}>{v.profLineOn ? '💚 เชื่อมต่อกับ LINE แล้ว' : 'สมาชิก MORE PRINT'}</div>
+              </div>
+            </div>
+
+            {[
+              ['info', '👤', 'ชื่อ / เบอร์ / ไลน์'],
+              ['orders', '🧾', 'ออเดอร์ของฉัน'],
+              ['fav', '❤️', 'ร้านโปรด'],
+              ['addr', '📍', 'ที่อยู่ / จุดรับงาน'],
+              ['pay', '💳', 'การชำระเงิน'],
+              ['coupon', '🎟️', 'คูปอง / คะแนน']
+            ].map(([k, ic, label]) => (
+              <div key={k} style={css("background:var(--card);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);overflow:hidden")}>
+                <div onClick={v.profToggle(k)} style={css("padding:14px 16px;display:flex;align-items:center;gap:12px;cursor:pointer")}>
+                  <span style={css("font-size:19px;flex:none")}>{ic}</span>
+                  <span style={css("flex:1;font-size:13.5px;font-weight:700")}>{label}</span>
+                  <span style={css("color:var(--sub);font-size:12px")}>{v.profOpen === k ? '▲' : '›'}</span>
+                </div>
+                {v.profOpen === k && (
+                  <div style={css("border-top:1px dashed var(--line);padding:13px 16px")}>
+                    {k === 'info' && (
+                      <div style={css("display:flex;flex-direction:column;gap:8px")}>
+                        <div style={css("display:flex;gap:8px")}>
+                          <input value={v.profFname} onChange={v.setProfFname} placeholder="ชื่อ" style={css("flex:1;min-width:0;box-sizing:border-box;height:42px;border:1px solid var(--line);border-radius:10px;background:var(--soft);color:var(--ink);padding:0 12px;font-size:13px;outline:none")}/>
+                          <input value={v.profLname} onChange={v.setProfLname} placeholder="นามสกุล" style={css("flex:1;min-width:0;box-sizing:border-box;height:42px;border:1px solid var(--line);border-radius:10px;background:var(--soft);color:var(--ink);padding:0 12px;font-size:13px;outline:none")}/>
+                        </div>
+                        <input value={v.profPhone} onChange={v.setProfPhone} placeholder="เบอร์โทร 08x-xxx-xxxx" inputMode="tel" maxLength={12} style={css("width:100%;box-sizing:border-box;height:42px;border:1px solid var(--line);border-radius:10px;background:var(--soft);color:var(--ink);padding:0 12px;font-size:13px;outline:none")}/>
+                        <div style={css("font-size:11px;color:var(--sub)")}>{v.profLineOn ? '💚 บัญชีนี้เชื่อมกับ LINE — รับแจ้งเตือนออเดอร์ทาง LINE อัตโนมัติ' : '💬 อยากรับแจ้งเตือนทาง LINE? ออกจากระบบแล้วเข้าใหม่ด้วยปุ่ม LINE ได้ครับ'}</div>
+                        <button onClick={v.profSave} style={css("height:42px;border:none;border-radius:10px;background:var(--acc);color:#fff;font-size:13px;font-weight:700;cursor:pointer")}>บันทึก</button>
+                      </div>
+                    )}
+                    {k === 'orders' && (
+                      <div style={css("display:flex;flex-direction:column;gap:8px")}>
+                        {v.hasOrder
+                          ? <div style={css("font-size:12.5px;line-height:1.6")}>ออเดอร์ล่าสุด: <b style={css("font-family:'IBM Plex Mono',monospace")}>{v.orderId}</b> · {v.trackLabel}</div>
+                          : <div style={css("font-size:12px;color:var(--sub)")}>ยังไม่มีออเดอร์ในเครื่องนี้</div>}
+                        <button onClick={v.profGoTrack} style={css("height:42px;border:1px solid var(--acc);border-radius:10px;background:var(--accSoft);color:var(--acc);font-size:13px;font-weight:700;cursor:pointer")}>🛵 ไปหน้าติดตามออเดอร์</button>
+                      </div>
+                    )}
+                    {k === 'fav' && (
+                      <div style={css("display:flex;flex-direction:column;gap:8px")}>
+                        <div style={css("border:1px solid var(--line);border-radius:11px;padding:11px 13px;display:flex;align-items:center;gap:10px")}>
+                          <span style={css("font-size:18px")}>🖨️</span>
+                          <div style={css("flex:1;min-width:0")}><div style={css("font-size:12.5px;font-weight:700")}>MORE PRINT</div><div style={css("font-size:10.5px;color:var(--sub)")}>ปริ้นเอกสารพร้อมส่ง 24 ชม. รอบ มข.</div></div>
+                          <a href={(window.MP_CONFIG || {}).LINE_OA_URL || 'https://line.me/R/ti/p/@346kifvy'} target="_blank" rel="noreferrer" style={css("flex:none;font-size:11px;font-weight:700;background:#06C755;color:#fff;padding:6px 11px;border-radius:9px;text-decoration:none")}>LINE</a>
+                        </div>
+                        <div style={css("border:1px solid var(--line);border-radius:11px;padding:11px 13px;display:flex;align-items:center;gap:10px")}>
+                          <span style={css("font-size:18px")}>✨</span>
+                          <div style={css("flex:1;min-width:0")}><div style={css("font-size:12.5px;font-weight:700")}>ร้านอุดมสุขปริ้นติ้ง</div><div style={css("font-size:10.5px;color:var(--sub)")}>งานปริ้นพรีเมียม / งานใหญ่ (Pro)</div></div>
+                          <a href="https://maps.app.goo.gl/SshjXkvaCxvKPugL7" target="_blank" rel="noreferrer" style={css("flex:none;font-size:11px;font-weight:700;background:var(--accSoft);color:var(--acc);border:1px solid var(--acc);padding:6px 11px;border-radius:9px;text-decoration:none")}>🧭 แผนที่</a>
+                        </div>
+                      </div>
+                    )}
+                    {k === 'addr' && (
+                      <div style={css("display:flex;flex-direction:column;gap:8px")}>
+                        <div style={css("font-size:11.5px;font-weight:700;color:var(--sub)")}>ที่อยู่จัดส่งประจำ (จำจากออเดอร์ที่เคยสั่ง)</div>
+                        {v.savedAddrs.length === 0 && <div style={css("font-size:12px;color:var(--sub)")}>ยังไม่มี — สั่งปริ้นครั้งแรกแล้วระบบจะจำให้อัตโนมัติ</div>}
+                        {v.savedAddrs.map((a, i) => (
+                          <div key={i} style={css("border:1px solid var(--line);border-radius:11px;padding:10px 13px;display:flex;align-items:center;gap:10px")}>
+                            <span style={css("font-size:16px;flex:none")}>{i === 0 ? '⭐' : '🏠'}</span>
+                            <div style={css("flex:1;min-width:0;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap")}>{a.addr}</div>
+                            <span onClick={a.del} style={css("flex:none;color:#c92a2a;font-size:12px;font-weight:700;cursor:pointer")}>ลบ</span>
+                          </div>
+                        ))}
+                        <div style={css("border-top:1px dashed var(--line);padding-top:9px;font-size:11.5px;line-height:1.6;color:var(--sub)")}>🏪 <b style={css("color:var(--ink)")}>จุดรับงานด้วยตัวเอง (งาน Pro):</b> ร้านอุดมสุขปริ้นติ้ง (กังสดาล) · <a href="https://maps.app.goo.gl/SshjXkvaCxvKPugL7" target="_blank" rel="noreferrer" style={css("color:var(--acc);font-weight:700")}>เปิดแผนที่</a></div>
+                      </div>
+                    )}
+                    {k === 'pay' && (
+                      <div style={css("display:flex;flex-direction:column;gap:8px;font-size:12px;line-height:1.7")}>
+                        <div>ชำระด้วย <b>PromptPay QR</b> — สแกนจ่ายตอนยืนยันออเดอร์ แล้วแนบสลิปในหน้าเดียวกัน</div>
+                        <img src="assets/promptpay-qr.jpg" alt="PromptPay" onError={(e) => { e.target.style.display = 'none'; }} style={css("max-width:180px;border-radius:10px;border:1px solid var(--line)")}/>
+                        <div style={css("color:var(--sub);font-size:11px")}>งาน Pro ที่ยังไม่มีราคา ชำระค่าส่งก่อน แล้วร้านยืนยันราคาปริ้นทาง LINE</div>
+                      </div>
+                    )}
+                    {k === 'coupon' && (
+                      <div style={css("font-size:12px;line-height:1.7;color:var(--sub)")}>🎟️ มีโค้ดส่วนลด? <b style={css("color:var(--ink)")}>ใส่ได้ที่หน้าชำระเงินตอนสั่งปริ้น</b><br/>ติดตามโค้ดแจกในกลุ่ม/เพจของร้าน — ระบบสะสมคะแนนกำลังจะตามมาเร็วๆ นี้ครับ</div>
+                    )}
+                  </div>
+                )}
+              </div>
+            ))}
+            <div onClick={v.doLogout} style={css("margin-top:4px;text-align:center;font-size:12.5px;color:#c92a2a;font-weight:700;cursor:pointer;padding:10px")}>⎋ ออกจากระบบ / เปลี่ยนบัญชี</div>
           </div>
         )}
 
