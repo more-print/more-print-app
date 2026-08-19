@@ -6,7 +6,7 @@
 <title>MORE PRINT — หลังบ้านงาน PRO (Partner)</title>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Montserrat:wght@700;800&display=swap" rel="stylesheet">
 <style>
-  body{margin:0;background:var(--bg);font-family:'IBM Plex Sans Thai',sans-serif;
+  body{margin:0;zoom:1.15;background:var(--bg);font-family:'IBM Plex Sans Thai',sans-serif;
   --bg:#f5f4f8;--card:#ffffff;--ink:#111111;--sub:#8a8a90;--line:#e5e3ec;--soft:#f0eef6;
   --acc:#7048e8;--accSoft:#f0ebff;--gold:#a16207;--goldBg:#fff7e0;--shadow:0 2px 10px rgba(0,0,0,.06)}
   input,button,select,textarea{font-family:'IBM Plex Sans Thai',sans-serif}
@@ -168,7 +168,7 @@ function ProOrder({ o, isOwner, payoutReady, onPrice, onPayout, onAdvance, onCan
       <div style={css("margin-top:5px;font-size:12px;color:var(--sub)")}>
         {fmtWhen(o.created_at)} · คุณ{o.customer_fname} {o.customer_lname || ''}{isOwner && o.customer_phone ? <span> · <a href={'tel:' + String(o.customer_phone || '').replace(/[^0-9+]/g, '')}>{o.customer_phone}</a></span> : null}
       </div>
-      <div style={css("margin-top:4px;font-size:12px;font-weight:600")}>✨ {o.paper} · {o.sides === 2 ? 'หน้า-หลัง' : 'หน้าเดียว'} · {o.copies || 1} ชุด <span style={css("color:var(--sub);font-weight:400")}>· 🛵 ค่าส่ง {baht((o.delivery_cost || 0) + (o.night_fee || 0))} — {isOwner ? 'ของ MORE PRINT ไม่เข้าสูตรคอม' : 'MORE PRINT รับไปเต็ม ไม่หักจากส่วนแบ่งคุณ'}</span></div>
+      <div style={css("margin-top:4px;font-size:12px;font-weight:600")}>✨ {o.paper} · {o.sides === 2 ? 'หน้า-หลัง' : 'หน้าเดียว'} · {o.copies || 1} ชุด</div>
       {(o.files || []).length > 0 && (
         <div style={css("margin-top:8px;display:flex;flex-direction:column;gap:5px")}>
           {(o.files || []).map((f, i) => (
@@ -239,6 +239,7 @@ function Dash({ role }){
   const [payoutReady, setPayoutReady] = React.useState(!DB);
   const [loading, setLoading] = React.useState(!!DB);
   const [period, setPeriod] = React.useState('day');   // ช่วงเวลาที่เลือกดู
+  const [chartMode, setChartMode] = React.useState('d'); // กราฟ: d รายวัน · m รายเดือน · y รายปี
   const [filter, setFilter] = React.useState('active'); // ตัวกรองสถานะออเดอร์
 
   const load = React.useCallback(async () => {
@@ -308,6 +309,32 @@ function Dash({ role }){
   const owedSum = owed.reduce((a, o) => a + partnerOf(o), 0);
   // บันทึกข้อมูลออเดอร์รายเดือน (ดูย้อนหลังได้ตลอด — แถวออเดอร์เก็บถาวรในฐานข้อมูล)
   const TH_M = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
+  // ── ข้อมูลกราฟยอดขาย (ยอดค่างานปริ้นของออเดอร์ที่ไม่ถูกยกเลิก) ──
+  const chartData = (() => {
+    const out = [];
+    if (chartMode === 'd') {
+      for (let i = 6; i >= 0; i--) {
+        const d0 = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i);
+        const d1 = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i + 1);
+        const sum = valid.filter(o => { const t = new Date(o.created_at); return t >= d0 && t < d1; }).reduce((a, o) => a + jobValue(o), 0);
+        out.push({ label: i === 0 ? 'วันนี้' : d0.getDate() + '/' + (d0.getMonth() + 1), v: sum });
+      }
+    } else if (chartMode === 'm') {
+      for (let i = 5; i >= 0; i--) {
+        const d0 = new Date(now.getFullYear(), now.getMonth() - i, 1);
+        const d1 = new Date(now.getFullYear(), now.getMonth() - i + 1, 1);
+        const sum = valid.filter(o => { const t = new Date(o.created_at); return t >= d0 && t < d1; }).reduce((a, o) => a + jobValue(o), 0);
+        out.push({ label: TH_M[d0.getMonth()], v: sum });
+      }
+    } else {
+      const ys = {};
+      valid.forEach(o => { const y = new Date(o.created_at).getFullYear(); ys[y] = (ys[y] || 0) + jobValue(o); });
+      Object.keys(ys).sort().slice(-5).forEach(y => out.push({ label: (parseInt(y) + 543) % 100 ? 'ปี ' + ((parseInt(y) + 543) % 100) : y, v: ys[y] }));
+      if (!out.length) out.push({ label: 'ปี ' + ((now.getFullYear() + 543) % 100), v: 0 });
+    }
+    const max = Math.max(1, ...out.map(b => b.v));
+    return out.map(b => ({ ...b, h: Math.round(b.v / max * 100) }));
+  })();
   const byM = {};
   valid.forEach(o => {
     const d = new Date(o.created_at);
@@ -344,7 +371,7 @@ function Dash({ role }){
         {isOwner && <a href="commission.html" style={css("color:#ffd43b;font-size:11.5px;font-weight:700;text-decoration:none")}>💰 ค่าคอม</a>}
         {isOwner && <a href="admin.html" style={css("color:#b197fc;font-size:11.5px;font-weight:700;text-decoration:none")}>← หลังบ้านหลัก</a>}
         <button onClick={load} style={css("height:32px;padding:0 12px;border:1px solid #4c3d80;border-radius:9px;background:none;color:#fff;font-size:11.5px;cursor:pointer")}>{loading ? '…' : '⟳ รีเฟรช'}</button>
-        {DB && <button onClick={() => DB.auth.signOut().then(() => location.reload())} style={css("height:32px;padding:0 10px;border:1px solid #4c3d80;border-radius:9px;background:none;color:#b197fc;font-size:11px;cursor:pointer")}>ออก</button>}
+        {DB && <button onClick={() => DB.auth.signOut().then(() => location.reload())} style={css("height:32px;padding:0 10px;border:1px solid #4c3d80;border-radius:9px;background:none;color:#b197fc;font-size:11.5px;cursor:pointer;white-space:nowrap")}>ออกจากระบบ</button>}
       </div>
 
       <div style={css("padding:14px 16px 40px;display:flex;flex-direction:column;gap:12px;max-width:760px;margin:0 auto")}>
@@ -360,7 +387,7 @@ function Dash({ role }){
             ))}
           </div>
           <div style={css("padding:16px 18px")}>
-            <div style={css("font-size:11.5px;color:var(--sub);font-weight:600")}>ยอดค่างานปริ้น{curP[1]} (ไม่รวมค่าส่ง)</div>
+            <div style={css("font-size:11.5px;color:var(--sub);font-weight:600")}>ยอดค่างานปริ้น{curP[1]}</div>
             <div style={css("margin-top:3px;font-size:28px;font-weight:800;font-family:'IBM Plex Mono',monospace;color:var(--acc)")}>{baht(curAgg.job)}</div>
             <div style={css("font-size:11.5px;color:var(--sub)")}>{curAgg.n} ออเดอร์{curAgg.unpriced ? ' · รอตั้งราคา ' + curAgg.unpriced : ''}</div>
             <div style={css("margin-top:12px;display:flex;gap:10px")}>
@@ -374,6 +401,28 @@ function Dash({ role }){
               </div>
             </div>
           </div>
+        </div>
+
+        {/* กราฟยอดขาย */}
+        <div style={css("background:var(--card);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow);padding:14px 16px")}>
+          <div style={css("display:flex;align-items:center;gap:8px")}>
+            <div style={css("font-size:13px;font-weight:700;flex:1")}>📈 กราฟยอดขาย</div>
+            {[['d', 'รายวัน'], ['m', 'รายเดือน'], ['y', 'รายปี']].map(([k, label]) => (
+              <button key={k} onClick={() => setChartMode(k)} style={{ height: '30px', padding: '0 12px', borderRadius: '99px', cursor: 'pointer', fontSize: '11.5px', fontWeight: 700, fontFamily: 'inherit',
+                border: chartMode === k ? '1.5px solid var(--acc)' : '1px solid var(--line)',
+                background: chartMode === k ? 'var(--accSoft)' : 'var(--soft)', color: chartMode === k ? 'var(--acc)' : 'var(--sub)' }}>{label}</button>
+            ))}
+          </div>
+          <div style={css("margin-top:12px;display:flex;align-items:flex-end;gap:8px;height:150px")}>
+            {chartData.map((b, i) => (
+              <div key={i} style={css("flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;min-width:0")}>
+                <div style={css("font-family:'IBM Plex Mono',monospace;font-size:10px;font-weight:600;color:" + (b.v ? "var(--acc)" : "var(--sub)") + ";margin-bottom:3px;white-space:nowrap")}>{b.v ? (b.v >= 1000 ? (Math.round(b.v / 100) / 10) + 'k' : b.v) : '-'}</div>
+                <div style={{ width: '70%', maxWidth: '38px', height: Math.max(3, b.h) + '%', borderRadius: '6px 6px 2px 2px', background: b.v ? 'var(--acc)' : 'var(--line)', opacity: b.v ? (i === chartData.length - 1 ? 1 : .75) : .5 }}></div>
+                <div style={css("margin-top:5px;font-size:10px;color:var(--sub);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%")}>{b.label}</div>
+              </div>
+            ))}
+          </div>
+          <div style={css("margin-top:8px;font-size:10.5px;color:var(--sub)")}>ยอดค่างานปริ้นของออเดอร์ที่ไม่ถูกยกเลิก</div>
         </div>
 
         {/* ยอดค้างโอน */}
@@ -412,13 +461,17 @@ function Dash({ role }){
 
         {/* รายการออเดอร์ Pro — แยกตามสถานะ ไม่ปนกัน */}
         {(() => {
+          // ออเดอร์ตามช่วงเวลาที่เลือกด้านบน (วันนี้/สัปดาห์/เดือน/ปี)
+          // ยกเว้น "กำลังทำ" — งานค้างต้องเห็นเสมอไม่ว่าเลือกช่วงไหน จะได้ไม่มีงานตกหล่น
+          const inPeriod = (o) => new Date(o.created_at) >= curP[2];
           const inWork = orders.filter(o => o.status > 0 && o.status < 4);
-          const doneL = orders.filter(o => o.status === 4);
-          const cancelL = orders.filter(o => o.status === 0);
+          const doneL = orders.filter(o => o.status === 4 && inPeriod(o));
+          const cancelL = orders.filter(o => o.status === 0 && inPeriod(o));
           const TABS = [['active', '🖨️ กำลังทำ', inWork], ['done', '✅ เสร็จแล้ว', doneL], ['cancel', '❌ ยกเลิก', cancelL]];
           const cur = TABS.find(t => t[0] === filter) || TABS[0];
           return (
             <React.Fragment>
+              <div style={css("font-size:13px;font-weight:700")}>📋 ออเดอร์{curP[1]} <span style={css("font-size:10.5px;font-weight:400;color:var(--sub)")}>· เปลี่ยนช่วงเวลาได้ที่แถบบนสุด · งานที่ยังไม่เสร็จแสดงทุกช่วงเสมอ</span></div>
               <div style={css("display:flex;gap:7px")}>
                 {TABS.map(([k, label, list]) => (
                   <button key={k} onClick={() => setFilter(k)} style={{ flex: 1, height: '42px', borderRadius: '12px', cursor: 'pointer', fontSize: '11.5px', fontWeight: 700, fontFamily: 'inherit',
