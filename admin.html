@@ -474,6 +474,7 @@ function AdminApp(){
   const [bnColor, setBnColor] = React.useState('green');
   const [bnFile, setBnFile] = React.useState(null);
   const [bnBusy, setBnBusy] = React.useState(false);
+  const bnPreview = React.useMemo(() => bnFile ? URL.createObjectURL(bnFile) : null, [bnFile]); // พรีวิวรูปที่เลือก ให้เห็นเหมือนที่ลูกค้าจะเห็นก่อนกดสร้างจริง
 
   const [histRows, setHistRows] = React.useState(null);
   const [threads, setThreads] = React.useState(null); // รายการห้องแชททั้งหมด (แท็บแชท)
@@ -580,7 +581,7 @@ function AdminApp(){
   };
 
   const addBanner = async () => {
-    if (!bnTitle.trim()) return;
+    if (!bnTitle.trim() && !bnFile) return; // มีรูปที่ออกแบบเองอย่างเดียวก็สร้างได้ ไม่ต้องพิมพ์ข้อความ
     setBnBusy(true);
     let image_path = null;
     if (bnFile && DB) {
@@ -602,7 +603,10 @@ function AdminApp(){
     else setBanners(l => l.map(x => x.id === b.id ? { ...x, active: !x.active } : x));
   };
   const delBanner = async (b) => {
-    if (DB) { await DB.from('banners').delete().eq('id', b.id); await loadBanners(); }
+    if (DB) {
+      if (b.image_path) { try { await DB.storage.from('uploads').remove([b.image_path]); } catch (e) {} } // ลบไฟล์รูปทิ้งด้วย กันรกถัง (ลบไม่ได้ก็ข้าม ไม่บล็อกการลบแบนเนอร์)
+      await DB.from('banners').delete().eq('id', b.id); await loadBanners();
+    }
     else setBanners(l => l.filter(x => x.id !== b.id));
   };
 
@@ -1277,7 +1281,7 @@ function AdminApp(){
                 <input value={bnEmoji} onChange={e => setBnEmoji(e.target.value)} style={css("margin-top:4px;width:100%;box-sizing:border-box;height:40px;border:1px solid var(--line);border-radius:10px;background:var(--soft);color:var(--ink);text-align:center;font-size:18px;outline:none")}/>
               </div>
               <div style={css("flex:1;min-width:0")}>
-                <div style={css("font-size:11px;font-weight:600;color:var(--sub)")}>ข้อความหลัก *</div>
+                <div style={css("font-size:11px;font-weight:600;color:var(--sub)")}>ข้อความหลัก (ไม่ต้องกรอกถ้าใช้รูปที่ออกแบบเอง)</div>
                 <input value={bnTitle} onChange={e => setBnTitle(e.target.value)} placeholder="เช่น โปรเปิดเทอม ลด 10%" style={css("margin-top:4px;width:100%;box-sizing:border-box;height:40px;border:1px solid var(--line);border-radius:10px;background:var(--soft);color:var(--ink);padding:0 12px;font-size:13px;outline:none")}/>
               </div>
             </div>
@@ -1293,21 +1297,23 @@ function AdminApp(){
               ))}
             </div>
             <div>
-              <div style={css("font-size:11px;font-weight:600;color:var(--sub)")}>หรือใช้รูปภาพแทน (แนวนอน ~3:1)</div>
+              <div style={css("font-size:11px;font-weight:600;color:var(--sub)")}>หรือใช้รูปที่ออกแบบเอง — ขนาดแนะนำ <b>1200 × 400 px (แนวนอน 3:1)</b> ไฟล์ JPG/PNG</div>
               <input type="file" accept="image/*" onChange={e => setBnFile((e.target.files || [])[0] || null)} style={css("margin-top:4px;font-size:12px;width:100%")}/>
-              {bnFile && <div style={css("margin-top:2px;font-size:11px;color:var(--acc);font-weight:600")}>✓ {bnFile.name}</div>}
+              {bnFile && <div style={css("margin-top:2px;font-size:11px;color:var(--acc);font-weight:600")}>✓ {bnFile.name} — พรีวิวด้านล่างคือหน้าตาที่ลูกค้าจะเห็นจริง</div>}
             </div>
             <div style={css("border-radius:12px;overflow:hidden")}>
-              <div style={{ background: BANNER_THEMES[bnColor], color: '#fff', padding: '14px 16px', display: 'flex', alignItems: 'center', gap: '12px' }}>
-                <div style={{ fontSize: '28px', flex: 'none' }}>{bnEmoji || '🎉'}</div>
-                <div style={{ minWidth: 0 }}>
-                  <div style={{ fontSize: '14px', fontWeight: 700 }}>{bnTitle || 'ตัวอย่างข้อความหลัก'}</div>
-                  {bnSub && <div style={{ fontSize: '11px', opacity: .88, marginTop: '2px' }}>{bnSub}</div>}
-                </div>
-              </div>
+              {bnPreview
+                ? <img src={bnPreview} alt="" style={css("width:100%;aspect-ratio:3/1;object-fit:cover;display:block")}/>
+                : <div style={{ background: BANNER_THEMES[bnColor], color: '#fff', padding: '14px 16px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <div style={{ fontSize: '28px', flex: 'none' }}>{bnEmoji || '🎉'}</div>
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontSize: '14px', fontWeight: 700 }}>{bnTitle || 'ตัวอย่างข้อความหลัก'}</div>
+                      {bnSub && <div style={{ fontSize: '11px', opacity: .88, marginTop: '2px' }}>{bnSub}</div>}
+                    </div>
+                  </div>}
             </div>
-            <button onClick={addBanner} disabled={bnBusy || !bnTitle.trim()}
-              style={{ height: '44px', border: 'none', borderRadius: '12px', background: bnTitle.trim() ? 'var(--acc)' : '#9fd8bd', color: '#fff', fontSize: '14px', fontWeight: 700, cursor: 'pointer' }}>
+            <button onClick={addBanner} disabled={bnBusy || (!bnTitle.trim() && !bnFile)}
+              style={{ height: '44px', border: 'none', borderRadius: '12px', background: (bnTitle.trim() || bnFile) ? 'var(--acc)' : '#9fd8bd', color: '#fff', fontSize: '14px', fontWeight: 700, cursor: 'pointer' }}>
               {bnBusy ? 'กำลังบันทึก…' : '＋ เพิ่มแบนเนอร์'}
             </button>
           </div>
@@ -1317,7 +1323,7 @@ function AdminApp(){
           {banners.map(b => (
             <div key={b.id} style={css("background:var(--card);border:1px solid var(--line);border-radius:14px;overflow:hidden;box-shadow:var(--shadow)" + (b.active ? "" : ";opacity:.5"))}>
               {b.image_path && fileUrl(b.image_path)
-                ? <img src={fileUrl(b.image_path)} alt="" style={css("width:100%;height:100px;object-fit:cover;display:block")}/>
+                ? <img src={fileUrl(b.image_path)} alt="" style={css("width:100%;aspect-ratio:3/1;object-fit:cover;display:block")}/>
                 : <div style={{ background: BANNER_THEMES[b.color] || BANNER_THEMES.green, color: '#fff', padding: '13px 16px', display: 'flex', alignItems: 'center', gap: '12px' }}>
                     <div style={{ fontSize: '26px', flex: 'none' }}>{b.emoji || '🎉'}</div>
                     <div style={{ minWidth: 0 }}>
