@@ -231,6 +231,15 @@ const STEPS_PRO_PICKUP = ['รับออเดอร์', 'กำลังผ�
 const stepsFor = (od) => !od ? null : od.pickup ? STEPS_PRO_PICKUP : (od.plabel || '').startsWith('PRO') ? STEPS_PRO_SHIP : null;
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 const FILE_BASE = (window.MP_CONFIG || {}).SUPABASE_URL ? (window.MP_CONFIG.SUPABASE_URL + '/storage/v1/object/public/uploads/') : '';
+
+// ── กล่องไฮไลต์ 3 ใบใต้ปุ่ม "เริ่มสั่งปริ้น" หน้าแรก ──
+// ตอนนี้ซ่อนอยู่ (array ว่าง) — อยากให้กลับมาโชว์ ใส่ข้อความตามตัวอย่างนี้ได้เลย (กี่ใบก็ได้):
+// const HOME_CARDS = [
+//   { big: '฿1', sub: 'ขาวดำ / แผ่น' },
+//   { big: '฿5', sub: 'สี / หน้า' },
+//   { big: '24 ชม.', sub: 'เปิดทุกวัน' },
+// ];
+const HOME_CARDS = [];
 const BANNER_THEMES = {
   green: 'linear-gradient(135deg,#00b368,#00744a)',
   dark: 'linear-gradient(135deg,#2b2b28,#000)',
@@ -1726,11 +1735,16 @@ class App extends React.Component {
               </div>
               <button onClick={v.startOrder} style={css("margin-top:12px;width:100%;height:50px;border:none;border-radius:14px;background:var(--acc);color:#fff;font-size:16px;font-weight:700;cursor:pointer")}>เริ่มสั่งปริ้น · คำนวณราคาทันที</button>
             </div>
-            <div style={css("padding:18px 20px 0;display:flex;gap:10px")}>
-              <div style={css("flex:1;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 14px")}><div style={css("font-family:'IBM Plex Mono',monospace;font-size:18px;font-weight:600;color:var(--acc)")}>฿1</div><div style={css("font-size:11px;color:var(--sub);margin-top:2px")}>ขาวดำ / แผ่น</div></div>
-              <div style={css("flex:1;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 14px")}><div style={css("font-family:'IBM Plex Mono',monospace;font-size:18px;font-weight:600;color:var(--acc)")}>฿5</div><div style={css("font-size:11px;color:var(--sub);margin-top:2px")}>สี / หน้า</div></div>
-              <div style={css("flex:1;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 14px")}><div style={css("font-family:'IBM Plex Mono',monospace;font-size:18px;font-weight:600;color:var(--acc)")}>฿{v.deliveryBase}</div><div style={css("font-size:11px;color:var(--sub);margin-top:2px")}>ค่าส่งเริ่มต้น (ตามระยะ)</div></div>
-            </div>
+            {HOME_CARDS.length > 0 && (
+              <div style={css("padding:18px 20px 0;display:flex;gap:10px")}>
+                {HOME_CARDS.map((c, i) => (
+                  <div key={i} style={css("flex:1;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 14px")}>
+                    <div style={css("font-family:'IBM Plex Mono',monospace;font-size:18px;font-weight:600;color:var(--acc)")}>{c.big}</div>
+                    <div style={css("font-size:11px;color:var(--sub);margin-top:2px")}>{c.sub}</div>
+                  </div>
+                ))}
+              </div>
+            )}
             {v.hasOrder && (
               <div onClick={v.goTrack} style={css("margin:16px 20px 0;background:var(--card);border:1px solid var(--line);border-radius:16px;padding:14px 16px;cursor:pointer;box-shadow:var(--shadow)")}>
                 <div style={css("display:flex;justify-content:space-between;align-items:center")}><div style={css("font-size:13px;font-weight:700")}>ออเดอร์ล่าสุด {v.orderId}</div><div style={v.trackBadgeSt}>{v.trackLabel}</div></div>
