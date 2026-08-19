@@ -208,7 +208,11 @@ function Dash(){
     const next = Math.min((o.status || 1) + 1, 4);
     const times = (o.times || ['', '', '', '']).slice();
     times[next - 1] = fmtHM(new Date());
-    if (DB) { await DB.from('orders').update({ status: next, times }).eq('id', o.id); await load(); }
+    if (DB) {
+      await DB.from('orders').update({ status: next, times }).eq('id', o.id);
+      if (next >= 3) { try { fetch(CFG.SUPABASE_URL + '/functions/v1/notify-order?action=done', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: o.id }) }); } catch (e) {} }
+      await load();
+    }
     else setOrders(l => l.map(x => x.id === o.id ? { ...x, status: next, times } : x));
   };
   const cancelOrder = async (o, reason) => {

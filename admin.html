@@ -647,7 +647,12 @@ function AdminApp(){
     times[next - 1] = fmtTime(new Date());
     if (DB) {
       setBusyId(o.id);
-      try { await DB.from('orders').update({ status: next, times }).eq('id', o.id); await refresh(); }
+      try {
+        await DB.from('orders').update({ status: next, times }).eq('id', o.id);
+        // งานเสร็จ/ส่งสำเร็จ → แจ้งกลุ่ม LINE ทีมงาน (ยิงแบบไม่รอผล — EF เช็คสถานะจริงเอง)
+        if (next >= 3) { try { fetch(CFG.SUPABASE_URL + '/functions/v1/notify-order?action=done', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: o.id }) }); } catch (e) {} }
+        await refresh();
+      }
       catch (e) { console.error(e); }
       setBusyId(null);
     } else {

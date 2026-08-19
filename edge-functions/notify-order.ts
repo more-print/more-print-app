@@ -1,6 +1,9 @@
-// Edge Function: notify-order — แจ้งเตือน LINE: ออเดอร์ใหม่ (→เจ้าของ/พาร์ทเนอร์) + ออเดอร์ถูกยกเลิก (→ลูกค้า)
-// Secrets: LINE_TOKEN, LINE_OWNER_ID (ใส่ได้หลายปลายทาง คั่นด้วยจุลภาค — จะเป็น user ID ของทีมงาน หรือ group ID ของกลุ่มก็ได้),
-//          (ไม่บังคับ) LINE_PARTNER_ID
+// Edge Function: notify-order — แจ้งเตือน LINE แยกกลุ่มตามประเภทงาน
+// Secrets: LINE_TOKEN
+//   LINE_OWNER_ID = กลุ่มทีมงาน Standard (ออเดอร์งานทั่วไป)
+//   LINE_PRO_ID   = กลุ่มทีมงาน Pro (ออเดอร์งาน Pro) — ยังไม่ตั้ง = ส่งเข้ากลุ่ม Standard ไปก่อน กันแจ้งเตือนหาย
+//   LINE_PARTNER_ID (ไม่บังคับ) = ร้านอุดมสุข
+// ?action=done + {id} → แจ้งว่างานผลิตเสร็จ/ส่งสำเร็จ เข้ากลุ่มของฝั่งนั้น ๆ
 // ?action=test → ข้อความทดสอบหาเจ้าของ · ?action=cancelled + {id} → แจ้งลูกค้า (ต้องมี line_uid)
 // ?action=customer-cancelled + {id} → ลูกค้ายกเลิกเองใน 10 นาที → แจ้งเจ้าของ (+พาร์ทเนอร์ถ้างาน Pro) ว่าไม่ต้องทำงานนี้
 
@@ -17,9 +20,12 @@ Deno.serve(async (req) => {
     const token = Deno.env.get('LINE_TOKEN') || '';
     // รองรับหลายปลายทาง: ใส่ id คั่นด้วย , หรือเว้นบรรทัดก็ได้ (ทีมงานหลายคน / กลุ่ม LINE)
     const ids = (v) => (v || '').split(/[,\s]+/).map((x) => x.trim()).filter(Boolean);
-    const owners = ids(Deno.env.get('LINE_OWNER_ID'));
+    const owners = ids(Deno.env.get('LINE_OWNER_ID'));     // กลุ่มงาน Standard
+    const prosG = ids(Deno.env.get('LINE_PRO_ID'));          // กลุ่มงาน Pro
     const partners = ids(Deno.env.get('LINE_PARTNER_ID'));
     if (!token || !owners.length) return json({ error: 'missing-secrets' }, 500);
+    // เลือกกลุ่มตามประเภทงาน — กลุ่ม Pro ยังไม่ตั้งค่า = ใช้กลุ่ม Standard แทน (แจ้งเตือนต้องไม่หาย)
+    const teamOf = (isPro) => (isPro && prosG.length) ? prosG : owners;
 
     const pushOne = (to, text) =>
       fetch('https://api.line.me/v2/bot/message/push', {
@@ -39,8 +45,9 @@ Deno.serve(async (req) => {
     const action = url.searchParams.get('action') || 'new';
 
     if (action === 'test') {
-      const r = await push(owners, '✅ ทดสอบระบบแจ้งเตือน MORE PRINT สำเร็จ! ออเดอร์ใหม่จะเด้งเข้าที่นี่ครับ 🖨️');
-      return json({ ok: r.ok, sent: r.status, targets: owners.length });
+      const r1 = await push(owners, '✅ ทดสอบสำเร็จ! กลุ่มนี้จะได้รับแจ้งเตือน "ออเดอร์งาน Standard" ครับ 🖨️');
+      const r2 = prosG.length ? await push(prosG, '✅ ทดสอบสำเร็จ! กลุ่มนี้จะได้รับแจ้งเตือน "ออเดอร์งาน PRO" ครับ ✨') : null;
+      return json({ ok: r1.ok, standard: r1.status, pro: r2 ? r2.status : 'ยังไม่ตั้ง LINE_PRO_ID' });
     }
 
     // ดึงออเดอร์จริงจากฐานข้อมูล (สิทธิ์ระบบ) — กันคนนอกยิงมั่ว
@@ -71,13 +78,28 @@ Deno.serve(async (req) => {
       if (o.status !== 0 || !/^ลูกค้ายกเลิกเอง/.test(o.cancel_reason || '')) return json({ error: 'not-self-cancelled' }, 400);
       if (Date.now() - new Date(o.created_at).getTime() > 30 * 60 * 1000) return json({ error: 'too-old' }, 400);
       const isPro = o.ptype === 'pro';
-      const r1 = await push(owners,
+      const r1 = await push(teamOf(isPro),
         '↩️ ลูกค้ายกเลิกออเดอร์ ' + o.id + ' เอง\n'
         + 'คุณ' + (o.customer_fname || 'ลูกค้า') + ' · ' + (isPro ? '✨ PRO ' + (o.paper || '') : 'งานทั่วไป') + ' · ฿' + (o.total || 0) + '\n'
         + '⛔ ไม่ต้องทำงานนี้แล้ว — ถ้าลูกค้าโอนเงินแล้ว รอลูกค้าทักมาขอคืนครับ');
       if (isPro && partners.length) {
         await push(partners, '⛔ งาน PRO ' + o.id + ' ถูกยกเลิกโดยลูกค้า — ไม่ต้องผลิตครับ');
       }
+      return json({ ok: r1.ok, status: r1.status });
+    }
+
+    if (action === 'done') {
+      // งานเสร็จ/ส่งสำเร็จ → รีมาร์คเข้ากลุ่มของฝั่งนั้น (เช็คสถานะจริงจากฐานข้อมูล)
+      const isPro = o.ptype === 'pro';
+      const who = 'คุณ' + (o.customer_fname || 'ลูกค้า') + ' · ' + (isPro ? '✨ PRO ' + (o.paper || '') : 'งานทั่วไป') + ' · ฿' + (o.total || 0);
+      let text = null;
+      if (o.status === 4) {
+        text = (o.pickup ? '✅ ออเดอร์ ' + o.id + ' ลูกค้ารับสินค้าแล้ว 🎉' : '✅ ออเดอร์ ' + o.id + ' จัดส่งสำเร็จแล้ว 🎉') + '\n' + who;
+      } else if (o.status === 3 && o.pickup) {
+        text = '📦 ออเดอร์ ' + o.id + ' ผลิตเสร็จแล้ว — รอลูกค้ามารับที่ร้าน\n' + who;
+      }
+      if (!text) return json({ ok: false, reason: 'not-done-yet' });
+      const r1 = await push(teamOf(isPro), text);
       return json({ ok: r1.ok, status: r1.status });
     }
 
@@ -89,7 +111,7 @@ Deno.serve(async (req) => {
       + 'คุณ' + (o.customer_fname || 'ลูกค้า') + ' · ' + (isPro ? '✨ PRO ' + (o.paper || '') : 'งานทั่วไป') + ' · ฿' + (o.total || 0) + '\n'
       + (o.pickup ? '🏪 ลูกค้ามารับเองที่อุดมสุข' : '📍 ' + (o.addr || '-')) + '\n'
       + 'จัดการ: https://more-print.github.io/more-print-app/' + (isPro ? 'commission' : 'admin') + '.html';
-    const r1 = await push(owners, text);
+    const r1 = await push(teamOf(isPro), text);
     if (isPro && partners.length) {
       await push(partners, '✨ งาน PRO ใหม่ ' + o.id + '\n' + (o.paper || '') + ' × ' + (o.copies || 1) + ' ชุด'
         + (o.pickup ? '\n🏪 ลูกค้าจะมารับเองที่ร้าน' : '\n🛵 MORE PRINT จะมารับไปส่ง')
