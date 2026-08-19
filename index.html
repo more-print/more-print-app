@@ -598,6 +598,7 @@ class App extends React.Component {
         this.setState({ gmapLink: '', pinMode: 'map', mapLocked: false, searchQ: short }, () => this.doSearch());
         return this.showToast('ลิงก์แบบใหม่ของ Google ไม่บอกพิกัด 🙏 ค้นหา "' + short + '" ให้แล้ว — แตะผลที่ตรง หรือเลื่อนแผนที่ปักหมุดเองครับ');
       }
+      if (/share\.google/i.test(url)) return this.showToast('ลิงก์จากแอป Google อ่านพิกัดไม่ได้ 🙏 เปิดแอป Google Maps กดค้างปักหมุดจุดส่ง แล้วแชร์ลิงก์มาวางใหม่ หรือปักหมุดเองครับ');
       return this.showToast('อ่านพิกัดจากลิงก์ไม่สำเร็จ 🙏 ลองค้นหาชื่อสถานที่หรือปักหมุดเองแทนครับ');
     }
     // ระหว่างรอแกะลิงก์ ถ้าลูกค้าขยับหมุดเอง = ถือว่าอันหลังสุดคือสิ่งที่ลูกค้าต้องการ ไม่ทับทิ้ง
@@ -1242,6 +1243,7 @@ class App extends React.Component {
         this.setState({ screen: 'delivery' });
       },
       gmapLink: s.gmapLink, gmapBusy: s.gmapBusy,
+      gmapWrongApp: /share\.google/i.test(s.gmapLink || ''), // ลูกค้าวางลิงก์แชร์จากแอป Google (ไม่ใช่ Google Maps) — เตือนทันทีก่อนกดตกลง
       setGmapLink: (e) => {
         const val = e.target.value;
         this.setState({ gmapLink: val });
@@ -2002,6 +2004,12 @@ class App extends React.Component {
                   <input value={v.gmapLink} onChange={v.setGmapLink} onKeyDown={v.onGmapKey} placeholder="https://maps.app.goo.gl/…" inputMode="url" style={css("flex:1;min-width:0;box-sizing:border-box;height:40px;border:1px solid var(--line);border-radius:10px;background:var(--card);color:var(--ink);padding:0 12px;font-size:12.5px;outline:none")}/>
                   <button onClick={v.useGmapLink} disabled={v.gmapBusy} style={css("flex:none;height:40px;padding:0 14px;border:none;border-radius:10px;background:var(--acc);color:#fff;font-size:13px;font-weight:700;cursor:pointer" + (v.gmapBusy ? ";opacity:.6" : ""))}>{v.gmapBusy ? '⏳' : 'ตกลง'}</button>
                 </div>
+                {v.gmapWrongApp && (
+                  <div style={css("margin-top:8px;background:#fff3bf;border:1.5px solid #f59f00;border-radius:10px;padding:10px 12px;font-size:11px;color:#7a4d00;line-height:1.8")}>
+                    ⚠️ <b>ลิงก์นี้มาจากแอป Google ไม่ใช่แอป Google Maps</b> — ระบบจะพยายามอ่านให้ แต่บางลิงก์หาพิกัดไม่เจอ<br/>
+                    ✅ วิธีที่ชัวร์: เปิดแอป <b>Google Maps</b> → <b>กดค้าง</b>ตรงจุดส่งให้ขึ้นหมุด → กด <b>แชร์</b> → <b>คัดลอกลิงก์</b> (ลิงก์จะขึ้นต้นด้วย maps.app.goo.gl) แล้วมาวางแทนครับ
+                  </div>
+                )}
               </div>
               </React.Fragment>}
               {v.pinModeMap && <React.Fragment>
