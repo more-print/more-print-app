@@ -112,6 +112,8 @@ const optionsLabel = (o) => [
   o.ptype ? (PTYPE_LABELS[o.ptype] || o.ptype) : (o.color ? 'ปริ้นสี' : 'ปริ้นขาวดำ'),
   o.paper,
   o.ptype === 'poster' ? null : (o.sides === 2 ? 'หน้า-หลัง' : 'หน้าเดียว'),
+  o.orient ? (o.orient === 'landscape' ? 'แนวนอน' : 'แนวตั้ง') : null,
+  o.nup ? o.nup + ' หน้า/แผ่น' : null,
   o.bind === 'book' ? 'เข้าเล่ม' : o.bind === 'corner' ? 'เย็บมุม' : o.bind === 'landscape' ? 'เล่มแนวนอน' : 'ไม่เข้าเล่ม',
   o.copies + ' ชุด'
 ].filter(Boolean).join(' · ');
@@ -694,12 +696,14 @@ function AdminApp(){
   const exportCsv = () => {
     const esc = (v) => { const s = v == null ? '' : String(v); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
     const STL = ['ยกเลิก', 'รับออเดอร์', 'กำลังปริ้น', 'กำลังจัดส่ง', 'ส่งแล้ว'];
-    const head = ['รหัสออเดอร์', 'วันที่สั่ง', 'สถานะ', 'ชื่อลูกค้า', 'เบอร์ลูกค้า', 'อีเมล', 'ประเภทงาน', 'ขนาด', 'ด้านที่พิมพ์', 'เข้าเล่ม', 'จำนวนชุด', 'จำนวนหน้า', 'รายชื่อไฟล์', 'จุดส่ง', 'ที่อยู่', 'เบอร์ผู้รับ', 'เวลารับ', 'ส่งด่วน', 'กลางคืน', 'ค่าปริ้น', 'ค่าเข้าเล่ม', 'ค่าส่ง', 'ค่ากลางคืน', 'ยอดรวม', 'เหตุผลที่ยกเลิก'];
+    const head = ['รหัสออเดอร์', 'วันที่สั่ง', 'สถานะ', 'ชื่อลูกค้า', 'เบอร์ลูกค้า', 'อีเมล', 'ประเภทงาน', 'ขนาด', 'ด้านที่พิมพ์', 'ทิศทางกระดาษ', 'หน้าต่อแผ่น', 'เข้าเล่ม', 'จำนวนชุด', 'จำนวนหน้า', 'รายชื่อไฟล์', 'จุดส่ง', 'ที่อยู่', 'เบอร์ผู้รับ', 'เวลารับ', 'ส่งด่วน', 'กลางคืน', 'ค่าปริ้น', 'ค่าเข้าเล่ม', 'ค่าส่ง', 'ค่ากลางคืน', 'ยอดรวม', 'เหตุผลที่ยกเลิก'];
     const rows = orders.map(o => [
       o.id, new Date(o.created_at).toLocaleString('th-TH'), STL[o.status] != null ? STL[o.status] : o.status,
       ((o.customer_fname || '') + ' ' + (o.customer_lname || '')).trim(), o.customer_phone || '', o.customer_email || '',
       o.ptype ? (PTYPE_LABELS[o.ptype] || o.ptype) : (o.color ? 'ปริ้นสี' : 'ปริ้นขาวดำ'), o.paper || '',
       o.sides === 2 ? 'หน้า-หลัง' : 'หน้าเดียว',
+      o.orient ? (o.orient === 'landscape' ? 'แนวนอน' : 'แนวตั้ง') : '',
+      o.nup ? o.nup + ' หน้า/แผ่น' : '',
       o.bind === 'book' ? 'เข้าเล่ม' : o.bind === 'corner' ? 'เย็บมุม' : o.bind === 'landscape' ? 'เล่มแนวนอน' : 'ไม่เข้าเล่ม',
       o.copies || 1, (o.files || []).reduce((a, f) => a + (f.pages || 0), 0),
       (o.files || []).map(f => f.name).join(' | '), o.point || '', o.addr || '', o.phone || '', o.time || '',

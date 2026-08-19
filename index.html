@@ -258,7 +258,7 @@ class App extends React.Component {
     this.fileRef = React.createRef();
     this.slipRef = React.createRef();
     this.state = {
-      screen: 'home', files: [], tier: 'standard', ptype: 'bw', paper: 'A4', sides: 1, bind: 'none', copies: 1,
+      screen: 'home', files: [], tier: 'standard', ptype: 'bw', paper: 'A4', sides: 1, orient: 'portrait', nup: 1, bind: 'none', copies: 1,
       vehicle: 'bike', // พาหนะส่งที่ลูกค้าเลือกเอง: 'bike' มอเตอร์ไซค์ · 'car' รถยนต์ (ใช้ทั้ง Standard และ Pro)
       reviews: [], reviewsReady: false, revStars: 5, revText: '', trackStars: 5, trackText: '',
       alertPrompt: false, alertAck: false,
@@ -846,6 +846,8 @@ class App extends React.Component {
         customer_phone: u.phone || s.phone || '', customer_email: u.email || '',
         files, ptype: s.tier === 'pro' ? 'pro' : s.ptype, color: s.tier !== 'pro' && s.ptype === 'color',
         paper: s.tier === 'pro' ? this.proLabel() : s.paper, sides: s.sides,
+        orient: s.tier === 'pro' ? null : (s.orient === 'landscape' ? 'landscape' : 'portrait'),
+        nup: s.tier === 'pro' ? null : (s.nup || 1),
         bind: s.tier === 'pro' ? (s.proType === 'foldbook' ? s.proBind : 'none') : s.bind, copies: s.copies,
         point: s.geoLabel || '', lat: s.lat, lng: s.lng,
         pickup: s.tier === 'pro' && s.proPickup,
@@ -858,25 +860,17 @@ class App extends React.Component {
         total: c.grandTotal, status: 1, times: [t0, '', '', ''],
         coupon: c.coupon || null, discount: c.discount || 0
       };
-      let { error } = await this.db.from('orders').insert(payload);
-      if (error && ((error.message || '').includes('coupon') || (error.message || '').includes('discount'))) {
-        const { coupon, discount, ...restC } = payload;
-        ({ error } = await this.db.from('orders').insert(restC));
-      }
-      if (error && (error.message || '').includes('line_uid')) {
-        // ฐานข้อมูลยังไม่มีคอลัมน์ line_uid — บันทึกแบบไม่มีไปก่อน ออเดอร์ต้องไม่หาย
-        const { line_uid, ...restL } = payload;
-        ({ error } = await this.db.from('orders').insert(restL));
-      }
-      if (error && (error.message || '').includes('pickup')) {
-        // ฐานข้อมูลยังไม่มีคอลัมน์ pickup — บันทึกแบบไม่มีไปก่อน ออเดอร์ต้องไม่หาย
-        const { pickup, ...restP } = payload;
-        ({ error } = await this.db.from('orders').insert(restP));
-      }
-      if (error && (error.message || '').includes('ptype')) {
-        // ฐานข้อมูลยังไม่มีคอลัมน์ ptype — บันทึกแบบไม่มีไปก่อน ออเดอร์ต้องไม่หาย
-        const { ptype, ...rest } = payload;
-        ({ error } = await this.db.from('orders').insert(rest));
+      // คอลัมน์เสริมที่ฐานข้อมูลอาจยังไม่มี — เจอ error คอลัมน์ไหนก็ตัดกลุ่มนั้นออกแล้วลองใหม่ (ตัดสะสมได้หลายกลุ่ม ออเดอร์ต้องไม่หาย)
+      const optionalCols = [['orient', 'nup'], ['coupon', 'discount'], ['line_uid'], ['pickup'], ['ptype']];
+      const body = { ...payload };
+      let { error } = await this.db.from('orders').insert(body);
+      for (let pass = 0; pass < 2 && error; pass++) { // สองรอบ — ฐานข้อมูลรายงานคอลัมน์หายทีละตัว ลำดับไม่แน่นอน
+        for (const group of optionalCols) {
+          if (error && group.some(k => (error.message || '').includes(k)) && group.some(k => k in body)) {
+            group.forEach(k => { delete body[k]; });
+            ({ error } = await this.db.from('orders').insert(body));
+          }
+        }
       }
       if (error) throw error;
       // แจ้งเตือน LINE ทีมงาน (ยิงทิ้งไว้ — ถ้าระบบแจ้งเตือนยังไม่ตั้งค่า ออเดอร์ไม่กระทบ)
@@ -1192,6 +1186,8 @@ class App extends React.Component {
       }),
       showSides: s.tier !== 'pro' && (s.ptype === 'bw' || s.ptype === 'laser' || s.ptype === 'color'),
       sidesOpts: [this.seg('หน้าเดียว', s.sides === 1, () => this.setState({ sides: 1 }), true), this.seg('หน้า-หลัง' + (s.tier !== 'pro' && s.ptype === 'bw' ? ' (ถูกกว่า)' : ''), s.sides === 2, () => this.setState({ sides: 2 }), true)],
+      orientOpts: [this.seg('ปริ้นแนวตั้ง', s.orient !== 'landscape', () => this.setState({ orient: 'portrait' }), true), this.seg('ปริ้นแนวนอน', s.orient === 'landscape', () => this.setState({ orient: 'landscape' }), true)],
+      nupOpts: [1, 2, 4, 6].map(n => this.seg(n + ' หน้า/แผ่น', (s.nup || 1) === n, () => this.setState({ nup: n }), true)),
       showBind: s.tier !== 'pro' && s.ptype !== 'poster',
       bindOpts: [this.seg('ไม่เข้าเล่ม', s.bind === 'none', () => this.setState({ bind: 'none' })), this.seg('เย็บมุม +฿5', s.bind === 'corner', () => this.setState({ bind: 'corner' })), this.seg('เข้าเล่ม +฿40', s.bind === 'book', () => this.setState({ bind: 'book' }))],
       copies: s.copies,
@@ -1329,6 +1325,8 @@ class App extends React.Component {
       goEditDelivery: () => this.setState({ screen: 'delivery' }),
       paperLabel: s.tier === 'pro' ? this.proLabel() : s.paper,
       sidesLabel: s.sides === 2 ? 'หน้า-หลัง' : s.tier === 'pro' && s.proType === 'poster' ? 'ด้านหน้าอย่างเดียว' : 'หน้าเดียว',
+      orientLabel: s.orient === 'landscape' ? 'ปริ้นแนวนอน' : 'ปริ้นแนวตั้ง',
+      nupLabel: (s.nup || 1) + ' หน้า/แผ่น',
       bindLabel: s.tier === 'pro' ? (s.proType === 'foldbook' ? s.proBind : '—') : s.bind === 'corner' ? 'เย็บมุม' : s.bind === 'book' ? 'เข้าเล่ม' : s.bind === 'landscape' ? 'เล่มแนวนอน' : 'ไม่เข้าเล่ม',
       isColorType: s.ptype === 'color',
       destLabel: s.addr,
@@ -1365,7 +1363,7 @@ class App extends React.Component {
         // จำเป็นที่อยู่จัดส่งประจำ ไว้เลือกซ้ำรอบหน้า
         if (!pickup && s.addr.trim() && s.lat != null) this.saveAddr({ addr: s.addr.trim(), lat: s.lat, lng: s.lng, veh: s.vehicle, ts: Date.now() });
         this.setState({ order: { id, total: c.grandTotal, times: [t0, '', '', ''], plabel, eta, pickup, ts, addr: oaddr, phone: s.phone, veh: oveh, copies: s.copies, pages: c.totalPages }, trackStep: 1, cancelReason: '', screen: 'track',
-          files: [], slip: null, copies: 1, bind: 'none', express: false, tier: 'standard', ptype: 'bw', paper: 'A4', sides: 1, proPickup: false, vehicle: 'bike', trackOpen: false, selfCancelArm: false, couponCode: '', couponOk: null });
+          files: [], slip: null, copies: 1, bind: 'none', express: false, tier: 'standard', ptype: 'bw', paper: 'A4', sides: 1, orient: 'portrait', nup: 1, proPickup: false, vehicle: 'bike', trackOpen: false, selfCancelArm: false, couponCode: '', couponOk: null });
         // จำออเดอร์ไว้ในเครื่อง — ปิดเว็บแล้วกลับมา การติดตามยังอยู่
         try { localStorage.setItem('mp_order', JSON.stringify({ id, total: c.grandTotal, times: [t0, '', '', ''], step: 1, plabel, eta, pickup, ts, addr: oaddr, phone: s.phone, veh: oveh, copies: s.copies, pages: c.totalPages })); } catch (e) {}
         // บวกเวลาตามคิวที่ค้างจริง (ออเดอร์ที่ยังไม่ออกส่ง) — รอ insert ลงฐานก่อนแล้วค่อยนับ
@@ -1889,6 +1887,8 @@ class App extends React.Component {
               </div>
               {v.showSize && <div style={css("display:flex;flex-direction:column;gap:6px")}><div style={css("font-size:12px;font-weight:600;color:var(--sub)")}>ขนาด</div><div style={css("display:flex;gap:8px;flex-wrap:wrap")}>{v.sizeOpts.map((o, i) => <button key={i} onClick={o.pick} style={o.st}>{o.label}</button>)}</div></div>}
               {v.showSides && <div style={css("display:flex;flex-direction:column;gap:6px")}><div style={css("font-size:12px;font-weight:600;color:var(--sub)")}>ด้านที่พิมพ์</div><div style={css("display:flex;gap:8px")}>{v.sidesOpts.map((o, i) => <button key={i} onClick={o.pick} style={o.st}>{o.label}</button>)}</div></div>}
+              {v.showSides && <div style={css("display:flex;flex-direction:column;gap:6px")}><div style={css("font-size:12px;font-weight:600;color:var(--sub)")}>ทิศทางกระดาษ</div><div style={css("display:flex;gap:8px")}>{v.orientOpts.map((o, i) => <button key={i} onClick={o.pick} style={o.st}>{o.label}</button>)}</div></div>}
+              {v.showSides && <div style={css("display:flex;flex-direction:column;gap:6px")}><div style={css("font-size:12px;font-weight:600;color:var(--sub)")}>การกำหนดหน้า</div><div style={css("display:flex;gap:8px;flex-wrap:wrap")}>{v.nupOpts.map((o, i) => <button key={i} onClick={o.pick} style={{...o.st, flex:'1 1 40%'}}>{o.label}</button>)}</div></div>}
               {v.showBind && <div style={css("display:flex;flex-direction:column;gap:6px")}><div style={css("font-size:12px;font-weight:600;color:var(--sub)")}>การเข้าเล่ม</div><div style={css("display:flex;gap:8px;flex-wrap:wrap")}>{v.bindOpts.map((o, i) => <button key={i} onClick={o.pick} style={o.st}>{o.label}</button>)}</div></div>}
               <div style={css("display:flex;justify-content:space-between;align-items:center")}><div style={css("font-size:12px;font-weight:600;color:var(--sub)")}>จำนวนชุด (สำเนา)</div>
                 <div style={css("display:flex;align-items:center;gap:10px")}>
@@ -2102,7 +2102,7 @@ class App extends React.Component {
             <div style={css("background:var(--accSoft);border:1.5px solid var(--acc);border-radius:14px;padding:14px 16px;box-shadow:var(--shadow)")}>
               <div style={css("font-size:11px;font-weight:700;color:var(--acc);letter-spacing:.5px")}>🖨️ สเปกงานปริ้นที่คุณเลือก</div>
               <div style={css("margin-top:10px;display:flex;flex-direction:column;gap:9px")}>
-                {[['ประเภทงาน', v.typeLabel], ['ขนาดกระดาษ', v.paperLabel], ['ด้านที่พิมพ์', v.sidesLabel], ['การเข้าเล่ม', v.bindLabel], ['จำนวน', v.copies + ' ชุด']].map((p, i) => (
+                {[['ประเภทงาน', v.typeLabel], ['ขนาดกระดาษ', v.paperLabel], ['ด้านที่พิมพ์', v.sidesLabel], ...(v.isPro ? [] : [['ทิศทางกระดาษ', v.orientLabel], ['การกำหนดหน้า', v.nupLabel]]), ['การเข้าเล่ม', v.bindLabel], ['จำนวน', v.copies + ' ชุด']].map((p, i) => (
                   <div key={i} style={css("display:flex;align-items:center;gap:10px")}>
                     <div style={css("width:20px;height:20px;border-radius:50%;background:var(--acc);color:#fff;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex:none")}>✓</div>
                     <span style={css("font-size:12.5px;color:var(--sub);min-width:88px")}>{p[0]}</span>
