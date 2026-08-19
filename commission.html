@@ -6,7 +6,7 @@
 <title>MORE PRINT — ค่าคอมงาน PRO</title>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Montserrat:wght@700;800&display=swap" rel="stylesheet">
 <style>
-  body{margin:0;background:var(--bg);font-family:'IBM Plex Sans Thai',sans-serif;
+  body{margin:0;zoom:1.15;background:var(--bg);font-family:'IBM Plex Sans Thai',sans-serif;
   --bg:#faf7f0;--card:#ffffff;--ink:#111111;--sub:#93876f;--line:#eee5d4;--soft:#f5efe2;
   --acc:#a16207;--accSoft:#fff3d6;--green:#00b368;--purple:#7048e8;--shadow:0 2px 10px rgba(0,0,0,.06)}
   input,button{font-family:'IBM Plex Sans Thai',sans-serif}
@@ -179,6 +179,9 @@ function Dash(){
   const [bill, setBill] = React.useState(null); // {y, m} = เปิดหน้าบิลของเดือนนั้น
   const [period, setPeriod] = React.useState('day');
   const [filter, setFilter] = React.useState('active');
+  const [chartMode, setChartMode] = React.useState('d'); // กราฟรายได้: d รายวัน · m รายเดือน · y รายปี
+  const [billListOpen, setBillListOpen] = React.useState(false); // กดปุ่มก่อน ระบบถึงสร้างรอบบิลให้
+  const [billMode, setBillMode] = React.useState('w'); // ตัดบิลโอนให้พาร์ทเนอร์: w รายสัปดาห์ (ตัด อา. 23:59) · d รายวัน (ตัดเที่ยงคืน)
   const load = React.useCallback(async () => {
     if (!DB) return;
     setLoading(true);
@@ -237,6 +240,35 @@ function Dash(){
     const ship = doneAll.filter(o => new Date(o.created_at) >= since).reduce((a, o) => a + shipOf(o), 0);
     return { n: rows.length, job, comm: job * COMMISSION, partner: job * (1 - COMMISSION), ship };
   };
+  // ── ข้อมูลกราฟรายได้ของเรา (คอม 33% + ค่าส่ง จากงานที่จบแล้ว) ──
+  const chartData = (() => {
+    const income = (d0, d1) => {
+      const inB = (o) => { const t = new Date(o.created_at); return t >= d0 && t < d1; };
+      return done.filter(inB).reduce((a, o) => a + jobValue(o) * COMMISSION, 0)
+           + doneAll.filter(inB).reduce((a, o) => a + shipOf(o), 0);
+    };
+    const out = [];
+    if (chartMode === 'd') {
+      for (let i = 6; i >= 0; i--) {
+        const d0 = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i);
+        const d1 = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i + 1);
+        out.push({ label: i === 0 ? 'วันนี้' : d0.getDate() + '/' + (d0.getMonth() + 1), v: income(d0, d1) });
+      }
+    } else if (chartMode === 'm') {
+      for (let i = 5; i >= 0; i--) {
+        const d0 = new Date(now.getFullYear(), now.getMonth() - i, 1);
+        const d1 = new Date(now.getFullYear(), now.getMonth() - i + 1, 1);
+        out.push({ label: TH_MONTHS[d0.getMonth()], v: income(d0, d1) });
+      }
+    } else {
+      const ys = new Set();
+      doneAll.forEach(o => ys.add(new Date(o.created_at).getFullYear()));
+      [...ys].sort().slice(-5).forEach(y => out.push({ label: 'ปี ' + ((y + 543) % 100), v: income(new Date(y, 0, 1), new Date(y + 1, 0, 1)) }));
+      if (!out.length) out.push({ label: 'ปี ' + ((now.getFullYear() + 543) % 100), v: 0 });
+    }
+    const max = Math.max(1, ...out.map(b => b.v));
+    return out.map(b => ({ ...b, v: Math.round(b.v * 100) / 100, h: Math.round(b.v / max * 100) }));
+  })();
   const PERIODS = [['day', 'วันนี้', today], ['month', 'เดือนนี้', month], ['year', 'ปีนี้', year]];
   const curP = PERIODS.find(x => x[0] === period) || PERIODS[0];
   const curAgg = agg(curP[2]);
@@ -247,6 +279,34 @@ function Dash(){
   done.forEach(o => { const b = ensureM(new Date(o.created_at)); b.n++; b.job += jobValue(o); });
   doneAll.forEach(o => { ensureM(new Date(o.created_at)).ship += shipOf(o); });
   const months = Object.keys(byMonth).sort((a, b) => b - a).map(k => byMonth[k]);
+
+  // ── รอบตัดบิลโอนให้ร้านอุดมสุข: รายสัปดาห์ (จันทร์ 00:00 – อาทิตย์ 23:59) หรือรายวัน (ตัดเที่ยงคืน) ──
+  const billPeriods = (() => {
+    const map = {};
+    done.forEach(o => {
+      const d = new Date(o.created_at);
+      let from;
+      if (billMode === 'd') from = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+      else { const dow = (d.getDay() + 6) % 7; from = new Date(d.getFullYear(), d.getMonth(), d.getDate() - dow); }
+      const key = from.getTime();
+      if (!map[key]) map[key] = { from,
+        to: billMode === 'd' ? new Date(from.getFullYear(), from.getMonth(), from.getDate() + 1)
+                             : new Date(from.getFullYear(), from.getMonth(), from.getDate() + 7),
+        n: 0, job: 0, unpaid: 0 };
+      const b = map[key];
+      b.n++; b.job += jobValue(o);
+      if (!o.payout_at) b.unpaid++;
+    });
+    const fmtD = (d) => d.getDate() + ' ' + TH_MONTHS[d.getMonth()];
+    return Object.keys(map).sort((a, b) => b - a).slice(0, 12).map(k => {
+      const b = map[k];
+      const endShow = new Date(b.to.getTime() - 1);
+      const label = billMode === 'd'
+        ? 'วันที่ ' + fmtD(b.from) + ' ' + ((b.from.getFullYear() + 543) % 100)
+        : fmtD(b.from) + ' – ' + fmtD(endShow) + ' ' + ((endShow.getFullYear() + 543) % 100);
+      return { ...b, label, comm: b.job * COMMISSION, net: b.job * (1 - COMMISSION), current: now < b.to };
+    });
+  })();
 
   // ── ลูกค้าประจำงาน PRO (เห็นเฉพาะเจ้าของที่นี่ — pro.html ของพาร์ทเนอร์ไม่มีข้อมูลลูกค้า) ──
   // จัดกลุ่มตามเบอร์โทร ไม่นับที่ยกเลิก · ยอด = ค่างานจริง (ปริ้น+เข้าเล่ม ไม่รวมค่าส่ง)
@@ -269,12 +329,13 @@ function Dash(){
 
   // ── ใบสรุปยอดประจำเดือน (บิลส่งให้ร้านพาร์ทเนอร์) ──
   if (bill) {
-    const rows = done.filter(o => { const d = new Date(o.created_at); return d.getFullYear() === bill.y && d.getMonth() === bill.m; });
+    const rows = done.filter(o => { const d = new Date(o.created_at);
+      return bill.from ? (d >= bill.from && d < bill.to) : (d.getFullYear() === bill.y && d.getMonth() === bill.m); });
     const job = rows.reduce((a, o) => a + jobValue(o), 0);
     const comm = job * COMMISSION, net = job - comm;
     const unpaid = rows.filter(o => !o.payout_at);
     const unpaidNet = unpaid.reduce((a, o) => a + jobValue(o) * (1 - COMMISSION), 0);
-    const monthLabel = TH_MONTHS[bill.m] + ' ' + (bill.y + 543);
+    const monthLabel = bill.label || (TH_MONTHS[bill.m] + ' ' + (bill.y + 543));
     const d0 = new Date();
     return (
       <div style={css("min-height:100vh;background:#fff;color:#111")}>
@@ -290,7 +351,7 @@ function Dash(){
             </div>
             <div style={css("text-align:right")}>
               <div style={css("font-size:16px;font-weight:800")}>ใบสรุปยอดงาน PRO</div>
-              <div style={css("font-size:12px;color:#666")}>ประจำเดือน {monthLabel}</div>
+              <div style={css("font-size:12px;color:#666")}>{bill.from ? 'รอบ ' : 'ประจำเดือน '}{monthLabel}</div>
             </div>
           </div>
           <div style={css("margin-top:18px;display:flex;justify-content:space-between;gap:12px;font-size:12.5px;line-height:1.7")}>
@@ -324,7 +385,7 @@ function Dash(){
               ? <div style={css("font-size:11px;color:#a16207;text-align:right")}>ในจำนวนนี้ยังค้างโอน {unpaid.length} งาน รวม {baht(unpaidNet)}</div>
               : rows.length > 0 && <div style={css("font-size:11px;color:#00744a;text-align:right")}>✓ โอนครบทุกงานแล้ว</div>}
           </div>
-          <div style={css("margin-top:34px;font-size:10.5px;color:#999;border-top:1px solid #eee;padding-top:10px;line-height:1.6")}>เอกสารสรุปยอดนี้สร้างจากระบบ MORE PRINT อัตโนมัติ · นับเฉพาะงานที่จัดส่งถึงลูกค้าเรียบร้อยแล้วในเดือน {monthLabel} · ค่าจัดส่งเป็นของ MORE PRINT ไม่อยู่ในยอดนี้</div>
+          <div style={css("margin-top:34px;font-size:10.5px;color:#999;border-top:1px solid #eee;padding-top:10px;line-height:1.6")}>เอกสารสรุปยอดนี้สร้างจากระบบ MORE PRINT อัตโนมัติ · นับเฉพาะงานที่จัดส่งถึงลูกค้าเรียบร้อยแล้วในรอบ {monthLabel} · ค่าจัดส่งเป็นของ MORE PRINT ไม่อยู่ในยอดนี้</div>
         </div>
       </div>
     );
@@ -341,6 +402,7 @@ function Dash(){
         {!DB && <span style={css("font-size:10px;font-weight:700;background:#f59f00;color:#2b2413;padding:3px 10px;border-radius:99px")}>DEMO</span>}
         <a href="admin.html" style={css("color:#e6c366;font-size:11.5px;font-weight:700;text-decoration:none")}>← หลัก</a>
         <button onClick={load} style={css("height:32px;padding:0 10px;border:1px solid #6b5c2e;border-radius:9px;background:none;color:#fff;font-size:11.5px;cursor:pointer")}>{loading ? '…' : '⟳'}</button>
+        {DB && <button onClick={() => DB.auth.signOut().then(() => location.reload())} style={css("height:32px;padding:0 10px;border:1px solid #6b5c2e;border-radius:9px;background:none;color:#e6c366;font-size:11.5px;cursor:pointer;white-space:nowrap")}>ออกจากระบบ</button>}
       </div>
 
       <div style={css("padding:14px 16px 40px;display:flex;flex-direction:column;gap:12px;max-width:760px;margin:0 auto")}>
@@ -371,6 +433,28 @@ function Dash(){
             </div>
             <div style={css("margin-top:9px;font-size:10.5px;color:var(--sub);line-height:1.6")}>ยอดงานปริ้นรวม {baht(curAgg.job)} · ส่วนที่ให้{PARTNER_NAME} {baht(curAgg.partner)}</div>
           </div>
+        </div>
+
+        {/* กราฟรายได้ของเรา */}
+        <div style={css("background:var(--card);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow);padding:14px 16px")}>
+          <div style={css("display:flex;align-items:center;gap:8px")}>
+            <div style={css("font-size:13px;font-weight:700;flex:1")}>📈 กราฟรายได้ของเรา</div>
+            {[['d', 'รายวัน'], ['m', 'รายเดือน'], ['y', 'รายปี']].map(([k, label]) => (
+              <button key={k} onClick={() => setChartMode(k)} style={{ height: '30px', padding: '0 12px', borderRadius: '99px', cursor: 'pointer', fontSize: '11.5px', fontWeight: 700, fontFamily: 'inherit',
+                border: chartMode === k ? '1.5px solid var(--acc)' : '1px solid var(--line)',
+                background: chartMode === k ? 'var(--accSoft)' : 'var(--soft)', color: chartMode === k ? 'var(--acc)' : 'var(--sub)' }}>{label}</button>
+            ))}
+          </div>
+          <div style={css("margin-top:12px;display:flex;align-items:flex-end;gap:8px;height:150px")}>
+            {chartData.map((b, i) => (
+              <div key={i} style={css("flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;min-width:0")}>
+                <div style={css("font-family:'IBM Plex Mono',monospace;font-size:10px;font-weight:600;color:" + (b.v ? "var(--green)" : "var(--sub)") + ";margin-bottom:3px;white-space:nowrap")}>{b.v ? (b.v >= 1000 ? (Math.round(b.v / 100) / 10) + 'k' : b.v) : '-'}</div>
+                <div style={{ width: '70%', maxWidth: '38px', height: Math.max(3, b.h) + '%', borderRadius: '6px 6px 2px 2px', background: b.v ? 'var(--green)' : 'var(--line)', opacity: b.v ? (i === chartData.length - 1 ? 1 : .75) : .5 }}></div>
+                <div style={css("margin-top:5px;font-size:10px;color:var(--sub);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%")}>{b.label}</div>
+              </div>
+            ))}
+          </div>
+          <div style={css("margin-top:8px;font-size:10.5px;color:var(--sub)")}>คอม 33% + ค่าส่ง จากงานที่จบแล้ว (นับตามวันที่สั่ง)</div>
         </div>
 
         {/* คอมรอรับจากงานที่ยังไม่จบ */}
@@ -412,6 +496,43 @@ function Dash(){
           <div style={css("padding:8px 16px 12px")}></div>
         </div>
 
+        {/* ตัดบิลโอนให้ร้านอุดมสุข (กดปุ่มก่อน ระบบถึงคำนวณรอบให้ — ไม่ทำเองอัตโนมัติ) */}
+        <div style={css("background:var(--card);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow);padding:14px 16px")}>
+          <div style={css("display:flex;align-items:center;gap:8px;flex-wrap:wrap")}>
+            <div style={css("flex:1;min-width:0")}>
+              <div style={css("font-size:13px;font-weight:700")}>🧾 ตัดบิลโอนให้{PARTNER_NAME}</div>
+              <div style={css("margin-top:2px;font-size:10.5px;color:var(--sub);line-height:1.6")}>รายสัปดาห์ตัดทุกอาทิตย์ 23:59 · รายวันตัดเที่ยงคืน · นับเฉพาะงานที่จบแล้ว</div>
+            </div>
+            {!billListOpen && <button onClick={() => setBillListOpen(true)} style={css("height:40px;padding:0 16px;border:none;border-radius:11px;background:var(--acc);color:#fff;font-size:12.5px;font-weight:700;cursor:pointer;font-family:inherit")}>⚙️ สร้างรอบบิล</button>}
+            {billListOpen && <button onClick={() => setBillListOpen(false)} style={css("height:34px;padding:0 12px;border:1px solid var(--line);border-radius:10px;background:var(--soft);color:var(--sub);font-size:11.5px;font-weight:700;cursor:pointer;font-family:inherit")}>ซ่อน ▲</button>}
+          </div>
+          {billListOpen && (
+            <React.Fragment>
+              <div style={css("margin-top:11px;display:flex;gap:7px")}>
+                {[['w', '📅 รายสัปดาห์ (ตัด อา. 23:59)'], ['d', '🗓️ รายวัน (ตัดเที่ยงคืน)']].map(([k, label]) => (
+                  <button key={k} onClick={() => setBillMode(k)} style={{ flex: 1, height: '38px', borderRadius: '10px', cursor: 'pointer', fontSize: '11.5px', fontWeight: 700, fontFamily: 'inherit',
+                    border: billMode === k ? '1.5px solid var(--acc)' : '1px solid var(--line)',
+                    background: billMode === k ? 'var(--accSoft)' : 'var(--soft)', color: billMode === k ? 'var(--acc)' : 'var(--sub)' }}>{label}</button>
+                ))}
+              </div>
+              {billPeriods.length === 0 && <div style={css("padding:16px 0;text-align:center;font-size:12px;color:var(--sub)")}>ยังไม่มีงานที่จบ — รอบบิลจะขึ้นเมื่อมีงานส่งถึงมือลูกค้าแล้ว</div>}
+              {billPeriods.map((b, i) => (
+                <div key={i} style={css("margin-top:9px;border:1px solid " + (b.current ? "var(--acc)" : "var(--line)") + ";border-radius:12px;padding:10px 13px;display:flex;align-items:center;gap:10px;flex-wrap:wrap")}>
+                  <div style={css("flex:1;min-width:130px")}>
+                    <div style={css("font-size:12.5px;font-weight:700")}>{b.label} {b.current && <span style={css("font-size:9.5px;font-weight:700;background:var(--accSoft);color:var(--acc);border-radius:99px;padding:2px 8px")}>⏳ รอบปัจจุบัน ยังไม่ครบกำหนดตัด</span>}</div>
+                    <div style={css("margin-top:2px;font-size:11px;color:var(--sub)")}>{b.n} งาน · ยอดงาน {baht(b.job)} · หักคอม {baht(b.comm)}</div>
+                  </div>
+                  <div style={css("text-align:right;flex:none")}>
+                    <div style={css("font-family:'IBM Plex Mono',monospace;font-size:14px;font-weight:800;color:var(--acc)")}>{baht(b.net)}</div>
+                    <div style={css("font-size:9.5px;font-weight:700;color:" + (b.unpaid ? "#c92a2a" : "var(--green)"))}>{b.unpaid ? 'ค้างโอน ' + b.unpaid + ' งาน' : '✓ โอนครบแล้ว'}</div>
+                  </div>
+                  <button onClick={() => setBill({ from: b.from, to: b.to, label: b.label })} style={css("flex:none;height:36px;padding:0 13px;border:1px solid var(--acc);border-radius:10px;background:var(--accSoft);color:var(--acc);font-size:11.5px;font-weight:700;cursor:pointer;font-family:inherit;white-space:nowrap")}>🧾 เปิดบิล</button>
+                </div>
+              ))}
+            </React.Fragment>
+          )}
+        </div>
+
         {/* ลูกค้าประจำงาน PRO */}
         <div style={css("background:var(--card);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);padding:12px 16px")}>
           <div style={css("display:flex;align-items:center;gap:8px")}>
@@ -443,13 +564,16 @@ function Dash(){
 
         {/* รายงานทีละงาน — แยกตามสถานะ */}
         {(() => {
+          // งานตามช่วงเวลาที่เลือกด้านบน — "กำลังทำ" โชว์ทุกใบเสมอ กันงานค้างตกหล่น
+          const inPeriod = (o) => new Date(o.created_at) >= curP[2];
           const inWork = orders.filter(o => o.status > 0 && o.status < 4);
-          const doneL = orders.filter(o => o.status === 4);
-          const cancelL = orders.filter(o => o.status === 0);
+          const doneL = orders.filter(o => o.status === 4 && inPeriod(o));
+          const cancelL = orders.filter(o => o.status === 0 && inPeriod(o));
           const TABS = [['active', '🖨️ กำลังทำ', inWork], ['done', '✅ เสร็จแล้ว', doneL], ['cancel', '❌ ยกเลิก', cancelL]];
           const cur = TABS.find(t => t[0] === filter) || TABS[0];
           return (
             <React.Fragment>
+              <div style={css("font-size:13px;font-weight:700")}>📋 งาน PRO {curP[1]} <span style={css("font-size:10.5px;font-weight:400;color:var(--sub)")}>· เปลี่ยนช่วงเวลาได้ที่แถบบนสุด · งานที่ยังไม่เสร็จแสดงทุกช่วงเสมอ</span></div>
               <div style={css("display:flex;gap:7px")}>
                 {TABS.map(([k, label, list]) => (
                   <button key={k} onClick={() => setFilter(k)} style={{ flex: 1, height: '42px', borderRadius: '12px', cursor: 'pointer', fontSize: '11.5px', fontWeight: 700, fontFamily: 'inherit',
