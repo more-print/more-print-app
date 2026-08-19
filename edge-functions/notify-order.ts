@@ -4,6 +4,7 @@
 //   LINE_PRO_ID   = กลุ่มทีมงาน Pro (ออเดอร์งาน Pro) — ยังไม่ตั้ง = ส่งเข้ากลุ่ม Standard ไปก่อน กันแจ้งเตือนหาย
 //   LINE_PARTNER_ID (ไม่บังคับ) = ร้านอุดมสุข
 // ?action=done + {id} → แจ้งว่างานผลิตเสร็จ/ส่งสำเร็จ เข้ากลุ่มของฝั่งนั้น ๆ
+// ?action=chat + {id} → ลูกค้าแชทมาใน Live Chat → แจ้งกลุ่มให้เข้าไปตอบ (กันสแปม: แจ้งเฉพาะข้อความแรกที่ยังไม่อ่าน)
 // ?action=test → ข้อความทดสอบหาเจ้าของ · ?action=cancelled + {id} → แจ้งลูกค้า (ต้องมี line_uid)
 // ?action=customer-cancelled + {id} → ลูกค้ายกเลิกเองใน 10 นาที → แจ้งเจ้าของ (+พาร์ทเนอร์ถ้างาน Pro) ว่าไม่ต้องทำงานนี้
 
@@ -85,6 +86,23 @@ Deno.serve(async (req) => {
       if (isPro && partners.length) {
         await push(partners, '⛔ งาน PRO ' + o.id + ' ถูกยกเลิกโดยลูกค้า — ไม่ต้องผลิตครับ');
       }
+      return json({ ok: r1.ok, status: r1.status });
+    }
+
+    if (action === 'chat') {
+      // ลูกค้าส่งแชทใหม่ → แจ้งกลุ่ม 1 ครั้งต่อชุดข้อความ (ยังไม่เข้าไปอ่าน = ไม่แจ้งซ้ำ)
+      const mr = await fetch(sbUrl + '/rest/v1/messages?order_id=eq.' + encodeURIComponent(id)
+        + '&sender=eq.customer&seen_by_shop=eq.false&order=id.desc&limit=5', {
+        headers: { apikey: srKey, Authorization: 'Bearer ' + srKey },
+      });
+      const msgs = await mr.json();
+      if (!Array.isArray(msgs) || !msgs.length) return json({ ok: false, reason: 'no-unread' });
+      if (msgs.length > 1) return json({ ok: false, reason: 'already-notified' });
+      const isPro = o.ptype === 'pro';
+      const r1 = await push(teamOf(isPro),
+        '💬 ลูกค้าแชทมาใหม่ · ออเดอร์ ' + o.id + (isPro ? ' (✨ PRO)' : '') + '\n'
+        + 'คุณ' + (o.customer_fname || 'ลูกค้า') + ': "' + String(msgs[0].body || '').slice(0, 120) + '"\n'
+        + 'เข้าไปตอบที่แท็บ 💬 แชท: https://more-print.github.io/more-print-app/admin.html');
       return json({ ok: r1.ok, status: r1.status });
     }
 

@@ -956,6 +956,8 @@ class App extends React.Component {
       this.setState({ chatBusy: false });
       if (error) return this.showToast('ส่งข้อความไม่สำเร็จ ลองอีกครั้งครับ 🙏');
       this.setState({ chatText: '' });
+      // แจ้งทีมทาง LINE ว่ามีแชทใหม่ (ยิงแบบไม่รอผล — ฝั่งเซิร์ฟเวอร์กันแจ้งซ้ำเอง)
+      try { fetch((window.MP_CONFIG || {}).SUPABASE_URL + '/functions/v1/notify-order?action=chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: s.order.id }) }); } catch (e) {}
       this.loadChat();
     });
   }
