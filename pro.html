@@ -143,7 +143,8 @@ function Badge({ status, labels }){
   return <span style={css("font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:600;color:var(--acc);background:var(--accSoft);padding:3px 10px;border-radius:99px;white-space:nowrap")}>{(labels || STEPS)[i]}</span>;
 }
 
-function ProOrder({ o, isOwner, payoutReady, onPrice, onPayout, onAdvance, onCancel, onPartnerAdvance }){
+function ProOrder({ o, isOwner, payoutReady, onPrice, onPayout, onAdvance, onCancel, onPartnerAdvance, onPartnerCancel, onPartnerRemove }){
+  const [confirmDel, setConfirmDel] = React.useState(false);
   const [edit, setEdit] = React.useState(false);
   const [price, setPrice] = React.useState('');
   const [confirmPay, setConfirmPay] = React.useState(false);
@@ -175,6 +176,17 @@ function ProOrder({ o, isOwner, payoutReady, onPrice, onPayout, onAdvance, onCan
         {fmtWhen(o.created_at)} · คุณ{o.customer_fname} {o.customer_lname || ''}{isOwner && o.customer_phone ? <span> · <a href={'tel:' + String(o.customer_phone || '').replace(/[^0-9+]/g, '')}>{o.customer_phone}</a></span> : null}
       </div>
       <div style={css("margin-top:4px;font-size:12px;font-weight:600")}>✨ {o.paper} · {o.sides === 2 ? 'หน้า-หลัง' : 'หน้าเดียว'} · {o.copies || 1} ชุด</div>
+      {!o.pickup && (o.addr || o.point) && (
+        <div style={css("margin-top:4px;font-size:11.5px;color:var(--sub);line-height:1.6")}>📍 {(o.addr || o.point || '').replace(/^(🚗|🏍️)\s*/, '')}
+          {o.lat != null && o.lng != null && <a href={'https://www.google.com/maps?q=' + o.lat + ',' + o.lng} target="_blank" rel="noreferrer" style={css("margin-left:8px;font-weight:700;color:var(--acc)")}>🧭 นำทาง</a>}
+        </div>
+      )}
+      {o.slip_path && fileUrl(o.slip_path) && (
+        <a href={fileUrl(o.slip_path)} target="_blank" rel="noreferrer" style={css("display:inline-block;margin-top:7px;text-decoration:none")}>
+          <img src={fileUrl(o.slip_path)} alt="สลิป" style={css("max-width:120px;max-height:160px;border-radius:9px;border:1px solid var(--line);display:block;background:var(--soft)")} onError={(e) => { e.target.parentElement.style.display = 'none'; }}/>
+          <span style={css("font-size:10.5px;color:var(--acc);font-weight:600")}>🔍 สลิปโอนเงินของลูกค้า</span>
+        </a>
+      )}
       {(o.files || []).length > 0 && (
         <div style={css("margin-top:8px;display:flex;flex-direction:column;gap:5px")}>
           {(o.files || []).map((f, i) => (
@@ -215,9 +227,27 @@ function ProOrder({ o, isOwner, payoutReady, onPrice, onPayout, onAdvance, onCan
       )}
       {o.status === 0 && o.cancel_reason && <div style={css("margin-top:8px;font-size:11.5px;color:#c92a2a")}>เหตุผลที่ยกเลิก: {o.cancel_reason}</div>}
       {!isOwner && o.status > 0 && o.status < 4 && (
-        (o.status < 3 || o.pickup)
-          ? <button onClick={() => onPartnerAdvance(o)} style={css("margin-top:10px;width:100%;height:42px;border:none;border-radius:10px;background:var(--acc);color:#fff;font-size:12.5px;font-weight:700;cursor:pointer")}>→ อัปเดตสถานะเป็น "{stepsOf(o)[Math.min(o.status, 3)]}"</button>
-          : <div style={css("margin-top:10px;background:var(--accSoft);border-radius:10px;padding:9px 12px;font-size:11.5px;color:var(--acc);font-weight:600")}>📦 งานอยู่ระหว่างจัดส่งโดย MORE PRINT — สถานะสุดท้ายทีมส่งเป็นคนกด</div>
+        <div style={css("margin-top:10px;display:flex;gap:8px")}>
+          {(o.status < 3 || o.pickup)
+            ? <button onClick={() => onPartnerAdvance(o)} style={css("flex:1;height:42px;border:none;border-radius:10px;background:var(--acc);color:#fff;font-size:12.5px;font-weight:700;cursor:pointer")}>→ อัปเดตสถานะเป็น "{stepsOf(o)[Math.min(o.status, 3)]}"</button>
+            : <div style={css("flex:1;background:var(--accSoft);border-radius:10px;padding:9px 12px;font-size:11.5px;color:var(--acc);font-weight:600;display:flex;align-items:center")}>📦 งานอยู่ระหว่างจัดส่งโดย MORE PRINT</div>}
+          <button onClick={() => setCancelOpen(v => !v)} style={css("flex:none;height:42px;padding:0 12px;border:1px solid #ffa8a8;border-radius:10px;background:none;color:#c92a2a;font-size:11.5px;font-weight:700;cursor:pointer")}>✕ ยกเลิก</button>
+        </div>
+      )}
+      {!isOwner && cancelOpen && o.status > 0 && o.status < 4 && (
+        <div style={css("margin-top:8px;display:flex;gap:8px")}>
+          <input value={reason} onChange={e => setReason(e.target.value)} placeholder="เหตุผลที่ยกเลิก (ลูกค้าจะเห็นข้อความนี้)"
+            style={css("flex:1;min-width:0;box-sizing:border-box;height:38px;border:1px solid var(--line);border-radius:10px;background:var(--soft);color:var(--ink);padding:0 12px;font-size:12px;outline:none")}/>
+          <button onClick={() => { if (reason.trim()) { onPartnerCancel(o, reason.trim()); setCancelOpen(false); setReason(''); } }} disabled={!reason.trim()}
+            style={css("flex:none;height:38px;padding:0 12px;border:none;border-radius:10px;background:" + (reason.trim() ? "#c92a2a" : "#f1b5b5") + ";color:#fff;font-size:11.5px;font-weight:700;cursor:pointer")}>ยืนยันยกเลิก</button>
+        </div>
+      )}
+      {!isOwner && o.status === 0 && (
+        <button onClick={() => { if (!confirmDel) { setConfirmDel(true); setTimeout(() => setConfirmDel(false), 4000); return; } setConfirmDel(false); onPartnerRemove(o); }}
+          style={{ marginTop: '9px', width: '100%', height: '38px', border: 'none', borderRadius: '10px', fontSize: '12px', fontWeight: 700, cursor: 'pointer',
+            background: confirmDel ? '#c92a2a' : '#ffe3e3', color: confirmDel ? '#fff' : '#c92a2a' }}>
+          {confirmDel ? '⚠️ แน่ใจนะ? กดอีกครั้งเพื่อลบถาวร' : '🗑️ ลบออเดอร์นี้ถาวร (รวมไฟล์+สลิป)'}
+        </button>
       )}
       {isOwner && o.status > 0 && o.status < 4 && (
         <div style={css("margin-top:10px;display:flex;flex-direction:column;gap:8px")}>
@@ -253,7 +283,7 @@ function Dash({ role }){
   const load = React.useCallback(async () => {
     if (!DB) return;
     setLoading(true);
-    const cols = 'id,created_at,status,times,cancel_reason,customer_fname,customer_lname,customer_phone,paper,sides,copies,print_cost,bind_cost,delivery_cost,night_fee,total,files';
+    const cols = 'id,created_at,status,times,cancel_reason,customer_fname,customer_lname,customer_phone,paper,sides,copies,print_cost,bind_cost,delivery_cost,night_fee,total,files,slip_path,addr,point,lat,lng';
     let r = await DB.from('orders').select(cols + ',payout_at,pickup').eq('ptype', 'pro').order('created_at', { ascending: false }).limit(2000);
     if (r.error) {
       // ยังไม่มีคอลัมน์ payout_at — โหลดแบบไม่มีไปก่อน (ตั้งราคายังใช้ได้ แต่บันทึกการโอนยังไม่ได้)
@@ -302,6 +332,28 @@ function Dash({ role }){
     // ผลิตเสร็จ/ลูกค้ารับแล้ว → แจ้งกลุ่ม LINE (EF เช็คสถานะจริงเอง ไม่เข้าเงื่อนไขก็เงียบ)
     try { fetch(CFG.SUPABASE_URL + '/functions/v1/notify-order?action=done', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: o.id }) }); } catch (e) {}
     await load();
+  };
+
+  // ── พาร์ทเนอร์ยกเลิก/ลบออเดอร์เอง (RPC ฝั่งฐานข้อมูลตรวจสิทธิ์+เงื่อนไขซ้ำอีกชั้น) ──
+  const partnerCancel = async (o, reason) => {
+    if (!DB) { setOrders(l => l.map(x => x.id === o.id ? { ...x, status: 0, cancel_reason: reason } : x)); return; }
+    const { data, error } = await DB.rpc('partner_cancel', { oid: o.id, reason });
+    if (error || !data) { alert('ยกเลิกไม่สำเร็จ — เจ้าของ MORE PRINT อาจยังไม่ได้เปิดสิทธิ์ (รัน SQL partner_cancel) หรือออเดอร์จบไปแล้ว'); return; }
+    // แจ้งลูกค้าทาง LINE (ยิงแบบไม่รอผล)
+    try { fetch(CFG.SUPABASE_URL + '/functions/v1/notify-order?action=cancelled', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: o.id }) }); } catch (e) {}
+    await load();
+  };
+  const partnerRemove = async (o) => {
+    if (!DB) { setOrders(l => l.filter(x => x.id !== o.id)); return; }
+    try {
+      const paths = [];
+      (o.files || []).forEach(f => { if (f.path) paths.push(f.path); });
+      if (o.slip_path) paths.push(o.slip_path);
+      if (paths.length) await DB.storage.from('uploads').remove(paths).catch(() => {});
+      const { data, error } = await DB.rpc('partner_delete', { oid: o.id });
+      if (error || !data) { alert('ลบไม่สำเร็จ — ต้องเป็นออเดอร์ที่ยกเลิกแล้ว และเจ้าของต้องรัน SQL partner_delete ก่อน'); return; }
+      await load();
+    } catch (e) { alert('ลบไม่สำเร็จ: ' + e.message); }
   };
 
   // ── สถิติราย วัน/สัปดาห์/เดือน/ปี (ไม่รวมออเดอร์ที่ยกเลิก) ──
@@ -567,7 +619,7 @@ function Dash({ role }){
               </div>
               {loading && <div style={css("text-align:center;color:var(--sub);font-size:13px;padding:16px 0")}>กำลังโหลด…</div>}
               {!loading && cur[2].length === 0 && <div style={css("text-align:center;color:var(--sub);font-size:13px;padding:28px 0")}>ไม่มีออเดอร์ในหมวดนี้</div>}
-              {cur[2].map(o => <ProOrder key={o.id} o={o} isOwner={isOwner} payoutReady={payoutReady} onPrice={setPrice} onPayout={markPayout} onAdvance={advance} onCancel={cancelOrder} onPartnerAdvance={partnerAdvance}/>)}
+              {cur[2].map(o => <ProOrder key={o.id} o={o} isOwner={isOwner} payoutReady={payoutReady} onPrice={setPrice} onPayout={markPayout} onAdvance={advance} onCancel={cancelOrder} onPartnerAdvance={partnerAdvance} onPartnerCancel={partnerCancel} onPartnerRemove={partnerRemove}/>)}
             </React.Fragment>
           );
         })()}
