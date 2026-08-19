@@ -321,7 +321,7 @@ class App extends React.Component {
     }
     try {
       const u = JSON.parse(localStorage.getItem('mp_user') || 'null');
-      if (u && u.fname) this.setState({ user: u, phone: u.phone || '' });
+      if (u && u.fname) this.setState({ user: u, phone: this.fmtPhone(u.phone || '') });
       else this.setState({ screen: 'login' });
     } catch (e) { this.setState({ screen: 'login' }); }
     // กู้คืนออเดอร์ล่าสุดที่จำไว้ในเครื่อง (เผื่อลูกค้าปิดเว็บแล้วกลับเข้ามา)
@@ -441,6 +441,13 @@ class App extends React.Component {
     if (iOS) return 'ios';
     if (safari) return 'safari';     // Safari บน Mac
     return 'other';                   // Chrome / Edge / Firefox
+  }
+  // เบอร์โทร: รับเฉพาะตัวเลข 10 หลัก + ใส่ขีด 083-xxx-xxxx ให้เองตอนพิมพ์ (พิมพ์ตัวอักษรมา = ตัดทิ้งทันที)
+  fmtPhone(v){
+    const d = String(v || '').replace(/\D/g, '').slice(0, 10);
+    if (d.length <= 3) return d;
+    if (d.length <= 6) return d.slice(0, 3) + '-' + d.slice(3);
+    return d.slice(0, 3) + '-' + d.slice(3, 6) + '-' + d.slice(6);
   }
   locateMe(silent){
     if (!navigator.geolocation) { if (!silent) this.showToast('เบราว์เซอร์ไม่รองรับระบุตำแหน่ง — ค้นหาชื่อสถานที่หรือลากหมุดแทนได้ครับ 📍'); return; }
@@ -1193,7 +1200,7 @@ class App extends React.Component {
       locateMe: () => this.locateMe(false), locating: s.locating,
       hasPin: s.lat != null, geoLabel: s.geoLabel,
       addr: s.addr, setAddr: (e) => set('addr')(e.target.value),
-      phone: s.phone, setPhone: (e) => set('phone')(e.target.value),
+      phone: s.phone, setPhone: (e) => set('phone')(this.fmtPhone(e.target.value)),
       time: s.time, setTime: (e) => set('time')(e.target.value),
       express: s.express, toggleExpress: () => this.setState(st => ({ express: !st.express })),
       expressOn: CONFIG.expressEnabled !== false,
@@ -1207,7 +1214,9 @@ class App extends React.Component {
           if (c.outOfArea) return this.showToast('ส่งด้วยรถยนต์ได้ในระยะ 6 กม. — จุดนี้ไกลเกิน 🙏 เลือกส่งด้วยมอเตอร์ไซค์ (ไม่จำกัดระยะ) หรือปรึกษาทาง LINE ' + ((window.MP_CONFIG || {}).LINE_OA_ID || '@346kifvy') + ' ได้ครับ');
           if (!s.addr.trim()) return this.showToast('กรอกรายละเอียดที่อยู่ด้วยครับ 🏠');
         }
-        if (!s.phone) return this.showToast('ใส่เบอร์โทรผู้รับด้วยครับ 📞');
+        const ph = s.phone.replace(/\D/g, '');
+        if (!ph) return this.showToast('ใส่เบอร์โทรผู้รับด้วยครับ 📞');
+        if (ph.length !== 10 || ph[0] !== '0') return this.showToast('เบอร์โทรต้องเป็นตัวเลข 10 หลัก ขึ้นต้นด้วย 0 ครับ 📞');
         this.setState({ screen: 'review' });
       },
       // ── เลือกพาหนะส่งเอง (ทั้ง Standard และ Pro) — ราคาใช้เกณฑ์เดิม ──
@@ -1936,7 +1945,7 @@ class App extends React.Component {
               <input value={v.addr} onChange={v.setAddr} placeholder="เช่น หอ 9 ตึก B ชั้น 2, บ้านเลขที่ 123/4 ซอยมะลิวัลย์ 5" style={css("margin-top:6px;width:100%;box-sizing:border-box;height:42px;border:1px solid var(--line);border-radius:10px;background:var(--soft);color:var(--ink);padding:0 12px;font-size:13px;outline:none")}/>
               </React.Fragment>}
               <div style={css("margin-top:10px;font-size:12px;font-weight:600;color:var(--sub)")}>เบอร์โทรผู้รับ <span style={css("color:#d9480f")}>*</span></div>
-              <input value={v.phone} onChange={v.setPhone} placeholder="08x-xxx-xxxx" inputMode="tel" style={css("margin-top:6px;width:100%;box-sizing:border-box;height:42px;border:1px solid var(--line);border-radius:10px;background:var(--soft);color:var(--ink);padding:0 12px;font-size:13px;outline:none")}/>
+              <input value={v.phone} onChange={v.setPhone} placeholder="08x-xxx-xxxx" inputMode="tel" maxLength={12} style={css("margin-top:6px;width:100%;box-sizing:border-box;height:42px;border:1px solid var(--line);border-radius:10px;background:var(--soft);color:var(--ink);padding:0 12px;font-size:13px;outline:none")}/>
             </div>
             {v.expressOn && (
               <div style={css("background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px;box-shadow:var(--shadow)")}>
