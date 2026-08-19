@@ -308,6 +308,11 @@ function Dash({ role }){
     const job = rows.reduce((a, o) => a + jobValue(o), 0);
     return { n: rows.length, job, comm: job * COMMISSION, partner: job * (1 - COMMISSION), unpriced: rows.filter(o => jobValue(o) === 0).length };
   };
+  // ── ตัวเลขภาพรวมวันนี้ (การ์ดบนสุดแบบแดชบอร์ด) ──
+  const ovToday = valid.filter(o => new Date(o.created_at) >= today);
+  const ovActive = orders.filter(o => o.status > 0 && o.status < 4).length;
+  const ovDoneToday = ovToday.filter(o => o.status === 4).length;
+  const ovJobToday = ovToday.reduce((a, o) => a + jobValue(o), 0);
   const PERIODS = [['day', 'วันนี้', today], ['week', 'สัปดาห์นี้', week], ['month', 'เดือนนี้', month], ['year', 'ปีนี้', year]];
   const curP = PERIODS.find(x => x[0] === period) || PERIODS[0];
   const curAgg = agg(curP[2]);
@@ -382,6 +387,26 @@ function Dash({ role }){
 
       <div style={css("padding:14px 16px 40px;display:flex;flex-direction:column;gap:12px;max-width:760px;margin:0 auto")}>
         {!DB && <div style={css("background:var(--goldBg);border:1px solid #f0dfa6;border-radius:12px;padding:10px 14px;font-size:12px;color:var(--gold);line-height:1.6")}>⚠️ โหมดตัวอย่าง — ข้อมูลด้านล่างเป็นเพียงตัวอย่าง</div>}
+
+        {/* ภาพรวมร้านวันนี้ (แบบแดชบอร์ด) */}
+        <div>
+          <div style={css("font-size:17px;font-weight:800")}>ภาพรวมร้านค้า</div>
+          <div style={css("font-size:11px;color:var(--sub);margin-top:2px")}>{new Date().toLocaleDateString('th-TH', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</div>
+        </div>
+        <div style={css("display:grid;grid-template-columns:1fr 1fr;gap:10px")}>
+          {[
+            ['ออเดอร์วันนี้', ovToday.length + '', 'รายการ', 'var(--acc)'],
+            ['กำลังผลิต/ค้างส่ง', ovActive + '', 'รายการ', ovActive ? '#c92a2a' : 'var(--acc)'],
+            ['เสร็จสิ้นวันนี้', ovDoneToday + '', 'รายการ', 'var(--acc)'],
+            ['ยอดงานวันนี้', baht(ovJobToday), 'ค่างานปริ้น', 'var(--gold)']
+          ].map(([label, val, unit, color], i) => (
+            <div key={i} style={css("background:var(--card);border:1px solid var(--line);border-radius:14px;padding:13px 15px;box-shadow:var(--shadow)")}>
+              <div style={css("font-size:11.5px;color:var(--sub);font-weight:600")}>{label}</div>
+              <div style={{ marginTop: '4px', fontFamily: "'IBM Plex Mono',monospace", fontSize: '22px', fontWeight: 700, color }}>{val}</div>
+              <div style={css("font-size:10px;color:var(--sub);margin-top:2px")}>{unit}</div>
+            </div>
+          ))}
+        </div>
 
         {/* สรุปยอด — เลือกดูทีละช่วงเวลา ไม่โชว์รวดเดียวทั้งหมดให้ลายตา */}
         <div style={css("background:var(--card);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow);overflow:hidden")}>

@@ -450,7 +450,7 @@ function OrderCard({ o, onAdvance, onCancel, onRemove, busy, unread, onSeen }){
 
 function AdminApp(){
   const [authed, setAuthed] = React.useState(!DB);
-  const [tab, setTab] = React.useState('orders');
+  const [tab, setTab] = React.useState('home');
   const [orders, setOrders] = React.useState(DB ? [] : DEMO_ORDERS);
   const [loading, setLoading] = React.useState(!!DB);
   const [busyId, setBusyId] = React.useState(null);
@@ -762,9 +762,32 @@ function AdminApp(){
   const revenue = todayActive.reduce((a, o) => a + (o.total || 0), 0);
   const pending = orders.filter(o => o.status >= 1 && o.status < 4).length;
 
+  // ── ตัวเลขหน้าหลัก (ภาพรวมร้านค้า) ──
+  const jobLabelOf = (o) => o.ptype === 'pro' ? ('✨ ' + (o.paper || 'PRO')) : (o.ptype ? (PTYPE_LABELS[o.ptype] || o.ptype) : (o.color ? 'ปริ้นสี' : 'ปริ้นขาวดำ'));
+  const doneToday = todayOrders.filter(o => o.status === 4).length;
+  const recent5 = orders.slice(0, 5);
+  const week7 = (() => { // ยอดขาย 7 วันล่าสุด (ไม่นับที่ยกเลิก)
+    const out = [];
+    const n0 = new Date();
+    for (let i = 6; i >= 0; i--) {
+      const d0 = new Date(n0.getFullYear(), n0.getMonth(), n0.getDate() - i);
+      const d1 = new Date(n0.getFullYear(), n0.getMonth(), n0.getDate() - i + 1);
+      const sum = orders.filter(o => { if (o.status === 0) return false; const t = new Date(o.created_at); return t >= d0 && t < d1; })
+        .reduce((a, o) => a + (o.total || 0), 0);
+      out.push({ label: i === 0 ? 'วันนี้' : d0.getDate() + '/' + (d0.getMonth() + 1), v: sum });
+    }
+    const max = Math.max(1, ...out.map(b => b.v));
+    return out.map(b => ({ ...b, h: Math.round(b.v / max * 100) }));
+  })();
+  const popular = (() => { // งานยอดนิยม (นับจากออเดอร์ที่โหลดอยู่ ไม่นับที่ยกเลิก)
+    const m = {};
+    orders.forEach(o => { if (o.status === 0) return; const k = jobLabelOf(o); m[k] = (m[k] || 0) + 1; });
+    const total = Object.values(m).reduce((a, n) => a + n, 0) || 1;
+    return Object.entries(m).sort((a, b) => b[1] - a[1]).slice(0, 4).map(([k, n]) => ({ label: k, n, pct: Math.round(n / total * 100) }));
+  })();
+
   // ── ลูกค้าประจำ (เฉพาะงาน Standard): จัดกลุ่มตามเบอร์โทร ไม่นับออเดอร์ที่ยกเลิก ──
   // custRows = ประวัติเต็ม (โหลดตอนเปิดแท็บลูกค้า/สถิติ) — ยังไม่มาก็ใช้ orders ในหน้าไปก่อน
-  const jobLabelOf = (o) => o.ptype === 'pro' ? ('✨ ' + (o.paper || 'PRO')) : (o.ptype ? (PTYPE_LABELS[o.ptype] || o.ptype) : (o.color ? 'ปริ้นสี' : 'ปริ้นขาวดำ'));
   const custMap = {};
   (custRows || orders).forEach(o => {
     if (o.status === 0) return;
@@ -854,24 +877,9 @@ function AdminApp(){
         </div>
       )}
 
-      <div style={css("padding:16px 16px 0;display:flex;gap:10px")}>
-        <div style={css("flex:1;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 14px")}>
-          <div style={css("font-family:'IBM Plex Mono',monospace;font-size:20px;font-weight:600;color:var(--acc)")}>{todayActive.length}</div>
-          <div style={css("font-size:11px;color:var(--sub);margin-top:2px")}>ออเดอร์วันนี้</div>
-        </div>
-        <div style={css("flex:1;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 14px")}>
-          <div style={css("font-family:'IBM Plex Mono',monospace;font-size:20px;font-weight:600;color:var(--acc)")}>฿{revenue}</div>
-          <div style={css("font-size:11px;color:var(--sub);margin-top:2px")}>ยอดขายวันนี้</div>
-        </div>
-        <div style={css("flex:1;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 14px")}>
-          <div style={css("font-family:'IBM Plex Mono',monospace;font-size:20px;font-weight:600;color:" + (pending ? "#c92a2a" : "var(--acc)"))}>{pending}</div>
-          <div style={css("font-size:11px;color:var(--sub);margin-top:2px")}>ยังไม่ส่ง</div>
-        </div>
-      </div>
-
-      <div style={css("padding:16px 16px 0;display:flex;gap:8px")}>
-        {[['orders', '📋 ออเดอร์'], ['chats', '💬 แชท'], ['stats', '📊 สถิติ'], ['customers', '👥 ลูกค้า'], ['banners', '📢 โปรโม']].map(([k, label]) => (
-          <button key={k} onClick={() => setTab(k)} style={{ flex: 1, height: '42px', borderRadius: '12px', fontSize: '11.5px', fontWeight: 700, cursor: 'pointer', padding: '0 2px',
+      <div style={css("padding:16px 16px 0;display:flex;gap:8px;overflow-x:auto")}>
+        {[['home', '🏠 หน้าหลัก'], ['orders', '📋 ออเดอร์'], ['chats', '💬 แชท'], ['stats', '📊 สถิติ'], ['customers', '👥 ลูกค้า'], ['banners', '📢 โปรโม']].map(([k, label]) => (
+          <button key={k} onClick={() => setTab(k)} style={{ flex: 'none', height: '42px', borderRadius: '12px', fontSize: '11.5px', fontWeight: 700, cursor: 'pointer', padding: '0 13px',
             border: tab === k ? '1.5px solid var(--acc)' : '1px solid var(--line)',
             background: tab === k ? 'var(--accSoft)' : 'var(--card)', color: tab === k ? 'var(--acc)' : 'var(--sub)', position: 'relative' }}>
             {label}
@@ -879,6 +887,109 @@ function AdminApp(){
           </button>
         ))}
       </div>
+
+      {tab === 'home' && (
+        <div style={css("padding:14px 16px 40px;display:flex;flex-direction:column;gap:12px")}>
+          <div>
+            <div style={css("font-size:17px;font-weight:800")}>ภาพรวมร้านค้า</div>
+            <div style={css("font-size:11px;color:var(--sub);margin-top:2px")}>{new Date().toLocaleDateString('th-TH', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</div>
+          </div>
+
+          {/* การ์ดสรุป 4 ช่อง (แบบเรฟ) */}
+          <div style={css("display:grid;grid-template-columns:1fr 1fr;gap:10px")}>
+            {[
+              ['ออเดอร์วันนี้', todayActive.length + '', 'รายการ', 'var(--acc)', 'orders'],
+              ['กำลังดำเนินการ', pending + '', 'รายการ', pending ? '#c92a2a' : 'var(--acc)', 'orders'],
+              ['เสร็จสิ้นวันนี้', doneToday + '', 'รายการ', 'var(--acc)', 'orders'],
+              ['รายได้วันนี้', '฿' + revenue, 'บาท', 'var(--acc)', 'stats']
+            ].map(([label, val, unit, color, goTab], i) => (
+              <div key={i} onClick={() => setTab(goTab)} style={css("background:var(--card);border:1px solid var(--line);border-radius:14px;padding:13px 15px;box-shadow:var(--shadow);cursor:pointer")}>
+                <div style={css("font-size:11.5px;color:var(--sub);font-weight:600")}>{label}</div>
+                <div style={{ marginTop: '4px', fontFamily: "'IBM Plex Mono',monospace", fontSize: '23px', fontWeight: 700, color }}>{val}</div>
+                <div style={css("display:flex;justify-content:space-between;align-items:center;margin-top:2px")}>
+                  <span style={css("font-size:10px;color:var(--sub)")}>{unit}</span>
+                  <span style={css("font-size:10px;color:var(--acc);font-weight:700")}>ดูทั้งหมด ›</span>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* ออเดอร์ล่าสุด */}
+          <div style={css("background:var(--card);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);padding:13px 15px")}>
+            <div style={css("display:flex;align-items:center")}>
+              <div style={css("font-size:13.5px;font-weight:700;flex:1")}>ออเดอร์ล่าสุด</div>
+              <span onClick={() => setTab('orders')} style={css("font-size:11px;color:var(--acc);font-weight:700;cursor:pointer")}>ดูทั้งหมด ›</span>
+            </div>
+            {recent5.length === 0 && <div style={css("padding:16px 0;text-align:center;font-size:12px;color:var(--sub)")}>ยังไม่มีออเดอร์</div>}
+            {recent5.map((o, i) => (
+              <div key={o.id} onClick={() => setTab('orders')} style={css("margin-top:9px;padding-top:9px;border-top:1px dashed var(--line);display:flex;align-items:center;gap:9px;cursor:pointer")}>
+                <div style={css("flex:1;min-width:0")}>
+                  <div style={css("display:flex;align-items:center;gap:7px")}>
+                    <span style={css("font-family:'IBM Plex Mono',monospace;font-size:11.5px;font-weight:600")}>{o.id}</span>
+                    <StatusBadge status={o.status}/>
+                  </div>
+                  <div style={css("margin-top:2px;font-size:11px;color:var(--sub);overflow:hidden;text-overflow:ellipsis;white-space:nowrap")}>คุณ{o.customer_fname || 'ลูกค้า'} · {jobLabelOf(o)}</div>
+                </div>
+                <span style={css("flex:none;font-family:'IBM Plex Mono',monospace;font-size:13px;font-weight:700;color:var(--acc)")}>฿{o.total || 0}</span>
+              </div>
+            ))}
+          </div>
+
+          {/* ยอดขาย 7 วันล่าสุด */}
+          <div style={css("background:var(--card);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);padding:13px 15px")}>
+            <div style={css("display:flex;align-items:center")}>
+              <div style={css("font-size:13.5px;font-weight:700;flex:1")}>ยอดขาย (7 วันล่าสุด)</div>
+              <span onClick={() => setTab('stats')} style={css("font-size:11px;color:var(--acc);font-weight:700;cursor:pointer")}>ดูรายงานยอดขาย ›</span>
+            </div>
+            <div style={css("margin-top:11px;display:flex;align-items:flex-end;gap:7px;height:130px")}>
+              {week7.map((b, i) => (
+                <div key={i} style={css("flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;min-width:0")}>
+                  <div style={css("font-family:'IBM Plex Mono',monospace;font-size:9.5px;font-weight:600;color:" + (b.v ? "var(--acc)" : "var(--sub)") + ";margin-bottom:3px;white-space:nowrap")}>{b.v ? (b.v >= 1000 ? (Math.round(b.v / 100) / 10) + 'k' : b.v) : '-'}</div>
+                  <div style={{ width: '68%', maxWidth: '34px', height: Math.max(3, b.h) + '%', borderRadius: '6px 6px 2px 2px', background: b.v ? 'var(--acc)' : 'var(--line)', opacity: b.v ? (i === 6 ? 1 : .75) : .5 }}></div>
+                  <div style={css("margin-top:4px;font-size:9.5px;color:var(--sub);white-space:nowrap")}>{b.label}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* รายการยอดนิยม */}
+          <div style={css("background:var(--card);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);padding:13px 15px")}>
+            <div style={css("font-size:13.5px;font-weight:700")}>รายการยอดนิยม</div>
+            {popular.length === 0 && <div style={css("padding:14px 0;text-align:center;font-size:12px;color:var(--sub)")}>ยังไม่มีข้อมูล</div>}
+            {popular.map((pp, i) => (
+              <div key={i} style={css("margin-top:10px")}>
+                <div style={css("display:flex;justify-content:space-between;font-size:11.5px")}>
+                  <span style={css("font-weight:600")}>{pp.label}</span>
+                  <span style={css("color:var(--sub)")}>{pp.n} ออเดอร์ · {pp.pct}%</span>
+                </div>
+                <div style={css("margin-top:4px;height:8px;border-radius:99px;background:var(--soft);overflow:hidden")}>
+                  <div style={{ width: pp.pct + '%', height: '100%', borderRadius: '99px', background: ['var(--acc)', '#1971c2', '#e8590c', '#7048e8'][i] }}></div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* จัดการร้านค้า (ทางลัดเข้าหมวดที่มีอยู่จริง) */}
+          <div style={css("font-size:13.5px;font-weight:700;margin-top:2px")}>จัดการร้านค้า</div>
+          <div style={css("display:grid;grid-template-columns:1fr 1fr 1fr;gap:9px")}>
+            {[
+              ['📋', 'ออเดอร์', 'จัดการงานปริ้น', () => setTab('orders'), 0],
+              ['💬', 'ข้อความลูกค้า', 'คุยกับลูกค้า', () => setTab('chats'), Object.values(unreadMap).reduce((a, n) => a + n, 0)],
+              ['👥', 'ลูกค้าประจำ', 'ดูลูกค้าขาประจำ', () => setTab('customers'), 0],
+              ['📢', 'โปรโมชั่น', 'แบนเนอร์/รีวิว', () => setTab('banners'), 0],
+              ['📊', 'รายงาน', 'สถิติย้อนหลัง', () => setTab('stats'), 0],
+              ['💰', 'งาน PRO', 'ค่าคอม/บิล', () => window.open('commission.html', '_blank'), 0]
+            ].map(([ic, label, sub, go, badge], i) => (
+              <div key={i} onClick={go} style={css("position:relative;background:var(--card);border:1px solid var(--line);border-radius:13px;padding:12px 10px;text-align:center;cursor:pointer;box-shadow:var(--shadow)")}>
+                <div style={css("font-size:21px")}>{ic}</div>
+                <div style={css("margin-top:4px;font-size:11.5px;font-weight:700")}>{label}</div>
+                <div style={css("margin-top:1px;font-size:9.5px;color:var(--sub)")}>{sub}</div>
+                {badge > 0 && <span style={css("position:absolute;top:6px;right:8px;min-width:16px;height:16px;border-radius:99px;background:#c92a2a;color:#fff;font-size:9.5px;font-weight:700;display:flex;align-items:center;justify-content:center;padding:0 4px")}>{badge}</span>}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {tab === 'orders' && (
         <div style={css("padding:14px 16px 40px;display:flex;flex-direction:column;gap:10px")}>
