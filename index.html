@@ -922,6 +922,19 @@ class App extends React.Component {
         const r2 = await this.db.from('orders').select('status,times,cancel_reason').eq('id', id).single();
         if (!r2.error) row = r2.data;
       }
+      if (!r1.error && Array.isArray(r1.data) && r1.data.length === 0) {
+        // ฐานข้อมูลตอบชัดว่า "ไม่มีออเดอร์นี้แล้ว" = ร้านยกเลิกแล้วลบถาวร — ห้ามปล่อยหน้าติดตามค้างสถานะเดิม
+        // (เว้นออเดอร์อายุ < 5 นาที กันชนกับเคสบันทึกออนไลน์ไม่สำเร็จ)
+        const od = (() => { try { return JSON.parse(localStorage.getItem('mp_order') || 'null'); } catch (e) { return null; } })();
+        const ageMin = od && od.ts ? (Date.now() - od.ts) / 60000 : 999;
+        if (ageMin > 5 && this.state.trackStep !== 0) {
+          clearInterval(this.trackTimer);
+          const rsn = 'ออเดอร์นี้ถูกยกเลิกและลบออกจากระบบโดยร้านแล้ว — ถ้าโอนเงินไปแล้ว ทักแชทร้านทาง LINE เพื่อขอคืนได้เลยครับ';
+          this.setState(st => st.order && st.order.id === id ? { trackStep: 0, cancelReason: rsn } : null);
+          try { if (od && od.id === id) { od.step = 0; od.cancelReason = rsn; localStorage.setItem('mp_order', JSON.stringify(od)); } } catch (e) {}
+        }
+        return;
+      }
       if (row) {
         this.setState(st => st.order && st.order.id === id
           ? { trackStep: row.status, cancelReason: row.cancel_reason || '', order: { ...st.order, times: row.times || st.order.times } }
@@ -999,6 +1012,15 @@ class App extends React.Component {
     try {
       const { data, error } = await this.db.rpc('customer_cancel', { oid: s.order.id });
       if (error) return fail('ยกเลิกไม่สำเร็จ ลองอีกครั้ง หรือทักแชทร้านทาง LINE ครับ 🙏');
+      if (data === 'not-found') {
+        // ออเดอร์ถูกร้านยกเลิกแล้วลบออกจากระบบไปก่อนหน้านี้ — เปลี่ยนหน้าจอเป็นยกเลิกให้เลย ไม่ใช่ขึ้นว่าล้มเหลว
+        clearInterval(this.trackTimer);
+        const rsn = 'ออเดอร์นี้ถูกยกเลิกและลบออกจากระบบโดยร้านแล้ว — ถ้าโอนเงินไปแล้ว ทักแชทร้านทาง LINE เพื่อขอคืนได้เลยครับ';
+        this.setState({ trackStep: 0, cancelReason: rsn, selfCancelArm: false, selfCancelBusy: false });
+        try { const od = JSON.parse(localStorage.getItem('mp_order') || 'null');
+          if (od && od.id === s.order.id) { od.step = 0; od.cancelReason = rsn; localStorage.setItem('mp_order', JSON.stringify(od)); } } catch (e) {}
+        return this.showToast('ออเดอร์นี้ถูกยกเลิกโดยร้านไปแล้วครับ');
+      }
       if (data === 'printing') { fail('ร้านเริ่มทำงานนี้แล้ว ยกเลิกจากหน้าเว็บไม่ได้ — รีบทักแชทร้านเลยครับ 💬'); return this.fetchOrderStatus(s.order.id); }
       if (data === 'timeout') return fail('เลยช่วงยกเลิก ' + (CONFIG.cancelWindowMin ?? 10) + ' นาทีแล้ว — ทักแชทร้านทาง LINE ครับ 💬');
       if (data !== 'ok') return fail('ยกเลิกไม่สำเร็จ — ทักแชทร้านทาง LINE ครับ 🙏');
