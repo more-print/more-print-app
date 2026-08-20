@@ -1425,9 +1425,11 @@ class App extends React.Component {
       proPicked: this.proLabel(),
       // ตัวเลือกเสริมตามประเภทงาน — ราคาบวกเพิ่มโชว์ตรงปุ่มเลย
       proExtraOpts: (s.proType === 'plate' || s.proType === 'poster') ? [
-        this.seg('ติดบอร์ด +฿' + (PRO_BOARD_PRICE[s.proSize] ?? 0) + '/แผ่น', s.proBoard, () => this.setState({ proBoard: !s.proBoard }), true)
+        this.seg('ไม่ติดบอร์ด (ฟรี)', !s.proBoard, () => this.setState({ proBoard: false }), true),
+        this.seg('ติดบอร์ด +฿' + (PRO_BOARD_PRICE[s.proSize] ?? 0) + '/แผ่น', s.proBoard, () => this.setState({ proBoard: true }), true)
       ] : s.proType === 'portfolio' ? [
-        this.seg('เย็บ +฿' + PRO_PORTFOLIO.staple + '/ชุด', s.proStaple, () => this.setState({ proStaple: !s.proStaple }), true)
+        this.seg('ไม่เย็บ (ฟรี)', !s.proStaple, () => this.setState({ proStaple: false }), true),
+        this.seg('เย็บ +฿' + PRO_PORTFOLIO.staple + '/ชุด', s.proStaple, () => this.setState({ proStaple: true }), true)
       ] : s.proType === 'standee' ? [
         this.seg('ไม่ใส่ขาตั้ง ฿' + PRO_STANDEE.base, !s.proStand, () => this.setState({ proStand: false }), true),
         this.seg('ใส่ขาตั้ง ฿' + PRO_STANDEE.stand, s.proStand, () => this.setState({ proStand: true }), true)
