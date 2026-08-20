@@ -33,7 +33,7 @@ const CFG = window.MP_CONFIG || {};
 const DB = (CFG.SUPABASE_URL && CFG.SUPABASE_ANON_KEY && window.supabase)
   ? window.supabase.createClient(CFG.SUPABASE_URL, CFG.SUPABASE_ANON_KEY, { auth: { storageKey: 'mp-comm' } }) : null;
 
-const COMMISSION = 0.33; // ค่าคอม MORE PRINT — ต้องตรงกับ pro.html
+const COMMISSION = 0.20; // ดีลสุดท้าย (2026-08-20): เรา 20% / ร้านอุดมสุข 80% — ต้องตรงกับ pro.html
 const PARTNER_NAME = 'ร้านอุดมสุขปริ้นติ้ง';
 const TH_MONTHS = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
 
@@ -388,7 +388,7 @@ function Dash(){
     const ship = doneAll.filter(o => new Date(o.created_at) >= since).reduce((a, o) => a + shipOf(o), 0);
     return { n: rows.length, job, comm: job * COMMISSION, partner: job * (1 - COMMISSION), ship };
   };
-  // ── ข้อมูลกราฟรายได้ของเรา (คอม 33% + ค่าส่ง จากงานที่จบแล้ว) ──
+  // ── ข้อมูลกราฟรายได้ของเรา (คอมตาม COMMISSION + ค่าส่ง จากงานที่จบแล้ว) ──
   const chartData = (() => {
     const income = (d0, d1) => {
       const inB = (o) => { const t = new Date(o.created_at); return t >= d0 && t < d1; };
@@ -629,7 +629,7 @@ function Dash(){
               </div>
             ))}
           </div>
-          <div style={css("margin-top:8px;font-size:10.5px;color:var(--sub)")}>คอม 33% + ค่าส่ง จากงานที่จบแล้ว (นับตามวันที่สั่ง)</div>
+          <div style={css("margin-top:8px;font-size:10.5px;color:var(--sub)")}>คอม {Math.round(COMMISSION * 100)}% + ค่าส่ง จากงานที่จบแล้ว (นับตามวันที่สั่ง)</div>
         </div>
 
         </React.Fragment>}

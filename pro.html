@@ -32,7 +32,7 @@ const DB = (CFG.SUPABASE_URL && CFG.SUPABASE_ANON_KEY && window.supabase)
   ? window.supabase.createClient(CFG.SUPABASE_URL, CFG.SUPABASE_ANON_KEY, { auth: { storageKey: 'mp-pro' } }) : null;
 
 // ── ค่าคอมมิชชั่น MORE PRINT ต่อออเดอร์ Pro — แก้ที่นี่จุดเดียว ──
-const COMMISSION = 0.33; // 33% ของค่างานปริ้น (ไม่รวมค่าส่ง — ค่าส่งเป็นของ MORE PRINT อยู่แล้ว)
+const COMMISSION = 0.20; // ดีลสุดท้ายกับร้านอุดมสุข (2026-08-20): เรา 20% / ร้าน 80% ของค่างานปริ้น (ไม่รวมค่าส่ง — ค่าส่งเป็นของ MORE PRINT อยู่แล้ว) — ต้องตรงกับ commission.html
 
 const STEPS = ['รับออเดอร์', 'กำลังผลิตสินค้า', 'ไรเดอร์กำลังมารับงาน', 'จัดส่งสำเร็จ']; // มุมมองร้านพาร์ทเนอร์ (ลูกค้าเห็น "กำลังจัดส่ง/ส่งแล้ว" ที่หน้าบ้านเหมือนเดิม)
 // ขั้นสถานะตามวิธีรับงาน: ลูกค้ามารับเอง = จบที่ร้าน / ให้ส่ง = MORE PRINT รับช่วงขั้นจัดส่ง
