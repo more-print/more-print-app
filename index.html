@@ -222,13 +222,13 @@ const ICON_PRO = {
 const PRO_TYPES = [
   { k: 'plate', icon: '🪧', label: 'เพลท', sizes: ['A0', 'A1', 'A2', 'A3', 'A4'] },
   { k: 'poster', icon: '🖼️', label: 'โปสเตอร์', sizes: ['A0', 'A1', 'A2', 'A3', 'A4'], sidesOpt: true },
-  { k: 'postcard', icon: '💌', label: 'Postcard (ผลิตไม่เกิน 1 ชม.)' },
+  { k: 'postcard', icon: '💌', label: 'Postcard' },
   { k: 'foldbook', icon: '📖', label: 'พับครึ่ง หน้า-หลัง (เข้าเล่ม/เมนู)', sizes: ['A2', 'A3', 'A4'], bindOpt: true },
   { k: 'portfolio', icon: '📁', label: 'Portfolio' },
   { k: 'sticker', icon: '🏷️', label: 'สติ๊กเกอร์' },
   { k: 'namecard', icon: '💳', label: 'นามบัตร', qty: [100, 200, 300] },
   { k: 'standee', icon: '🧍', label: 'Standy (สแตนดี้)' },
-  { k: 'blueprint', icon: '📐', label: 'แบบแปลน ขาวดำ', sizes: ['A3', 'A2', 'A1'] }
+  { k: 'blueprint', icon: '📐', label: 'ปริ้นขาวดำขนาดใหญ่', sizes: ['A3', 'A2', 'A1'] }
 ];
 const PRO_BINDS = ['ไสกาว', 'ปกแข็ง', 'สันห่วงพลาสติก', 'ขาตะเกียบ', 'เย็บมุงหลังคา', 'ห่วงเกลียว', 'ห่วงคู่', 'เย็บเล่ม', 'เทปปิด', 'สันกาวปกแข็ง'];
 // ── ราคางาน Pro (เจ้าของกำหนด 2026-08-20) — ต่อแผ่น ──
@@ -898,7 +898,7 @@ class App extends React.Component {
       : t.k === 'postcard' ? 'Postcard A3 (9 ใบ/แผ่น)'
       : t.k === 'foldbook' ? 'พับครึ่ง ' + s.proSize
       : t.k === 'namecard' ? 'นามบัตร ' + s.proQty + ' ใบ' + (s.sides === 2 ? ' หน้า-หลัง' : ' หน้าเดียว')
-      : t.k === 'blueprint' ? 'แบบแปลน ' + s.proSize + ' ขาวดำ'
+      : t.k === 'blueprint' ? 'ปริ้นขาวดำขนาดใหญ่ ' + s.proSize
       : t.k === 'sticker' ? 'สติ๊กเกอร์ A3'
       : t.label;
     // ตัวเลือกเสริมพ่วงเข้าไปในป้าย — หลังบ้านทุกที่จะเห็นครบว่าลูกค้าเลือกอะไร (บันทึกลงช่อง paper)
@@ -2130,7 +2130,7 @@ class App extends React.Component {
                 border: v.isPro ? '1.5px solid var(--acc)' : '1px solid var(--line)', background: v.isPro ? 'var(--accSoft)' : 'var(--soft)' }}>
                 <div style={{ flex: 'none', lineHeight: 0 }}>{ICON_CMYK}</div>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: '13.5px', fontWeight: 700, color: v.isPro ? 'var(--acc)' : 'var(--ink)' }}>Pro — งานพิมพ์พิเศษ</div>
+                  <div style={{ fontSize: '13.5px', fontWeight: 700, color: v.isPro ? 'var(--acc)' : 'var(--ink)' }}>Pro — งานพิมพ์พิเศษ (ร้านอุดมสุขปริ้นติ้ง)</div>
                   <div style={{ fontSize: '11px', color: 'var(--sub)', marginTop: '1px' }}>งานใหญ่ถึง A0 · ร้านแจ้งราคาก่อนทำ</div>
                 </div>
                 <div style={{ width: '20px', height: '20px', borderRadius: '50%', flex: 'none', boxSizing: 'border-box',
