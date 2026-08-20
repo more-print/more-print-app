@@ -43,7 +43,7 @@ const CONFIG = { nightOverride: 'auto', nightFee: 10, expressFee: 20, expressEna
   // เวลาผลิต+ส่งโดยประมาณ (นาที) — บวกเพิ่มตามคิวค้างจริง: คิวก่อนหน้า × queuePerOrderMin
   etaStandardMin: 45, queuePerOrderMin: 15,
   cancelWindowMin: 10, // ลูกค้ายกเลิกเองได้ภายในกี่นาทีหลังชำระ (ต้องยังสถานะ "รับออเดอร์") — SQL customer_cancel ใช้เลขเดียวกัน แก้ต้องแก้คู่กัน
-  etaProMin: { plate: 90, plateBig: 180, poster: 45, foldbook: 90, portfolio: 60, sticker: 90, namecard: 90, standee: 90 } };
+  etaProMin: { plate: 90, plateBig: 180, poster: 45, postcard: 90, foldbook: 90, portfolio: 60, sticker: 90, namecard: 90, standee: 90, blueprint: 90 } }; // นาทีผลิต+พร้อมส่งของงาน Pro แต่ละประเภท (postcard = 1 ชม.ครึ่ง ตามเจ้าของกำหนด) — ใช้คำนวณเวลาคาดว่าได้รับบนหน้าติดตาม
 
 
 // ── ไอคอนแถบเมนูล่าง (SVG ฝังในไฟล์ — คมทุกขนาด + เปลี่ยนสีตามแท็บที่เลือกอัตโนมัติ) ──
@@ -879,8 +879,7 @@ class App extends React.Component {
     if (s.tier !== 'pro') return CONFIG.etaStandardMin ?? 45;
     const m = CONFIG.etaProMin || {};
     if (s.proType === 'plate') return ['A2', 'A1', 'A0'].includes(s.proSize) ? (m.plateBig ?? 180) : (m.plate ?? 90);
-    if (s.proType === 'postcard') return m.postcard ?? 60; // Postcard ผลิตไม่เกิน 1 ชม.
-    return m[s.proType] ?? 90;
+    return m[s.proType] ?? 90; // ประเภทที่ไม่ได้ระบุใน etaProMin = 90 นาที
   }
 
   // งานใหญ่ (Standy / เพลท A3 ขึ้นไป) — ไม่บังคับรถยนต์แล้ว แค่ใช้ "แนะนำ" ให้ลูกค้าเห็นตอนเลือกพาหนะ
