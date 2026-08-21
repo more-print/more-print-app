@@ -234,6 +234,7 @@ const PRO_BINDS = ['ไสกาว', 'ปกแข็ง', 'สันห่ว�
 // ── ราคางาน Pro (เจ้าของกำหนด 2026-08-20) — ต่อแผ่น ──
 const POSTER_SHEET = { A0: 400, A1: 200, A2: 100, A3: 50, A4: 25 };   // โปสเตอร์ /แผ่น (ด้านหน้าเดียว) — หน้า-หลัง ×2 · ไม่มีติดบอร์ด
 const PLATE_SHEET  = { A0: 600, A1: 300, A2: 150, A3: 75, A4: 38 };   // เพลท /แผ่น — รวมติดบอร์ดแล้วเสมอ · พิมพ์ด้านหน้าอย่างเดียว
+const PRO_SPECIAL_PAPER = 5;   // กระดาษพิเศษ /แผ่น (โปสเตอร์+เพลท)
 const PRO_LAM_ONE = 5;         // เคลือบหน้าเดียว /แผ่น
 const PRO_LAM_TWO = 10;        // เคลือบหน้า-หลัง /แผ่น
 const PRO_POSTCARD_SHEET = 50; // Postcard A3 (9 ใบ/แผ่น)
@@ -304,7 +305,7 @@ class App extends React.Component {
       reviews: [], reviewsReady: false, revStars: 5, revText: '', trackStars: 5, trackText: '',
       alertPrompt: false, alertAck: false,
       proType: 'plate', proSize: 'A0', proBind: 'ไสกาว', proQty: 100, proPickup: false,
-      proLam: 'none', proStaple: false, proStand: false, // ตัวเลือกเสริมงาน Pro (เคลือบ/เย็บ/ขาตั้ง)
+      proLam: 'none', proSpecial: false, proStaple: false, proStand: false, // ตัวเลือกเสริมงาน Pro (เคลือบ/กระดาษพิเศษ/เย็บ/ขาตั้ง)
       distKm: null, distSrc: '', trackOpen: false, trackMin: false,
       // ประวัติการสั่ง (เก็บในเครื่อง): ออเดอร์ที่ผลิต/ส่งสำเร็จแล้ว ทั้ง standard และ pro
       history: (() => { try { return JSON.parse(localStorage.getItem('mp_history') || '[]'); } catch (e) { return []; } })(),
@@ -843,7 +844,7 @@ class App extends React.Component {
       if (s.proType === 'plate' || s.proType === 'poster') {
         // โปสเตอร์: ด้านหน้าเดียวตามตาราง หน้า-หลัง ×2 · เพลท: ราคารวมติดบอร์ดแล้ว พิมพ์หน้าเดียวเท่านั้น · เคลือบบวกต่อแผ่น (ไม่คูณ)
         const base = s.proType === 'poster' ? (POSTER_SHEET[s.proSize] ?? 0) * (s.sides === 2 ? 2 : 1) : (PLATE_SHEET[s.proSize] ?? 0);
-        rate = base + (s.proLam === 'two' ? PRO_LAM_TWO : s.proLam === 'one' ? PRO_LAM_ONE : 0);
+        rate = base + (s.proLam === 'two' ? PRO_LAM_TWO : s.proLam === 'one' ? PRO_LAM_ONE : 0) + (s.proSpecial ? PRO_SPECIAL_PAPER : 0);
         pc = rate * shPro;
       } else if (s.proType === 'postcard') { rate = PRO_POSTCARD_SHEET; pc = rate * shPro; }
       else if (s.proType === 'sticker') { rate = PRO_STICKER_SHEET; pc = rate * shPro; }
@@ -904,6 +905,7 @@ class App extends React.Component {
     const ex = [];
     if ((s.proType === 'plate' || s.proType === 'poster')) {
       if (s.proType === 'plate') ex.push('ติดบอร์ด');
+      if (s.proSpecial) ex.push('กระดาษพิเศษ');
       if (s.proType === 'poster' && s.sides === 2) ex.push('หน้า-หลัง');
       if (s.proLam === 'one') ex.push('เคลือบหน้าเดียว');
       if (s.proLam === 'two') ex.push('เคลือบหน้า-หลัง');
@@ -1401,7 +1403,7 @@ class App extends React.Component {
       proTypeOpts: PRO_TYPES.map(t => ({
         ...this.seg(t.label, s.proType === t.k,
           () => this.setState({ proType: t.k, proSize: (t.sizes || [''])[0], proQty: (t.qty || [100])[0], sides: t.k === 'foldbook' ? 2 : 1,
-            proLam: 'none', proStaple: false, proStand: false })),
+            proLam: 'none', proSpecial: false, proStaple: false, proStand: false })),
         svg: ICON_PRO[t.k]
       })),
       proPickupOn: c.proPickupOn,
@@ -1424,7 +1426,10 @@ class App extends React.Component {
       proBindOpts: PRO_BINDS.map(b => this.seg(b, s.proBind === b, () => this.setState({ proBind: b }))),
       proPicked: this.proLabel(),
       // ตัวเลือกเสริมตามประเภทงาน — ราคาบวกเพิ่มโชว์ตรงปุ่มเลย
-      proExtraOpts: s.proType === 'portfolio' ? [
+      proExtraOpts: (s.proType === 'plate' || s.proType === 'poster') ? [
+        this.seg('กระดาษธรรมดา (ฟรี)', !s.proSpecial, () => this.setState({ proSpecial: false }), true),
+        this.seg('กระดาษพิเศษ +฿' + PRO_SPECIAL_PAPER + '/แผ่น', s.proSpecial, () => this.setState({ proSpecial: true }), true)
+      ] : s.proType === 'portfolio' ? [
         this.seg('ไม่เย็บ (ฟรี)', !s.proStaple, () => this.setState({ proStaple: false }), true),
         this.seg('เย็บ +฿' + PRO_PORTFOLIO.staple + '/ชุด', s.proStaple, () => this.setState({ proStaple: true }), true)
       ] : s.proType === 'standee' ? [
@@ -1634,7 +1639,7 @@ class App extends React.Component {
         // จำเป็นที่อยู่จัดส่งประจำ ไว้เลือกซ้ำรอบหน้า
         if (!pickup && s.addr.trim() && s.lat != null) this.saveAddr({ addr: s.addr.trim(), lat: s.lat, lng: s.lng, veh: s.vehicle, ts: Date.now() });
         this.setState({ order: { id, total: c.grandTotal, times: [t0, '', '', ''], plabel, eta, pickup, ts, addr: oaddr, phone: s.phone, veh: oveh, copies: s.copies, pages: c.totalPages }, trackStep: 1, cancelReason: '', screen: 'track',
-          files: [], slip: null, copies: 1, bind: 'none', express: false, tier: 'standard', ptype: 'bw', paper: 'A4', sides: 1, orient: 'portrait', nup: 1, proPickup: false, proLam: 'none', proStaple: false, proStand: false, vehicle: 'bike', trackOpen: false, trackMin: false, histOpen: null, chatFor: null, chatFrom: 'track', selfCancelArm: false, couponCode: '', couponOk: null });
+          files: [], slip: null, copies: 1, bind: 'none', express: false, tier: 'standard', ptype: 'bw', paper: 'A4', sides: 1, orient: 'portrait', nup: 1, proPickup: false, proLam: 'none', proSpecial: false, proStaple: false, proStand: false, vehicle: 'bike', trackOpen: false, trackMin: false, histOpen: null, chatFor: null, chatFrom: 'track', selfCancelArm: false, couponCode: '', couponOk: null });
         // จำออเดอร์ไว้ในเครื่อง — ปิดเว็บแล้วกลับมา การติดตามยังอยู่
         try {
           const nod = { id, total: c.grandTotal, times: [t0, '', '', ''], step: 1, plabel, eta, pickup, ts, addr: oaddr, phone: s.phone, veh: oveh, copies: s.copies, pages: c.totalPages };
