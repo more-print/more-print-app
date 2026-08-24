@@ -311,7 +311,7 @@ class App extends React.Component {
       history: (() => { try { return JSON.parse(localStorage.getItem('mp_history') || '[]'); } catch (e) { return []; } })(),
       histOpen: null, chatFor: null, chatFrom: 'track',
       orderList: (() => { try { return JSON.parse(localStorage.getItem('mp_orders') || '[]'); } catch (e) { return []; } })(),
-      point: '', addr: '', phone: '', time: '', express: false, slip: null,
+      point: '', addr: '', phone: '', time: '', express: false, slip: null, slipChecking: false,
       lat: null, lng: null, geoLabel: '', searchQ: '', searchResults: [], searching: false, locating: false,
       gmapLink: '', gmapBusy: false, pinSrc: '', pinMode: '', mapLocked: false, gpsAcc: null, gpsConfirm: false, geoHelp: '', // '' ยังไม่เลือก · 'link' วางลิงก์ · 'map' ปักหมุดเอง · mapLocked = ล็อกหมุดหลังวางลิงก์
       banners: [],
@@ -663,6 +663,43 @@ class App extends React.Component {
     this.setState({ gmapLink: '', pinSrc: 'link', mapLocked: true });
     this.setPin(pt.lat, pt.lng, true);
     this.showToast('📍 ปักหมุดตามลิงก์แล้ว — ล็อกไว้กันเลื่อนพลาด 🔒');
+  }
+
+  // ── ตรวจสลิปเบื้องต้น: สลิปโอนเงินไทยทุกธนาคารมี QR เสมอ — รูปที่ไม่มี QR = ไม่ใช่สลิป ปฏิเสธก่อนสร้างออเดอร์ ──
+  loadJsQR(){
+    if (this._jsqrP) return this._jsqrP;
+    this._jsqrP = new Promise((res, rej) => {
+      const sc = document.createElement('script');
+      sc.src = 'https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js';
+      sc.onload = () => res(window.jsQR);
+      sc.onerror = rej;
+      document.head.appendChild(sc);
+    });
+    return this._jsqrP;
+  }
+  // คืนค่า: true = เจอ QR · false = ไม่เจอ (ไม่ใช่สลิป) · null = ตรวจไม่ได้ (ปล่อยผ่าน — ห้ามบล็อกลูกค้าจริงเพราะระบบตรวจล่ม)
+  async slipHasQR(file){
+    let jsqr;
+    try { jsqr = await this.loadJsQR(); } catch (e) { return null; }
+    let img, url;
+    try {
+      url = URL.createObjectURL(file);
+      img = await new Promise((res, rej) => { const im = new Image(); im.onload = () => res(im); im.onerror = rej; im.src = url; });
+    } catch (e) { try { URL.revokeObjectURL(url); } catch (e2) {} return null; }
+    try {
+      // ลองหลายขนาด — QR ในสลิปบางแอปเล็ก/บางรูปใหญ่มาก ย่อ-ขยายช่วยให้อ่านเจอ
+      for (const maxW of [1000, 1600, 640]) {
+        const sc = Math.min(1, maxW / img.width);
+        const w = Math.max(1, Math.round(img.width * sc)), h = Math.max(1, Math.round(img.height * sc));
+        const cv = document.createElement('canvas'); cv.width = w; cv.height = h;
+        const cx = cv.getContext('2d', { willReadFrequently: true });
+        cx.drawImage(img, 0, 0, w, h);
+        const d = cx.getImageData(0, 0, w, h);
+        if (jsqr(d.data, w, h, { inversionAttempts: 'attemptBoth' })) return true;
+      }
+      return false;
+    } catch (e) { return null; }
+    finally { try { URL.revokeObjectURL(url); } catch (e) {} }
   }
 
   // ── นับจำนวนหน้าอัตโนมัติ ──
@@ -1610,12 +1647,23 @@ class App extends React.Component {
       deliveryLabel: s.express ? '(ด่วน)' : '',
       slipName: s.slip ? s.slip.name : '',
       pickSlip: () => this.slipRef.current && this.slipRef.current.click(),
-      onSlip: (e) => {
+      onSlip: async (e) => {
         const f = (e.target.files || [])[0];
-        if (f) this.setState({ slip: f });
         e.target.value = '';
+        if (!f) return;
+        this.setState({ slipChecking: true });
+        const ok = await this.slipHasQR(f);
+        if (ok === false) {
+          // ไม่พบ QR ในรูป = ไม่ใช่สลิปโอนเงิน — ปฏิเสธก่อนออเดอร์จะถูกสร้าง
+          this.setState({ slipChecking: false, slip: null });
+          return this.showToast('รูปนี้ไม่ใช่สลิปโอนเงิน (ไม่พบ QR ของสลิป) — แนบสลิปจริงจากแอปธนาคารนะครับ 🧾');
+        }
+        this.setState({ slipChecking: false, slip: f });
+        if (ok === true) this.showToast('✓ ตรวจพบ QR สลิปแล้ว ขอบคุณครับ');
       },
+      slipChecking: s.slipChecking,
       confirmPay: () => {
+        if (s.slipChecking) return this.showToast('กำลังตรวจสลิปอยู่ แป๊บนึงครับ ⏳');
         if (this.db && !s.slip && c.grandTotal > 0) return this.showToast('แนบสลิปโอนเงินก่อนยืนยันนะครับ 🧾');
         const id = '#MP-' + Array.from(crypto.getRandomValues(new Uint8Array(8))).map(b => 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'[b % 31]).join('');
         const t0 = this.fmtTime(new Date());
@@ -2495,7 +2543,9 @@ class App extends React.Component {
             <input type="file" accept="image/*" ref={this.slipRef} onChange={v.onSlip} style={css("display:none")}/>
             <div onClick={v.pickSlip} style={css("border:2px dashed " + (v.slipName ? "var(--acc)" : "var(--line)") + ";border-radius:14px;background:var(--card);padding:14px 16px;display:flex;align-items:center;gap:12px;cursor:pointer")}>
               <div style={css("width:42px;height:42px;border-radius:10px;background:var(--accSoft);display:flex;align-items:center;justify-content:center;font-size:20px")}>🧾</div>
-              {v.slipName
+              {v.slipChecking
+                ? <div style={css("flex:1;min-width:0")}><div style={css("font-weight:600;font-size:13.5px;color:var(--sub)")}>⏳ กำลังตรวจสลิป…</div></div>
+                : v.slipName
                 ? <div style={css("flex:1;min-width:0")}><div style={css("font-weight:600;font-size:13.5px;color:var(--acc);overflow:hidden;text-overflow:ellipsis;white-space:nowrap")}>✓ แนบแล้ว: {v.slipName}</div><div style={css("font-size:11px;color:var(--sub)")}>แตะเพื่อเปลี่ยนรูป</div></div>
                 : <div><div style={css("font-weight:600;font-size:14px;color:var(--acc)")}>แนบสลิปโอนเงิน *</div><div style={css("font-size:11px;color:var(--sub)")}>ถ่ายรูป / เลือกรูปสลิปจากแอปธนาคาร</div></div>}
             </div>
