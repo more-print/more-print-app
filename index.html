@@ -1539,7 +1539,14 @@ class App extends React.Component {
       orientOpts: [this.seg('ปริ้นแนวตั้ง', s.orient !== 'landscape', () => this.setState({ orient: 'portrait' }), true), this.seg('ปริ้นแนวนอน', s.orient === 'landscape', () => this.setState({ orient: 'landscape' }), true)],
       nupOpts: [1, 2, 4, 6].map(n => this.seg(n + ' หน้า/แผ่น', (s.nup || 1) === n, () => this.setState({ nup: n }), true)),
       showBind: s.tier !== 'pro' && s.ptype !== 'poster',
-      bindOpts: [this.seg('ไม่เข้าเล่ม', s.bind === 'none', () => this.setState({ bind: 'none' })), this.seg('เย็บมุม (ฟรี)', s.bind === 'corner', () => this.setState({ bind: 'corner' })), this.seg('เข้าเล่ม +฿40', s.bind === 'book', () => this.setState({ bind: 'book' }))],
+      // เข้าเล่มทำได้เฉพาะช่วงเช้า — งดรับ 22:00-08:00 (นโยบายเจ้าของ 2026-08-24)
+      noBindNow: (() => { const h = s.now.getHours(); return h >= 22 || h < 8; })(),
+      bindOpts: [this.seg('ไม่เข้าเล่ม', s.bind === 'none', () => this.setState({ bind: 'none' })), this.seg('เย็บมุม (ฟรี)', s.bind === 'corner', () => this.setState({ bind: 'corner' })),
+        (() => { const h = s.now.getHours(); const closed = h >= 22 || h < 8;
+          if (!closed) return this.seg('เข้าเล่ม +฿40', s.bind === 'book', () => this.setState({ bind: 'book' }));
+          return { label: 'เข้าเล่ม +฿40 · งดรับ 22:00-08:00', pick: () => this.showToast('บริการเข้าเล่มรับเฉพาะ 08:00–22:00 น. ครับ 🙏 เลือกเย็บมุม (ฟรี) หรือไม่เข้าเล่มแทนได้เลย'),
+            st: { flex: 'none', padding: '9px 14px', borderRadius: '10px', fontSize: '12.5px', fontWeight: 600, cursor: 'not-allowed', border: '1px dashed var(--line)', background: 'var(--soft)', color: 'var(--sub)', opacity: .65 } };
+        })()],
       copies: s.copies,
       copyInc: () => this.setState(st => ({ copies: st.copies + 1 })),
       copyDec: () => this.setState(st => ({ copies: Math.max(1, st.copies - 1) })),
@@ -1621,6 +1628,7 @@ class App extends React.Component {
       expressKnob: { width: '21px', height: '21px', borderRadius: '50%', background: '#fff', position: 'absolute', top: '3px', left: s.express ? '22px' : '3px', transition: 'left .2s', boxShadow: '0 1px 3px rgba(0,0,0,.3)' },
       deliveryWarn: '',
       toPay: () => {
+        if (s.tier !== 'pro' && s.bind === 'book') { const h = s.now.getHours(); if (h >= 22 || h < 8) return this.showToast('บริการเข้าเล่มรับเฉพาะ 08:00–22:00 น. ครับ 🙏 กลับไปเปลี่ยนเป็นเย็บมุม (ฟรี) หรือไม่เข้าเล่มก่อนนะครับ'); }
         if (!c.proPickupOn) { // มารับเองไม่ต้องปักหมุด/กรอกที่อยู่
           if (s.lat == null) return this.showToast('ปักหมุดตำแหน่งส่งบนแผนที่ก่อนนะครับ 📍');
           if (c.deliveryPending) return this.showToast('กำลังวัดระยะทางจากร้าน รอสักครู่นะครับ ⏳ (ค่าส่งจะอัปเดตเอง)');
