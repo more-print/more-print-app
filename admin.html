@@ -423,7 +423,7 @@ function OrderCard({ o, onAdvance, onCancel, onRemove, busy, unread, onSeen }){
                     {pickup ? 'ลูกค้ามารับเองที่ร้าน' : car ? 'ส่งด้วยรถยนต์' : bike ? 'ส่งด้วยมอเตอร์ไซค์' : 'ส่งด้วยมอเตอร์ไซค์ (ออเดอร์เก่า)'}
                   </span>
                   <span style={css("font-size:11px;color:var(--sub)")}>
-                    · ค่าส่ง ฿{o.delivery_cost || 0} {pickup ? '(ไม่มีค่าส่ง)' : car ? '(เหมาตามระยะ 69/89/129)' : '(19 + 6/กม.)'}
+                    · ค่าส่ง ฿{o.delivery_cost || 0} {pickup ? '(ไม่มีค่าส่ง)' : car ? '(เหมาตามระยะ 69/89/129)' : '(ไม่เกิน 2 กม. ฿19 แล้ว +6/กม.)'}
                   </span>
                 </div>
               );

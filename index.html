@@ -31,7 +31,7 @@
 <script type="text/babel" data-presets="react">
 // ── Config (mirrors the design's editable props) ──────────────────────────
 // ค่าส่ง 2 ชั้น คิดตามระยะทางถนนจริงจากร้าน (ระบบเลือกพาหนะเองจากประเภทงาน):
-// 🏍️ มอเตอร์ไซค์ (งานทั่วไป): กม.แรก ฿19 + ฿6/กม.ถัดไป (ปัดเศษ กม. ขึ้น) ไปเรื่อยๆ ไม่มีเพดาน
+// 🏍️ มอเตอร์ไซค์ (งานทั่วไป): ไม่เกิน 2 กม. เหมา ฿19 แล้ว +฿6/กม. ตั้งแต่ กม.ที่ 3 (ปัดเศษ กม. ขึ้น) ไม่มีเพดาน — แก้ 2026-08-24
 // 🚗 รถยนต์ (งานใหญ่: Standy / เพลท A3 ขึ้นไป): ≤2กม. ฿69 · ≤4กม. ฿89 · ≤6กม. ฿129 · เกิน 6 กม. สั่งทาง LINE
 const CONFIG = { nightOverride: 'auto', nightFee: 10, expressFee: 20, expressEnabled: false, // ส่งด่วนปิดชั่วคราว — เปลี่ยนเป็น true เพื่อเปิดคืน
   shopLat: 16.4633326, shopLng: 102.8241938, // จุดร้าน: โรงพิมพ์อุดมสุขปริ้นติ้ง (กังสดาล) — แก้ที่นี่ถ้าย้าย
@@ -848,7 +848,7 @@ class App extends React.Component {
       }
     } else {
       deliveryFee = CONFIG.deliveryBase ?? 19;
-      if (km != null) deliveryFee = (CONFIG.deliveryBase ?? 19) + (CONFIG.bikePerKm ?? 6) * (Math.max(1, Math.ceil(km)) - 1);
+      if (km != null) deliveryFee = (CONFIG.deliveryBase ?? 19) + (CONFIG.bikePerKm ?? 6) * Math.max(0, Math.ceil(km) - 2); // 2 กม.แรกเหมา ฿19
     }
     const pages = s.files.reduce((a, f) => a + f.pages, 0);
     const totalPages = pages * s.copies;
@@ -1634,7 +1634,7 @@ class App extends React.Component {
       },
       // ── เลือกพาหนะส่งเอง (ทั้ง Standard และ Pro) — ราคาใช้เกณฑ์เดิม ──
       vehicleOpts: [
-        { k: 'bike', icon: '🏍️', name: 'มอเตอร์ไซค์', desc: 'เริ่ม ฿' + (CONFIG.deliveryBase ?? 19) + ' · ส่งได้ทุกระยะ' },
+        { k: 'bike', icon: '🏍️', name: 'มอเตอร์ไซค์', desc: 'ไม่เกิน 2 กม. ฿' + (CONFIG.deliveryBase ?? 19) + ' · เกินนั้น +฿' + (CONFIG.bikePerKm ?? 6) + '/กม. · ส่งได้ทุกระยะ' },
         { k: 'car', icon: '🚗', name: 'รถยนต์', desc: '฿69-129 · งานใหญ่ ไม่เกิน 6 กม.' }
       ].map(o => ({ ...o, on: s.vehicle === o.k, pick: () => this.setState({ vehicle: o.k }) })),
       vehicleHint: this.bigJob() ? '💡 งานใหญ่แนะนำรถยนต์ กันงานยับ' : '',
