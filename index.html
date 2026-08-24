@@ -1477,6 +1477,8 @@ class App extends React.Component {
       })),
       // ระดับงาน: Standard = งานปริ้นทั่วไป (ของเดิม) · Pro = งานขั้นสูง A3/A2/A1 (ราคารอเจ้าของกำหนด)
       isPro: s.tier === 'pro',
+      // งาน Pro (ร้านอุดมสุข) รับออเดอร์ 08:30-15:00 ของแต่ละวันเท่านั้น (นโยบาย 2026-08-24)
+      proClosedNow: (() => { const h = s.now.getHours(), m = s.now.getMinutes(); return !((h > 8 || (h === 8 && m >= 30)) && h < 15); })(),
       pickStandard: () => this.setState({ tier: 'standard', paper: SIZE_BY_TYPE[s.ptype][0] }),
       pickPro: () => this.setState({ tier: 'pro' }),
       proTypeOpts: PRO_TYPES.map(t => ({
@@ -1582,6 +1584,7 @@ class App extends React.Component {
       printCost: c.printCost, bindCost: c.bindCost, printTotal: c.printTotal,
       deliveryCost: c.deliveryCost, grandTotal: c.grandTotal,
       toDelivery: () => {
+        if (s.tier === 'pro') { const h = s.now.getHours(), m = s.now.getMinutes(); if (!((h > 8 || (h === 8 && m >= 30)) && h < 15)) return this.showToast('งาน Pro รับออเดอร์ทุกวัน 08:30 – 15:00 น. ครับ 🙏 ตอนนี้อยู่นอกเวลา สั่งได้อีกครั้งช่วงเวลารับงาน'); }
         if (!s.files.length) return this.showToast('เพิ่มไฟล์ก่อนนะครับ 📄');
         if (s.files.some(f => f.counting)) return this.showToast('รอระบบอ่านไฟล์แป๊บนึงครับ ⏳');
         const bigPending = s.files.find(f => f.big && !f.upDone);
@@ -2258,7 +2261,7 @@ class App extends React.Component {
                 <div style={{ flex: 'none', lineHeight: 0 }}>{ICON_CMYK}</div>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: '13.5px', fontWeight: 700, color: v.isPro ? 'var(--acc)' : 'var(--ink)' }}>Pro — งานพิมพ์พิเศษ (ร้านอุดมสุขปริ้นติ้ง)</div>
-                  <div style={{ fontSize: '11px', color: 'var(--sub)', marginTop: '1px' }}>งานใหญ่ถึง A0 · ร้านแจ้งราคาก่อนทำ</div>
+                  <div style={{ fontSize: '11px', color: 'var(--sub)', marginTop: '1px' }}>งานใหญ่ถึง A0 · รับออเดอร์ 08:30 – 15:00 น.</div>
                 </div>
                 <div style={{ width: '20px', height: '20px', borderRadius: '50%', flex: 'none', boxSizing: 'border-box',
                   border: v.isPro ? '6px solid var(--acc)' : '2px solid var(--line)', background: '#fff' }}></div>
@@ -2280,6 +2283,9 @@ class App extends React.Component {
                       border: t.on ? '6px solid var(--acc)' : '2px solid var(--line)', background: '#fff' }}></div>
                   </div>
                 ))}
+                {v.isPro && (v.proClosedNow
+                  ? <div style={css("background:#fff0f0;border:1.5px solid #ffa8a8;border-radius:12px;padding:11px 14px;font-size:12px;font-weight:700;color:#c92a2a;line-height:1.6")}>⛔ ตอนนี้อยู่นอกเวลารับงาน Pro — ร้านรับออเดอร์ทุกวัน 08:30 – 15:00 น. กลับมาสั่งใหม่ในช่วงเวลารับงานนะครับ</div>
+                  : <div style={css("background:var(--accSoft);border:1px solid var(--acc);border-radius:12px;padding:9px 13px;font-size:11.5px;font-weight:700;color:var(--acc)")}>⏰ งาน Pro รับออเดอร์ทุกวัน 08:30 – 15:00 น.</div>)}
                 {v.isPro && <div style={css("display:flex;flex-direction:column;gap:6px")}><div style={css("font-size:12px;font-weight:600;color:var(--sub)")}>ประเภทงาน Pro (ร้านอุดมสุขปริ้นติ้ง)</div><div style={css("display:flex;flex-direction:column;gap:8px")}>{v.proTypeOpts.map((o, i) => (
                   <button key={i} onClick={o.pick} style={{ ...o.st, width: '100%', boxSizing: 'border-box', minHeight: '46px', display: 'flex', alignItems: 'center', gap: '10px', textAlign: 'left', fontSize: '13px' }}>
                     <span style={{ flex: 'none', lineHeight: 0 }}>{o.svg}</span>{o.label}
