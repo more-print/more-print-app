@@ -1854,8 +1854,8 @@ class App extends React.Component {
       ].map(l => ({ ...l, go: () => window.open(l.url, '_blank') })),
       navItems: [
         { label: 'หน้าแรก', k: 'home' }, { label: 'สั่งปริ้น', k: 'order' },
-        { label: 'ประวัติ', k: 'history' },
-        { label: 'ติดตาม', k: 'track' }, { label: 'เกี่ยวกับเรา', k: 'about' }
+        { label: 'ติดตาม', k: 'track' },
+        { label: 'ประวัติ', k: 'history' }, { label: 'เกี่ยวกับเรา', k: 'about' }
       ].map(n => ({
         ...n,
         pick: () => {
@@ -2888,15 +2888,21 @@ class App extends React.Component {
           <div style={css("position:sticky;bottom:0;margin-top:auto;background:var(--card);border-top:1px solid var(--line);display:flex;justify-content:space-around;padding:10px 8px 14px;z-index:20")}>
             {v.navItems.map((n, i) => (
               <div key={i} onClick={n.pick} style={n.st}>
-                <div style={css("height:23px;display:flex;align-items:center;justify-content:center")}>
-                  {n.k === 'about'
-                    ? <img src="assets/logo-icon.png" alt="" style={Object.assign(
-                        { height: '21px', width: 'auto', display: 'block', opacity: n.on ? 1 : .45 },
-                        // ไฟล์โลโก้เป็นพื้นขาวทึบ — โหมดกลางคืนกลับสี+ผสมแบบ screen เพื่อคัดพื้นขาวออก เหลือแต่ตัวโลโก้สีขาว
-                        v.night ? { filter: 'invert(1) hue-rotate(180deg)', mixBlendMode: 'screen' } : {}
-                      )}/>
-                    : NAV_ICON[n.k]}
-                </div>
+                {n.k === 'track'
+                  ? /* ปุ่มกลาง "ติดตาม" — วงกลมเขียวนูนเด่นสุดแบบแอปเดลิเวอรี่ */
+                    <div style={{ width: '48px', height: '48px', borderRadius: '50%', background: 'var(--acc)', color: '#fff',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '-22px auto 0',
+                      boxShadow: n.on ? '0 0 0 4px var(--accSoft), 0 4px 12px rgba(0,0,0,.25)' : '0 4px 12px rgba(0,0,0,.22)',
+                      border: '3px solid var(--card)', boxSizing: 'border-box' }}>{NAV_ICON.track}</div>
+                  : <div style={css("height:23px;display:flex;align-items:center;justify-content:center")}>
+                      {n.k === 'about'
+                        ? <img src="assets/logo-icon.png" alt="" style={Object.assign(
+                            { height: '21px', width: 'auto', display: 'block', opacity: n.on ? 1 : .45 },
+                            // ไฟล์โลโก้เป็นพื้นขาวทึบ — โหมดกลางคืนกลับสี+ผสมแบบ screen เพื่อคัดพื้นขาวออก เหลือแต่ตัวโลโก้สีขาว
+                            v.night ? { filter: 'invert(1) hue-rotate(180deg)', mixBlendMode: 'screen' } : {}
+                          )}/>
+                        : NAV_ICON[n.k]}
+                    </div>}
                 <div style={css("font-size:10px;font-weight:600;margin-top:3px")}>{n.label}</div>
               </div>
             ))}
