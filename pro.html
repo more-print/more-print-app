@@ -560,9 +560,8 @@ function Dash({ role }){
     <div style={css("min-height:100vh;background:var(--bg)")}>
       <div style={css("background:#0e2a44;color:#fff;padding:16px 18px;display:flex;align-items:center;gap:12px;position:sticky;top:0;z-index:10")}>
         <button className="mp-burger" onClick={() => setNavOpen(true)} style={css("background:#1d4568;border:none;color:#fff;width:38px;height:38px;border-radius:10px;font-size:17px;cursor:pointer;align-items:center;justify-content:center;flex:none")}>☰</button>
-        <div style={css("width:40px;height:40px;border-radius:11px;background:#fff;flex:none;display:flex;align-items:center;justify-content:center;overflow:hidden")}><img src="assets/logo-black.png" alt="MORE PRINT" style={css("width:34px;height:auto;display:block")}/></div>
         <div style={css("flex:1;min-width:0")}>
-          <div style={css("font-family:'Montserrat',sans-serif;font-weight:800;font-size:15px;letter-spacing:1px")}><span style={css("color:#5fc0ff")}>MORE</span> PRINT <span style={css("color:#5fc0ff")}>PRO</span></div>
+          <div style={css("font-family:'Montserrat',sans-serif;font-weight:800;font-size:15px;letter-spacing:1px")}>PRINT PRO <span style={css("color:#5fc0ff")}>UDOMSUK</span></div>
           <div style={css("font-family:'IBM Plex Mono',monospace;font-size:9.5px;letter-spacing:2px;color:#5fc0ff")}>{isOwner ? 'PARTNER FINANCE · คอม ' + Math.round(COMMISSION * 100) + '%' : 'PARTNER VIEW · ส่วนแบ่งร้านคุณ ' + Math.round((1 - COMMISSION) * 100) + '%'}</div>
         </div>
         {!DB && <span style={css("font-size:10px;font-weight:700;background:#f59f00;color:#0e2a44;padding:3px 10px;border-radius:99px")}>DEMO</span>}
