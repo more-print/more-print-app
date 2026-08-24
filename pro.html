@@ -387,7 +387,8 @@ function Dash({ role }){
     times[next - 1] = fmtTime(new Date());
     if (DB) {
       await DB.from('orders').update({ status: next, times }).eq('id', o.id);
-      if (next >= 3) { try { fetch(CFG.SUPABASE_URL + '/functions/v1/notify-order?action=done', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: o.id }) }); } catch (e) {} }
+      // ปิดชั่วคราวเพื่อประหยัดโควตาไลน์ 300 ข้อความ/เดือน (นโยบายเจ้าของ 2026-08-24) — เปิดกลับได้โดยลบเครื่องหมายคอมเมนต์
+      // if (next >= 3) { try { fetch(CFG.SUPABASE_URL + '/functions/v1/notify-order?action=done', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: o.id }) }); } catch (e) {} }
       await load();
     }
     else setOrders(l => l.map(x => x.id === o.id ? { ...x, status: next, times } : x));
@@ -405,7 +406,8 @@ function Dash({ role }){
     const { data, error } = await DB.rpc('partner_advance', { oid: o.id });
     if (error || !data) { alert('อัปเดตไม่สำเร็จ — เจ้าของร้าน MORE PRINT อาจยังไม่ได้เปิดระบบ (รัน SQL partner_advance) หรือขั้นนี้เป็นหน้าที่ของ MORE PRINT'); return; }
     // ผลิตเสร็จ/ลูกค้ารับแล้ว → แจ้งกลุ่ม LINE (EF เช็คสถานะจริงเอง ไม่เข้าเงื่อนไขก็เงียบ)
-    try { fetch(CFG.SUPABASE_URL + '/functions/v1/notify-order?action=done', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: o.id }) }); } catch (e) {}
+    // ปิดชั่วคราวเพื่อประหยัดโควตาไลน์ 300 ข้อความ/เดือน (นโยบายเจ้าของ 2026-08-24) — เปิดกลับได้โดยลบเครื่องหมายคอมเมนต์
+    // try { fetch(CFG.SUPABASE_URL + '/functions/v1/notify-order?action=done', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: o.id }) }); } catch (e) {}
     await load();
   };
 
