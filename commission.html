@@ -53,6 +53,37 @@ const jobValue = (o) => (o.print_cost || 0) + (o.bind_cost || 0);
 const fmtDate = (iso) => { const d = new Date(iso); return d.getDate() + ' ' + TH_MONTHS[d.getMonth()] + ' ' + ((d.getFullYear() + 543) % 100); };
 const fmtHM = (d) => String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
 const fileUrl = (path) => path && CFG.SUPABASE_URL ? CFG.SUPABASE_URL + '/storage/v1/object/public/uploads/' + path : null;
+// ── ชุดไอคอนเส้น (สไตล์ Feather — MIT, ฝังในไฟล์) ใช้แทนอิโมจิทั้งเว็บ เพื่อความเป็นทางการ ──
+const fi = (paths, size) => (
+  <svg width={size || 15} height={size || 15} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{ flex: 'none', verticalAlign: '-2px' }}>{paths}</svg>
+);
+const FI = {
+  home: (z) => fi(<React.Fragment><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></React.Fragment>, z),
+  clipboard: (z) => fi(<React.Fragment><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/></React.Fragment>, z),
+  chart: (z) => fi(<React.Fragment><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></React.Fragment>, z),
+  users: (z) => fi(<React.Fragment><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></React.Fragment>, z),
+  user: (z) => fi(<React.Fragment><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></React.Fragment>, z),
+  phone: (z) => fi(<path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>, z),
+  calendar: (z) => fi(<React.Fragment><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></React.Fragment>, z),
+  printer: (z) => fi(<React.Fragment><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></React.Fragment>, z),
+  check: (z) => fi(<React.Fragment><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></React.Fragment>, z),
+  x: (z) => fi(<React.Fragment><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></React.Fragment>, z),
+  clock: (z) => fi(<React.Fragment><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></React.Fragment>, z),
+  file: (z) => fi(<React.Fragment><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><polyline points="13 2 13 9 20 9"/></React.Fragment>, z),
+  download: (z) => fi(<React.Fragment><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></React.Fragment>, z),
+  truck: (z) => fi(<React.Fragment><rect x="1" y="3" width="15" height="13" rx="1"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></React.Fragment>, z),
+  bag: (z) => fi(<React.Fragment><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></React.Fragment>, z),
+  pin: (z) => fi(<React.Fragment><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></React.Fragment>, z),
+  nav: (z) => fi(<polygon points="3 11 22 2 13 21 11 13 3 11"/>, z),
+  receipt: (z) => fi(<React.Fragment><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></React.Fragment>, z),
+  trash: (z) => fi(<React.Fragment><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></React.Fragment>, z),
+  out: (z) => fi(<React.Fragment><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></React.Fragment>, z),
+  alert: (z) => fi(<React.Fragment><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></React.Fragment>, z),
+  baht: (z) => fi(<React.Fragment><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></React.Fragment>, z),
+  send: (z) => fi(<React.Fragment><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></React.Fragment>, z),
+  camera: (z) => fi(<React.Fragment><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></React.Fragment>, z),
+  chat: (z) => fi(<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>, z)
+};
 // ขั้นสถานะตามวิธีรับงาน (มารับเอง = จบที่ร้านอุดมสุข)
 const stepsOf = (o) => o && o.pickup
   ? ['รับออเดอร์', 'กำลังผลิตสินค้า', 'เสร็จแล้ว รอมารับ', 'ลูกค้ารับสินค้าแล้ว']
@@ -92,9 +123,9 @@ function Login({ onOk }){
   return (
     <div style={css("min-height:100vh;display:flex;align-items:center;justify-content:center;background:var(--bg);padding:20px")}>
       <div style={css("background:var(--card);border:1px solid var(--line);border-radius:18px;padding:28px 24px;width:320px;box-shadow:var(--shadow);display:flex;flex-direction:column;gap:12px;align-items:center")}>
-        <div style={css("font-size:34px")}>💰</div>
+        <img src="assets/logo-black.png" alt="MORE PRINT" style={css("width:74px;height:auto;display:block")}/>
         <div style={css("font-family:'Montserrat',sans-serif;font-weight:800;font-size:16px;letter-spacing:1px")}><span style={css("color:var(--acc)")}>MORE</span> PRINT <span style={css("color:var(--acc)")}>COMMISSION</span></div>
-        <div style={css("font-size:13px;color:var(--sub);text-align:center")}>🔐 รายได้ค่าคอมจากงาน PRO — เจ้าของเท่านั้น</div>
+        <div style={css("font-size:13px;color:var(--sub);text-align:center")}>รายได้ค่าคอมจากงาน PRO — เจ้าของเท่านั้น</div>
         <input value={email} onChange={e => setEmail(e.target.value)} placeholder="อีเมลเจ้าของร้าน" inputMode="email" autoComplete="email"
           style={css("width:100%;box-sizing:border-box;height:46px;border:1px solid var(--line);border-radius:12px;background:var(--soft);color:var(--ink);padding:0 14px;font-size:14px;outline:none")}/>
         <input type="password" value={pass} onChange={e => setPass(e.target.value)} onKeyDown={e => e.key === 'Enter' && submit()} placeholder="รหัสผ่าน" autoComplete="current-password"
@@ -109,7 +140,7 @@ function Login({ onOk }){
 const fmtWhen = (iso) => { const d = new Date(iso); const sameDay = d.toDateString() === new Date().toDateString(); return (sameDay ? 'วันนี้ ' : d.getDate() + '/' + (d.getMonth() + 1) + ' ') + fmtHM(d); };
 const DEMO_MSGS = [
   { id: 1, sender: 'customer', body: 'งาน A1 ขอกรอบสีดำนะครับ', created_at: new Date(Date.now() - 9*60000).toISOString() },
-  { id: 2, sender: 'shop', body: 'รับทราบครับ 🙏', created_at: new Date(Date.now() - 7*60000).toISOString() }
+  { id: 2, sender: 'shop', body: 'รับทราบครับ', created_at: new Date(Date.now() - 7*60000).toISOString() }
 ];
 
 // ── กล่องแชทกับลูกค้า (ตาราง messages — ห้องเดียวกับที่ลูกค้าเห็นในเว็บ) ──
@@ -144,7 +175,7 @@ function Chat({ o }){
   const sendPhoto = async (file) => {
     if (!file || upBusy) return;
     setUpBusy(true);
-    const caption = text.trim() || '📸 รูปหลักฐานการจัดส่ง';
+    const caption = text.trim() || 'รูปหลักฐานการจัดส่ง';
     if (!DB) { setMsgs(l => [...(l || []), { id: Date.now(), sender: 'shop', body: caption, img_url: URL.createObjectURL(file), created_at: new Date().toISOString() }]); setText(''); setUpBusy(false); return; }
     const ext = (file.name.split('.').pop() || 'jpg').replace(/[^a-zA-Z0-9]/g, '').slice(0, 5) || 'jpg';
     const path = 'chat/' + o.id.replace(/[^A-Za-z0-9-]/g, '') + '/' + Date.now() + '.' + ext;
@@ -158,7 +189,7 @@ function Chat({ o }){
   if (missing) return null;
   return (
     <div style={css("margin-top:9px;background:var(--soft);border:1px solid var(--line);border-radius:12px;padding:10px 12px")}>
-      <div style={css("font-size:11px;font-weight:700;color:var(--sub)")}>💬 แชทกับลูกค้า</div>
+      <div style={css("font-size:11px;font-weight:700;color:var(--sub)")}>{FI.chat(12)} แชทกับลูกค้า</div>
       <div ref={boxRef} style={css("margin-top:8px;max-height:220px;overflow-y:auto;display:flex;flex-direction:column;gap:7px")}>
         {msgs === null && <div style={css("font-size:12px;color:var(--sub)")}>กำลังโหลด…</div>}
         {msgs !== null && msgs.length === 0 && <div style={css("font-size:11.5px;color:var(--sub)")}>ยังไม่มีข้อความ — ทักแจ้งราคา/ความคืบหน้าได้เลย</div>}
@@ -183,7 +214,7 @@ function Chat({ o }){
       <input ref={camRef} type="file" accept="image/*" capture="environment" onChange={e => { const f = e.target.files && e.target.files[0]; e.target.value = ''; sendPhoto(f); }} style={css("display:none")}/>
       <button onClick={() => camRef.current && camRef.current.click()} disabled={upBusy}
         style={css("margin-top:8px;width:100%;height:36px;border:1.5px solid var(--acc);border-radius:10px;background:var(--accSoft);color:var(--acc);font-size:11.5px;font-weight:700;cursor:pointer;font-family:inherit" + (upBusy ? ";opacity:.6" : ""))}>
-        {upBusy ? 'กำลังส่งรูป…' : '📸 ถ่ายรูป/แนบรูปหลักฐานการจัดส่ง'}
+        {upBusy ? 'กำลังส่งรูป…' : 'ถ่ายรูป/แนบรูปหลักฐานการจัดส่ง'}
       </button>
       <div style={css("margin-top:7px;display:flex;gap:6px")}>
         <input value={text} onChange={e => setText(e.target.value)} onKeyDown={e => e.key === 'Enter' && send()} maxLength={500} placeholder="พิมพ์ข้อความถึงลูกค้า…"
@@ -197,10 +228,10 @@ function Chat({ o }){
 // ไทม์ไลน์ของแต่ละงาน: ชำระ → ผลิต → ส่งถึงมือ → โอนส่วนแบ่งแล้ว
 function Pipeline({ o }){
   const steps = [
-    ['💰', 'ชำระแล้ว', !!o.slip_path],
-    ['🖨️', 'ผลิต', o.status >= 2],
-    ['✅', o.pickup ? 'ลูกค้ารับแล้ว' : 'ถึงมือลูกค้า', o.status >= 4],
-    ['💸', 'โอนส่วนแบ่งแล้ว', !!o.payout_at]
+    [FI.baht(11), 'ชำระแล้ว', !!o.slip_path],
+    [FI.printer(11), 'ผลิต', o.status >= 2],
+    [FI.check(11), o.pickup ? 'ลูกค้ารับแล้ว' : 'ถึงมือลูกค้า', o.status >= 4],
+    [FI.send(11), 'โอนส่วนแบ่งแล้ว', !!o.payout_at]
   ];
   return (
     <div style={css("display:flex;gap:6px;flex-wrap:wrap")}>
@@ -229,8 +260,8 @@ function Manage({ o, onPrice, onPayout, onAdvance, onCancel, onRemove }){
           {(o.files || []).map((f, i) => {
             const u = f.drive_url || fileUrl(f.path);
             return u
-              ? <a key={i} href={u} target="_blank" rel="noreferrer" style={css("font-size:11px;font-weight:700;color:var(--acc);background:var(--accSoft);padding:4px 10px;border-radius:8px;text-decoration:none")}>⬇ {f.name} · {f.pages} หน้า</a>
-              : <span key={i} style={css("font-size:11px;font-weight:700;color:#c92a2a;background:#ffe3e3;padding:4px 10px;border-radius:8px")}>⚠️ {f.name} — ไฟล์อัปไม่สำเร็จ ทักแชทขอจากลูกค้า</span>;
+              ? <a key={i} href={u} target="_blank" rel="noreferrer" style={css("font-size:12px;font-weight:700;color:#fff;background:var(--acc);padding:8px 14px;border-radius:9px;text-decoration:none;display:inline-flex;align-items:center;gap:6px")}>{FI.download(13)} {f.name} · {f.pages} หน้า</a>
+              : <span key={i} style={css("font-size:11px;font-weight:700;color:#c92a2a;background:#ffe3e3;padding:4px 10px;border-radius:8px")}>{FI.alert(11)} {f.name} — ไฟล์อัปไม่สำเร็จ ทักแชทขอจากลูกค้า</span>;
           })}
         </div>
       )}
@@ -245,14 +276,8 @@ function Manage({ o, onPrice, onPayout, onAdvance, onCancel, onRemove }){
       {priced && !edit && (
         <div style={css("display:flex;gap:10px;align-items:center;flex-wrap:wrap")}>
           <span style={css("font-size:11.5px;color:var(--sub)")}>ราคางาน <b style={css("font-family:'IBM Plex Mono',monospace;color:var(--ink)")}>{baht(jobValue(o))}</b> <span onClick={() => { setEdit(true); setPriceV(String(jobValue(o))); }} style={css("color:var(--acc);font-size:11px;cursor:pointer;text-decoration:underline")}>แก้</span></span>
-          {o.status !== 0 && !o.payout_at && <button onClick={askPayout} style={css("height:34px;padding:0 14px;border:none;border-radius:9px;background:" + (confirmPay ? "#0b7285" : "var(--acc)") + ";color:#fff;font-size:11.5px;font-weight:700;cursor:pointer")}>{confirmPay ? 'กดอีกครั้ง — โอนแล้วจริงๆ' : '💸 โอนส่วนแบ่งให้ร้านแล้ว'}</button>}
-          {o.payout_at && <span style={css("font-size:11px;font-weight:700;color:#0b7285;background:#e3fafc;padding:3px 10px;border-radius:99px")}>💸 โอนแล้ว</span>}
-        </div>
-      )}
-      {o.status > 0 && o.status < 4 && (
-        <div style={css("display:flex;gap:8px")}>
-          <button onClick={() => onAdvance(o)} style={css("flex:1;height:38px;border:none;border-radius:10px;background:var(--purple);color:#fff;font-size:12px;font-weight:700;cursor:pointer")}>→ อัปเดตเป็น "{stepsOf(o)[Math.min(o.status, 3)]}"</button>
-          <button onClick={() => setCancelOpen(v => !v)} style={css("height:38px;padding:0 12px;border:1px solid #ffa8a8;border-radius:10px;background:none;color:#c92a2a;font-size:11.5px;font-weight:600;cursor:pointer")}>✕ ยกเลิก</button>
+          {o.status !== 0 && !o.payout_at && <button onClick={askPayout} style={css("height:34px;padding:0 14px;border:none;border-radius:9px;background:" + (confirmPay ? "#0b7285" : "var(--acc)") + ";color:#fff;font-size:11.5px;font-weight:700;cursor:pointer")}>{confirmPay ? 'กดอีกครั้ง — โอนแล้วจริงๆ' : 'โอนส่วนแบ่งให้ร้านแล้ว'}</button>}
+          {o.payout_at && <span style={css("font-size:11px;font-weight:700;color:#0b7285;background:#e3fafc;padding:3px 10px;border-radius:99px")}>{FI.send(11)} โอนแล้ว</span>}
         </div>
       )}
       {cancelOpen && (
@@ -266,24 +291,30 @@ function Manage({ o, onPrice, onPayout, onAdvance, onCancel, onRemove }){
       {o.status === 0 && o.cancel_reason && <div style={css("font-size:11px;color:#c92a2a")}>เหตุผลที่ยกเลิก: {o.cancel_reason}</div>}
       {/* ที่อยู่จัดส่ง + นำทาง + สลิป (เท่าหลังบ้าน Standard) */}
       {!o.pickup && (o.addr || o.point) && (
-        <div style={css("font-size:11.5px;color:var(--sub);line-height:1.6")}>📍 {o.addr || o.point}
+        <div style={css("font-size:11.5px;color:var(--sub);line-height:1.6")}>{FI.pin(12)} {o.addr || o.point}
           <a href={o.lat != null && o.lng != null
               ? 'https://www.google.com/maps?q=' + o.lat + ',' + o.lng
               : 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(String(o.addr || o.point || '').replace(/^(🚗|🏍️)\s*/, ''))}
-            target="_blank" rel="noreferrer" style={css("margin-left:8px;font-weight:700;color:var(--acc)")}>🧭 นำทาง</a>
+            target="_blank" rel="noreferrer" style={css("margin-left:8px;font-weight:700;color:var(--acc)")}>{FI.nav(12)} นำทาง</a>
         </div>
       )}
       {o.slip_path && fileUrl(o.slip_path) && (
         <a href={fileUrl(o.slip_path)} target="_blank" rel="noreferrer" style={css("text-decoration:none")}>
           <img src={fileUrl(o.slip_path)} alt="สลิป" style={css("max-width:130px;max-height:170px;border-radius:9px;border:1px solid var(--line);display:block;background:var(--soft)")} onError={(e) => { e.target.style.display = 'none'; }}/>
-          <span style={css("font-size:10.5px;color:var(--acc);font-weight:600")}>🔍 สลิปโอนเงิน — แตะดูเต็ม</span>
+          <span style={css("font-size:10.5px;color:var(--acc);font-weight:600")}>{FI.receipt(11)} สลิปโอนเงิน — แตะดูเต็ม</span>
         </a>
+      )}
+      {o.status > 0 && o.status < 4 && (
+        <div style={css("display:flex;gap:8px")}>
+          <button onClick={() => onAdvance(o)} style={css("flex:1;height:38px;border:none;border-radius:10px;background:var(--purple);color:#fff;font-size:12px;font-weight:700;cursor:pointer")}>→ อัปเดตเป็น "{stepsOf(o)[Math.min(o.status, 3)]}"</button>
+          <button onClick={() => setCancelOpen(v => !v)} style={css("height:38px;padding:0 12px;border:1px solid #ffa8a8;border-radius:10px;background:none;color:#c92a2a;font-size:11.5px;font-weight:600;cursor:pointer")}>✕ ยกเลิก</button>
+        </div>
       )}
       {o.status === 0 && (
         <button onClick={() => { if (!confirmDel) { setConfirmDel(true); setTimeout(() => setConfirmDel(false), 4000); return; } setConfirmDel(false); onRemove(o); }}
           style={{ height: '36px', border: 'none', borderRadius: '10px', fontSize: '12px', fontWeight: 700, cursor: 'pointer',
             background: confirmDel ? '#c92a2a' : '#ffe3e3', color: confirmDel ? '#fff' : '#c92a2a' }}>
-          {confirmDel ? '⚠️ แน่ใจนะ? กดอีกครั้งเพื่อลบถาวร' : '🗑️ ลบออเดอร์นี้ถาวร (รวมไฟล์+สลิป)'}
+          {confirmDel ? 'แน่ใจนะ? กดอีกครั้งเพื่อลบถาวร' : 'ลบออเดอร์นี้ถาวร (รวมไฟล์+สลิป)'}
         </button>
       )}
     </div>
@@ -491,7 +522,7 @@ function Dash(){
       <div style={css("min-height:100vh;background:#fff;color:#111")}>
         <div className="no-print" style={css("padding:12px 16px;display:flex;gap:10px;background:var(--soft);position:sticky;top:0")}>
           <button onClick={() => setBill(null)} style={css("height:38px;padding:0 14px;border:1px solid var(--line);border-radius:10px;background:#fff;color:var(--ink);font-size:12.5px;font-weight:600;cursor:pointer")}>← กลับ</button>
-          <button onClick={() => window.print()} style={css("flex:1;height:38px;border:none;border-radius:10px;background:var(--acc);color:#fff;font-size:13px;font-weight:700;cursor:pointer")}>🖨️ พิมพ์ / บันทึกเป็น PDF (ส่งให้ร้านทาง LINE ได้)</button>
+          <button onClick={() => window.print()} style={css("flex:1;height:38px;border:none;border-radius:10px;background:var(--acc);color:#fff;font-size:13px;font-weight:700;cursor:pointer")}>พิมพ์ / บันทึกเป็น PDF (ส่งให้ร้านทาง LINE ได้)</button>
         </div>
         <div style={css("max-width:640px;margin:0 auto;padding:28px 24px 60px")}>
           <div style={css("display:flex;justify-content:space-between;align-items:flex-start;gap:12px")}>
@@ -546,7 +577,7 @@ function Dash(){
       {/* ── แถบเมนูซ้าย (แบบเดียวกับ pro.html) ── */}
       <div className={"mp-side" + (navOpen ? " open" : "")}>
         <div style={css("display:flex;align-items:center;gap:10px;padding:2px 8px 14px;border-bottom:1px solid #4a3d1c")}>
-          <div style={css("font-size:22px;flex:none")}>💰</div>
+          <div style={css("width:38px;height:38px;border-radius:10px;background:#fff;flex:none;display:flex;align-items:center;justify-content:center;overflow:hidden")}><img src="assets/logo-black.png" alt="MORE PRINT" style={css("width:32px;height:auto;display:block")}/></div>
           <div style={css("min-width:0")}>
             <div style={css("font-family:'Montserrat',sans-serif;font-weight:800;font-size:13px;letter-spacing:1px;color:#fff")}><span style={css("color:#ffd43b")}>MORE</span> PRINT</div>
             <div style={css("font-size:9.5px;color:#b3a26b;margin-top:2px")}>ค่าคอมงาน PRO (เจ้าของ)</div>
@@ -554,13 +585,13 @@ function Dash(){
           <button className="mp-close" onClick={() => setNavOpen(false)} style={css("margin-left:auto;background:none;border:none;color:#b3a26b;font-size:16px;cursor:pointer;flex:none")}>✕</button>
         </div>
         <div style={css("margin-top:12px;display:flex;flex-direction:column;gap:4px;flex:1")}>
-          {[['home', '🏠', 'ภาพรวม'], ['orders', '📋', 'งาน PRO'], ['income', '📈', 'รายได้'], ['bills', '🧾', 'ตัดบิล'], ['customers', '👥', 'ลูกค้า']].map(([k, ic, label]) => (
+          {[['home', FI.home(17), 'ภาพรวม'], ['orders', FI.clipboard(17), 'งาน PRO'], ['income', FI.chart(17), 'รายได้'], ['bills', FI.receipt(17), 'ตัดบิล'], ['customers', FI.users(17), 'ลูกค้า']].map(([k, ic, label]) => (
             <button key={k} onClick={() => { setPage(k); setNavOpen(false); }} style={{ display: 'flex', alignItems: 'center', gap: '10px', height: '42px', padding: '0 12px', borderRadius: '11px', border: 'none', cursor: 'pointer', fontFamily: 'inherit', fontSize: '13px', fontWeight: 700, textAlign: 'left',
               background: page === k ? 'var(--acc)' : 'transparent', color: page === k ? '#fff' : '#d8c99a' }}>
               <span style={css("font-size:16px")}>{ic}</span>{label}
             </button>
           ))}
-          <a href="admin.html" style={css("display:flex;align-items:center;gap:10px;height:42px;padding:0 12px;border-radius:11px;font-size:13px;font-weight:700;color:#8fd6a8;text-decoration:none")}><span style={css("font-size:16px")}>🖨️</span>หลังบ้านหลัก</a>
+          <a href="admin.html" style={css("display:flex;align-items:center;gap:10px;height:42px;padding:0 12px;border-radius:11px;font-size:13px;font-weight:700;color:#8fd6a8;text-decoration:none")}><span style={css("line-height:0")}>{FI.printer(16)}</span>หลังบ้านหลัก</a>
         </div>
         {DB && <button onClick={() => DB.auth.signOut().then(() => location.reload())} style={css("display:flex;align-items:center;gap:10px;height:42px;padding:0 12px;border-radius:11px;border:1px solid #4a3d1c;background:none;color:#b3a26b;cursor:pointer;font-family:inherit;font-size:12.5px;font-weight:700")}>⎋ ออกจากระบบ</button>}
       </div>
@@ -570,7 +601,7 @@ function Dash(){
     <div style={css("min-height:100vh;background:var(--bg)")}>
       <div style={css("background:#2b2413;color:#fff;padding:16px 18px;display:flex;align-items:center;gap:12px;position:sticky;top:0;z-index:10")}>
         <button className="mp-burger" onClick={() => setNavOpen(true)} style={css("background:#4a3d1c;border:none;color:#fff;width:38px;height:38px;border-radius:10px;font-size:17px;cursor:pointer;align-items:center;justify-content:center;flex:none")}>☰</button>
-        <div style={css("font-size:22px")}>💰</div>
+        <div style={css("width:40px;height:40px;border-radius:11px;background:#fff;flex:none;display:flex;align-items:center;justify-content:center;overflow:hidden")}><img src="assets/logo-black.png" alt="MORE PRINT" style={css("width:34px;height:auto;display:block")}/></div>
         <div style={css("flex:1;min-width:0")}>
           <div style={css("font-family:'Montserrat',sans-serif;font-weight:800;font-size:15px;letter-spacing:1px")}><span style={css("color:#ffd43b")}>MORE</span> PRINT <span style={css("color:#ffd43b")}>COMMISSION</span></div>
           <div style={css("font-family:'IBM Plex Mono',monospace;font-size:9.5px;letter-spacing:2px;color:#e6c366")}>คอม {Math.round(COMMISSION * 100)}% จากงาน PRO · {PARTNER_NAME}</div>
@@ -602,7 +633,7 @@ function Dash(){
                 <div style={css("margin-top:2px;font-size:16px;font-weight:800;font-family:'IBM Plex Mono',monospace;color:var(--acc)")}>{baht(curAgg.comm)}</div>
               </div>
               <div style={css("flex:1;background:var(--soft);border-radius:12px;padding:10px 12px")}>
-                <div style={css("font-size:10.5px;color:var(--sub)")}>🛵 ค่าส่ง (ของเราเต็ม)</div>
+                <div style={css("font-size:10.5px;color:var(--sub)")}>ค่าส่ง (ของเราเต็ม)</div>
                 <div style={css("margin-top:2px;font-size:16px;font-weight:800;font-family:'IBM Plex Mono',monospace;color:var(--purple)")}>{baht(curAgg.ship)}</div>
               </div>
             </div>
@@ -615,7 +646,7 @@ function Dash(){
         {/* กราฟรายได้ของเรา */}
         <div style={css("background:var(--card);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow);padding:14px 16px")}>
           <div style={css("display:flex;align-items:center;gap:8px")}>
-            <div style={css("font-size:13px;font-weight:700;flex:1")}>📈 กราฟรายได้ของเรา</div>
+            <div style={css("font-size:13px;font-weight:700;flex:1")}>{FI.chart(13)} กราฟรายได้ของเรา</div>
             {[['d', 'รายวัน'], ['m', 'รายเดือน'], ['y', 'รายปี']].map(([k, label]) => (
               <button key={k} onClick={() => setChartMode(k)} style={{ height: '30px', padding: '0 12px', borderRadius: '99px', cursor: 'pointer', fontSize: '11.5px', fontWeight: 700, fontFamily: 'inherit',
                 border: chartMode === k ? '1.5px solid var(--acc)' : '1px solid var(--line)',
@@ -650,7 +681,7 @@ function Dash(){
         {page === 'income' && <React.Fragment>
         {/* สรุปรายเดือน */}
         <div style={css("background:var(--card);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);overflow-x:auto")}>
-          <div style={css("padding:12px 16px 0;font-size:12.5px;font-weight:700;color:var(--sub)")}>📅 สรุปรายเดือน (เฉพาะงานที่จบแล้ว)</div>
+          <div style={css("padding:12px 16px 0;font-size:12.5px;font-weight:700;color:var(--sub)")}>{FI.calendar(13)} สรุปรายเดือน (เฉพาะงานที่จบแล้ว)</div>
           <table style={css("margin-top:6px")}>
             <thead><tr>
               {['เดือน', 'งาน', 'ยอดงานปริ้น', 'คอมเรา ' + Math.round(COMMISSION * 100) + '%', 'ให้' + PARTNER_NAME.replace('ร้าน', ''), 'ค่าส่ง (ของเรา)', ''].map((h, i) => (
@@ -668,7 +699,7 @@ function Dash(){
                   <td style={css("padding:7px 12px;font-size:12px;text-align:right;font-family:'IBM Plex Mono',monospace;color:var(--purple)")}>{baht(m.job * (1 - COMMISSION))}</td>
                   <td style={css("padding:7px 12px;font-size:12px;text-align:right;font-family:'IBM Plex Mono',monospace;font-weight:700;color:var(--green)")}>{baht(m.ship)}</td>
                   <td style={css("padding:7px 12px;text-align:right")}>
-                    <button onClick={() => setBill({ y: m.y, m: m.m })} style={css("height:30px;padding:0 12px;border:1px solid var(--acc);border-radius:9px;background:var(--accSoft);color:var(--acc);font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap")}>🧾 ออกบิล</button>
+                    <button onClick={() => setBill({ y: m.y, m: m.m })} style={css("height:30px;padding:0 12px;border:1px solid var(--acc);border-radius:9px;background:var(--accSoft);color:var(--acc);font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap")}>ออกบิล</button>
                   </td>
                 </tr>
               ))}
@@ -683,7 +714,7 @@ function Dash(){
         <div style={css("background:var(--card);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow);padding:14px 16px")}>
           <div style={css("display:flex;align-items:center;gap:8px;flex-wrap:wrap")}>
             <div style={css("flex:1;min-width:0")}>
-              <div style={css("font-size:13px;font-weight:700")}>🧾 ตัดบิลโอนให้{PARTNER_NAME}</div>
+              <div style={css("font-size:13px;font-weight:700")}>{FI.receipt(13)} ตัดบิลโอนให้{PARTNER_NAME}</div>
               <div style={css("margin-top:2px;font-size:10.5px;color:var(--sub);line-height:1.6")}>รายสัปดาห์ตัดทุกอาทิตย์ 23:59 · รายวันตัดเที่ยงคืน · นับเฉพาะงานที่จบแล้ว</div>
             </div>
             {!billListOpen && <button onClick={() => setBillListOpen(true)} style={css("height:40px;padding:0 16px;border:none;border-radius:11px;background:var(--acc);color:#fff;font-size:12.5px;font-weight:700;cursor:pointer;font-family:inherit")}>⚙️ สร้างรอบบิล</button>}
@@ -692,7 +723,7 @@ function Dash(){
           {billListOpen && (
             <React.Fragment>
               <div style={css("margin-top:11px;display:flex;gap:7px")}>
-                {[['w', '📅 รายสัปดาห์ (ตัด อา. 23:59)'], ['d', '🗓️ รายวัน (ตัดเที่ยงคืน)']].map(([k, label]) => (
+                {[['w', 'รายสัปดาห์ (ตัด อา. 23:59)'], ['d', 'รายวัน (ตัดเที่ยงคืน)']].map(([k, label]) => (
                   <button key={k} onClick={() => setBillMode(k)} style={{ flex: 1, height: '38px', borderRadius: '10px', cursor: 'pointer', fontSize: '11.5px', fontWeight: 700, fontFamily: 'inherit',
                     border: billMode === k ? '1.5px solid var(--acc)' : '1px solid var(--line)',
                     background: billMode === k ? 'var(--accSoft)' : 'var(--soft)', color: billMode === k ? 'var(--acc)' : 'var(--sub)' }}>{label}</button>
@@ -709,7 +740,7 @@ function Dash(){
                     <div style={css("font-family:'IBM Plex Mono',monospace;font-size:14px;font-weight:800;color:var(--acc)")}>{baht(b.net)}</div>
                     <div style={css("font-size:9.5px;font-weight:700;color:" + (b.unpaid ? "#c92a2a" : "var(--green)"))}>{b.unpaid ? 'ค้างโอน ' + b.unpaid + ' งาน' : '✓ โอนครบแล้ว'}</div>
                   </div>
-                  <button onClick={() => setBill({ from: b.from, to: b.to, label: b.label })} style={css("flex:none;height:36px;padding:0 13px;border:1px solid var(--acc);border-radius:10px;background:var(--accSoft);color:var(--acc);font-size:11.5px;font-weight:700;cursor:pointer;font-family:inherit;white-space:nowrap")}>🧾 เปิดบิล</button>
+                  <button onClick={() => setBill({ from: b.from, to: b.to, label: b.label })} style={css("flex:none;height:36px;padding:0 13px;border:1px solid var(--acc);border-radius:10px;background:var(--accSoft);color:var(--acc);font-size:11.5px;font-weight:700;cursor:pointer;font-family:inherit;white-space:nowrap")}>เปิดบิล</button>
                 </div>
               ))}
             </React.Fragment>
@@ -721,18 +752,18 @@ function Dash(){
         {/* ลูกค้าประจำงาน PRO */}
         <div style={css("background:var(--card);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);padding:12px 16px")}>
           <div style={css("display:flex;align-items:center;gap:8px")}>
-            <div style={css("font-size:12.5px;font-weight:700;color:var(--sub);flex:1")}>👥 ลูกค้าประจำงาน PRO</div>
-            <span style={css("font-size:10.5px;color:var(--sub)")}>{customers.length} คน · ⭐ ประจำ {customers.filter(c => c.tier === 2).length} คน</span>
+            <div style={css("font-size:12.5px;font-weight:700;color:var(--sub);flex:1")}>{FI.users(13)} ลูกค้าประจำงาน PRO</div>
+            <span style={css("font-size:10.5px;color:var(--sub)")}>{customers.length} คน · ประจำ {customers.filter(c => c.tier === 2).length} คน</span>
           </div>
           {customers.length === 0 && <div style={css("padding:14px 0;text-align:center;font-size:12px;color:var(--sub)")}>ยังไม่มีลูกค้างาน Pro</div>}
           {customers.map((cst, i) => (
             <div key={i} style={css("margin-top:10px;padding-top:10px;border-top:1px dashed var(--line);display:flex;align-items:center;gap:10px")}>
-              <div style={css("width:34px;height:34px;border-radius:50%;background:var(--accSoft);color:var(--acc);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:" + (i < 3 ? "17px" : "13px") + ";flex:none")}>{i < 3 ? ['🥇', '🥈', '🥉'][i] : (cst.name.replace('คุณ', '') || '?').trim().charAt(0)}</div>
+              <div style={css("width:34px;height:34px;border-radius:50%;background:var(--accSoft);color:var(--acc);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:" + (i < 3 ? "17px" : "13px") + ";flex:none")}>{i < 3 ? (i + 1) : (cst.name.replace('คุณ', '') || '?').trim().charAt(0)}</div>
               <div style={css("flex:1;min-width:0")}>
                 <div style={css("display:flex;align-items:center;gap:6px;min-width:0")}>
                   <span style={css("font-size:12.5px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap")}>{cst.name || 'ไม่ระบุชื่อ'}</span>
-                  {cst.tier === 2 && <span style={css("flex:none;font-size:9px;font-weight:700;background:#fff3bf;color:#e8590c;border-radius:99px;padding:2px 7px")}>⭐ ประจำ</span>}
-                  {cst.tier === 1 && <span style={css("flex:none;font-size:9px;font-weight:700;background:#e7f5ff;color:#1971c2;border-radius:99px;padding:2px 7px")}>🔁 มาซ้ำ</span>}
+                  {cst.tier === 2 && <span style={css("flex:none;font-size:9px;font-weight:700;background:#fff3bf;color:#e8590c;border-radius:99px;padding:2px 7px")}>ประจำ</span>}
+                  {cst.tier === 1 && <span style={css("flex:none;font-size:9px;font-weight:700;background:#e7f5ff;color:#1971c2;border-radius:99px;padding:2px 7px")}>มาซ้ำ</span>}
                   {cst.tier === 0 && <span style={css("flex:none;font-size:9px;font-weight:700;background:var(--soft);color:var(--sub);border-radius:99px;padding:2px 7px")}>🆕 ใหม่</span>}
                 </div>
                 <div style={css("margin-top:2px;font-size:10.5px;color:var(--sub);overflow:hidden;text-overflow:ellipsis;white-space:nowrap")}>
@@ -754,7 +785,7 @@ function Dash(){
           const inWork = orders.filter(o => o.status > 0 && o.status < 4);
           const doneL = orders.filter(o => o.status === 4 && inPeriod(o));
           const cancelL = orders.filter(o => o.status === 0 && inPeriod(o));
-          const TABS = [['active', '🖨️ กำลังทำ', inWork], ['done', '✅ เสร็จแล้ว', doneL], ['cancel', '❌ ยกเลิก', cancelL]];
+          const TABS = [['active', <React.Fragment>{FI.printer(13)} กำลังทำ</React.Fragment>, inWork], ['done', <React.Fragment>{FI.check(13)} เสร็จแล้ว</React.Fragment>, doneL], ['cancel', <React.Fragment>{FI.x(13)} ยกเลิก</React.Fragment>, cancelL]];
           const cur = TABS.find(t => t[0] === filter) || TABS[0];
           const q = ordQ.trim().toLowerCase(), qd = q.replace(/\D/g, '');
           const shown = cur[2].filter(o => !q
@@ -764,7 +795,7 @@ function Dash(){
             || String(o.paper || '').toLowerCase().includes(q));
           return (
             <React.Fragment>
-              <div style={css("font-size:13px;font-weight:700")}>📋 งาน PRO {curP[1]} <span style={css("font-size:10.5px;font-weight:400;color:var(--sub)")}>· เปลี่ยนช่วงเวลาได้ที่แถบบนสุด · งานที่ยังไม่เสร็จแสดงทุกช่วงเสมอ</span></div>
+              <div style={css("font-size:13px;font-weight:700")}>{FI.clipboard(13)} งาน PRO {curP[1]} <span style={css("font-size:10.5px;font-weight:400;color:var(--sub)")}>· เปลี่ยนช่วงเวลาได้ที่แถบบนสุด · งานที่ยังไม่เสร็จแสดงทุกช่วงเสมอ</span></div>
               <div style={css("display:flex;gap:7px")}>
                 {TABS.map(([k, label, list]) => (
                   <button key={k} onClick={() => setFilter(k)} style={{ flex: 1, height: '42px', borderRadius: '12px', cursor: 'pointer', fontSize: '11.5px', fontWeight: 700, fontFamily: 'inherit',
@@ -774,27 +805,33 @@ function Dash(){
                   </button>
                 ))}
               </div>
-              <input value={ordQ} onChange={e => setOrdQ(e.target.value)} placeholder="🔍 ค้นหาออเดอร์: รหัส · ชื่อลูกค้า · เบอร์ · ชนิดงาน"
+              <input value={ordQ} onChange={e => setOrdQ(e.target.value)} placeholder="ค้นหาออเดอร์: รหัส · ชื่อลูกค้า · เบอร์ · ชนิดงาน"
                 style={css("width:100%;box-sizing:border-box;height:44px;border:1px solid var(--line);border-radius:12px;background:var(--card);color:var(--ink);padding:0 14px;font-size:13px;outline:none;box-shadow:var(--shadow)")}/>
               {loading && <div style={css("text-align:center;color:var(--sub);font-size:13px;padding:16px 0")}>กำลังโหลด…</div>}
               {!loading && cur[2].length === 0 && <div style={css("text-align:center;color:var(--sub);font-size:13px;padding:28px 0")}>ไม่มีงานในหมวดนี้</div>}
               {!loading && cur[2].length > 0 && shown.length === 0 && <div style={css("text-align:center;color:var(--sub);font-size:13px;padding:28px 0")}>ไม่พบออเดอร์ที่ตรงกับ "{ordQ}"</div>}
               {shown.map(o => (
           <div key={o.id} style={css("background:var(--card);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);padding:12px 16px" + (o.status === 0 ? ";opacity:.5" : ""))}>
-            <div style={css("display:flex;align-items:center;gap:8px;flex-wrap:wrap")}>
-              <span style={css("font-family:'IBM Plex Mono',monospace;font-size:12.5px;font-weight:600")}>{o.id}</span>
-              <span style={css("font-size:11px;color:var(--sub)")}>{fmtDate(o.created_at)} · คุณ{o.customer_fname} {o.customer_lname || ''}{o.customer_phone ? <span> · <a href={'tel:' + String(o.customer_phone).replace(/[^0-9+]/g, '')}>{o.customer_phone}</a></span> : null} · {o.paper} × {o.copies || 1}</span>
-              <span style={css("font-size:10.5px;font-weight:700;padding:2px 9px;border-radius:99px;" + (o.pickup ? "background:var(--accSoft);color:var(--acc)" : "background:#f0ebff;color:var(--purple)"))}>{o.pickup ? '🏪 มารับเอง' : '🛵 ส่ง'}</span>
-              {o.status === 0 && <span style={css("font-size:10.5px;font-weight:700;color:#c92a2a;background:#ffe3e3;padding:2px 9px;border-radius:99px")}>ยกเลิก</span>}
+            {/* แถว 1: รหัส · วันที่ · ลูกค้า · เบอร์ · งาน · วิธีรับ (เรียงตามเรฟเจ้าของ) */}
+            <div style={css("display:flex;align-items:center;gap:12px;flex-wrap:wrap;font-size:11.5px")}>
+              <span style={css("font-family:'IBM Plex Mono',monospace;font-size:13px;font-weight:700")}>{o.id}</span>
+              <span style={css("color:var(--sub);display:inline-flex;align-items:center;gap:5px")}>{FI.calendar(12)} {fmtDate(o.created_at)}</span>
+              <span style={css("color:var(--ink);display:inline-flex;align-items:center;gap:5px")}>{FI.user(12)} คุณ{o.customer_fname} {o.customer_lname || ''}</span>
+              {o.customer_phone && <span style={css("display:inline-flex;align-items:center;gap:5px")}>{FI.phone(12)} <a href={'tel:' + String(o.customer_phone).replace(/[^0-9+]/g, '')}>{o.customer_phone}</a></span>}
+              <span style={css("color:var(--ink);display:inline-flex;align-items:center;gap:5px")}>{FI.file(12)} {o.paper} × {o.copies || 1}</span>
+              <span style={css("font-size:10.5px;font-weight:700;padding:3px 10px;border-radius:99px;display:inline-flex;align-items:center;gap:5px;" + (o.pickup ? "background:var(--accSoft);color:var(--acc)" : "background:#f0ebff;color:var(--purple)"))}>{o.pickup ? <React.Fragment>{FI.bag(11)} มารับเอง</React.Fragment> : <React.Fragment>{FI.truck(11)} ส่ง</React.Fragment>}</span>
+              {o.status === 0 && <span style={css("font-size:10.5px;font-weight:700;color:#c92a2a;background:#ffe3e3;padding:3px 10px;border-radius:99px")}>ยกเลิก</span>}
             </div>
-            <div style={css("margin-top:7px")}><Pipeline o={o}/></div>
-            <div style={css("margin-top:8px;display:flex;gap:14px;flex-wrap:wrap;font-size:11.5px")}>
+            {/* แถว 2: สถานะ */}
+            <div style={css("margin-top:9px;display:flex;align-items:center;gap:8px;flex-wrap:wrap")}><span style={css("font-size:11.5px;font-weight:700")}>สถานะ:</span><Pipeline o={o}/></div>
+            {/* แถว 3: ตัวเลขเงิน คั่นด้วยเส้น | อ่านกวาดตาง่าย */}
+            <div style={css("margin-top:9px;display:flex;align-items:center;gap:0;flex-wrap:wrap;font-size:12px;font-weight:600")}>
               {jobValue(o) > 0 && <React.Fragment>
-                <span style={css("color:var(--sub)")}>ค่างานปริ้น <b style={css("font-family:'IBM Plex Mono',monospace;color:var(--ink)")}>{baht(jobValue(o))}</b></span>
-                <span style={css("color:var(--sub)")}>คอมเรา <b style={css("font-family:'IBM Plex Mono',monospace;color:var(--acc)")}>{baht(jobValue(o) * COMMISSION)}</b></span>
-                <span style={css("color:var(--sub)")}>ให้ร้านอุดมสุข <b style={css("font-family:'IBM Plex Mono',monospace;color:var(--purple)")}>{baht(jobValue(o) * (1 - COMMISSION))}</b></span>
+                <span style={css("padding-right:12px")}>ค่างานปริ้น <b style={css("font-family:'IBM Plex Mono',monospace;color:var(--ink)")}>{baht(jobValue(o))}</b></span>
+                <span style={css("border-left:1.5px solid var(--line);padding:0 12px")}>คอมฯ <b style={css("font-family:'IBM Plex Mono',monospace;color:var(--acc)")}>{baht(jobValue(o) * COMMISSION)}</b></span>
+                <span style={css("border-left:1.5px solid var(--line);padding:0 12px")}>ร้านได้รับ <b style={css("font-family:'IBM Plex Mono',monospace;color:var(--purple)")}>{baht(jobValue(o) * (1 - COMMISSION))}</b></span>
               </React.Fragment>}
-              {shipOf(o) > 0 && <span style={css("color:var(--sub)")}>🛵 ค่าส่ง (ของเราเต็ม) <b style={css("font-family:'IBM Plex Mono',monospace;color:var(--green)")}>{baht(shipOf(o))}</b></span>}
+              {shipOf(o) > 0 && <span style={css(jobValue(o) > 0 ? "border-left:1.5px solid var(--line);padding:0 12px" : "padding-right:12px")}>ค่าส่ง <b style={css("font-family:'IBM Plex Mono',monospace;color:var(--green)")}>{baht(shipOf(o))}</b></span>}
             </div>
             <Manage o={o} onPrice={setPrice} onPayout={markPayout} onAdvance={advance} onCancel={cancelOrder} onRemove={removeOrder}/>
             <Chat o={o}/>
