@@ -58,6 +58,32 @@ const fmtWhen = (iso) => {
 };
 const baht = (n) => '฿' + (Math.round((n || 0) * 100) / 100).toLocaleString('th-TH');
 const fileUrl = (path) => path && CFG.SUPABASE_URL ? CFG.SUPABASE_URL + '/storage/v1/object/public/uploads/' + path : null;
+// ── ชุดไอคอนเส้น (สไตล์ Feather — MIT, ฝังในไฟล์) ใช้แทนอิโมจิทั้งเว็บ เพื่อความเป็นทางการ ──
+const fi = (paths, size) => (
+  <svg width={size || 15} height={size || 15} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{ flex: 'none', verticalAlign: '-2px' }}>{paths}</svg>
+);
+const FI = {
+  home: (z) => fi(<React.Fragment><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></React.Fragment>, z),
+  clipboard: (z) => fi(<React.Fragment><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/></React.Fragment>, z),
+  chart: (z) => fi(<React.Fragment><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></React.Fragment>, z),
+  users: (z) => fi(<React.Fragment><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></React.Fragment>, z),
+  printer: (z) => fi(<React.Fragment><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></React.Fragment>, z),
+  check: (z) => fi(<React.Fragment><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></React.Fragment>, z),
+  x: (z) => fi(<React.Fragment><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></React.Fragment>, z),
+  clock: (z) => fi(<React.Fragment><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></React.Fragment>, z),
+  clip: (z) => fi(<path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/>, z),
+  file: (z) => fi(<React.Fragment><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><polyline points="13 2 13 9 20 9"/></React.Fragment>, z),
+  download: (z) => fi(<React.Fragment><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></React.Fragment>, z),
+  truck: (z) => fi(<React.Fragment><rect x="1" y="3" width="15" height="13" rx="1"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></React.Fragment>, z),
+  bag: (z) => fi(<React.Fragment><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></React.Fragment>, z),
+  pin: (z) => fi(<React.Fragment><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></React.Fragment>, z),
+  nav: (z) => fi(<polygon points="3 11 22 2 13 21 11 13 3 11"/>, z),
+  receipt: (z) => fi(<React.Fragment><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></React.Fragment>, z),
+  trash: (z) => fi(<React.Fragment><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></React.Fragment>, z),
+  out: (z) => fi(<React.Fragment><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></React.Fragment>, z),
+  alert: (z) => fi(<React.Fragment><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></React.Fragment>, z),
+  baht: (z) => fi(<React.Fragment><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></React.Fragment>, z)
+};
 const jobValue = (o) => (o.print_cost || 0) + (o.bind_cost || 0); // มูลค่างานปริ้น (ฐานคิดคอม)
 const commOf = (o) => jobValue(o) * COMMISSION;
 const partnerOf = (o) => jobValue(o) - commOf(o);
@@ -79,7 +105,7 @@ function ProLogin({ onOk }){
   // หน้านี้เป็นของร้านพาร์ทเนอร์เท่านั้น — บัญชีเจ้าของ MORE PRINT จัดการงาน Pro ที่หน้า commission.html
   const verify = async () => {
     const a = await DB.rpc('is_admin');
-    if (a.data) { setMsg('หน้านี้แยกเป็นของร้านพาร์ทเนอร์ (อุดมสุข) แล้ว — เจ้าของร้านจัดการงาน Pro ทั้งหมดได้ที่หน้า 💰 ค่าคอม (commission.html) ครับ'); setBusy(false); return; }
+    if (a.data) { setMsg('หน้านี้แยกเป็นของร้านพาร์ทเนอร์ (อุดมสุข) แล้ว — เจ้าของร้านจัดการงาน Pro ทั้งหมดได้ที่หน้า ค่าคอม (commission.html) ครับ'); setBusy(false); return; }
     const p = await DB.rpc('is_partner');
     if (p.data) { onOk('partner'); return; }
     const { data } = await DB.auth.getUser();
@@ -119,9 +145,9 @@ function ProLogin({ onOk }){
   return (
     <div style={css("min-height:100vh;display:flex;align-items:center;justify-content:center;background:var(--bg);padding:20px")}>
       <div style={css("background:var(--card);border:1px solid var(--line);border-radius:18px;padding:28px 24px;width:320px;box-shadow:var(--shadow);display:flex;flex-direction:column;gap:12px;align-items:center")}>
-        <div style={css("font-size:34px")}>✨</div>
+        <img src="assets/logo-black.png" alt="MORE PRINT" style={css("width:74px;height:auto;display:block")}/>
         <div style={css("font-family:'Montserrat',sans-serif;font-weight:800;font-size:17px;letter-spacing:1px")}><span style={css("color:var(--acc)")}>MORE</span> PRINT <span style={css("color:var(--acc)")}>PRO</span></div>
-        <div style={css("font-size:13px;color:var(--sub)")}>{reg ? '📝 สมัครบัญชีร้านพาร์ทเนอร์' : '🔐 หลังบ้านร้านพาร์ทเนอร์ — อุดมสุขปริ้นติ้ง'}</div>
+        <div style={css("font-size:13px;color:var(--sub)")}>{reg ? 'สมัครบัญชีร้านพาร์ทเนอร์' : 'หลังบ้านร้านพาร์ทเนอร์ — อุดมสุขปริ้นติ้ง'}</div>
         <input value={email} onChange={e => setEmail(e.target.value)} placeholder="อีเมล" inputMode="email" autoComplete="email"
           style={css("width:100%;box-sizing:border-box;height:46px;border:1px solid var(--line);border-radius:12px;background:var(--soft);color:var(--ink);padding:0 14px;font-size:14px;outline:none")}/>
         <input type="password" value={pass} onChange={e => setPass(e.target.value)} onKeyDown={e => !reg && e.key === 'Enter' && submit()} placeholder="รหัสผ่าน" autoComplete={reg ? 'new-password' : 'current-password'}
@@ -173,42 +199,40 @@ function ProOrder({ o, idx, isOwner, payoutReady, onPrice, onPayout, onAdvance, 
         {idx != null && <span style={css("flex:none;width:26px;height:26px;border-radius:50%;background:var(--accSoft);color:var(--acc);font-size:12.5px;font-weight:800;display:flex;align-items:center;justify-content:center")}>{idx}</span>}
         <div style={css("flex:1;min-width:0")}>
           <div style={css("font-family:'IBM Plex Mono',monospace;font-size:13px;font-weight:700")}>{o.id}</div>
-          <div style={css("margin-top:2px;font-size:11px;color:var(--sub);overflow:hidden;text-overflow:ellipsis;white-space:nowrap")}>🕐 {fmtWhen(o.created_at)} · ✨ {o.paper || 'งานปริ้น'}{(o.copies || 1) > 1 ? ' × ' + o.copies + ' ชุด' : ''}</div>
+          <div style={css("margin-top:2px;font-size:11px;color:var(--sub);overflow:hidden;text-overflow:ellipsis;white-space:nowrap")}>{FI.clock(11)} {fmtWhen(o.created_at)} · {o.paper || 'งานปริ้น'}{(o.copies || 1) > 1 ? ' × ' + o.copies + ' ชุด' : ''}</div>
         </div>
         <Badge status={o.status} labels={stepsOf(o)}/>
         <span style={css("color:var(--sub);font-size:12px;flex:none")}>{open ? '▲' : '▼'}</span>
       </div>
       {open && <div style={css("padding:0 14px 13px")}>
-      {o.status === 1 && (() => { const m = Math.max(0, Math.round((Date.now() - new Date(o.created_at).getTime()) / 60000)); const t = m < 60 ? m + ' นาที' : (m / 60).toFixed(m < 600 ? 1 : 0).replace(/\.0$/, '') + ' ชม.'; return <div style={css("margin-bottom:8px")}><span style={css("font-size:10.5px;font-weight:700;color:var(--gold);background:var(--goldBg);padding:3px 10px;border-radius:99px")}>⏳ รอรับงาน · ผ่านมา {t}</span></div>; })()}
+      {o.status === 1 && (() => { const m = Math.max(0, Math.round((Date.now() - new Date(o.created_at).getTime()) / 60000)); const t = m < 60 ? m + ' นาที' : (m / 60).toFixed(m < 600 ? 1 : 0).replace(/\.0$/, '') + ' ชม.'; return <div style={css("margin-bottom:8px")}><span style={css("font-size:10.5px;font-weight:700;color:var(--gold);background:var(--goldBg);padding:3px 10px;border-radius:99px")}>{FI.clock(11)} รอรับงาน · ผ่านมา {t}</span></div>; })()}
       {isOwner && <div style={css("margin-bottom:6px;font-size:12px;color:var(--sub)")}>คุณ{o.customer_fname} {o.customer_lname || ''}{o.customer_phone ? <span> · <a href={'tel:' + String(o.customer_phone || '').replace(/[^0-9+]/g, '')}>{o.customer_phone}</a></span> : null}</div>}
-      <div style={css("font-size:17px;font-weight:800;line-height:1.3")}>✨ {o.paper} <span style={css("color:var(--gold)")}>× {o.copies || 1} ชุด</span></div>
+      <div style={css("font-size:17px;font-weight:800;line-height:1.3")}>{FI.file(16)} {o.paper} <span style={css("color:var(--gold)")}>× {o.copies || 1} ชุด</span></div>
       <div style={css("margin-top:8px;display:flex;gap:6px;flex-wrap:wrap")}>
         {[o.sides === 2 ? 'หน้า-หลัง' : 'หน้าเดียว',
           (o.bind && o.bind !== 'none') ? 'เข้าเล่ม' + o.bind : null,
-          o.express ? '⚡ งานด่วน' : null,
-          o.night ? '🌙 กลางคืน' : null].filter(Boolean).map((c, i) => (
+          o.express ? 'งานด่วน' : null,
+          o.night ? 'กลางคืน' : null].filter(Boolean).map((c, i) => (
           <span key={i} style={css("font-size:11px;font-weight:600;background:var(--soft);border:1px solid var(--line);border-radius:8px;padding:3px 10px")}>{c}</span>
         ))}
-        <span style={css("font-size:11px;font-weight:700;padding:3px 10px;border-radius:8px;" + (o.pickup ? "background:var(--goldBg);color:var(--gold)" : "background:var(--accSoft);color:var(--acc)"))}>{o.pickup ? '🏪 ลูกค้ามารับเอง' : '🛵 MORE PRINT ส่ง'}</span>
-        {priced && (o.payout_at
-          ? <span style={css("font-size:11px;font-weight:700;color:#0b7285;background:#e3fafc;padding:3px 10px;border-radius:8px")}>💸 โอนให้ร้านแล้ว</span>
-          : o.status !== 0 && <span style={css("font-size:11px;font-weight:700;color:var(--gold);background:var(--goldBg);padding:3px 10px;border-radius:8px")}>⏳ ค้างโอน</span>)}
+        <span style={css("font-size:11px;font-weight:700;padding:3px 10px;border-radius:8px;" + (o.pickup ? "background:var(--goldBg);color:var(--gold)" : "background:var(--accSoft);color:var(--acc)"))}>{o.pickup ? <React.Fragment>{FI.bag(12)} ลูกค้ามารับเอง</React.Fragment> : <React.Fragment>{FI.truck(12)} MORE PRINT ส่ง</React.Fragment>}</span>
+        {priced && o.payout_at && <span style={css("font-size:11px;font-weight:700;color:#0b7285;background:#e3fafc;padding:3px 10px;border-radius:8px")}>{FI.baht(11)} โอนให้ร้านแล้ว</span>}
       </div>
       <div style={css("margin-top:11px;border-top:1px solid var(--line);padding-top:10px;display:flex;flex-direction:column;gap:8px")}>
         {(o.files || []).length > 0 && (
           <div style={css("display:flex;gap:10px;font-size:12px")}>
-            <span style={css("flex:none;width:76px;color:var(--sub);font-weight:600;padding-top:7px")}>📎 ไฟล์</span>
+            <span style={css("flex:none;width:76px;color:var(--sub);font-weight:600;padding-top:7px")}>{FI.clip(13)} ไฟล์</span>
             <div style={css("flex:1;min-width:0;display:flex;flex-direction:column;gap:5px")}>
               {(o.files || []).map((f, i) => (
                 <div key={i} style={css("display:flex;align-items:center;gap:8px;background:var(--soft);border-radius:9px;padding:7px 10px")}>
-                  <span>{f.drive_url ? '🗂️' : '📄'}</span>
+                  <span style={{ lineHeight: 0, color: 'var(--acc)' }}>{FI.file(16)}</span>
                   <span style={css("flex:1;min-width:0;font-size:12px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap")}>{f.name}</span>
                   <span style={css("font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:var(--sub);flex:none")}>{f.pages} หน้า</span>
                   {f.drive_url
-                    ? <a href={f.drive_url} target="_blank" rel="noreferrer" style={css("flex:none;font-size:11px;font-weight:700;color:var(--gold);text-decoration:none;background:var(--goldBg);padding:3px 9px;border-radius:8px")}>⬇ ไฟล์ใหญ่</a>
+                    ? <a href={f.drive_url} target="_blank" rel="noreferrer" style={css("flex:none;font-size:13.5px;font-weight:800;color:#fff;text-decoration:none;background:var(--gold);padding:10px 18px;border-radius:10px;box-shadow:var(--shadow)")}>{FI.download(15)} เปิดไฟล์ใหญ่</a>
                     : fileUrl(f.path)
-                      ? <a href={fileUrl(f.path)} target="_blank" rel="noreferrer" style={css("flex:none;font-size:11px;font-weight:700;color:var(--acc);text-decoration:none;background:var(--accSoft);padding:3px 9px;border-radius:8px")}>⬇ เปิดไฟล์</a>
-                      : <span style={css("flex:none;font-size:10.5px;font-weight:700;color:#c92a2a;background:#ffe3e3;padding:3px 9px;border-radius:8px")}>⚠️ ไฟล์อัปไม่สำเร็จ — แจ้ง MORE PRINT ขอไฟล์จากลูกค้า</span>}
+                      ? <a href={fileUrl(f.path)} target="_blank" rel="noreferrer" style={css("flex:none;font-size:13.5px;font-weight:800;color:#fff;text-decoration:none;background:var(--acc);padding:10px 18px;border-radius:10px;box-shadow:var(--shadow)")}>{FI.download(15)} เปิดไฟล์</a>
+                      : <span style={css("flex:none;font-size:10.5px;font-weight:700;color:#c92a2a;background:#ffe3e3;padding:3px 9px;border-radius:8px")}>{FI.alert(12)} ไฟล์อัปไม่สำเร็จ — แจ้ง MORE PRINT ขอไฟล์จากลูกค้า</span>}
                 </div>
               ))}
             </div>
@@ -216,35 +240,35 @@ function ProOrder({ o, idx, isOwner, payoutReady, onPrice, onPayout, onAdvance, 
         )}
         {o.status === 0 && o.cancel_reason && (
           <div style={css("display:flex;gap:10px;font-size:12px")}>
-            <span style={css("flex:none;width:76px;color:#c92a2a;font-weight:600")}>📝 ยกเลิก</span>
+            <span style={css("flex:none;width:76px;color:#c92a2a;font-weight:600")}>{FI.x(13)} ยกเลิก</span>
             <div style={css("flex:1;color:#c92a2a")}>{o.cancel_reason}</div>
           </div>
         )}
       </div>
       {/* ── ใบออเดอร์เต็ม: กดปุ่มถึงโชว์รายละเอียดทั้งหมด (ที่อยู่ · สลิป · ยอดเงิน) ── */}
-      <button onClick={() => setFull(v => !v)} style={css("margin-top:10px;width:100%;height:38px;border:1px solid var(--line);border-radius:10px;background:var(--soft);color:var(--ink);font-size:12px;font-weight:700;cursor:pointer")}>📋 {full ? 'ซ่อนใบออเดอร์เต็ม ▴' : 'ดูใบออเดอร์เต็ม — ที่อยู่ · สลิป · ยอดเงิน ▾'}</button>
+      <button onClick={() => setFull(v => !v)} style={css("margin-top:10px;width:100%;height:38px;border:1px solid var(--line);border-radius:10px;background:var(--soft);color:var(--ink);font-size:12px;font-weight:700;cursor:pointer")}>{FI.clipboard(13)} {full ? 'ซ่อนใบออเดอร์เต็ม ▴' : 'ดูใบออเดอร์เต็ม — ที่อยู่ · สลิป · ยอดเงิน ▾'}</button>
       {full && <div style={css("margin-top:10px;border-top:1px dashed var(--line);padding-top:10px;display:flex;flex-direction:column;gap:8px")}>
         <div style={css("display:flex;gap:10px;font-size:12px")}>
-          <span style={css("flex:none;width:76px;color:var(--sub);font-weight:600")}>🛵 การรับงาน</span>
+          <span style={css("flex:none;width:76px;color:var(--sub);font-weight:600")}>{FI.truck(13)} การรับงาน</span>
           <div style={css("flex:1;min-width:0;line-height:1.6")}>
             {o.pickup
               ? <b>ลูกค้ามารับเองที่ร้าน — ไม่ต้องจัดส่ง</b>
               : <span><b>ทีมงาน MORE PRINT ไปรับที่ร้าน แล้วจัดส่งให้ลูกค้าเอง</b>
-                  {(o.addr || o.point) && <span style={css("display:block;color:var(--sub)")}>📍 {(o.addr || o.point || '').replace(/^(🚗|🏍️)\s*/, '')}
+                  {(o.addr || o.point) && <span style={css("display:block;color:var(--sub)")}>{FI.pin(11)} {(o.addr || o.point || '').replace(/^(🚗|🏍️)\s*/, '')}
                     <a href={o.lat != null && o.lng != null
                         ? 'https://www.google.com/maps?q=' + o.lat + ',' + o.lng
                         : 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(String(o.addr || o.point || '').replace(/^(🚗|🏍️)\s*/, ''))}
-                      target="_blank" rel="noreferrer" style={css("margin-left:8px;font-weight:700;color:var(--acc)")}>🧭 นำทาง</a></span>}
+                      target="_blank" rel="noreferrer" style={css("margin-left:8px;font-weight:700;color:var(--acc)")}>{FI.nav(12)} นำทาง</a></span>}
                 </span>}
           </div>
         </div>
         {o.slip_path && fileUrl(o.slip_path) && (
           <div style={css("display:flex;gap:10px;font-size:12px")}>
-            <span style={css("flex:none;width:76px;color:var(--sub);font-weight:600")}>🧾 สลิป</span>
+            <span style={css("flex:none;width:76px;color:var(--sub);font-weight:600")}>{FI.receipt(13)} สลิป</span>
             {isOwner
               ? <a href={fileUrl(o.slip_path)} target="_blank" rel="noreferrer" style={css("text-decoration:none")}>
                   <img src={fileUrl(o.slip_path)} alt="สลิป" style={css("max-width:110px;max-height:140px;border-radius:9px;border:1px solid var(--line);display:block;background:var(--soft)")} onError={(e) => { e.target.parentElement.style.display = 'none'; }}/>
-                  <span style={css("font-size:10.5px;color:var(--acc);font-weight:600")}>🔍 เปิดดูเต็มจอ</span>
+                  <span style={css("font-size:10.5px;color:var(--acc);font-weight:600")}>เปิดดูเต็มจอ</span>
                 </a>
               : <a href={fileUrl(o.slip_path)} target="_blank" rel="noreferrer" style={css("font-weight:700;color:var(--acc)")}>เปิดดูสลิปโอนเงินของลูกค้า →</a>}
           </div>
@@ -256,7 +280,7 @@ function ProOrder({ o, idx, isOwner, payoutReady, onPrice, onPayout, onAdvance, 
           <div style={css("display:flex;justify-content:space-between;font-weight:700" + (isOwner ? ";border-top:1px dashed var(--line);padding-top:5px" : ""))}><span>{isOwner ? 'ยอดโอนให้ร้านพาร์ทเนอร์' : 'ส่วนของร้านคุณ (หลังหักคอม ' + Math.round(COMMISSION * 100) + '%)'}</span><span style={css("font-family:'IBM Plex Mono',monospace;color:var(--gold)")}>{baht(partnerOf(o))}</span></div>
           {isOwner && o.status !== 0 && !o.payout_at && (
             payoutReady
-              ? <button onClick={askPayout} style={css("margin-top:6px;height:38px;border:none;border-radius:10px;background:" + (confirmPay ? "#0b7285" : "var(--gold)") + ";color:#fff;font-size:12.5px;font-weight:700;cursor:pointer")}>{confirmPay ? 'กดอีกครั้งเพื่อยืนยัน — โอนเงินแล้วจริงๆ' : '💸 โอนเงินให้ร้านแล้ว — บันทึก'}</button>
+              ? <button onClick={askPayout} style={css("margin-top:6px;height:38px;border:none;border-radius:10px;background:" + (confirmPay ? "#0b7285" : "var(--gold)") + ";color:#fff;font-size:12.5px;font-weight:700;cursor:pointer")}>{confirmPay ? 'กดอีกครั้งเพื่อยืนยัน — โอนเงินแล้วจริงๆ' : 'โอนเงินให้ร้านแล้ว — บันทึก'}</button>
               : <div style={css("margin-top:6px;font-size:11px;color:#c92a2a;font-weight:600")}>⚠️ รัน SQL เพิ่มคอลัมน์ payout_at ก่อน จึงจะบันทึกการโอนได้</div>
           )}
           {o.payout_at && <div style={css("font-size:11px;color:#0b7285")}>บันทึกการโอนเมื่อ {fmtWhen(o.payout_at)}</div>}
@@ -277,13 +301,13 @@ function ProOrder({ o, idx, isOwner, payoutReady, onPrice, onPayout, onAdvance, 
           {o.status === 1
             ? <button onClick={() => onPartnerAdvance(o)} style={css("flex:1;min-height:47px;border:none;border-radius:12px;background:var(--acc);color:#fff;font-size:13.5px;font-weight:800;cursor:pointer")}>✓ รับงาน — เริ่มผลิต</button>
             : o.status === 2
-              ? <button onClick={() => onPartnerAdvance(o)} style={css("flex:1;min-height:54px;border:none;border-radius:12px;background:#0ca678;color:#fff;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px")}>
-                  <span style={css("font-size:14.5px;font-weight:800")}>✅ งานเสร็จแล้วกดปุ่มนี้!!</span>
-                  <span style={css("font-size:11px;opacity:.95;font-weight:600")}>{o.pickup ? 'รอลูกค้ามารับที่ร้าน' : 'รอ Rider มารับงาน'}</span>
+              ? <button onClick={() => onPartnerAdvance(o)} style={css("flex:1;min-height:54px;border:none;border-radius:12px;background:#33E039;color:#063f0e;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px")}>
+                  <span style={css("font-size:15px;font-weight:800")}>งานเสร็จสิ้น {FI.check(16)}</span>
+                  <span style={css("font-size:11px;opacity:.85;font-weight:700")}>{o.pickup ? 'รอลูกค้ามารับที่ร้าน' : 'รอ Rider มารับงาน'}</span>
                 </button>
               : o.pickup
                 ? <button onClick={() => onPartnerAdvance(o)} style={css("flex:1;min-height:47px;border:none;border-radius:12px;background:var(--acc);color:#fff;font-size:13.5px;font-weight:800;cursor:pointer")}>→ อัปเดตเป็น "{stepsOf(o)[Math.min(o.status, 3)]}"</button>
-                : <div style={css("flex:1;background:var(--accSoft);border-radius:10px;padding:9px 12px;font-size:11.5px;color:var(--acc);font-weight:600;display:flex;align-items:center")}>🛵 ไรเดอร์ MORE PRINT กำลังมารับงานไปส่งให้ลูกค้า — ส่งเสร็จสถานะจะขึ้น "จัดส่งสำเร็จ" เอง</div>}
+                : <div style={css("flex:1;background:var(--accSoft);border-radius:10px;padding:9px 12px;font-size:11.5px;color:var(--acc);font-weight:600;display:flex;align-items:center")}>{FI.truck(13)}&nbsp; ไรเดอร์ MORE PRINT กำลังมารับงานไปส่งให้ลูกค้า — ส่งเสร็จสถานะจะขึ้น "จัดส่งสำเร็จ" เอง</div>}
           <button onClick={() => setCancelOpen(v => !v)} style={css("flex:none;padding:0 12px;border:1px solid #ffa8a8;border-radius:10px;background:none;color:#c92a2a;font-size:11.5px;font-weight:700;cursor:pointer")}>✕ ยกเลิก</button>
         </div>
       )}
@@ -299,7 +323,7 @@ function ProOrder({ o, idx, isOwner, payoutReady, onPrice, onPayout, onAdvance, 
         <button onClick={() => { if (!confirmDel) { setConfirmDel(true); setTimeout(() => setConfirmDel(false), 4000); return; } setConfirmDel(false); onPartnerRemove(o); }}
           style={{ marginTop: '9px', width: '100%', height: '38px', border: 'none', borderRadius: '10px', fontSize: '12px', fontWeight: 700, cursor: 'pointer',
             background: confirmDel ? '#c92a2a' : '#ffe3e3', color: confirmDel ? '#fff' : '#c92a2a' }}>
-          {confirmDel ? '⚠️ แน่ใจนะ? กดอีกครั้งเพื่อลบถาวร' : '🗑️ ลบออเดอร์นี้ถาวร (รวมไฟล์+สลิป)'}
+          {confirmDel ? 'แน่ใจนะ? กดอีกครั้งเพื่อลบถาวร' : 'ลบออเดอร์นี้ถาวร (รวมไฟล์+สลิป)'}
         </button>
       )}
       {isOwner && o.status > 0 && o.status < 4 && (
@@ -507,13 +531,13 @@ function Dash({ role }){
     tier: c.n >= 5 ? 2 : c.n >= 2 ? 1 : 0 // ⭐ประจำ ≥5 / 🔁ซ้ำ 2-4 / 🆕ใหม่
   })).sort((a, b) => b.n - a.n || b.spend - a.spend);
 
-  const NAV = [['home', '🏠', 'ภาพรวม'], ['orders', '📋', 'ออเดอร์'], ['sales', '📈', 'ยอดขาย'], ['customers', '👥', 'ลูกค้า']];
+  const NAV = [['home', FI.home(17), 'ภาพรวม'], ['orders', FI.clipboard(17), 'ออเดอร์'], ['sales', FI.chart(17), 'ยอดขาย'], ['customers', FI.users(17), 'ลูกค้า']];
   return (
     <div>
       {/* ── แถบเมนูซ้าย (ตามเรฟ) ── */}
       <div className={"mp-side" + (navOpen ? " open" : "")}>
         <div style={css("display:flex;align-items:center;gap:10px;padding:2px 8px 14px;border-bottom:1px solid #1d4568")}>
-          <div style={css("font-size:22px;flex:none")}>✨</div>
+          <div style={css("width:38px;height:38px;border-radius:10px;background:#fff;flex:none;display:flex;align-items:center;justify-content:center;overflow:hidden")}><img src="assets/logo-black.png" alt="MORE PRINT" style={css("width:32px;height:auto;display:block")}/></div>
           <div style={css("min-width:0")}>
             <div style={css("font-family:'Montserrat',sans-serif;font-weight:800;font-size:13.5px;letter-spacing:1px;color:#fff")}><span style={css("color:#5fc0ff")}>MORE</span> PRINT <span style={css("color:#5fc0ff")}>PRO</span></div>
             <div style={css("font-size:9.5px;color:#8fb4d1;margin-top:2px")}>หลังบ้านร้านพาร์ทเนอร์</div>
@@ -528,7 +552,7 @@ function Dash({ role }){
             </button>
           ))}
         </div>
-        {DB && <button onClick={() => DB.auth.signOut().then(() => location.reload())} style={css("display:flex;align-items:center;gap:10px;height:42px;padding:0 12px;border-radius:11px;border:1px solid #1d4568;background:none;color:#8fb4d1;cursor:pointer;font-family:inherit;font-size:12.5px;font-weight:700")}>⎋ ออกจากระบบ</button>}
+        {DB && <button onClick={() => DB.auth.signOut().then(() => location.reload())} style={css("display:flex;align-items:center;gap:10px;height:42px;padding:0 12px;border-radius:11px;border:1px solid #1d4568;background:none;color:#8fb4d1;cursor:pointer;font-family:inherit;font-size:12.5px;font-weight:700")}>{FI.out(15)} ออกจากระบบ</button>}
       </div>
       <div className={"mp-scrim" + (navOpen ? " show" : "")} onClick={() => setNavOpen(false)}></div>
 
@@ -536,20 +560,20 @@ function Dash({ role }){
     <div style={css("min-height:100vh;background:var(--bg)")}>
       <div style={css("background:#0e2a44;color:#fff;padding:16px 18px;display:flex;align-items:center;gap:12px;position:sticky;top:0;z-index:10")}>
         <button className="mp-burger" onClick={() => setNavOpen(true)} style={css("background:#1d4568;border:none;color:#fff;width:38px;height:38px;border-radius:10px;font-size:17px;cursor:pointer;align-items:center;justify-content:center;flex:none")}>☰</button>
-        <div style={css("font-size:22px")}>✨</div>
+        <div style={css("width:40px;height:40px;border-radius:11px;background:#fff;flex:none;display:flex;align-items:center;justify-content:center;overflow:hidden")}><img src="assets/logo-black.png" alt="MORE PRINT" style={css("width:34px;height:auto;display:block")}/></div>
         <div style={css("flex:1;min-width:0")}>
           <div style={css("font-family:'Montserrat',sans-serif;font-weight:800;font-size:15px;letter-spacing:1px")}><span style={css("color:#5fc0ff")}>MORE</span> PRINT <span style={css("color:#5fc0ff")}>PRO</span></div>
           <div style={css("font-family:'IBM Plex Mono',monospace;font-size:9.5px;letter-spacing:2px;color:#5fc0ff")}>{isOwner ? 'PARTNER FINANCE · คอม ' + Math.round(COMMISSION * 100) + '%' : 'PARTNER VIEW · ส่วนแบ่งร้านคุณ ' + Math.round((1 - COMMISSION) * 100) + '%'}</div>
         </div>
         {!DB && <span style={css("font-size:10px;font-weight:700;background:#f59f00;color:#0e2a44;padding:3px 10px;border-radius:99px")}>DEMO</span>}
-        {isOwner && <a href="commission.html" style={css("color:#ffd43b;font-size:11.5px;font-weight:700;text-decoration:none")}>💰 ค่าคอม</a>}
+        {isOwner && <a href="commission.html" style={css("color:#ffd43b;font-size:11.5px;font-weight:700;text-decoration:none")}>{FI.baht(12)} ค่าคอม</a>}
         {isOwner && <a href="admin.html" style={css("color:#5fc0ff;font-size:11.5px;font-weight:700;text-decoration:none")}>← หลังบ้านหลัก</a>}
         <button onClick={load} style={css("height:32px;padding:0 12px;border:1px solid #2b5c85;border-radius:9px;background:none;color:#fff;font-size:11.5px;cursor:pointer")}>{loading ? '…' : '⟳ รีเฟรช'}</button>
 
       </div>
 
       <div style={css("padding:14px 16px 40px;display:flex;flex-direction:column;gap:12px;max-width:760px;margin:0 auto")}>
-        {!DB && <div style={css("background:var(--goldBg);border:1px solid #f0dfa6;border-radius:12px;padding:10px 14px;font-size:12px;color:var(--gold);line-height:1.6")}>⚠️ โหมดตัวอย่าง — ข้อมูลด้านล่างเป็นเพียงตัวอย่าง</div>}
+        {!DB && <div style={css("background:var(--goldBg);border:1px solid #f0dfa6;border-radius:12px;padding:10px 14px;font-size:12px;color:var(--gold);line-height:1.6")}>{FI.alert(13)} โหมดตัวอย่าง — ข้อมูลด้านล่างเป็นเพียงตัวอย่าง</div>}
 
         {/* ภาพรวมร้านวันนี้ (แบบแดชบอร์ด) */}
         {page === 'home' && <React.Fragment>
@@ -605,7 +629,7 @@ function Dash({ role }){
         {/* กราฟยอดขาย */}
         <div style={css("background:var(--card);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow);padding:14px 16px")}>
           <div style={css("display:flex;align-items:center;gap:8px")}>
-            <div style={css("font-size:13px;font-weight:700;flex:1")}>📈 กราฟยอดขาย</div>
+            <div style={css("font-size:13px;font-weight:700;flex:1")}>{FI.chart(13)} กราฟยอดขาย</div>
             {[['d', 'รายวัน'], ['m', 'รายเดือน'], ['y', 'รายปี']].map(([k, label]) => (
               <button key={k} onClick={() => setChartMode(k)} style={{ height: '30px', padding: '0 12px', borderRadius: '99px', cursor: 'pointer', fontSize: '11.5px', fontWeight: 700, fontFamily: 'inherit',
                 border: chartMode === k ? '1.5px solid var(--acc)' : '1px solid var(--line)',
@@ -628,7 +652,7 @@ function Dash({ role }){
         {page === 'home' && <React.Fragment>
         {/* ยอดค้างโอน */}
         <div style={css("background:var(--goldBg);border:1.5px solid #f0c36d;border-radius:14px;padding:13px 16px;display:flex;align-items:center;gap:12px")}>
-          <div style={css("font-size:26px")}>💸</div>
+          <div style={css("color:var(--gold);line-height:0")}>{FI.baht(26)}</div>
           <div style={css("flex:1")}>
             <div style={css("font-size:12px;font-weight:700;color:var(--gold)")}>{isOwner ? 'ยอดค้างโอนให้ร้านพาร์ทเนอร์ (หักคอมแล้ว)' : 'ยอดที่ MORE PRINT เตรียมโอนให้ร้านคุณ (หักคอมแล้ว)'}</div>
             <div style={css("font-size:22px;font-weight:800;font-family:'IBM Plex Mono',monospace;color:var(--gold)")}>{baht(owedSum)}</div>
@@ -640,7 +664,7 @@ function Dash({ role }){
         {page === 'sales' && <React.Fragment>
         {/* บันทึกข้อมูลออเดอร์รายเดือน */}
         <div style={css("background:var(--card);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);overflow-x:auto")}>
-          <div style={css("padding:12px 16px 0;font-size:12.5px;font-weight:700;color:var(--sub)")}>📊 บันทึกออเดอร์รายเดือน</div>
+          <div style={css("padding:12px 16px 0;font-size:12.5px;font-weight:700;color:var(--sub)")}>{FI.chart(13)} บันทึกออเดอร์รายเดือน</div>
           <table style={css("border-collapse:collapse;width:100%;margin-top:6px")}>
             <thead><tr>
               {['เดือน', 'ออเดอร์', 'ยอดงานรวม', isOwner ? 'คอมเรา' : 'ส่วนของร้านคุณ'].map((h, i) => (
@@ -672,7 +696,7 @@ function Dash({ role }){
           const inWork = orders.filter(o => o.status > 0 && o.status < 4);
           const doneL = orders.filter(o => o.status === 4 && inPeriod(o));
           const cancelL = orders.filter(o => o.status === 0 && inPeriod(o));
-          const TABS = [['active', '🖨️ กำลังทำ', inWork], ['done', '✅ เสร็จแล้ว', doneL], ['cancel', '❌ ยกเลิก', cancelL]];
+          const TABS = [['active', <React.Fragment>{FI.printer(13)} กำลังทำ</React.Fragment>, inWork], ['done', <React.Fragment>{FI.check(13)} เสร็จแล้ว</React.Fragment>, doneL], ['cancel', <React.Fragment>{FI.x(13)} ยกเลิก</React.Fragment>, cancelL]];
           const cur = TABS.find(t => t[0] === filter) || TABS[0];
           return (
             <React.Fragment>
@@ -703,15 +727,15 @@ function Dash({ role }){
 
         {/* ── หมวดลูกค้า ── */}
         {page === 'customers' && customers.length === 0 && <div style={css("text-align:center;color:var(--sub);font-size:13px;padding:30px 0")}>ยังไม่มีลูกค้างาน Pro</div>}
-        {page === 'customers' && customers.length > 0 && <div style={css("font-size:12.5px;font-weight:700;color:var(--sub);margin-top:6px")}>👥 ลูกค้าประจำงาน PRO ({customers.length} คน · ⭐ ประจำ {customers.filter(c => c.tier === 2).length} คน)</div>}
+        {page === 'customers' && customers.length > 0 && <div style={css("font-size:12.5px;font-weight:700;color:var(--sub);margin-top:6px")}>{FI.users(13)} ลูกค้าประจำงาน PRO ({customers.length} คน · ประจำ {customers.filter(c => c.tier === 2).length} คน)</div>}
         {page === 'customers' && customers.map((cst, i) => (
           <div key={i} style={css("background:var(--card);border:1px solid " + (cst.tier === 2 ? "#ffd43b" : "var(--line)") + ";border-radius:12px;padding:11px 14px;display:flex;align-items:center;gap:12px;box-shadow:var(--shadow)")}>
-            <div style={css("width:36px;height:36px;border-radius:50%;background:var(--accSoft);color:var(--acc);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:" + (i < 3 ? "17px" : "14px") + ";flex:none")}>{i < 3 ? ['🥇', '🥈', '🥉'][i] : (cst.name || '?').trim().charAt(0)}</div>
+            <div style={css("width:36px;height:36px;border-radius:50%;background:var(--accSoft);color:var(--acc);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:" + (i < 3 ? "17px" : "14px") + ";flex:none")}>{i < 3 ? (i + 1) : (cst.name || '?').trim().charAt(0)}</div>
             <div style={css("flex:1;min-width:0")}>
               <div style={css("display:flex;align-items:center;gap:6px;min-width:0")}>
                 <span style={css("font-size:13px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap")}>คุณ{cst.name || 'ไม่ระบุชื่อ'}</span>
-                {cst.tier === 2 && <span style={css("flex:none;font-size:9px;font-weight:700;background:#fff3bf;color:#e8590c;border-radius:99px;padding:2px 7px")}>⭐ ประจำ</span>}
-                {cst.tier === 1 && <span style={css("flex:none;font-size:9px;font-weight:700;background:#e7f5ff;color:#1971c2;border-radius:99px;padding:2px 7px")}>🔁 มาซ้ำ</span>}
+                {cst.tier === 2 && <span style={css("flex:none;font-size:9px;font-weight:700;background:#fff3bf;color:#e8590c;border-radius:99px;padding:2px 7px")}>ประจำ</span>}
+                {cst.tier === 1 && <span style={css("flex:none;font-size:9px;font-weight:700;background:#e7f5ff;color:#1971c2;border-radius:99px;padding:2px 7px")}>มาซ้ำ</span>}
                 {cst.tier === 0 && <span style={css("flex:none;font-size:9px;font-weight:700;background:var(--soft);color:var(--sub);border-radius:99px;padding:2px 7px")}>🆕 ใหม่</span>}
               </div>
               <div style={css("margin-top:2px;font-size:11px;color:var(--sub);overflow:hidden;text-overflow:ellipsis;white-space:nowrap")}>
