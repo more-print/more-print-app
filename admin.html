@@ -481,6 +481,7 @@ function AdminApp(){
   const [histRows, setHistRows] = React.useState(null);
   const [threads, setThreads] = React.useState(null); // รายการห้องแชททั้งหมด (แท็บแชท)
   const [openChat, setOpenChat] = React.useState(null); // order_id ของห้องที่กำลังเปิด
+  const [chatQ, setChatQ] = React.useState(''); // ค้นหาห้องแชท: รหัสออเดอร์/ชื่อลูกค้า/ข้อความ
   const [unreadMap, setUnreadMap] = React.useState({}); // {order_id: จำนวนข้อความใหม่จากลูกค้า}
   const clearUnread = React.useCallback((oid) => setUnreadMap(m => { const n = { ...m }; delete n[oid]; return n; }), []);
   // รายการห้องแชท (เรียงข้อความล่าสุดขึ้นก่อน) — โหลดเมื่อเปิดแท็บแชท
@@ -1133,11 +1134,26 @@ function AdminApp(){
             );
           })()}
 
+          {/* ── ค้นหาห้องแชท ── */}
+          {!openChat && Array.isArray(threads) && threads.length > 0 && (
+            <input value={chatQ} onChange={e => setChatQ(e.target.value)} placeholder="🔍 ค้นหา: รหัสออเดอร์ · ชื่อลูกค้า · ข้อความ"
+              style={css("width:100%;box-sizing:border-box;height:44px;border:1px solid var(--line);border-radius:12px;background:var(--card);color:var(--ink);padding:0 14px;font-size:13px;outline:none;box-shadow:var(--shadow)")}/>
+          )}
           {/* ── รายการห้องแชททั้งหมด (ยังไม่ตอบขึ้นก่อน) ── */}
           {!openChat && Array.isArray(threads) && threads.length === 0 && (
             <div style={css("text-align:center;color:var(--sub);font-size:13px;padding:36px 0;line-height:1.8")}>ยังไม่มีลูกค้าทักเข้ามา<br/><span style={css("font-size:11.5px")}>ข้อความจากลูกค้าทุกออเดอร์จะมารวมที่นี่</span></div>
           )}
-          {!openChat && Array.isArray(threads) && threads.slice().sort((a, b) => (b.unread - a.unread) || (b.last.id - a.last.id)).map(th => {
+          {!openChat && Array.isArray(threads) && threads.length > 0 && (() => {
+            const q = chatQ.trim().toLowerCase();
+            const list = threads.filter(th => {
+              if (!q) return true;
+              const ord = orders.find(x => x.id === th.id) || {};
+              return String(th.id || '').toLowerCase().includes(q)
+                || ((ord.customer_fname || '') + ' ' + (ord.customer_lname || '')).toLowerCase().includes(q)
+                || String(th.last.body || '').toLowerCase().includes(q);
+            });
+            if (!list.length) return <div style={css("text-align:center;color:var(--sub);font-size:13px;padding:26px 0")}>ไม่พบห้องแชทที่ตรงกับ "{chatQ}"</div>;
+            return list.slice().sort((a, b) => (b.unread - a.unread) || (b.last.id - a.last.id)).map(th => {
             const ord = orders.find(x => x.id === th.id) || {};
             const mine = th.last.sender === 'shop';
             return (
@@ -1160,7 +1176,7 @@ function AdminApp(){
                 </div>
               </div>
             );
-          })}
+          }); })()}
         </div>
       )}
 

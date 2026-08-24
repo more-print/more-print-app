@@ -296,6 +296,7 @@ function Dash(){
   const [bill, setBill] = React.useState(null); // {y, m} = เปิดหน้าบิลของเดือนนั้น
   const [period, setPeriod] = React.useState('day');
   const [filter, setFilter] = React.useState('active');
+  const [ordQ, setOrdQ] = React.useState(''); // ค้นหาออเดอร์: รหัส/ชื่อ/เบอร์/ชนิดงาน
   const [chartMode, setChartMode] = React.useState('d'); // กราฟรายได้: d รายวัน · m รายเดือน · y รายปี
   const [page, setPage] = React.useState('home');      // เมนูซ้าย: home/orders/income/bills/customers
   const [navOpen, setNavOpen] = React.useState(false);
@@ -754,6 +755,12 @@ function Dash(){
           const cancelL = orders.filter(o => o.status === 0 && inPeriod(o));
           const TABS = [['active', '🖨️ กำลังทำ', inWork], ['done', '✅ เสร็จแล้ว', doneL], ['cancel', '❌ ยกเลิก', cancelL]];
           const cur = TABS.find(t => t[0] === filter) || TABS[0];
+          const q = ordQ.trim().toLowerCase(), qd = q.replace(/\D/g, '');
+          const shown = cur[2].filter(o => !q
+            || String(o.id || '').toLowerCase().includes(q)
+            || ((o.customer_fname || '') + ' ' + (o.customer_lname || '')).toLowerCase().includes(q)
+            || (qd.length >= 3 && String(o.customer_phone || '').replace(/\D/g, '').includes(qd))
+            || String(o.paper || '').toLowerCase().includes(q));
           return (
             <React.Fragment>
               <div style={css("font-size:13px;font-weight:700")}>📋 งาน PRO {curP[1]} <span style={css("font-size:10.5px;font-weight:400;color:var(--sub)")}>· เปลี่ยนช่วงเวลาได้ที่แถบบนสุด · งานที่ยังไม่เสร็จแสดงทุกช่วงเสมอ</span></div>
@@ -766,9 +773,12 @@ function Dash(){
                   </button>
                 ))}
               </div>
+              <input value={ordQ} onChange={e => setOrdQ(e.target.value)} placeholder="🔍 ค้นหาออเดอร์: รหัส · ชื่อลูกค้า · เบอร์ · ชนิดงาน"
+                style={css("width:100%;box-sizing:border-box;height:44px;border:1px solid var(--line);border-radius:12px;background:var(--card);color:var(--ink);padding:0 14px;font-size:13px;outline:none;box-shadow:var(--shadow)")}/>
               {loading && <div style={css("text-align:center;color:var(--sub);font-size:13px;padding:16px 0")}>กำลังโหลด…</div>}
               {!loading && cur[2].length === 0 && <div style={css("text-align:center;color:var(--sub);font-size:13px;padding:28px 0")}>ไม่มีงานในหมวดนี้</div>}
-              {cur[2].map(o => (
+              {!loading && cur[2].length > 0 && shown.length === 0 && <div style={css("text-align:center;color:var(--sub);font-size:13px;padding:28px 0")}>ไม่พบออเดอร์ที่ตรงกับ "{ordQ}"</div>}
+              {shown.map(o => (
           <div key={o.id} style={css("background:var(--card);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);padding:12px 16px" + (o.status === 0 ? ";opacity:.5" : ""))}>
             <div style={css("display:flex;align-items:center;gap:8px;flex-wrap:wrap")}>
               <span style={css("font-family:'IBM Plex Mono',monospace;font-size:12.5px;font-weight:600")}>{o.id}</span>
