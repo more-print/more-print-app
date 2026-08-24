@@ -220,10 +220,10 @@ const ICON_PRO = {
 };
 
 const PRO_TYPES = [
-  { k: 'plate', icon: '🪧', label: 'เพลท', sizes: ['A0', 'A1', 'A2', 'A3', 'A4'] },
-  { k: 'poster', icon: '🖼️', label: 'โปสเตอร์', sizes: ['A0', 'A1', 'A2', 'A3', 'A4'], sidesOpt: true },
+  { k: 'plate', icon: '🪧', label: 'เพลท', sizes: ['A4', 'A3', 'A2', 'A1', 'A0'] },
+  { k: 'poster', icon: '🖼️', label: 'โปสเตอร์', sizes: ['A4', 'A3', 'A2', 'A1', 'A0'], sidesOpt: true },
   { k: 'postcard', icon: '💌', label: 'Postcard' },
-  { k: 'foldbook', icon: '📖', label: 'พับครึ่ง หน้า-หลัง (เข้าเล่ม/เมนู)', sizes: ['A2', 'A3', 'A4'], bindOpt: true },
+  { k: 'foldbook', icon: '📖', label: 'พับครึ่ง หน้า-หลัง (เข้าเล่ม/เมนู)', sizes: ['A4', 'A3', 'A2'], bindOpt: true },
   { k: 'portfolio', icon: '📁', label: 'Portfolio' },
   { k: 'sticker', icon: '🏷️', label: 'สติ๊กเกอร์' },
   { k: 'namecard', icon: '💳', label: 'นามบัตร', qty: [100, 200, 300] },
@@ -303,9 +303,9 @@ class App extends React.Component {
     this.state = {
       screen: 'home', files: [], tier: 'standard', ptype: 'bw', paper: 'A4', sides: 1, orient: 'portrait', nup: 1, bind: 'none', copies: 1,
       vehicle: 'bike', // พาหนะส่งที่ลูกค้าเลือกเอง: 'bike' มอเตอร์ไซค์ · 'car' รถยนต์ (ใช้ทั้ง Standard และ Pro)
-      reviews: [], reviewsReady: false, revStars: 5, revText: '', trackStars: 5, trackText: '',
+      reviews: [], reviewsReady: false, revAll: false, revStars: 5, revText: '', trackStars: 5, trackText: '',
       alertPrompt: false, alertAck: false,
-      proType: 'plate', proSize: 'A0', proBind: 'ไสกาว', proQty: 100, proPickup: false,
+      proType: 'plate', proSize: 'A4', proBind: 'ไสกาว', proQty: 100, proPickup: false,
       proLam: 'none', proSpecial: false, proStaple: false, proStand: false, // ตัวเลือกเสริมงาน Pro (เคลือบ/กระดาษพิเศษ/เย็บ/ขาตั้ง)
       distKm: null, distSrc: '', trackOpen: false, trackMin: false,
       // ประวัติการสั่ง (เก็บในเครื่อง): ออเดอร์ที่ผลิต/ส่งสำเร็จแล้ว ทั้ง standard และ pro
@@ -1562,10 +1562,16 @@ class App extends React.Component {
           : '* สแกนไฟล์แล้ว: ทุกหน้าสีน้อย ฿' + (CONFIG.colorLightPrice ?? 5) + '/หน้า')
         : s.ptype === 'poster' ? '* กระดาษอาร์ตมัน/ด้าน ราคาเท่ากัน' : '',
       colorBreak: s.tier === 'pro' ? ''
-        : s.ptype === 'color' && c.heavyPages > 0 ? '🎨 สีน้อย ' + c.lightPages + ' หน้า × ฿' + (CONFIG.colorLightPrice ?? 5) + ' + สีเยอะ ' + c.heavyPages + ' หน้า × ฿' + (CONFIG.colorHeavyPrice ?? 7)
+        : s.ptype === 'color' && (c.heavyPages > 0 || (s.nup || 1) > 1) && c.totalPages > 0 ? (() => {
+            const lp = CONFIG.colorLightPrice ?? 5, hp = CONFIG.colorHeavyPrice ?? 7;
+            const raw = c.lightPages * lp + c.heavyPages * hp;
+            let t = '🎨 สีน้อย ' + c.lightPages + ' หน้า × ฿' + lp + (c.heavyPages > 0 ? ' + สีเยอะ ' + c.heavyPages + ' หน้า × ฿' + hp : '');
+            if ((s.nup || 1) > 1) t += ' = ฿' + raw + ' ÷ ' + s.nup + ' (เลือก ' + s.nup + ' หน้า/แผ่น) = ฿' + c.printCost; // ราคาหารตามจำนวนหน้าต่อแผ่นแล้ว — โชว์วิธีคิดกันงง
+            return t;
+          })()
         : s.ptype === 'bw' && (s.sides === 2 || (s.nup || 1) > 1) && c.sheets > 0 ? '📄 ใช้กระดาษจริง ' + c.sheets + ' แผ่น × ฿' + (Math.round(c.rate * 1000) / 1000) + '/แผ่น' : '',
       typeLabel: s.tier === 'pro' ? '✨ PRO พรีเมียม' : ((PRINT_TYPES.find(t => t.k === s.ptype) || {}).label || ''),
-      pageSummary: c.pages + ' หน้า × ' + s.copies + ' ชุด (' + (s.tier === 'pro' ? 'PRO ' + this.proLabel() : ((PRINT_TYPES.find(t => t.k === s.ptype) || {}).label || '') + ' ' + s.paper) + ')',
+      pageSummary: c.pages + ' หน้า × ' + s.copies + ' ชุด (' + (s.tier === 'pro' ? 'PRO ' + this.proLabel() : ((PRINT_TYPES.find(t => t.k === s.ptype) || {}).label || '') + ' ' + s.paper + ((s.nup || 1) > 1 ? ' · ' + s.nup + ' หน้า/แผ่น' : '')) + ')',
       printCost: c.printCost, bindCost: c.bindCost, printTotal: c.printTotal,
       deliveryCost: c.deliveryCost, grandTotal: c.grandTotal,
       toDelivery: () => {
@@ -1859,7 +1865,9 @@ class App extends React.Component {
       alertGo: () => this.setState({ alertAck: true, alertPrompt: false, screen: 'order' }),
       alertStay: () => this.setState({ alertPrompt: false }),
       // ── รีวิวจากลูกค้า ──
-      reviews: s.reviews.slice(0, 12).map(r => ({
+      revAll: s.revAll,
+      toggleRevAll: () => this.setState({ revAll: !s.revAll }),
+      reviews: s.reviews.slice(0, 30).map(r => ({
         stars: Math.max(1, Math.min(5, r.stars || 5)),
         comment: r.comment || '',
         name: r.name || 'ลูกค้า',
@@ -2120,10 +2128,19 @@ class App extends React.Component {
             </div>
             {/* ── รีวิวจากลูกค้า: ให้ดาว+คอมเมนต์ได้ตรงนี้เลย (ซ่อนจนกว่าตาราง reviews พร้อม) ── */}
             {v.revReady && <div style={css("padding:18px 20px 0")}>
-              <div style={css("display:flex;align-items:baseline;gap:8px;margin-bottom:9px")}>
-                <div style={css("font-size:13px;font-weight:700")}>⭐ รีวิวจากลูกค้า</div>
-                {v.revCount > 0 && <div style={css("font-size:11.5px;color:var(--sub)")}>{v.revAvg} / 5 · {v.revCount} รีวิว</div>}
-              </div>
+              <div style={css("font-size:13px;font-weight:700;margin-bottom:9px")}>⭐ รีวิวจากลูกค้า</div>
+              {v.revCount > 0 && (
+                <div style={css("background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px;margin-bottom:10px;display:flex;align-items:center;gap:16px;box-shadow:var(--shadow)")}>
+                  <div style={css("text-align:center;flex:none")}>
+                    <div style={css("font-size:36px;font-weight:800;line-height:1")}>{v.revAvg}</div>
+                    <div style={css("font-size:10.5px;color:var(--sub);margin-top:3px")}>จาก 5</div>
+                  </div>
+                  <div style={css("flex:1;min-width:0")}>
+                    <div style={css("color:#f5a623;font-size:17px;letter-spacing:2px;line-height:1")}>{'★'.repeat(Math.round(+v.revAvg))}<span style={css("color:var(--line)")}>{'★'.repeat(5 - Math.round(+v.revAvg))}</span></div>
+                    <div style={css("font-size:11px;color:var(--sub);margin-top:5px")}>คะแนนเฉลี่ยจากลูกค้า · ทั้งหมด {v.revCount} รีวิว</div>
+                  </div>
+                </div>
+              )}
               {!v.revDone ? (
                 <div style={css("background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 14px;margin-bottom:10px")}>
                   <div style={css("font-size:12px;font-weight:600;color:var(--sub)")}>ให้คะแนนร้านเราหน่อยครับ</div>
@@ -2138,7 +2155,7 @@ class App extends React.Component {
               )}
               {v.reviews.length > 0 && (
                 <div style={css("display:flex;flex-direction:column;gap:8px")}>
-                  {v.reviews.map((r, i) => (
+                  {(v.revAll ? v.reviews : v.reviews.slice(0, 3)).map((r, i) => (
                     <div key={i} style={css("background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px 14px")}>
                       <div style={css("display:flex;align-items:center;gap:8px")}>
                         <div style={css("color:#f5a623;font-size:13px;letter-spacing:1px")}>{'★'.repeat(r.stars)}<span style={css("color:var(--line)")}>{'★'.repeat(5 - r.stars)}</span></div>
@@ -2149,6 +2166,9 @@ class App extends React.Component {
                       <div style={css("margin-top:5px;font-size:11px;color:var(--sub)")}>คุณ{r.name}{r.ptype ? ' · งาน' + r.ptype : ''}</div>
                     </div>
                   ))}
+                  {v.reviews.length > 3 && (
+                    <button onClick={v.toggleRevAll} style={css("width:100%;height:40px;border:1px solid var(--line);border-radius:12px;background:var(--card);color:var(--acc);font-size:12.5px;font-weight:700;cursor:pointer")}>{v.revAll ? 'ย่อรีวิว ▲' : 'ดูรีวิวทั้งหมด (' + v.revCount + ') ▾'}</button>
+                  )}
                 </div>
               )}
             </div>}
