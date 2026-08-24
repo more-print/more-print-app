@@ -332,7 +332,8 @@ function Dash(){
   const [page, setPage] = React.useState('home');      // เมนูซ้าย: home/orders/income/bills/customers
   const [navOpen, setNavOpen] = React.useState(false);
   const [billListOpen, setBillListOpen] = React.useState(false); // กดปุ่มก่อน ระบบถึงสร้างรอบบิลให้
-  const [billMode, setBillMode] = React.useState('w'); // ตัดบิลโอนให้พาร์ทเนอร์: w รายสัปดาห์ (ตัด อา. 23:59) · d รายวัน (ตัดเที่ยงคืน)
+  const [billMode, setBillMode] = React.useState('w');
+  const [billFor, setBillFor] = React.useState('partner'); // partner = บิลโอนให้ร้านอุดมสุข · us = บิลรายได้ของเรา (MORE PRINT) // ตัดบิลโอนให้พาร์ทเนอร์: w รายสัปดาห์ (ตัด อา. 23:59) · d รายวัน (ตัดเที่ยงคืน)
   // ออเดอร์ที่ยกเลิกเกิน 2 ชั่วโมง = ลบถาวรอัตโนมัติจากทุกที่ (นโยบายร้าน)
   const cancelledExpired = (o) => o.status === 0 && o.cancelled_at && (Date.now() - new Date(o.cancelled_at).getTime() > 2 * 60 * 60 * 1000);
   const purgeCancelled = (rows) => {
@@ -517,12 +518,13 @@ function Dash(){
     const unpaid = rows.filter(o => !o.payout_at);
     const unpaidNet = unpaid.reduce((a, o) => a + jobValue(o) * (1 - COMMISSION), 0);
     const monthLabel = bill.label || (TH_MONTHS[bill.m] + ' ' + (bill.y + 543));
+    const forUs = bill.who === 'us'; // บิลรายได้ของเรา — ตัวเลขกลับด้านจากบิลร้าน
     const d0 = new Date();
     return (
       <div style={css("min-height:100vh;background:#fff;color:#111")}>
         <div className="no-print" style={css("padding:12px 16px;display:flex;gap:10px;background:var(--soft);position:sticky;top:0")}>
           <button onClick={() => setBill(null)} style={css("height:38px;padding:0 14px;border:1px solid var(--line);border-radius:10px;background:#fff;color:var(--ink);font-size:12.5px;font-weight:600;cursor:pointer")}>← กลับ</button>
-          <button onClick={() => window.print()} style={css("flex:1;height:38px;border:none;border-radius:10px;background:var(--acc);color:#fff;font-size:13px;font-weight:700;cursor:pointer")}>พิมพ์ / บันทึกเป็น PDF (ส่งให้ร้านทาง LINE ได้)</button>
+          <button onClick={() => window.print()} style={css("flex:1;height:38px;border:none;border-radius:10px;background:var(--acc);color:#fff;font-size:13px;font-weight:700;cursor:pointer")}>{forUs ? 'พิมพ์ / บันทึกเป็น PDF (สรุปรายได้ของเรา)' : 'พิมพ์ / บันทึกเป็น PDF (ส่งให้ร้านทาง LINE ได้)'}</button>
         </div>
         <div style={css("max-width:640px;margin:0 auto;padding:28px 24px 60px")}>
           <div style={css("display:flex;justify-content:space-between;align-items:flex-start;gap:12px")}>
@@ -531,12 +533,12 @@ function Dash(){
               <div style={css("font-size:11px;color:#888;margin-top:2px")}>บริการปริ้นเอกสารพร้อมส่ง 24 ชม. รอบ มข.</div>
             </div>
             <div style={css("text-align:right")}>
-              <div style={css("font-size:16px;font-weight:800")}>ใบสรุปยอดงาน PRO</div>
+              <div style={css("font-size:16px;font-weight:800")}>{forUs ? 'ใบสรุปรายได้ MORE PRINT' : 'ใบสรุปยอดงาน PRO'}</div>
               <div style={css("font-size:12px;color:#666")}>{bill.from ? 'รอบ ' : 'ประจำเดือน '}{monthLabel}</div>
             </div>
           </div>
           <div style={css("margin-top:18px;display:flex;justify-content:space-between;gap:12px;font-size:12.5px;line-height:1.7")}>
-            <div><span style={css("color:#888")}>เรียน</span><br/><b>{PARTNER_NAME}</b></div>
+            <div><span style={css("color:#888")}>{forUs ? 'สรุปรายได้ของ' : 'เรียน'}</span><br/><b>{forUs ? 'MORE PRINT (เจ้าของระบบ)' : PARTNER_NAME}</b></div>
             <div style={css("text-align:right")}><span style={css("color:#888")}>วันที่ออกเอกสาร</span><br/><b>{d0.getDate()} {TH_MONTHS[d0.getMonth()]} {d0.getFullYear() + 543}</b></div>
           </div>
           <table style={css("margin-top:18px")}>
@@ -560,11 +562,15 @@ function Dash(){
           </table>
           <div style={css("margin-top:16px;margin-left:auto;max-width:330px;display:flex;flex-direction:column;gap:6px;font-size:13px")}>
             <div style={css("display:flex;justify-content:space-between")}><span style={css("color:#666")}>ยอดงานรวมทั้งหมด ({rows.length} งาน)</span><span style={css("font-family:'IBM Plex Mono',monospace;font-weight:600")}>{baht(job)}</span></div>
-            <div style={css("display:flex;justify-content:space-between")}><span style={css("color:#666")}>หักค่าคอมมิชชั่น MORE PRINT ({Math.round(COMMISSION * 100)}%)</span><span style={css("font-family:'IBM Plex Mono',monospace;font-weight:600;color:#c92a2a")}>−{baht(comm)}</span></div>
-            <div style={css("display:flex;justify-content:space-between;border-top:2px solid #111;padding-top:8px;font-size:15px;font-weight:800")}><span>ยอดสุทธิที่{PARTNER_NAME}ได้รับ</span><span style={css("font-family:'IBM Plex Mono',monospace;color:#00744a")}>{baht(net)}</span></div>
-            {unpaid.length > 0
+            {forUs
+              ? <div style={css("display:flex;justify-content:space-between")}><span style={css("color:#666")}>ค่าคอมมิชชั่น{PARTNER_NAME} ({Math.round((1 - COMMISSION) * 100)}%)</span><span style={css("font-family:'IBM Plex Mono',monospace;font-weight:600;color:#c92a2a")}>−{baht(net)}</span></div>
+              : <div style={css("display:flex;justify-content:space-between")}><span style={css("color:#666")}>หักค่าคอมมิชชั่น MORE PRINT ({Math.round(COMMISSION * 100)}%)</span><span style={css("font-family:'IBM Plex Mono',monospace;font-weight:600;color:#c92a2a")}>−{baht(comm)}</span></div>}
+            {forUs
+              ? <div style={css("display:flex;justify-content:space-between;border-top:2px solid #111;padding-top:8px;font-size:15px;font-weight:800")}><span>ยอดสุทธิที่ MORE PRINT ได้รับ ({Math.round(COMMISSION * 100)}%)</span><span style={css("font-family:'IBM Plex Mono',monospace;color:#00744a")}>{baht(comm)}</span></div>
+              : <div style={css("display:flex;justify-content:space-between;border-top:2px solid #111;padding-top:8px;font-size:15px;font-weight:800")}><span>ยอดสุทธิที่{PARTNER_NAME}ได้รับ</span><span style={css("font-family:'IBM Plex Mono',monospace;color:#00744a")}>{baht(net)}</span></div>}
+            {!forUs && (unpaid.length > 0
               ? <div style={css("font-size:11px;color:#a16207;text-align:right")}>ในจำนวนนี้ยังค้างโอน {unpaid.length} งาน รวม {baht(unpaidNet)}</div>
-              : rows.length > 0 && <div style={css("font-size:11px;color:#00744a;text-align:right")}>✓ โอนครบทุกงานแล้ว</div>}
+              : rows.length > 0 && <div style={css("font-size:11px;color:#00744a;text-align:right")}>✓ โอนครบทุกงานแล้ว</div>)}
           </div>
           <div style={css("margin-top:34px;font-size:10.5px;color:#999;border-top:1px solid #eee;padding-top:10px;line-height:1.6")}>เอกสารสรุปยอดนี้สร้างจากระบบ MORE PRINT อัตโนมัติ · นับเฉพาะงานที่จัดส่งถึงลูกค้าเรียบร้อยแล้วในรอบ {monthLabel} · ค่าจัดส่งเป็นของ MORE PRINT ไม่อยู่ในยอดนี้</div>
         </div>
@@ -714,7 +720,7 @@ function Dash(){
         <div style={css("background:var(--card);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow);padding:14px 16px")}>
           <div style={css("display:flex;align-items:center;gap:8px;flex-wrap:wrap")}>
             <div style={css("flex:1;min-width:0")}>
-              <div style={css("font-size:13px;font-weight:700")}>{FI.receipt(13)} ตัดบิลโอนให้{PARTNER_NAME}</div>
+              <div style={css("font-size:13px;font-weight:700")}>{FI.receipt(13)} ตัดบิล / ออกบิล</div>
               <div style={css("margin-top:2px;font-size:10.5px;color:var(--sub);line-height:1.6")}>รายสัปดาห์ตัดทุกอาทิตย์ 23:59 · รายวันตัดเที่ยงคืน · นับเฉพาะงานที่จบแล้ว</div>
             </div>
             {!billListOpen && <button onClick={() => setBillListOpen(true)} style={css("height:40px;padding:0 16px;border:none;border-radius:11px;background:var(--acc);color:#fff;font-size:12.5px;font-weight:700;cursor:pointer;font-family:inherit")}>⚙️ สร้างรอบบิล</button>}
@@ -723,7 +729,14 @@ function Dash(){
           {billListOpen && (
             <React.Fragment>
               <div style={css("margin-top:11px;display:flex;gap:7px")}>
-                {[['w', 'รายสัปดาห์ (ตัด อา. 23:59)'], ['d', 'รายวัน (ตัดเที่ยงคืน)']].map(([k, label]) => (
+                <div style={css("display:flex;gap:7px;margin-bottom:8px")}>
+                {[['partner', 'บิลโอนให้' + PARTNER_NAME], ['us', 'บิลรายได้ของเรา']].map(([k, label]) => (
+                  <button key={k} onClick={() => setBillFor(k)} style={{ flex: 1, height: '38px', borderRadius: '10px', cursor: 'pointer', fontSize: '11.5px', fontWeight: 700, fontFamily: 'inherit',
+                    border: billFor === k ? '1.5px solid var(--green)' : '1px solid var(--line)',
+                    background: billFor === k ? '#e6f9ef' : 'var(--soft)', color: billFor === k ? 'var(--green)' : 'var(--sub)' }}>{label}</button>
+                ))}
+              </div>
+              {[['w', 'รายสัปดาห์ (ตัด อา. 23:59)'], ['d', 'รายวัน (ตัดเที่ยงคืน)']].map(([k, label]) => (
                   <button key={k} onClick={() => setBillMode(k)} style={{ flex: 1, height: '38px', borderRadius: '10px', cursor: 'pointer', fontSize: '11.5px', fontWeight: 700, fontFamily: 'inherit',
                     border: billMode === k ? '1.5px solid var(--acc)' : '1px solid var(--line)',
                     background: billMode === k ? 'var(--accSoft)' : 'var(--soft)', color: billMode === k ? 'var(--acc)' : 'var(--sub)' }}>{label}</button>
@@ -737,10 +750,10 @@ function Dash(){
                     <div style={css("margin-top:2px;font-size:11px;color:var(--sub)")}>{b.n} งาน · ยอดงาน {baht(b.job)} · หักคอม {baht(b.comm)}</div>
                   </div>
                   <div style={css("text-align:right;flex:none")}>
-                    <div style={css("font-family:'IBM Plex Mono',monospace;font-size:14px;font-weight:800;color:var(--acc)")}>{baht(b.net)}</div>
-                    <div style={css("font-size:9.5px;font-weight:700;color:" + (b.unpaid ? "#c92a2a" : "var(--green)"))}>{b.unpaid ? 'ค้างโอน ' + b.unpaid + ' งาน' : '✓ โอนครบแล้ว'}</div>
+                    <div style={css("font-family:'IBM Plex Mono',monospace;font-size:14px;font-weight:800;color:" + (billFor === 'us' ? "var(--green)" : "var(--acc)"))}>{baht(billFor === 'us' ? b.comm : b.net)}</div>
+                    <div style={css("font-size:9.5px;font-weight:700;color:" + (billFor === 'us' ? "var(--green)" : b.unpaid ? "#c92a2a" : "var(--green)"))}>{billFor === 'us' ? 'รายได้เรา (' + Math.round(COMMISSION * 100) + '%)' : b.unpaid ? 'ค้างโอน ' + b.unpaid + ' งาน' : '✓ โอนครบแล้ว'}</div>
                   </div>
-                  <button onClick={() => setBill({ from: b.from, to: b.to, label: b.label })} style={css("flex:none;height:36px;padding:0 13px;border:1px solid var(--acc);border-radius:10px;background:var(--accSoft);color:var(--acc);font-size:11.5px;font-weight:700;cursor:pointer;font-family:inherit;white-space:nowrap")}>เปิดบิล</button>
+                  <button onClick={() => setBill({ from: b.from, to: b.to, label: b.label, who: billFor })} style={css("flex:none;height:36px;padding:0 13px;border:1px solid var(--acc);border-radius:10px;background:var(--accSoft);color:var(--acc);font-size:11.5px;font-weight:700;cursor:pointer;font-family:inherit;white-space:nowrap")}>เปิดบิล</button>
                 </div>
               ))}
             </React.Fragment>
