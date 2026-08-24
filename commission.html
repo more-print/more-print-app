@@ -230,7 +230,7 @@ function Manage({ o, onPrice, onPayout, onAdvance, onCancel, onRemove }){
             const u = f.drive_url || fileUrl(f.path);
             return u
               ? <a key={i} href={u} target="_blank" rel="noreferrer" style={css("font-size:11px;font-weight:700;color:var(--acc);background:var(--accSoft);padding:4px 10px;border-radius:8px;text-decoration:none")}>⬇ {f.name} · {f.pages} หน้า</a>
-              : <span key={i} style={css("font-size:11px;color:var(--sub)")}>{f.name}</span>;
+              : <span key={i} style={css("font-size:11px;font-weight:700;color:#c92a2a;background:#ffe3e3;padding:4px 10px;border-radius:8px")}>⚠️ {f.name} — ไฟล์อัปไม่สำเร็จ ทักแชทขอจากลูกค้า</span>;
           })}
         </div>
       )}

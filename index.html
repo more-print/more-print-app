@@ -299,6 +299,7 @@ class App extends React.Component {
     super(props);
     this.fileRef = React.createRef();
     this.slipRef = React.createRef();
+    this.reupRef = React.createRef(); // ช่องเลือกไฟล์สำหรับส่งไฟล์ที่อัปพลาดใหม่
     this.state = {
       screen: 'home', files: [], tier: 'standard', ptype: 'bw', paper: 'A4', sides: 1, orient: 'portrait', nup: 1, bind: 'none', copies: 1,
       vehicle: 'bike', // พาหนะส่งที่ลูกค้าเลือกเอง: 'bike' มอเตอร์ไซค์ · 'car' รถยนต์ (ใช้ทั้ง Standard และ Pro)
@@ -315,7 +316,7 @@ class App extends React.Component {
       lat: null, lng: null, geoLabel: '', searchQ: '', searchResults: [], searching: false, locating: false,
       gmapLink: '', gmapBusy: false, pinSrc: '', pinMode: '', mapLocked: false, gpsAcc: null, gpsConfirm: false, geoHelp: '', // '' ยังไม่เลือก · 'link' วางลิงก์ · 'map' ปักหมุดเอง · mapLocked = ล็อกหมุดหลังวางลิงก์
       banners: [],
-      order: null, trackStep: 1, cancelReason: '', toast: '', now: new Date(),
+      order: null, trackStep: 1, cancelReason: '', toast: '', now: new Date(), reupIdx: null, reupBusy: false,
       selfCancelArm: false, selfCancelBusy: false,
       chat: null, chatText: '', chatBusy: false, chatOff: false, // แชทกับร้าน (ตาราง messages)
       profOpen: '', profFname: '', profLname: '', profPhone: '', // หน้า My Profile (หมวดที่กางอยู่ + ฟอร์มแก้ชื่อ/เบอร์)
@@ -379,7 +380,7 @@ class App extends React.Component {
       if (od && od.id) {
         this.setState({
           order: { id: od.id, total: od.total || 0, times: od.times || ['', '', '', ''], plabel: od.plabel || '', eta: od.eta || null, pickup: !!od.pickup, ts: od.ts || null,
-            addr: od.addr || '', phone: od.phone || '', veh: od.veh || '', copies: od.copies || 0, pages: od.pages || 0 },
+            addr: od.addr || '', phone: od.phone || '', veh: od.veh || '', copies: od.copies || 0, pages: od.pages || 0, fails: od.fails || [] },
           trackStep: od.step == null ? 1 : od.step, // step 0 (ยกเลิก) เป็น falsy — ห้ามใช้ || 1
           cancelReason: od.cancelReason || ''
         });
@@ -966,24 +967,43 @@ class App extends React.Component {
   async saveOrder(id, c, t0){
     const s = this.state;
     try {
+      // อัปโหลดพลาดครั้งแรก (เน็ตสะดุด) ให้ลองซ้ำอีกรอบ — ถ้าไฟล์ขึ้นไปแล้วเจอ "already exists" ถือว่าสำเร็จ
+      const uploadRetry = async (path, file) => {
+        let { error } = await this.db.storage.from('uploads').upload(path, file);
+        if (error) {
+          const r2 = await this.db.storage.from('uploads').upload(path, file);
+          error = r2.error && !/exist|duplicate/i.test(String(r2.error.message || '')) ? r2.error : null;
+        }
+        return error;
+      };
       const files = [];
+      let upFail = 0;
+      const failIdx = []; // ไฟล์ที่อัปไม่สำเร็จ — ให้ลูกค้าส่งใหม่ได้จากหน้าติดตาม
       for (let i = 0; i < s.files.length; i++) {
         const f = s.files[i];
         let path = null;
         if (f.file && !f.big) {
           const safe = f.name.replace(/[^a-zA-Z0-9._-]/g, '_');
           path = id.replace('#', '') + '/f' + i + '_' + safe;
-          const { error } = await this.db.storage.from('uploads').upload(path, f.file);
-          if (error) { console.error('upload:', error); path = null; }
+          const error = await uploadRetry(path, f.file);
+          if (error) { console.error('upload:', error); path = null; upFail++; failIdx.push({ i, name: f.name }); }
         }
         files.push({ name: f.name, pages: f.pages, path, drive_url: f.big ? (f.b2Url || null) : null, auto: !!f.auto, heavy: f.heavy || 0, scanned: !!f.scanned });
+      }
+      if (upFail) {
+        setTimeout(() => this.showToast('⚠️ ไฟล์แนบอัปโหลดไม่สำเร็จ ' + upFail + ' ไฟล์ — กดส่งใหม่ได้ที่หน้าติดตามเลยครับ'), 1200);
+        try {
+          const od = JSON.parse(localStorage.getItem('mp_order') || 'null');
+          if (od && od.id === id) { od.fails = failIdx; localStorage.setItem('mp_order', JSON.stringify(od)); this.upsertOrderList(od); }
+          this.setState(st => st.order && st.order.id === id ? { order: { ...st.order, fails: failIdx } } : null);
+        } catch (e) {}
       }
       // อัปโหลดสลิปโอนเงิน
       let slip_path = null;
       if (s.slip) {
         const ext = (s.slip.name.split('.').pop() || 'jpg').replace(/[^a-zA-Z0-9]/g, '').slice(0, 5) || 'jpg';
         slip_path = id.replace('#', '') + '/slip.' + ext;
-        const { error: se } = await this.db.storage.from('uploads').upload(slip_path, s.slip);
+        const se = await uploadRetry(slip_path, s.slip);
         if (se) { console.error('slip:', se); slip_path = null; }
       }
       const u = s.user || {};
@@ -1196,13 +1216,35 @@ class App extends React.Component {
     try { localStorage.setItem('mp_order', JSON.stringify(o)); } catch (e) {}
     clearInterval(this.trackTimer);
     this.setState({
-      order: { id: o.id, total: o.total || 0, times: o.times || ['', '', '', ''], plabel: o.plabel || '', eta: o.eta || null, pickup: !!o.pickup, ts: o.ts || null, addr: o.addr || '', phone: o.phone || '', veh: o.veh || '', copies: o.copies || 0, pages: o.pages || 0 },
+      order: { id: o.id, total: o.total || 0, times: o.times || ['', '', '', ''], plabel: o.plabel || '', eta: o.eta || null, pickup: !!o.pickup, ts: o.ts || null, addr: o.addr || '', phone: o.phone || '', veh: o.veh || '', copies: o.copies || 0, pages: o.pages || 0, fails: o.fails || [] },
       trackStep: o.step == null ? 1 : o.step, cancelReason: o.cancelReason || '', chat: [], trackOpen: true, trackMin: false, selfCancelArm: false // ระวัง: step 0 (ยกเลิก) เป็น falsy ห้ามใช้ || 1 · trackOpen true = ใบที่เพิ่งแตะเลือกกางให้เห็นทันทีเสมอ
     }, () => {
       if (this.db && o.step !== 0 && (o.step || 1) < 4) this.startPolling(o.id);
       else if (this.db) this.fetchOrderStatus(o.id);
       if (this.db) this.loadChat();
     });
+  }
+  // ส่งไฟล์ที่อัปพลาดใหม่: อัปเข้าคลัง แล้วให้ RPC reattach_file (SECURITY DEFINER) เขียน path เข้าออเดอร์เดิม
+  async reupFile(idx, file){
+    const o = this.state.order;
+    if (!o || !this.db || !file) return;
+    this.setState({ reupBusy: true });
+    const safe = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+    const path = o.id.replace('#', '') + '/re' + idx + '_' + Date.now().toString(36) + '_' + safe;
+    const { error } = await this.db.storage.from('uploads').upload(path, file);
+    if (error) { this.setState({ reupBusy: false }); return this.showToast('อัปโหลดไม่สำเร็จ ลองอีกครั้งครับ 🙏'); }
+    const { data, error: e2 } = await this.db.rpc('reattach_file', { oid: o.id, idx, new_path: path });
+    this.setState({ reupBusy: false });
+    if (e2) return this.showToast('ระบบรับไฟล์ใหม่ยังไม่เปิดใช้ — ส่งไฟล์ให้ร้านทาง LINE @346kifvy แทนนะครับ 🙏');
+    if (data === 'too-late') return this.showToast('ร้านทำงานถึงขั้นถัดไปแล้ว — ส่งไฟล์ทาง LINE/แชทนะครับ 💬');
+    if (data !== 'ok' && data !== 'already-has-file') return this.showToast('ส่งไฟล์ไม่สำเร็จ — ทักแชทร้านนะครับ 🙏');
+    const fails = (o.fails || []).filter(x => x.i !== idx);
+    this.setState({ order: { ...o, fails } });
+    try {
+      const od = JSON.parse(localStorage.getItem('mp_order') || 'null');
+      if (od && od.id === o.id) { od.fails = fails; localStorage.setItem('mp_order', JSON.stringify(od)); this.upsertOrderList(od); }
+    } catch (e) {}
+    this.showToast('✓ ส่งไฟล์ใหม่เรียบร้อย ร้านเปิดไฟล์ได้แล้วครับ 🎉');
   }
   // ออเดอร์ที่ยกเลิกแล้ว: โชว์ให้ลูกค้าเห็นเหตุผล 2 ชั่วโมง แล้วเก็บกวาดออกจากหน้าจอเอง (นโยบายร้าน — ของเก่าที่ไม่มีเวลายกเลิก = ลบทันที)
   purgeCancelledLocal(){
@@ -1724,6 +1766,11 @@ class App extends React.Component {
       trackDelivered: !!s.order && step >= 4 && !cancelled,
       trackCollapsed: !!s.order && ((step >= 4 || cancelled) ? !s.trackOpen : !!s.trackMin),
       trackToggle: () => (step >= 4 || cancelled) ? this.setState({ trackOpen: !s.trackOpen }) : this.setState({ trackMin: !s.trackMin }),
+      // ไฟล์ที่อัปพลาดตอนสั่ง — โชว์ปุ่มส่งใหม่เฉพาะช่วงร้านยังไม่ออกส่ง (สถานะ 1-2)
+      trackFails: (!cancelled && step >= 1 && step <= 2 && s.order && s.order.fails && s.order.fails.length) ? s.order.fails : [],
+      reupBusy: s.reupBusy,
+      reupPick: (i) => { this.setState({ reupIdx: i }); this.reupRef.current && this.reupRef.current.click(); },
+      onReupFile: (e) => { const f = (e.target.files || [])[0]; e.target.value = ''; if (f) this.reupFile(this.state.reupIdx, f); },
       // ── ประวัติการสั่ง: ออเดอร์ที่จบแล้ว เก็บในเครื่องนี้ (ทั้ง standard และ pro) ──
       history: s.history || [],
       histOpen: s.histOpen,
@@ -2583,6 +2630,21 @@ class App extends React.Component {
                     </div>
                     {!v.selfCancelled && v.cancelReason && <div style={css("margin-top:6px;font-size:13px;color:#a61e1e;line-height:1.5")}><b>เหตุผล:</b> {v.cancelReason}</div>}
                     <div style={css("margin-top:8px;font-size:11.5px;color:#a61e1e")}>โอนเงินแล้ว? ติดต่อขอคืนเงิน/สั่งใหม่ทาง LINE OA @346kifvy 💬</div>
+                  </div>
+                )}
+                {v.trackFails.length > 0 && (
+                  <div style={css("background:#fff0f0;border:1.5px solid #ffc9c9;border-radius:14px;padding:13px 15px")}>
+                    <div style={css("font-size:13.5px;font-weight:800;color:#c92a2a")}>⚠️ ไฟล์แนบอัปโหลดไม่สำเร็จ {v.trackFails.length} ไฟล์</div>
+                    <div style={css("margin-top:3px;font-size:11.5px;color:#a61e1e;line-height:1.6")}>แตะส่งไฟล์เดิมอีกครั้ง ร้านจะได้เริ่มงานให้เร็วที่สุดครับ</div>
+                    <div style={css("margin-top:9px;display:flex;flex-direction:column;gap:7px")}>
+                      {v.trackFails.map(x => (
+                        <div key={x.i} style={css("display:flex;align-items:center;gap:9px;background:#fff;border-radius:10px;padding:8px 11px")}>
+                          <span style={css("flex:1;min-width:0;font-size:12px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap")}>📄 {x.name}</span>
+                          <button onClick={() => v.reupPick(x.i)} disabled={v.reupBusy} style={css("flex:none;height:34px;padding:0 13px;border:none;border-radius:9px;background:#c92a2a;color:#fff;font-size:12px;font-weight:700;cursor:pointer" + (v.reupBusy ? ";opacity:.6" : ""))}>{v.reupBusy ? '⏳ กำลังส่ง…' : '📎 ส่งไฟล์นี้ใหม่'}</button>
+                        </div>
+                      ))}
+                    </div>
+                    <input ref={this.reupRef} type="file" accept="application/pdf,image/*" onChange={v.onReupFile} style={{ display: 'none' }}/>
                   </div>
                 )}
                 {v.trackCollapsed ? (
