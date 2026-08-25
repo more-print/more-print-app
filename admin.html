@@ -519,6 +519,8 @@ function AdminApp(){
 
   const [histRows, setHistRows] = React.useState(null);
   const [threads, setThreads] = React.useState(null); // รายการห้องแชททั้งหมด (แท็บแชท)
+  const [orderMeta, setOrderMeta] = React.useState({}); // ข้อมูลย่อทุกออเดอร์รวมงาน Pro (state orders เก็บเฉพาะ Standard)
+  const [chatType, setChatType] = React.useState('all'); // หมวดแชท: all | std | pro
   const [openChat, setOpenChat] = React.useState(null); // order_id ของห้องที่กำลังเปิด
   const [chatQ, setChatQ] = React.useState(''); // ค้นหาห้องแชท: รหัสออเดอร์/ชื่อลูกค้า/ข้อความ
   const [unreadMap, setUnreadMap] = React.useState({}); // {order_id: จำนวนข้อความใหม่จากลูกค้า}
@@ -696,6 +698,9 @@ function AdminApp(){
       const { data, error } = await DB.from('orders').select('*').order('created_at', { ascending: false }).limit(1000);
       // งาน Pro แยกไปบริหารที่ pro.html (ของร้านพาร์ทเนอร์) — หลังบ้านหลักเห็นเฉพาะงาน Standard ของเรา
       if (!error && data) {
+        const meta = {};
+        data.forEach(o => { meta[o.id] = { ptype: o.ptype, fname: o.customer_fname, lname: o.customer_lname, phone: o.customer_phone, addr: o.addr, aphone: o.phone, total: o.total, status: o.status }; });
+        setOrderMeta(meta);
         setOrders(data.filter(o => o.ptype !== 'pro' && !cancelledExpired(o)));
         setLastSync(new Date());
         purgeCancelled(data); // แอดมินเก็บกวาดให้ทุกประเภทงาน รวมงาน Pro ด้วย
@@ -1157,7 +1162,8 @@ function AdminApp(){
 
           {/* ── ห้องสนทนาที่เปิดอยู่ ── */}
           {openChat && (() => {
-            const ord = orders.find(x => x.id === openChat) || { id: openChat };
+            const m0 = orderMeta[openChat];
+            const ord = orders.find(x => x.id === openChat) || (m0 ? { id: openChat, customer_fname: m0.fname, customer_lname: m0.lname, customer_phone: m0.phone, addr: m0.addr, phone: m0.aphone, total: m0.total, status: m0.status } : { id: openChat });
             return (
               <React.Fragment>
                 <div style={css("background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 14px;box-shadow:var(--shadow);display:flex;align-items:center;gap:11px")}>
@@ -1179,6 +1185,19 @@ function AdminApp(){
             <input value={chatQ} onChange={e => setChatQ(e.target.value)} placeholder="ค้นหา: รหัสออเดอร์ · ชื่อลูกค้า · ข้อความ"
               style={css("width:100%;box-sizing:border-box;height:44px;border:1px solid var(--line);border-radius:12px;background:var(--card);color:var(--ink);padding:0 14px;font-size:13px;outline:none;box-shadow:var(--shadow)")}/>
           )}
+          {/* ── หมวดหมู่แชทตามประเภทงาน ── */}
+          {!openChat && Array.isArray(threads) && threads.length > 0 && (
+            <div style={css("display:flex;gap:7px")}>
+              {[['all', 'ทั้งหมด'], ['std', 'งาน Standard'], ['pro', 'งาน PRO']].map(([k, label]) => {
+                const cnt = k === 'all' ? threads.length : threads.filter(th => ((orderMeta[th.id] || {}).ptype === 'pro') === (k === 'pro')).length;
+                return (
+                  <button key={k} onClick={() => setChatType(k)} style={{ flex: 1, height: '38px', borderRadius: '11px', cursor: 'pointer', fontSize: '12px', fontWeight: 700, fontFamily: 'inherit',
+                    border: chatType === k ? '1.5px solid ' + (k === 'pro' ? '#a16207' : 'var(--acc)') : '1px solid var(--line)',
+                    background: chatType === k ? (k === 'pro' ? '#fff3d6' : 'var(--accSoft)') : 'var(--card)', color: chatType === k ? (k === 'pro' ? '#a16207' : 'var(--acc)') : 'var(--sub)' }}>{label} ({cnt})</button>
+                );
+              })}
+            </div>
+          )}
           {/* ── รายการห้องแชททั้งหมด (ยังไม่ตอบขึ้นก่อน) ── */}
           {!openChat && Array.isArray(threads) && threads.length === 0 && (
             <div style={css("text-align:center;color:var(--sub);font-size:13px;padding:36px 0;line-height:1.8")}>ยังไม่มีลูกค้าทักเข้ามา<br/><span style={css("font-size:11.5px")}>ข้อความจากลูกค้าทุกออเดอร์จะมารวมที่นี่</span></div>
@@ -1186,15 +1205,18 @@ function AdminApp(){
           {!openChat && Array.isArray(threads) && threads.length > 0 && (() => {
             const q = chatQ.trim().toLowerCase();
             const list = threads.filter(th => {
+              if (chatType !== 'all' && (((orderMeta[th.id] || {}).ptype === 'pro') !== (chatType === 'pro'))) return false;
               if (!q) return true;
-              const ord = orders.find(x => x.id === th.id) || {};
+              const m2 = orderMeta[th.id] || {};
               return String(th.id || '').toLowerCase().includes(q)
-                || ((ord.customer_fname || '') + ' ' + (ord.customer_lname || '')).toLowerCase().includes(q)
+                || ((m2.fname || '') + ' ' + (m2.lname || '')).toLowerCase().includes(q)
                 || String(th.last.body || '').toLowerCase().includes(q);
             });
             if (!list.length) return <div style={css("text-align:center;color:var(--sub);font-size:13px;padding:26px 0")}>ไม่พบห้องแชทที่ตรงกับ "{chatQ}"</div>;
             return list.slice().sort((a, b) => (b.unread - a.unread) || (b.last.id - a.last.id)).map(th => {
-            const ord = orders.find(x => x.id === th.id) || {};
+            const m1 = orderMeta[th.id] || {};
+            const ord = orders.find(x => x.id === th.id) || { customer_fname: m1.fname, customer_lname: m1.lname };
+            const isProTh = m1.ptype === 'pro';
             const mine = th.last.sender === 'shop';
             return (
               <div key={th.id} onClick={() => setOpenChat(th.id)} style={css("background:var(--card);border:1px solid " + (th.unread ? "#ffa8a8" : "var(--line)") + ";border-radius:14px;padding:12px 14px;box-shadow:var(--shadow);display:flex;align-items:center;gap:12px;cursor:pointer")}>
@@ -1205,6 +1227,7 @@ function AdminApp(){
                   <div style={css("display:flex;align-items:center;gap:7px")}>
                     <span style={css("font-size:13px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap")}>คุณ{ord.customer_fname || 'ลูกค้า'} {ord.customer_lname || ''}</span>
                     <span style={css("flex:none;font-family:'IBM Plex Mono',monospace;font-size:9.5px;color:var(--sub);background:var(--soft);border-radius:99px;padding:2px 7px")}>{th.id}</span>
+                    <span style={css("flex:none;font-size:9px;font-weight:800;border-radius:99px;padding:2px 8px;" + (isProTh ? "color:#a16207;background:#fff3d6" : "color:var(--acc);background:var(--accSoft)"))}>{isProTh ? 'PRO' : 'STANDARD'}</span>
                   </div>
                   <div style={css("margin-top:2px;font-size:11.5px;color:" + (th.unread ? "var(--ink)" : "var(--sub)") + ";font-weight:" + (th.unread ? "600" : "400") + ";overflow:hidden;text-overflow:ellipsis;white-space:nowrap")}>
                     {mine ? 'คุณ: ' : ''}{th.last.img ? '[รูป] ' : ''}{th.last.body}
