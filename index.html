@@ -223,7 +223,7 @@ const PRO_TYPES = [
   { k: 'plate', icon: '🪧', label: 'เพลท', sizes: ['A4', 'A3', 'A2', 'A1', 'A0'] },
   { k: 'poster', icon: '🖼️', label: 'โปสเตอร์', sizes: ['A4', 'A3', 'A2', 'A1', 'A0'], sidesOpt: true },
   { k: 'postcard', icon: '💌', label: 'Postcard' },
-  { k: 'foldbook', icon: '📖', label: 'พับครึ่ง หน้า-หลัง (เข้าเล่ม/เมนู)', sizes: ['A4', 'A3', 'A2'], bindOpt: true },
+  { k: 'foldbook', icon: '📖', label: 'พับครึ่ง (เข้าเล่ม/เมนู)', sizes: ['A4', 'A3', 'A2'], bindOpt: true },
   { k: 'portfolio', icon: '📁', label: 'Portfolio' },
   { k: 'sticker', icon: '🏷️', label: 'สติ๊กเกอร์' },
   { k: 'namecard', icon: '💳', label: 'นามบัตร', qty: [100, 200, 300] },
@@ -240,6 +240,7 @@ const PRO_LAM_TWO = 10;        // เคลือบหน้า-หลัง /�
 const PRO_POSTCARD_SHEET = 50; // Postcard A3 (9 ใบ/แผ่น)
 const PRO_STICKER_SHEET = 70;  // สติ๊กเกอร์ A3 (รวมตัด/วัสดุ/layout)
 const PRO_PORTFOLIO = { one: 50, two: 100, staple: 20 };  // A3 พับครึ่ง พิมพ์+เคลือบ /แผ่น · เย็บ +20/ชุด
+const PRO_FOLDBOOK_BIND = 20; // พับครึ่ง (เข้าเล่ม/เมนู): เข้าเล่ม +20/ชุด ทุกแบบ · ค่าแผ่นใช้ตาราง POSTER_SHEET (A2 100/A3 50/A4 25) หน้า-หลัง ×2
 const PRO_NAMECARD = { one: 250, two: 450 };              // ต่อ 100 ใบ (A3 4 แผ่น)
 const PRO_STANDEE = { base: 380, stand: 480 };            // 60×120 ซม. / ใส่ขาตั้ง
 const BLUEPRINT_PRICE = { A1: 40, A2: 20, A3: 5 };        // แบบแปลนขาวดำ /แผ่น
@@ -887,6 +888,13 @@ class App extends React.Component {
       } else if (s.proType === 'postcard') { rate = PRO_POSTCARD_SHEET; pc = rate * shPro; }
       else if (s.proType === 'sticker') { rate = PRO_STICKER_SHEET; pc = rate * shPro; }
       else if (s.proType === 'blueprint') { rate = BLUEPRINT_PRICE[s.proSize] ?? 0; pc = rate * shPro; }
+      else if (s.proType === 'foldbook') {
+        // พับครึ่ง เข้าเล่ม/เมนู: แผ่นตามตารางโปสเตอร์ (หน้า-หลัง ×2) + เคลือบ/กระดาษพิเศษต่อแผ่น + เข้าเล่ม 20/ชุด ทุกแบบ
+        rate = (POSTER_SHEET[s.proSize] ?? 0) * (s.sides === 2 ? 2 : 1)
+          + (s.proLam === 'two' ? PRO_LAM_TWO : s.proLam === 'one' ? PRO_LAM_ONE : 0)
+          + (s.proSpecial ? PRO_SPECIAL_PAPER : 0);
+        pc = rate * shPro + PRO_FOLDBOOK_BIND * s.copies;
+      }
       else if (s.proType === 'portfolio') { rate = s.sides === 2 ? PRO_PORTFOLIO.two : PRO_PORTFOLIO.one; pc = rate * shPro + (s.proStaple ? PRO_PORTFOLIO.staple * s.copies : 0); }
       else if (s.proType === 'namecard') { pc = (s.sides === 2 ? PRO_NAMECARD.two : PRO_NAMECARD.one) * (s.proQty / 100); }
       else if (s.proType === 'standee') { pc = (s.proStand ? PRO_STANDEE.stand : PRO_STANDEE.base) * s.copies; }
@@ -941,6 +949,12 @@ class App extends React.Component {
       : t.label;
     // ตัวเลือกเสริมพ่วงเข้าไปในป้าย — หลังบ้านทุกที่จะเห็นครบว่าลูกค้าเลือกอะไร (บันทึกลงช่อง paper)
     const ex = [];
+    if (s.proType === 'foldbook') {
+      ex.push(s.sides === 2 ? 'หน้า-หลัง' : 'หน้าเดียว');
+      if (s.proSpecial) ex.push('กระดาษพิเศษ');
+      if (s.proLam === 'one') ex.push('เคลือบหน้าเดียว');
+      if (s.proLam === 'two') ex.push('เคลือบหน้า-หลัง');
+    }
     if ((s.proType === 'plate' || s.proType === 'poster')) {
       if (s.proType === 'plate') ex.push('ติดบอร์ด');
       if (s.proSpecial) ex.push('กระดาษพิเศษ');
@@ -1495,19 +1509,19 @@ class App extends React.Component {
       proShowQty: !!((PRO_TYPES.find(t => t.k === s.proType) || {}).qty),
       proQtyOpts: (((PRO_TYPES.find(t => t.k === s.proType) || {}).qty) || []).map(n => this.seg(n + ' ใบ ฿' + Math.ceil((s.sides === 2 ? PRO_NAMECARD.two : PRO_NAMECARD.one) * n / 100), s.proQty === n, () => this.setState({ proQty: n }))),
       proSizeOpts: ((PRO_TYPES.find(t => t.k === s.proType) || {}).sizes || []).map(sz => {
-        const p = s.proType === 'blueprint' ? BLUEPRINT_PRICE[sz] : s.proType === 'plate' ? PLATE_SHEET[sz] : s.proType === 'poster' ? POSTER_SHEET[sz] : null;
+        const p = s.proType === 'blueprint' ? BLUEPRINT_PRICE[sz] : s.proType === 'plate' ? PLATE_SHEET[sz] : (s.proType === 'poster' || s.proType === 'foldbook') ? POSTER_SHEET[sz] : null;
         return this.seg(sz + (p ? ' ฿' + p : ''), s.proSize === sz, () => this.setState({ proSize: sz }), true);
       }),
-      proShowSides: s.proType === 'poster' || s.proType === 'portfolio' || s.proType === 'namecard',
+      proShowSides: s.proType === 'poster' || s.proType === 'portfolio' || s.proType === 'namecard' || s.proType === 'foldbook',
       proSidesOpts: [
-        this.seg('ด้านหน้าอย่างเดียว' + (s.proType === 'portfolio' ? ' ฿' + PRO_PORTFOLIO.one + '/แผ่น' : s.proType === 'namecard' ? ' ฿' + PRO_NAMECARD.one : s.proType === 'poster' ? ' ฿' + (POSTER_SHEET[s.proSize] ?? 0) + '/แผ่น' : ''), s.sides === 1, () => this.setState({ sides: 1 }), true),
-        this.seg('หน้า-หลัง' + (s.proType === 'portfolio' ? ' ฿' + PRO_PORTFOLIO.two + '/แผ่น' : s.proType === 'namecard' ? ' ฿' + PRO_NAMECARD.two : s.proType === 'poster' ? ' ฿' + (POSTER_SHEET[s.proSize] ?? 0) * 2 + '/แผ่น' : ''), s.sides === 2, () => this.setState({ sides: 2 }), true)
+        this.seg('ด้านหน้าอย่างเดียว' + (s.proType === 'portfolio' ? ' ฿' + PRO_PORTFOLIO.one + '/แผ่น' : s.proType === 'namecard' ? ' ฿' + PRO_NAMECARD.one : (s.proType === 'poster' || s.proType === 'foldbook') ? ' ฿' + (POSTER_SHEET[s.proSize] ?? 0) + '/แผ่น' : ''), s.sides === 1, () => this.setState({ sides: 1 }), true),
+        this.seg('หน้า-หลัง' + (s.proType === 'portfolio' ? ' ฿' + PRO_PORTFOLIO.two + '/แผ่น' : s.proType === 'namecard' ? ' ฿' + PRO_NAMECARD.two : (s.proType === 'poster' || s.proType === 'foldbook') ? ' ฿' + (POSTER_SHEET[s.proSize] ?? 0) * 2 + '/แผ่น' : ''), s.sides === 2, () => this.setState({ sides: 2 }), true)
       ],
       proShowBind: s.proType === 'foldbook',
       proBindOpts: PRO_BINDS.map(b => this.seg(b, s.proBind === b, () => this.setState({ proBind: b }))),
       proPicked: this.proLabel(),
       // ตัวเลือกเสริมตามประเภทงาน — ราคาบวกเพิ่มโชว์ตรงปุ่มเลย
-      proExtraOpts: (s.proType === 'plate' || s.proType === 'poster') ? [
+      proExtraOpts: (s.proType === 'plate' || s.proType === 'poster' || s.proType === 'foldbook') ? [
         this.seg('กระดาษธรรมดา (ฟรี)', !s.proSpecial, () => this.setState({ proSpecial: false }), true),
         this.seg('กระดาษพิเศษ +฿' + PRO_SPECIAL_PAPER + '/แผ่น', s.proSpecial, () => this.setState({ proSpecial: true }), true)
       ] : s.proType === 'portfolio' ? [
@@ -1517,19 +1531,20 @@ class App extends React.Component {
         this.seg('ไม่ใส่ขาตั้ง ฿' + PRO_STANDEE.base, !s.proStand, () => this.setState({ proStand: false }), true),
         this.seg('ใส่ขาตั้ง ฿' + PRO_STANDEE.stand, s.proStand, () => this.setState({ proStand: true }), true)
       ] : [],
-      proLamOpts: (s.proType === 'plate' || s.proType === 'poster') ? [
+      proLamOpts: (s.proType === 'plate' || s.proType === 'poster' || s.proType === 'foldbook') ? [
         this.seg('ไม่เคลือบ', s.proLam === 'none', () => this.setState({ proLam: 'none' }), true),
         this.seg('เคลือบหน้าเดียว +฿' + PRO_LAM_ONE, s.proLam === 'one', () => this.setState({ proLam: 'one' }), true),
         this.seg('เคลือบหน้า-หลัง +฿' + PRO_LAM_TWO, s.proLam === 'two', () => this.setState({ proLam: 'two' }), true)
       ] : [],
-      proHint: s.proType === 'plate' ? '🪧 เพลทรวมติดบอร์ดแล้ว · พิมพ์ด้านหน้าอย่างเดียว'
+      proHint: s.proType === 'foldbook' ? '📖 เข้าเล่มทุกแบบ +฿' + PRO_FOLDBOOK_BIND + '/ชุด · หน้า-หลังราคา ×2'
+        : s.proType === 'plate' ? '🪧 เพลทรวมติดบอร์ดแล้ว · พิมพ์ด้านหน้าอย่างเดียว'
         : s.proType === 'poster' ? '🖼️ โปสเตอร์ไม่ติดบอร์ด · เลือกหน้า-หลังได้ (ราคา ×2)'
         : s.proType === 'postcard' ? '💌 1 แผ่น A3 = 9 ใบ · ฿' + PRO_POSTCARD_SHEET + '/แผ่น · ผลิตไม่เกิน 1 ชม.'
         : s.proType === 'sticker' ? '🏷️ A3 ฿' + PRO_STICKER_SHEET + '/แผ่น (รวมตัด · วัสดุ · จัด layout)'
         : s.proType === 'namecard' ? '💳 ราคาต่อ 100 ใบ (A3 4 แผ่น)'
         : s.proType === 'standee' ? '🧍 ขนาดกว้าง 60 × สูง 120 ซม.'
         : '',
-      proNote: s.tier === 'pro' && s.proType === 'foldbook' ? '✨ งานเข้าเล่ม/เมนู — ร้านจะยืนยันราคาปริ้นทาง LINE ก่อนเริ่มงาน ยอดที่ชำระตอนนี้คือค่าส่งเท่านั้น' : '',
+      proNote: '', // ทุกประเภทงาน Pro มีราคาจริงแล้ว (foldbook เป็นตัวสุดท้าย 2026-08-24)
       showSize: s.tier !== 'pro' && SIZE_BY_TYPE[s.ptype].length > 1,
       sizeOpts: SIZE_BY_TYPE[s.ptype].map(sz => {
         const label = s.ptype === 'portfolio' ? sz + ' ฿' + (sz === 'A5' ? 8 : 12)
@@ -1554,7 +1569,7 @@ class App extends React.Component {
       copyDec: () => this.setState(st => ({ copies: Math.max(1, st.copies - 1) })),
       rateHint: s.tier === 'pro'
         ? (s.proType === 'foldbook'
-            ? '✨ งานเข้าเล่ม/เมนู — ร้านยืนยันราคาทาง LINE ก่อนเริ่มงาน'
+            ? '✨ ' + this.proLabel() + ' ฿' + c.rate + '/แผ่น' + (c.pages > 0 ? ' × ' + (c.pages * s.copies) + ' แผ่น + เข้าเล่ม ฿' + PRO_FOLDBOOK_BIND + ' × ' + s.copies + ' ชุด = ฿' + c.printCost : ' + เข้าเล่ม ฿' + PRO_FOLDBOOK_BIND + '/ชุด — อัปโหลดไฟล์แล้วคำนวณให้ทันที')
             : s.proType === 'namecard' ? '✨ ' + this.proLabel() + ' = ฿' + c.printCost
             : s.proType === 'standee' ? '✨ Standy ฿' + (s.proStand ? PRO_STANDEE.stand : PRO_STANDEE.base) + '/ชิ้น × ' + s.copies + ' = ฿' + c.printCost
             : '✨ ' + this.proLabel() + ' ฿' + c.rate + '/แผ่น' + (c.pages > 0 ? ' × ' + (c.pages * s.copies) + ' แผ่น = ฿' + c.printCost : ' — อัปโหลดไฟล์แล้วระบบคำนวณให้ทันที'))
@@ -2918,7 +2933,7 @@ class App extends React.Component {
                       <div style={css("display:flex;flex-direction:column;gap:8px;font-size:12px;line-height:1.7")}>
                         <div>ชำระด้วย <b>PromptPay QR</b> — สแกนจ่ายตอนยืนยันออเดอร์ แล้วแนบสลิปในหน้าเดียวกัน</div>
                         <img src="assets/promptpay-qr.jpg" alt="PromptPay" onError={(e) => { e.target.style.display = 'none'; }} style={css("max-width:180px;border-radius:10px;border:1px solid var(--line)")}/>
-                        <div style={css("color:var(--sub);font-size:11px")}>งาน Pro คิดราคาอัตโนมัติแล้ว — ยกเว้นงานเข้าเล่ม/เมนู ชำระค่าส่งก่อน แล้วร้านยืนยันราคาทาง LINE</div>
+                        <div style={css("color:var(--sub);font-size:11px")}>งาน Pro ทุกประเภทคิดราคาอัตโนมัติ รวมในยอดชำระแล้ว</div>
                       </div>
                     )}
                     {k === 'coupon' && (
