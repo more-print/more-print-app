@@ -381,7 +381,7 @@ class App extends React.Component {
       if (od && od.id) {
         this.setState({
           order: { id: od.id, total: od.total || 0, times: od.times || ['', '', '', ''], plabel: od.plabel || '', eta: od.eta || null, pickup: !!od.pickup, ts: od.ts || null,
-            addr: od.addr || '', phone: od.phone || '', veh: od.veh || '', copies: od.copies || 0, pages: od.pages || 0, fails: od.fails || [] },
+            addr: od.addr || '', phone: od.phone || '', veh: od.veh || '', copies: od.copies || 0, pages: od.pages || 0, fails: od.fails || [], dist: od.dist ?? null },
           trackStep: od.step == null ? 1 : od.step, // step 0 (ยกเลิก) เป็น falsy — ห้ามใช้ || 1
           cancelReason: od.cancelReason || ''
         });
@@ -1230,7 +1230,7 @@ class App extends React.Component {
     try { localStorage.setItem('mp_order', JSON.stringify(o)); } catch (e) {}
     clearInterval(this.trackTimer);
     this.setState({
-      order: { id: o.id, total: o.total || 0, times: o.times || ['', '', '', ''], plabel: o.plabel || '', eta: o.eta || null, pickup: !!o.pickup, ts: o.ts || null, addr: o.addr || '', phone: o.phone || '', veh: o.veh || '', copies: o.copies || 0, pages: o.pages || 0, fails: o.fails || [] },
+      order: { id: o.id, total: o.total || 0, times: o.times || ['', '', '', ''], plabel: o.plabel || '', eta: o.eta || null, pickup: !!o.pickup, ts: o.ts || null, addr: o.addr || '', phone: o.phone || '', veh: o.veh || '', copies: o.copies || 0, pages: o.pages || 0, fails: o.fails || [], dist: o.dist ?? null },
       trackStep: o.step == null ? 1 : o.step, cancelReason: o.cancelReason || '', chat: [], trackOpen: true, trackMin: false, selfCancelArm: false // ระวัง: step 0 (ยกเลิก) เป็น falsy ห้ามใช้ || 1 · trackOpen true = ใบที่เพิ่งแตะเลือกกางให้เห็นทันทีเสมอ
     }, () => {
       if (this.db && o.step !== 0 && (o.step || 1) < 4) this.startPolling(o.id);
@@ -1768,11 +1768,11 @@ class App extends React.Component {
         const oveh = pickup ? '' : (s.vehicle === 'car' ? '🚗 รถยนต์' : '🏍️ มอเตอร์ไซค์');
         // จำเป็นที่อยู่จัดส่งประจำ ไว้เลือกซ้ำรอบหน้า
         if (!pickup && s.addr.trim() && s.lat != null) this.saveAddr({ addr: s.addr.trim(), lat: s.lat, lng: s.lng, veh: s.vehicle, ts: Date.now() });
-        this.setState({ order: { id, total: c.grandTotal, times: [t0, '', '', ''], plabel, eta, pickup, ts, addr: oaddr, phone: s.phone, veh: oveh, copies: s.copies, pages: c.totalPages }, trackStep: 1, cancelReason: '', screen: 'track',
+        this.setState({ order: { id, total: c.grandTotal, times: [t0, '', '', ''], plabel, eta, pickup, ts, addr: oaddr, phone: s.phone, veh: oveh, copies: s.copies, pages: c.totalPages, dist: s.distKm }, trackStep: 1, cancelReason: '', screen: 'track',
           files: [], slip: null, copies: 1, bind: 'none', express: false, tier: 'standard', ptype: 'bw', paper: 'A4', sides: 1, orient: 'portrait', nup: 1, proPickup: false, proLam: 'none', proSpecial: false, proStaple: false, proStand: false, vehicle: 'bike', trackOpen: false, trackMin: false, histOpen: null, chatFor: null, chatFrom: 'track', selfCancelArm: false, couponCode: '', couponOk: null });
         // จำออเดอร์ไว้ในเครื่อง — ปิดเว็บแล้วกลับมา การติดตามยังอยู่
         try {
-          const nod = { id, total: c.grandTotal, times: [t0, '', '', ''], step: 1, plabel, eta, pickup, ts, addr: oaddr, phone: s.phone, veh: oveh, copies: s.copies, pages: c.totalPages };
+          const nod = { id, total: c.grandTotal, times: [t0, '', '', ''], step: 1, plabel, eta, pickup, ts, addr: oaddr, phone: s.phone, veh: oveh, copies: s.copies, pages: c.totalPages, dist: s.distKm };
           localStorage.setItem('mp_order', JSON.stringify(nod));
           this.upsertOrderList(nod); // สั่งหลายใบไล่เลี่ยกัน — ทุกใบอยู่ในลิสต์ติดตาม
         } catch (e) {}
@@ -1841,6 +1841,22 @@ class App extends React.Component {
         if (step >= 4) return pk ? '✅ รับสินค้าเรียบร้อยแล้ว ✓' : '🛵 ส่งแล้ว เรียบร้อย ✓';
         if (pk && step === 3) return '📦 สินค้าเสร็จแล้ว — มารับที่ร้านอุดมสุขปริ้นติ้ง (กังสดาล) ได้เลยครับ';
         const isPro = !!stepsFor(s.order);
+        // งาน Pro แบบส่ง ช่วงกำลังจัดส่ง (ในรอบ มข. ≤4 กม.จากร้าน): เวลาถึงโดยประมาณตามพาหนะ — มอไซค์ 10-25 นาที · รถยนต์ 25-45 นาที
+        if (isPro && step === 3 && !pk && (s.order.dist == null || s.order.dist <= 4)) {
+          const car = /รถยนต์|🚗/.test(s.order.veh || '');
+          const [lo, hi] = car ? [25, 45] : [10, 25];
+          const vehName = car ? 'รถยนต์' : 'มอเตอร์ไซค์';
+          const t2 = (s.order.times || [])[2];
+          if (t2 && /^\d{1,2}:\d{2}/.test(t2)) {
+            const hh = +t2.split(':')[0], mm = +t2.split(':')[1];
+            const st = new Date(); st.setHours(hh, mm, 0, 0);
+            if (st.getTime() > Date.now() + 60000) st.setDate(st.getDate() - 1); // เวลาส่งเป็นของเมื่อวาน (ข้ามเที่ยงคืน)
+            const hiT = st.getTime() + hi * 60000;
+            if (Date.now() > hiT) return '🛵 ไรเดอร์กำลังไปหาคุณ · ใกล้ถึงแล้ว อีกไม่กี่นาทีครับ 🙏';
+            return '🛵 ไรเดอร์กำลังไปหาคุณ · 🕐 คาดว่าถึง ~' + this.fmtTime(new Date(st.getTime() + lo * 60000)) + '–' + this.fmtTime(new Date(hiT)) + ' น. (' + vehName + ' ' + lo + '-' + hi + ' นาที)';
+          }
+          return '🛵 ไรเดอร์กำลังไปหาคุณ · 🕐 เวลาจัดส่งโดยประมาณ ' + lo + '-' + hi + ' นาที (' + vehName + ')';
+        }
         const base = step === 3 ? '🛵 ไรเดอร์กำลังไปหาคุณ' : step === 2 ? (isPro ? '🖨️ กำลังผลิตสินค้าของคุณ' : '🖨️ กำลังปริ้นเอกสารของคุณ') : '✅ ร้านรับออเดอร์แล้ว';
         const eta = s.order && s.order.eta;
         if (!eta) return base;
