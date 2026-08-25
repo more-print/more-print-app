@@ -333,7 +333,16 @@ function Dash(){
   const [navOpen, setNavOpen] = React.useState(false);
   const [billListOpen, setBillListOpen] = React.useState(false); // กดปุ่มก่อน ระบบถึงสร้างรอบบิลให้
   const [billMode, setBillMode] = React.useState('w');
-  const [billFor, setBillFor] = React.useState('partner'); // partner = บิลโอนให้ร้านอุดมสุข · us = บิลรายได้ของเรา (MORE PRINT) // ตัดบิลโอนให้พาร์ทเนอร์: w รายสัปดาห์ (ตัด อา. 23:59) · d รายวัน (ตัดเที่ยงคืน)
+  const [billFor, setBillFor] = React.useState('partner'); // partner = บิลโอนให้ร้านอุดมสุข · us = บิลรายได้ของเรา (MORE PRINT)
+  const [payConfirm, setPayConfirm] = React.useState(null); // label ของรอบที่กำลังรอกดยืนยันครั้งที่ 2
+  // บันทึกโอนแล้วทั้งรอบ: ประทับ payout_at ให้ทุกใบที่จบงานในรอบและยังค้างโอน — ชิป/ยอดค้าง/บิล อัปเดตเองทุกจอ
+  const payoutPeriod = async (b) => {
+    const ts = new Date().toISOString();
+    const ids = orders.filter(o => o.status === 4 && !o.payout_at && new Date(o.created_at) >= b.from && new Date(o.created_at) < b.to).map(o => o.id);
+    if (!ids.length) return;
+    if (DB) { await DB.from('orders').update({ payout_at: ts }).in('id', ids); await load(); }
+    else setOrders(l => l.map(x => ids.includes(x.id) ? { ...x, payout_at: ts } : x));
+  }; // ตัดบิลโอนให้พาร์ทเนอร์: w รายสัปดาห์ (ตัด อา. 23:59) · d รายวัน (ตัดเที่ยงคืน)
   // ออเดอร์ที่ยกเลิกเกิน 2 ชั่วโมง = ลบถาวรอัตโนมัติจากทุกที่ (นโยบายร้าน)
   const cancelledExpired = (o) => o.status === 0 && o.cancelled_at && (Date.now() - new Date(o.cancelled_at).getTime() > 2 * 60 * 60 * 1000);
   const purgeCancelled = (rows) => {
@@ -753,6 +762,12 @@ function Dash(){
                     <div style={css("font-family:'IBM Plex Mono',monospace;font-size:14px;font-weight:800;color:" + (billFor === 'us' ? "var(--green)" : "var(--acc)"))}>{baht(billFor === 'us' ? b.comm : b.net)}</div>
                     <div style={css("font-size:9.5px;font-weight:700;color:" + (billFor === 'us' ? "var(--green)" : b.unpaid ? "#c92a2a" : "var(--green)"))}>{billFor === 'us' ? 'รายได้เรา (' + Math.round(COMMISSION * 100) + '%)' : b.unpaid ? 'ค้างโอน ' + b.unpaid + ' งาน' : '✓ โอนครบแล้ว'}</div>
                   </div>
+                  {billFor === 'partner' && b.unpaid > 0 && (
+                    <button onClick={() => { if (payConfirm !== b.label) { setPayConfirm(b.label); setTimeout(() => setPayConfirm(c => c === b.label ? null : c), 4500); return; } setPayConfirm(null); payoutPeriod(b); }}
+                      style={css("flex:none;height:36px;padding:0 13px;border:none;border-radius:10px;background:" + (payConfirm === b.label ? "#0b7285" : "#22c55e") + ";color:#fff;font-size:11.5px;font-weight:700;cursor:pointer;font-family:inherit;white-space:nowrap")}>
+                      {payConfirm === b.label ? 'กดอีกครั้ง — โอนแล้วจริงๆ (' + b.unpaid + ' งาน)' : 'โอนให้ร้านแล้วทั้งรอบ'}
+                    </button>
+                  )}
                   <button onClick={() => setBill({ from: b.from, to: b.to, label: b.label, who: billFor })} style={css("flex:none;height:36px;padding:0 13px;border:1px solid var(--acc);border-radius:10px;background:var(--accSoft);color:var(--acc);font-size:11.5px;font-weight:700;cursor:pointer;font-family:inherit;white-space:nowrap")}>เปิดบิล</button>
                 </div>
               ))}
