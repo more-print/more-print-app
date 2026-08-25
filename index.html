@@ -1860,8 +1860,11 @@ class App extends React.Component {
         const base = step === 3 ? '🛵 ไรเดอร์กำลังไปหาคุณ' : step === 2 ? (isPro ? '🖨️ กำลังผลิตสินค้าของคุณ' : '🖨️ กำลังปริ้นเอกสารของคุณ') : '✅ ร้านรับออเดอร์แล้ว';
         const eta = s.order && s.order.eta;
         if (!eta) return base;
-        if (Date.now() > eta) return base + ' · ใกล้เสร็จแล้ว ร้านกำลังเร่งให้ครับ 🙏';
-        return base + ' · 🕐 ' + (pk ? 'คาดว่างานเสร็จ' : 'คาดว่าได้รับ') + ' ~' + this.fmtTime(new Date(eta)) + ' น.';
+        // ช่วงเวลาแบบ กี่โมง–กี่โมง: ผลิตเสร็จ (eta) + เวลาเดินทางตามพาหนะ (มอไซค์ 10-25 · รถยนต์ 25-45 · มารับเอง 0-15 นาที)
+        const carV = /รถยนต์|🚗/.test((s.order && s.order.veh) || '');
+        const [wLo, wHi] = pk ? [0, 15] : carV ? [25, 45] : [10, 25];
+        if (Date.now() > eta + wHi * 60000) return base + ' · ใกล้เสร็จแล้ว ร้านกำลังเร่งให้ครับ 🙏';
+        return base + ' · 🕐 ' + (pk ? 'คาดว่างานเสร็จ' : 'คาดว่าได้รับ') + ' ~' + this.fmtTime(new Date(eta + wLo * 60000)) + '–' + this.fmtTime(new Date(eta + wHi * 60000)) + ' น.';
       })(),
       trackSteps: (stepsFor(s.order) || STEPS).map((label, i) => {
         const done = step > i, active = step === i + 1, last = i === 3;
