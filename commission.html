@@ -332,16 +332,32 @@ function Dash(){
   const [page, setPage] = React.useState('home');      // เมนูซ้าย: home/orders/income/bills/customers
   const [navOpen, setNavOpen] = React.useState(false);
   const [billListOpen, setBillListOpen] = React.useState(false); // กดปุ่มก่อน ระบบถึงสร้างรอบบิลให้
-  const [billMode, setBillMode] = React.useState('w');
+  const [billMode, setBillMode] = React.useState('w'); // w รายสัปดาห์ (จ.-อา.) · m รายเดือนปฏิทิน
   const [billFor, setBillFor] = React.useState('partner'); // partner = บิลโอนให้ร้านอุดมสุข · us = บิลรายได้ของเรา (MORE PRINT)
-  const [payConfirm, setPayConfirm] = React.useState(null); // label ของรอบที่กำลังรอกดยืนยันครั้งที่ 2
-  // บันทึกโอนแล้วทั้งรอบ: ประทับ payout_at ให้ทุกใบที่จบงานในรอบและยังค้างโอน — ชิป/ยอดค้าง/บิล อัปเดตเองทุกจอ
+  const [payPanel, setPayPanel] = React.useState(null);   // label ของรอบที่เปิดแผงแนบสลิป+ยืนยัน
+  const [paySlip, setPaySlip] = React.useState(null);     // ไฟล์สลิปการโอนที่แนบ
+  const [payBusy, setPayBusy] = React.useState(false);
+  // บันทึกโอนแล้วทั้งรอบ: ประทับ payout_at ทุกใบค้างโอนในรอบ + อัปสลิป + บันทึกบิลลงตาราง payouts (ร้านอุดมสุขเห็นใน pro.html หน้า "บิลโอน")
   const payoutPeriod = async (b) => {
     const ts = new Date().toISOString();
-    const ids = orders.filter(o => o.status === 4 && !o.payout_at && new Date(o.created_at) >= b.from && new Date(o.created_at) < b.to).map(o => o.id);
+    const list = orders.filter(o => o.status === 4 && !o.payout_at && new Date(o.created_at) >= b.from && new Date(o.created_at) < b.to);
+    const ids = list.map(o => o.id);
     if (!ids.length) return;
-    if (DB) { await DB.from('orders').update({ payout_at: ts }).in('id', ids); await load(); }
-    else setOrders(l => l.map(x => ids.includes(x.id) ? { ...x, payout_at: ts } : x));
+    const amount = Math.round(list.reduce((a, o) => a + jobValue(o) * (1 - COMMISSION), 0) * 100) / 100;
+    if (!DB) { setOrders(l => l.map(x => ids.includes(x.id) ? { ...x, payout_at: ts } : x)); setPayPanel(null); setPaySlip(null); return; }
+    setPayBusy(true);
+    let slip_path = null;
+    if (paySlip) {
+      const ext = (paySlip.name.split('.').pop() || 'jpg').replace(/[^a-zA-Z0-9]/g, '').slice(0, 5) || 'jpg';
+      slip_path = 'payouts/' + Date.now().toString(36) + '.' + ext;
+      const { error: se } = await DB.storage.from('uploads').upload(slip_path, paySlip);
+      if (se) { console.error('payout slip:', se); slip_path = null; }
+    }
+    await DB.from('orders').update({ payout_at: ts }).in('id', ids); // หัวใจ: ประทับรายใบ
+    const { error: pe } = await DB.from('payouts').insert({ label: b.label, ptype: billMode, from_at: b.from.toISOString(), to_at: b.to.toISOString(), amount, n: ids.length, slip_path });
+    setPayBusy(false); setPayPanel(null); setPaySlip(null);
+    if (pe) alert('บันทึกโอนรายใบสำเร็จ ✓ แต่ยังส่งบิล+สลิปให้ร้านไม่ได้ — ต้องรัน SQL สร้างตาราง payouts ก่อนครับ');
+    await load();
   }; // ตัดบิลโอนให้พาร์ทเนอร์: w รายสัปดาห์ (ตัด อา. 23:59) · d รายวัน (ตัดเที่ยงคืน)
   // ออเดอร์ที่ยกเลิกเกิน 2 ชั่วโมง = ลบถาวรอัตโนมัติจากทุกที่ (นโยบายร้าน)
   const cancelledExpired = (o) => o.status === 0 && o.cancelled_at && (Date.now() - new Date(o.cancelled_at).getTime() > 2 * 60 * 60 * 1000);
@@ -477,11 +493,11 @@ function Dash(){
     done.forEach(o => {
       const d = new Date(o.created_at);
       let from;
-      if (billMode === 'd') from = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+      if (billMode === 'm') from = new Date(d.getFullYear(), d.getMonth(), 1);
       else { const dow = (d.getDay() + 6) % 7; from = new Date(d.getFullYear(), d.getMonth(), d.getDate() - dow); }
       const key = from.getTime();
       if (!map[key]) map[key] = { from,
-        to: billMode === 'd' ? new Date(from.getFullYear(), from.getMonth(), from.getDate() + 1)
+        to: billMode === 'm' ? new Date(from.getFullYear(), from.getMonth() + 1, 1)
                              : new Date(from.getFullYear(), from.getMonth(), from.getDate() + 7),
         n: 0, job: 0, unpaid: 0 };
       const b = map[key];
@@ -492,8 +508,8 @@ function Dash(){
     return Object.keys(map).sort((a, b) => b - a).slice(0, 12).map(k => {
       const b = map[k];
       const endShow = new Date(b.to.getTime() - 1);
-      const label = billMode === 'd'
-        ? 'วันที่ ' + fmtD(b.from) + ' ' + ((b.from.getFullYear() + 543) % 100)
+      const label = billMode === 'm'
+        ? 'เดือน ' + TH_MONTHS[b.from.getMonth()] + ' ' + (b.from.getFullYear() + 543)
         : fmtD(b.from) + ' – ' + fmtD(endShow) + ' ' + ((endShow.getFullYear() + 543) % 100);
       return { ...b, label, comm: b.job * COMMISSION, net: b.job * (1 - COMMISSION), current: now < b.to };
     });
@@ -745,7 +761,7 @@ function Dash(){
                     background: billFor === k ? '#e6f9ef' : 'var(--soft)', color: billFor === k ? 'var(--green)' : 'var(--sub)' }}>{label}</button>
                 ))}
               </div>
-              {[['w', 'รายสัปดาห์ (ตัด อา. 23:59)'], ['d', 'รายวัน (ตัดเที่ยงคืน)']].map(([k, label]) => (
+              {[['w', 'ปิดบิลรายสัปดาห์ (จ.–อา.)'], ['m', 'ปิดบิลรายเดือน']].map(([k, label]) => (
                   <button key={k} onClick={() => setBillMode(k)} style={{ flex: 1, height: '38px', borderRadius: '10px', cursor: 'pointer', fontSize: '11.5px', fontWeight: 700, fontFamily: 'inherit',
                     border: billMode === k ? '1.5px solid var(--acc)' : '1px solid var(--line)',
                     background: billMode === k ? 'var(--accSoft)' : 'var(--soft)', color: billMode === k ? 'var(--acc)' : 'var(--sub)' }}>{label}</button>
@@ -763,12 +779,26 @@ function Dash(){
                     <div style={css("font-size:9.5px;font-weight:700;color:" + (billFor === 'us' ? "var(--green)" : b.unpaid ? "#c92a2a" : "var(--green)"))}>{billFor === 'us' ? 'รายได้เรา (' + Math.round(COMMISSION * 100) + '%)' : b.unpaid ? 'ค้างโอน ' + b.unpaid + ' งาน' : '✓ โอนครบแล้ว'}</div>
                   </div>
                   {billFor === 'partner' && b.unpaid > 0 && (
-                    <button onClick={() => { if (payConfirm !== b.label) { setPayConfirm(b.label); setTimeout(() => setPayConfirm(c => c === b.label ? null : c), 4500); return; } setPayConfirm(null); payoutPeriod(b); }}
-                      style={css("flex:none;height:36px;padding:0 13px;border:none;border-radius:10px;background:" + (payConfirm === b.label ? "#0b7285" : "#22c55e") + ";color:#fff;font-size:11.5px;font-weight:700;cursor:pointer;font-family:inherit;white-space:nowrap")}>
-                      {payConfirm === b.label ? 'กดอีกครั้ง — โอนแล้วจริงๆ (' + b.unpaid + ' งาน)' : 'โอนให้ร้านแล้วทั้งรอบ'}
-                    </button>
+                    <button onClick={() => { setPayPanel(payPanel === b.label ? null : b.label); setPaySlip(null); }}
+                      style={css("flex:none;height:36px;padding:0 13px;border:none;border-radius:10px;background:#22c55e;color:#fff;font-size:11.5px;font-weight:700;cursor:pointer;font-family:inherit;white-space:nowrap")}>โอนให้ร้านแล้วทั้งรอบ</button>
                   )}
                   <button onClick={() => setBill({ from: b.from, to: b.to, label: b.label, who: billFor })} style={css("flex:none;height:36px;padding:0 13px;border:1px solid var(--acc);border-radius:10px;background:var(--accSoft);color:var(--acc);font-size:11.5px;font-weight:700;cursor:pointer;font-family:inherit;white-space:nowrap")}>เปิดบิล</button>
+                  {payPanel === b.label && (
+                    <div style={css("width:100%;margin-top:9px;background:#f2faf3;border:1.5px solid #cdeed4;border-radius:12px;padding:12px 14px;box-sizing:border-box")}>
+                      <div style={css("font-size:12px;font-weight:800;color:#14532d")}>บันทึกการโอนรอบ {b.label} ({billMode === 'm' ? 'บิลรายเดือน' : 'บิลรายสัปดาห์'}) · {b.unpaid} งานค้างโอน</div>
+                      <div style={css("margin-top:5px;font-size:11px;color:#3c7a4b;line-height:1.6")}>แนบสลิปการโอนไว้เป็นหลักฐาน — ร้านอุดมสุขจะเห็นบิลนี้พร้อมสลิปในหลังบ้านของเขา (เมนู "บิลโอน") พร้อมป้ายบอกว่าเป็นรอบสัปดาห์หรือเดือน</div>
+                      <div style={css("margin-top:9px;display:flex;gap:8px;align-items:center;flex-wrap:wrap")}>
+                        <label style={css("flex:1;min-width:170px;height:38px;border:1.5px dashed #22c55e;border-radius:10px;background:#fff;display:flex;align-items:center;justify-content:center;font-size:11.5px;font-weight:700;color:#15803d;cursor:pointer;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;padding:0 10px")}>
+                          {paySlip ? '✓ ' + paySlip.name : '+ แนบสลิปการโอน (รูปภาพ)'}
+                          <input type="file" accept="image/*" onChange={e => { setPaySlip((e.target.files || [])[0] || null); e.target.value = ''; }} style={{ display: 'none' }}/>
+                        </label>
+                        <button onClick={() => payoutPeriod(b)} disabled={payBusy}
+                          style={css("flex:none;height:38px;padding:0 14px;border:none;border-radius:10px;background:#22c55e;color:#fff;font-size:11.5px;font-weight:800;cursor:pointer" + (payBusy ? ";opacity:.6" : ""))}>{payBusy ? 'กำลังบันทึก…' : '✓ ยืนยันโอนแล้ว + ส่งบิลให้ร้าน'}</button>
+                        <button onClick={() => { setPayPanel(null); setPaySlip(null); }} style={css("flex:none;height:38px;padding:0 11px;border:1px solid var(--line);border-radius:10px;background:var(--soft);color:var(--sub);font-size:11.5px;font-weight:700;cursor:pointer")}>ยกเลิก</button>
+                      </div>
+                      {!paySlip && <div style={css("margin-top:6px;font-size:10px;color:#8a6d1a")}>ไม่แนบสลิปก็บันทึกได้ แต่แนะนำแนบไว้เป็นหลักฐานให้ร้านครับ</div>}
+                    </div>
+                  )}
                 </div>
               ))}
             </React.Fragment>

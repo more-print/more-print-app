@@ -364,7 +364,15 @@ function Dash({ role }){
   const [orders, setOrders] = React.useState(DB ? [] : DEMO);
   const [payoutReady, setPayoutReady] = React.useState(!DB);
   const [loading, setLoading] = React.useState(!!DB);
-  const [page, setPage] = React.useState('home');      // เมนูซ้าย: home/orders/sales/customers
+  const [page, setPage] = React.useState('home');      // เมนูซ้าย: home/orders/sales/payouts/customers
+  // ── บิลโอนจาก MORE PRINT (ตาราง payouts): บิลรอบสัปดาห์/เดือน + สลิปการโอน ──
+  const [payouts, setPayouts] = React.useState(null);
+  React.useEffect(() => {
+    if (page !== 'payouts') return;
+    if (!DB) { setPayouts([{ id: 1, label: '18 ส.ค. – 24 ส.ค. 69', ptype: 'w', amount: 536, n: 5, slip_path: null, created_at: new Date().toISOString() }]); return; }
+    DB.from('payouts').select('*').order('id', { ascending: false }).limit(24)
+      .then(({ data, error }) => setPayouts(error ? 'missing' : (data || [])));
+  }, [page]);
   const [navOpen, setNavOpen] = React.useState(false);
   const [period, setPeriod] = React.useState('day');   // ช่วงเวลาที่เลือกดู
   const [chartMode, setChartMode] = React.useState('d'); // กราฟ: d รายวัน · m รายเดือน · y รายปี
@@ -543,7 +551,7 @@ function Dash({ role }){
     tier: c.n >= 5 ? 2 : c.n >= 2 ? 1 : 0 // ⭐ประจำ ≥5 / 🔁ซ้ำ 2-4 / 🆕ใหม่
   })).sort((a, b) => b.n - a.n || b.spend - a.spend);
 
-  const NAV = [['home', FI.home(17), 'ภาพรวม'], ['orders', FI.clipboard(17), 'ออเดอร์'], ['sales', FI.chart(17), 'ยอดขาย'], ['customers', FI.users(17), 'ลูกค้า']];
+  const NAV = [['home', FI.home(17), 'ภาพรวม'], ['orders', FI.clipboard(17), 'ออเดอร์'], ['sales', FI.chart(17), 'ยอดขาย'], ['payouts', FI.receipt(17), 'บิลโอน'], ['customers', FI.users(17), 'ลูกค้า']];
   return (
     <div>
       {/* ── แถบเมนูซ้าย (ตามเรฟ) ── */}
@@ -737,6 +745,32 @@ function Dash({ role }){
         })()}
 
         {/* ── หมวดลูกค้า ── */}
+        {page === 'payouts' && (
+          <React.Fragment>
+            <div style={css("font-size:14px;font-weight:800")}>{FI.receipt(15)} บิลโอนส่วนแบ่งจาก MORE PRINT</div>
+            <div style={css("margin-top:3px;font-size:11.5px;color:var(--sub)")}>ทุกครั้งที่ MORE PRINT โอนส่วนแบ่งให้ร้าน จะมีบิล+สลิปการโอนขึ้นที่นี่ พร้อมบอกว่าเป็นรอบสัปดาห์หรือรอบเดือน</div>
+            {payouts === 'missing' && <div style={css("margin-top:10px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px;font-size:12.5px;color:var(--sub)")}>ระบบบิลโอนยังไม่เปิดใช้ (ต้องรัน SQL สร้างตาราง payouts)</div>}
+            {payouts === null && <div style={css("margin-top:10px;text-align:center;color:var(--sub);font-size:13px;padding:20px 0")}>กำลังโหลด…</div>}
+            {Array.isArray(payouts) && payouts.length === 0 && <div style={css("margin-top:10px;text-align:center;color:var(--sub);font-size:13px;padding:26px 0")}>ยังไม่มีบิลโอน — เมื่อ MORE PRINT โอนส่วนแบ่งรอบแรก บิลจะขึ้นที่นี่ครับ</div>}
+            {Array.isArray(payouts) && payouts.map(pv => (
+              <div key={pv.id} style={css("margin-top:10px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:13px 15px;box-shadow:var(--shadow)")}>
+                <div style={css("display:flex;align-items:center;gap:9px;flex-wrap:wrap")}>
+                  <span style={css("font-size:13.5px;font-weight:800")}>รอบ {pv.label}</span>
+                  <span style={css("flex:none;font-size:10px;font-weight:800;border-radius:99px;padding:3px 10px;" + (pv.ptype === 'm' ? "color:#7c2d9c;background:#f6e8fb" : "color:#0b7285;background:#e3fafc"))}>{pv.ptype === 'm' ? 'บิลรายเดือน' : 'บิลรายสัปดาห์'}</span>
+                  <span style={css("flex:1")}/>
+                  <span style={css("font-family:'IBM Plex Mono',monospace;font-size:16px;font-weight:800;color:#15803d")}>{baht(pv.amount)}</span>
+                </div>
+                <div style={css("margin-top:4px;font-size:11px;color:var(--sub)")}>{pv.n} งาน · โอนเมื่อ {fmtWhen(pv.created_at)}</div>
+                {pv.slip_path && fileUrl(pv.slip_path)
+                  ? <a href={fileUrl(pv.slip_path)} target="_blank" rel="noreferrer" style={css("text-decoration:none;display:inline-block;margin-top:8px")}>
+                      <img src={fileUrl(pv.slip_path)} alt="สลิปการโอน" style={css("max-width:150px;max-height:190px;border-radius:10px;border:1px solid var(--line);display:block;background:var(--soft)")} onError={(e) => { e.target.parentElement.style.display = 'none'; }}/>
+                      <span style={css("font-size:10.5px;color:var(--acc);font-weight:700")}>สลิปการโอน — แตะดูเต็ม</span>
+                    </a>
+                  : <div style={css("margin-top:6px;font-size:10.5px;color:var(--sub)")}>ไม่มีสลิปแนบในบิลนี้</div>}
+              </div>
+            ))}
+          </React.Fragment>
+        )}
         {page === 'customers' && customers.length === 0 && <div style={css("text-align:center;color:var(--sub);font-size:13px;padding:30px 0")}>ยังไม่มีลูกค้างาน Pro</div>}
         {page === 'customers' && customers.length > 0 && <div style={css("font-size:12.5px;font-weight:700;color:var(--sub);margin-top:6px")}>{FI.users(13)} ลูกค้าประจำงาน PRO ({customers.length} คน · ประจำ {customers.filter(c => c.tier === 2).length} คน)</div>}
         {page === 'customers' && customers.map((cst, i) => (
