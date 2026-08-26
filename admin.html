@@ -530,7 +530,7 @@ function AdminApp(){
     if (tab !== 'chats' || !authed) return;
     if (!DB) { setThreads([{ id: '#MP-4512', last: DEMO_MSGS[1], unread: 1 }]); return; }
     const load = async () => {
-      const { data, error } = await DB.from('messages').select('*').order('id', { ascending: false }).limit(1000);
+      const { data, error } = await DB.from('messages').select('*').in('sender', ['shop', 'customer']).order('id', { ascending: false }).limit(1000); // ไม่รวมแชทภายใน partner/moreprint
       if (error) { setThreads('missing'); return; }
       const map = {};
       (data || []).forEach(m => {

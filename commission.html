@@ -144,7 +144,61 @@ const DEMO_MSGS = [
 ];
 
 // ── กล่องแชทกับลูกค้า (ตาราง messages — ห้องเดียวกับที่ลูกค้าเห็นในเว็บ) ──
+
+// ── แชทภายใน ร้านอุดมสุข ↔ MORE PRINT ต่อออเดอร์ (คนละช่องกับแชทลูกค้า: sender = partner/moreprint) ──
+function MpChat({ o, me, title }){
+  const [open, setOpen] = React.useState(false);
+  const [msgs, setMsgs] = React.useState([]);
+  const [text, setText] = React.useState('');
+  const [busy, setBusy] = React.useState(false);
+  const load = React.useCallback(async () => {
+    if (!DB) return;
+    const { data } = await DB.from('messages').select('*').eq('order_id', o.id).in('sender', ['partner', 'moreprint']).order('id', { ascending: true }).limit(200);
+    if (data) setMsgs(data);
+  }, [o.id]);
+  React.useEffect(() => { if (!open) return; load(); const t = setInterval(load, 10000); return () => clearInterval(t); }, [open, load]);
+  const send = async () => {
+    const b = text.trim(); if (!b || busy) return;
+    if (!DB) { setMsgs(m => [...m, { id: Date.now(), sender: me, body: b, created_at: new Date().toISOString() }]); setText(''); return; }
+    setBusy(true);
+    const { error } = await DB.from('messages').insert({ order_id: o.id, sender: me, body: b });
+    setBusy(false);
+    if (error) return alert('ส่งไม่สำเร็จ — ต้องรัน SQL เปิดสิทธิ์แชทภายในก่อนครับ');
+    setText(''); load();
+  };
+  return (
+    <div style={css("margin-top:10px;border:1.5px solid #f0c36d;border-radius:12px;overflow:hidden;background:var(--card)")}>
+      <div onClick={() => setOpen(v => !v)} style={css("padding:10px 13px;background:#fff7e0;display:flex;align-items:center;gap:8px;cursor:pointer")}>
+        <span style={css("flex:1;font-size:12px;font-weight:800;color:#8a6d1a")}>{title}</span>
+        <span style={css("flex:none;color:#8a6d1a;font-size:11px;font-weight:700")}>{open ? 'ย่อ ▲' : 'เปิด ▼'}</span>
+      </div>
+      {open && (
+        <div style={css("padding:10px 13px")}>
+          <div style={css("max-height:220px;overflow-y:auto;display:flex;flex-direction:column;gap:6px")}>
+            {msgs.length === 0 && <div style={css("font-size:11.5px;color:var(--sub);text-align:center;padding:8px 0")}>ยังไม่มีข้อความ — แจ้งปัญหาไฟล์ / การผลิต / การปริ้นของออเดอร์นี้ได้เลย</div>}
+            {msgs.map(m => (
+              <div key={m.id} style={{ display: 'flex', justifyContent: m.sender === me ? 'flex-end' : 'flex-start' }}>
+                <div style={{ maxWidth: '82%', borderRadius: '11px', padding: '7px 11px', fontSize: '12px', lineHeight: 1.5, whiteSpace: 'pre-wrap', wordBreak: 'break-word',
+                  background: m.sender === me ? 'var(--acc)' : 'var(--soft)', color: m.sender === me ? '#fff' : 'var(--ink)' }}>
+                  <div style={{ fontSize: '9.5px', opacity: .75, marginBottom: '2px' }}>{m.sender === 'partner' ? 'ร้านอุดมสุข' : 'MORE PRINT'} · {fmtWhen(m.created_at)}</div>
+                  {m.body}
+                </div>
+              </div>
+            ))}
+          </div>
+          <div style={css("margin-top:8px;display:flex;gap:7px")}>
+            <input value={text} onChange={e => setText(e.target.value)} onKeyDown={e => e.key === 'Enter' && send()} maxLength={500} placeholder="พิมพ์แจ้งปัญหา/ประสานงาน…"
+              style={css("flex:1;min-width:0;box-sizing:border-box;height:38px;border:1px solid var(--line);border-radius:10px;background:var(--soft);color:var(--ink);padding:0 12px;font-size:12.5px;outline:none")}/>
+            <button onClick={send} disabled={busy} style={css("flex:none;height:38px;padding:0 14px;border:none;border-radius:10px;background:var(--acc);color:#fff;font-size:12.5px;font-weight:700;cursor:pointer" + (busy ? ";opacity:.6" : ""))}>ส่ง</button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function Chat({ o }){
+  const [open, setOpen] = React.useState(false); // หุบไว้กันการ์ดรก — แตะหัวข้อเพื่อเปิด
   const [msgs, setMsgs] = React.useState(null);
   const [text, setText] = React.useState('');
   const [busy, setBusy] = React.useState(false);
@@ -154,13 +208,13 @@ function Chat({ o }){
   const camRef = React.useRef(null);
   const load = React.useCallback(async () => {
     if (!DB) { setMsgs(DEMO_MSGS); return; }
-    const { data, error } = await DB.from('messages').select('*').eq('order_id', o.id).order('id');
+    const { data, error } = await DB.from('messages').select('*').eq('order_id', o.id).in('sender', ['shop', 'customer']).order('id'); // เฉพาะช่องแชทลูกค้า — ข้อความภายใน (partner/moreprint) แยกช่อง
     if (error) { setMissing(true); return; }
     setMsgs(data || []);
     const unseen = (data || []).filter(m => m.sender === 'customer' && !m.seen_by_shop);
     if (unseen.length) await DB.from('messages').update({ seen_by_shop: true }).eq('order_id', o.id).eq('sender', 'customer');
   }, [o.id]);
-  React.useEffect(() => { load(); const t = setInterval(load, 8000); return () => clearInterval(t); }, [load]);
+  React.useEffect(() => { if (!open) return; load(); const t = setInterval(load, 8000); return () => clearInterval(t); }, [open, load]);
   React.useEffect(() => { if (boxRef.current) boxRef.current.scrollTop = boxRef.current.scrollHeight; }, [msgs]);
   const send = async () => {
     const body = text.trim();
@@ -189,7 +243,11 @@ function Chat({ o }){
   if (missing) return null;
   return (
     <div style={css("margin-top:9px;background:var(--soft);border:1px solid var(--line);border-radius:12px;padding:10px 12px")}>
-      <div style={css("font-size:11px;font-weight:700;color:var(--sub)")}>{FI.chat(12)} แชทกับลูกค้า</div>
+      <div onClick={() => setOpen(v => !v)} style={css("display:flex;align-items:center;gap:8px;cursor:pointer")}>
+        <span style={css("flex:1;font-size:11px;font-weight:700;color:var(--sub)")}>{FI.chat(12)} แชทกับลูกค้า</span>
+        <span style={css("flex:none;font-size:10.5px;font-weight:700;color:var(--sub)")}>{open ? 'ย่อ ▲' : 'เปิด ▼'}</span>
+      </div>
+      {open && <React.Fragment>
       <div ref={boxRef} style={css("margin-top:8px;max-height:220px;overflow-y:auto;display:flex;flex-direction:column;gap:7px")}>
         {msgs === null && <div style={css("font-size:12px;color:var(--sub)")}>กำลังโหลด…</div>}
         {msgs !== null && msgs.length === 0 && <div style={css("font-size:11.5px;color:var(--sub)")}>ยังไม่มีข้อความ — ทักแจ้งราคา/ความคืบหน้าได้เลย</div>}
@@ -221,6 +279,7 @@ function Chat({ o }){
           style={css("flex:1;min-width:0;height:38px;border:1px solid var(--line);border-radius:10px;background:var(--card);color:var(--ink);padding:0 12px;font-size:12.5px;outline:none;font-family:inherit")}/>
         <button onClick={send} disabled={busy || !text.trim()} style={css("flex:none;height:38px;padding:0 15px;border:none;border-radius:10px;background:var(--acc);color:#fff;font-size:12.5px;font-weight:700;cursor:pointer" + (busy || !text.trim() ? ";opacity:.5" : ""))}>ส่ง</button>
       </div>
+      </React.Fragment>}
     </div>
   );
 }
@@ -893,6 +952,7 @@ function Dash(){
             </div>
             <Manage o={o} onPrice={setPrice} onPayout={markPayout} onAdvance={advance} onCancel={cancelOrder} onRemove={removeOrder}/>
             <Chat o={o}/>
+            <MpChat o={o} me="moreprint" title="ช่องแชทกับร้านอุดมสุขปริ้นติ้ง (แจ้งปัญหา)"/>
           </div>
               ))}
             </React.Fragment>
