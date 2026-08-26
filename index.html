@@ -15,6 +15,11 @@
   input,button{font-family:'IBM Plex Sans Thai',sans-serif}
   @keyframes mpPulse{0%,100%{opacity:1}50%{opacity:.35}}
   @keyframes mpFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
+  @media print{
+    body *{visibility:hidden !important}
+    #rcSheet,#rcSheet *{visibility:visible !important}
+    #rcSheet{position:absolute !important;left:0;top:0;width:100%;border-radius:0 !important;box-shadow:none !important}
+  }
 </style>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -228,7 +233,7 @@ const PRO_TYPES = [
   { k: 'sticker', icon: '🏷️', label: 'สติ๊กเกอร์' },
   { k: 'namecard', icon: '💳', label: 'นามบัตร', qty: [100, 200, 300] },
   { k: 'standee', icon: '🧍', label: 'Standy (สแตนดี้)' },
-  { k: 'blueprint', icon: '📐', label: 'ปริ้นขาวดำขนาดใหญ่', sizes: ['A3', 'A2', 'A1'] }
+  { k: 'blueprint', icon: '📐', label: 'ปริ้นขาวดำขนาดใหญ่ (แบบแปลน)', sizes: ['A3', 'A2', 'A1'] }
 ];
 const PRO_BINDS = ['ไสกาว', 'ปกแข็ง', 'สันห่วงพลาสติก', 'ขาตะเกียบ', 'เย็บมุงหลังคา', 'ห่วงเกลียว', 'ห่วงคู่', 'เย็บเล่ม', 'เทปปิด', 'สันกาวปกแข็ง'];
 // ── ราคางาน Pro (เจ้าของกำหนด 2026-08-20) — ต่อแผ่น ──
@@ -326,8 +331,10 @@ class App extends React.Component {
     this.slipRef = React.createRef();
     this.reupRef = React.createRef(); // ช่องเลือกไฟล์สำหรับส่งไฟล์ที่อัปพลาดใหม่
     this.chatImgRef = React.createRef(); // ช่องเลือกรูปแนบในแชท (เช่น สลิปส่วนต่างค่าส่ง)
+    let rc0 = null; try { rc0 = JSON.parse(localStorage.getItem('mp_rc') || 'null'); } catch (e) {} // ข้อมูลผู้ซื้อในใบเสร็จที่เคยกรอก
     this.state = {
       screen: 'home', files: [], tier: 'standard', ptype: 'bw', paper: 'A4', sides: 1, orient: 'portrait', nup: 1, bind: 'none', copies: 1, note: '',
+      rcOn: false, rcName: (rc0 && rc0.name) || '', rcAddr: (rc0 && rc0.addr) || '', rcTax: (rc0 && rc0.tax) || '', rcPhone: (rc0 && rc0.phone) || '', rcView: null, // ใบเสร็จรับเงิน
       vehicle: 'bike', // พาหนะส่งที่ลูกค้าเลือกเอง: 'bike' มอเตอร์ไซค์ · 'car' รถยนต์ (ใช้ทั้ง Standard และ Pro)
       reviews: [], reviewsReady: false, revAll: false, revStars: 5, revText: '', trackStars: 5, trackText: '',
       alertPrompt: false, alertAck: false,
@@ -543,6 +550,33 @@ class App extends React.Component {
       this.setState({ couponOk: { code: c.code, kind: c.kind, value: Number(c.value), min_total: Number(c.min_total || 0) } });
       this.showToast('ใช้โค้ดสำเร็จ! 🎉 ' + (c.kind === 'percent' ? 'ลด ' + c.value + '%' : c.kind === 'freeship' ? 'ส่งฟรีออเดอร์นี้เลย' : 'ลด ฿' + c.value));
     });
+  }
+
+  // ── ใบเสร็จรับเงิน: ขอเลขรันจากฐานข้อมูล (MP001, MP002, … คนแรกที่ขอได้เลขแรก) แล้วบันทึกเลขกลับทุกที่ที่จำออเดอร์ไว้ ──
+  async issueReceipt(o){
+    if (!o || !o.rc) return null;
+    if (o.rc.no) return o.rc.no;
+    let no = null;
+    if (!this.db) { // โหมดตัวอย่าง: รันเลขในเครื่อง
+      let n = 0; try { n = parseInt(localStorage.getItem('mp_rc_demo') || '0', 10) || 0; } catch (e) {}
+      no = 'MP' + String(n + 1).padStart(3, '0');
+      try { localStorage.setItem('mp_rc_demo', String(n + 1)); } catch (e) {}
+    } else {
+      try {
+        const { data, error } = await this.db.rpc('issue_receipt', { oid: o.id, bname: o.rc.name, baddr: o.rc.addr, btax: o.rc.tax, bphone: o.rc.phone });
+        if (error || !/^MP\d/.test(String(data || ''))) return null; // ยังไม่รัน SQL / ออเดอร์ยังไม่ลงฐาน — ค่อยลองใหม่ตอนลูกค้ากดเปิด
+        no = data;
+      } catch (e) { return null; }
+    }
+    const at = Date.now();
+    const fix = (od) => od && od.rc && od.id === o.id ? { ...od, rc: { ...od.rc, no, at } } : od;
+    this.setState(st => ({ order: fix(st.order), history: (st.history || []).map(fix) }));
+    try {
+      const od = JSON.parse(localStorage.getItem('mp_order') || 'null'); if (od && od.id === o.id) localStorage.setItem('mp_order', JSON.stringify(fix(od)));
+      const list = JSON.parse(localStorage.getItem('mp_orders') || '[]'); localStorage.setItem('mp_orders', JSON.stringify(list.map(fix)));
+      const h = JSON.parse(localStorage.getItem('mp_history') || '[]'); localStorage.setItem('mp_history', JSON.stringify(h.map(fix)));
+    } catch (e) {}
+    return no;
   }
 
   // ── ที่อยู่จัดส่งประจำ (จำจากออเดอร์ที่สั่งสำเร็จ เก็บในเครื่องลูกค้า สูงสุด 4 ที่) ──
@@ -972,7 +1006,7 @@ class App extends React.Component {
       : t.k === 'postcard' ? 'Postcard A3 (9 ใบ/แผ่น)'
       : t.k === 'foldbook' ? 'พับครึ่ง ' + s.proSize
       : t.k === 'namecard' ? 'นามบัตร ' + s.proQty + ' ใบ' + (s.sides === 2 ? ' หน้า-หลัง' : ' หน้าเดียว')
-      : t.k === 'blueprint' ? 'ปริ้นขาวดำขนาดใหญ่ ' + s.proSize
+      : t.k === 'blueprint' ? 'ปริ้นขาวดำขนาดใหญ่ (แบบแปลน) ' + s.proSize
       : t.k === 'sticker' ? 'สติ๊กเกอร์ A3'
       : t.label;
     // ตัวเลือกเสริมพ่วงเข้าไปในป้าย — หลังบ้านทุกที่จะเห็นครบว่าลูกค้าเลือกอะไร (บันทึกลงช่อง paper)
@@ -1690,6 +1724,22 @@ class App extends React.Component {
       printCost: c.printCost, bindCost: c.bindCost, printTotal: c.printTotal,
       deliveryCost: c.deliveryCost, grandTotal: c.grandTotal,
       noteText: s.note, setNote: (e) => this.setState({ note: e.target.value }),
+      // ใบเสร็จรับเงิน (หน้าชำระเงิน + ป๊อปอัพใบเสร็จ)
+      rcOn: s.rcOn, rcToggle: (on) => () => this.setState({ rcOn: on }),
+      rcName: s.rcName, rcAddr: s.rcAddr, rcTax: s.rcTax, rcPhone: s.rcPhone,
+      setRc: (k) => (e) => this.setState({ [k]: e.target.value }),
+      rcView: s.rcView, closeRc: () => this.setState({ rcView: null }), curOrder: s.order,
+      printRc: () => { try { window.print(); } catch (e) {} },
+      openReceipt: async (o) => {
+        if (!o || !o.rc) return;
+        let no = o.rc.no;
+        if (!no) { this.showToast('กำลังออกเลขใบเสร็จ… ⏳'); no = await this.issueReceipt(o); }
+        if (!no) return this.showToast('ยังออกใบเสร็จไม่ได้ครับ — ลองใหม่อีกครั้ง หรือทักแชทร้านได้เลย');
+        const d = new Date(o.rc.at || o.ts || Date.now());
+        this.setState({ rcView: { no, name: o.rc.name, addr: o.rc.addr, tax: o.rc.tax, phone: o.rc.phone, oid: o.id, amount: o.total || 0,
+          detail: (o.plabel || 'งานปริ้น') + (o.pages ? ' · ' + o.pages + ' หน้า' : '') + ((o.copies || 1) > 1 ? ' × ' + o.copies + ' ชุด' : ''),
+          date: ('0' + d.getDate()).slice(-2) + '/' + ('0' + (d.getMonth() + 1)).slice(-2) + '/' + (d.getFullYear() + 543) } });
+      },
       toDelivery: () => {
         if (s.tier === 'pro' && new Date().getDay() === 0) return this.showToast('ร้าน Pro หยุดทุกวันอาทิตย์ครับ 🙏 สั่งได้อีกครั้งวันจันทร์ 08:30 น.');
         if (!s.files.length) return this.showToast('เพิ่มไฟล์ก่อนนะครับ 📄');
@@ -1830,6 +1880,7 @@ class App extends React.Component {
       slipChecking: s.slipChecking,
       confirmPay: () => {
         if (s.slipChecking) return this.showToast('กำลังตรวจสลิปอยู่ แป๊บนึงครับ ⏳');
+        if (s.rcOn && !(s.rcName.trim() && s.rcAddr.trim() && s.rcTax.trim() && s.rcPhone.trim())) return this.showToast('ขอใบเสร็จ — กรอกข้อมูลผู้ซื้อให้ครบ 4 ช่องก่อนนะครับ 🧾');
         if (this.db && !s.slip && c.grandTotal > 0) return this.showToast('แนบสลิปโอนเงินก่อนยืนยันนะครับ 🧾');
         const id = '#MP-' + Array.from(crypto.getRandomValues(new Uint8Array(8))).map(b => 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'[b % 31]).join('');
         const t0 = this.fmtTime(new Date());
@@ -1862,14 +1913,20 @@ class App extends React.Component {
         const oveh = pickup ? '' : (s.vehicle === 'car' ? '🚗 รถยนต์' : '🏍️ มอเตอร์ไซค์');
         // จำเป็นที่อยู่จัดส่งประจำ ไว้เลือกซ้ำรอบหน้า
         if (!pickup && s.addr.trim() && s.lat != null) this.saveAddr({ addr: s.addr.trim(), lat: s.lat, lng: s.lng, veh: s.vehicle, ts: Date.now() });
-        this.setState({ order: { id, total: c.grandTotal, times: [t0, '', '', ''], plabel, eta, pickup, ts, addr: oaddr, phone: s.phone, veh: oveh, copies: s.copies, pages: c.totalPages, dist: s.distKm }, trackStep: 1, cancelReason: '', screen: 'track',
+        // ลูกค้าขอใบเสร็จ — ผูกข้อมูลผู้ซื้อไว้กับออเดอร์ (เลขที่จะรันให้หลังออเดอร์ลงฐานข้อมูล) + จำไว้ใช้รอบหน้า
+        const rcReq = s.rcOn ? { no: null, name: s.rcName.trim(), addr: s.rcAddr.trim(), tax: s.rcTax.trim(), phone: s.rcPhone.trim() } : null;
+        if (rcReq) try { localStorage.setItem('mp_rc', JSON.stringify({ name: rcReq.name, addr: rcReq.addr, tax: rcReq.tax, phone: rcReq.phone })); } catch (e) {}
+        this.setState({ order: { id, total: c.grandTotal, times: [t0, '', '', ''], plabel, eta, pickup, ts, addr: oaddr, phone: s.phone, veh: oveh, copies: s.copies, pages: c.totalPages, dist: s.distKm, rc: rcReq }, trackStep: 1, cancelReason: '', screen: 'track',
           files: [], slip: null, copies: 1, bind: 'none', express: false, tier: 'standard', ptype: 'bw', paper: 'A4', sides: 1, orient: 'portrait', nup: 1, note: '', proPickup: false, proLam: 'none', proSpecial: false, proStaple: false, proStand: false, vehicle: 'bike', trackOpen: false, trackMin: false, histOpen: null, chatFor: null, chatFrom: 'track', selfCancelArm: false, couponCode: '', couponOk: null });
         // จำออเดอร์ไว้ในเครื่อง — ปิดเว็บแล้วกลับมา การติดตามยังอยู่
         try {
-          const nod = { id, total: c.grandTotal, times: [t0, '', '', ''], step: 1, plabel, eta, pickup, ts, addr: oaddr, phone: s.phone, veh: oveh, copies: s.copies, pages: c.totalPages, dist: s.distKm };
+          const nod = { id, total: c.grandTotal, times: [t0, '', '', ''], step: 1, plabel, eta, pickup, ts, addr: oaddr, phone: s.phone, veh: oveh, copies: s.copies, pages: c.totalPages, dist: s.distKm, rc: rcReq };
           localStorage.setItem('mp_order', JSON.stringify(nod));
           this.upsertOrderList(nod); // สั่งหลายใบไล่เลี่ยกัน — ทุกใบอยู่ในลิสต์ติดตาม
         } catch (e) {}
+        // ขอเลขใบเสร็จหลังออเดอร์ลงฐานข้อมูลแล้ว (อัปโหลดไฟล์เสร็จก่อน insert — เผื่อเวลาไว้ ถ้ายังไม่ทันจะขอซ้ำตอนลูกค้ากดเปิดใบเสร็จ)
+        if (rcReq && this.db) setTimeout(() => { const od = this.state.order; if (od && od.id === id) this.issueReceipt(od); }, 8000);
+        if (rcReq && !this.db) setTimeout(() => { const od = this.state.order; if (od && od.id === id) this.issueReceipt(od); }, 1500);
         // บวกเวลาตามคิวที่ค้างจริง (ออเดอร์ที่ยังไม่ออกส่ง) — รอ insert ลงฐานก่อนแล้วค่อยนับ
         if (this.db) setTimeout(async () => {
           try {
@@ -2824,6 +2881,23 @@ class App extends React.Component {
                     </div>
                   </React.Fragment>}
             </div>
+            {/* ใบเสร็จรับเงิน (ออนไลน์ — ลูกค้าเปิดปริ้นเองได้จากหน้าติดตาม) */}
+            <div style={css("background:var(--card);border:1px solid var(--line);border-radius:14px;padding:13px 16px")}>
+              <div style={css("font-size:12px;font-weight:700")}>🧾 ใบเสร็จรับเงิน</div>
+              <div style={css("margin-top:8px;display:flex;gap:8px")}>
+                <button onClick={v.rcToggle(false)} style={css("flex:1;height:40px;border-radius:10px;font-size:12.5px;font-weight:700;cursor:pointer;font-family:inherit;" + (!v.rcOn ? "border:1.5px solid var(--acc);background:var(--accSoft);color:var(--acc)" : "border:1px solid var(--line);background:var(--soft);color:var(--sub)"))}>ไม่รับใบเสร็จ</button>
+                <button onClick={v.rcToggle(true)} style={css("flex:1;height:40px;border-radius:10px;font-size:12.5px;font-weight:700;cursor:pointer;font-family:inherit;" + (v.rcOn ? "border:1.5px solid var(--acc);background:var(--accSoft);color:var(--acc)" : "border:1px solid var(--line);background:var(--soft);color:var(--sub)"))}>ขอใบเสร็จรับเงิน</button>
+              </div>
+              {v.rcOn && (
+                <div style={css("margin-top:10px;display:flex;flex-direction:column;gap:8px")}>
+                  <input value={v.rcName} onChange={v.setRc('rcName')} placeholder="ชื่อผู้ซื้อ (ชื่อ-นามสกุล หรือชื่อบริษัท) *" maxLength={120} style={css("width:100%;box-sizing:border-box;height:42px;border:1px solid var(--line);border-radius:10px;background:var(--soft);color:var(--ink);padding:0 12px;font-size:13px;outline:none")}/>
+                  <textarea value={v.rcAddr} onChange={v.setRc('rcAddr')} placeholder="ที่อยู่ *" rows={2} maxLength={300} style={css("width:100%;box-sizing:border-box;border:1px solid var(--line);border-radius:10px;background:var(--soft);color:var(--ink);padding:10px 12px;font-size:13px;outline:none;resize:none;font-family:inherit;line-height:1.5")}></textarea>
+                  <input value={v.rcTax} onChange={v.setRc('rcTax')} placeholder="เลขประจำตัวผู้เสียภาษี (13 หลัก) *" inputMode="numeric" maxLength={17} style={css("width:100%;box-sizing:border-box;height:42px;border:1px solid var(--line);border-radius:10px;background:var(--soft);color:var(--ink);padding:0 12px;font-size:13px;outline:none;font-family:'IBM Plex Mono',monospace")}/>
+                  <input value={v.rcPhone} onChange={v.setRc('rcPhone')} placeholder="โทรศัพท์ *" inputMode="tel" maxLength={12} style={css("width:100%;box-sizing:border-box;height:42px;border:1px solid var(--line);border-radius:10px;background:var(--soft);color:var(--ink);padding:0 12px;font-size:13px;outline:none;font-family:'IBM Plex Mono',monospace")}/>
+                  <div style={css("font-size:10.5px;color:var(--sub);line-height:1.6")}>ข้อมูลนี้จะขึ้นในใบเสร็จอัตโนมัติ · หลังยืนยันออเดอร์ เปิดดู/สั่งพิมพ์ใบเสร็จได้ที่หน้า "ติดตาม" ครับ</div>
+                </div>
+              )}
+            </div>
             <div style={css("background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px;display:flex;flex-direction:column;align-items:center;gap:10px")}>
               {/* QR พร้อมเพย์จริงของร้าน (Make by KBank) — กดค้างที่รูปเพื่อบันทึก/สแกนจากอัลบั้มได้ */}
               <img src="assets/promptpay-qr.jpg" alt="PromptPay QR ของร้าน MORE PRINT" style={css("width:250px;max-width:100%;border-radius:12px;border:1px solid var(--line);display:block")} onError={(e) => { e.target.style.display = 'none'; }}/>
@@ -2973,6 +3047,7 @@ class App extends React.Component {
                       <button onClick={v.sendTrackReview} style={css("margin-top:8px;width:100%;height:42px;border:none;border-radius:10px;background:var(--acc);color:#fff;font-size:13.5px;font-weight:700;cursor:pointer")}>ส่งรีวิว</button>
                     </div>
                 )}
+                {v.curOrder && v.curOrder.rc && <button onClick={() => v.openReceipt(v.curOrder)} style={css("width:100%;height:46px;border:1.5px solid var(--acc);border-radius:14px;background:var(--accSoft);color:var(--acc);font-size:14px;font-weight:700;cursor:pointer")}>🧾 เปิดใบเสร็จรับเงิน{v.curOrder.rc.no ? ' (เลขที่ ' + v.curOrder.rc.no + ')' : ''}</button>}
                 <button onClick={v.newOrder} style={css("width:100%;height:46px;border:1px solid var(--line);border-radius:14px;background:var(--card);color:var(--ink);font-size:14px;font-weight:600;cursor:pointer")}>+ สั่งปริ้นใหม่</button>
               </React.Fragment>
             )}
@@ -3200,6 +3275,7 @@ class App extends React.Component {
                       <div style={css("display:flex;justify-content:space-between")}><span style={css("color:var(--sub)")}>ยอดชำระ</span><b style={css("font-family:'IBM Plex Mono',monospace")}>฿{h.total}</b></div>
                       <div style={css("display:flex;justify-content:space-between")}><span style={css("color:var(--sub)")}>สำเร็จเมื่อ</span><span>{v.histWhen(h.doneAt)}</span></div>
                     </div>
+                    {h.rc && <button onClick={() => v.openReceipt(h)} style={css("margin-top:11px;width:100%;height:42px;border:1.5px solid var(--acc);border-radius:12px;background:var(--accSoft);color:var(--acc);font-size:13px;font-weight:700;cursor:pointer")}>🧾 เปิดใบเสร็จรับเงิน{h.rc.no ? ' (เลขที่ ' + h.rc.no + ')' : ''}</button>}
                     <div onClick={() => v.openHistChat(h)} style={css("margin-top:11px;background:var(--acc);border-radius:12px;padding:11px 14px;display:flex;align-items:center;gap:10px;cursor:pointer")}>
                       <span style={css("font-size:17px")}>💬</span>
                       <div style={css("flex:1;color:#fff")}>
@@ -3259,6 +3335,73 @@ class App extends React.Component {
             </div>
           </div>
         )}
+
+        {/* ── ใบเสร็จรับเงิน (ป๊อปอัพ — สั่งพิมพ์แล้วเห็นเฉพาะใบเสร็จ) ── */}
+        {v.rcView && (() => {
+          const rc = v.rcView, money = Number(rc.amount || 0).toLocaleString('en-US');
+          const line = { borderBottom: '1px dotted #999', flex: 1, minWidth: 0, padding: '0 6px 2px', wordBreak: 'break-word' };
+          const row = (label, val, mono) => (
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px', fontSize: '13px', lineHeight: 1.9 }}>
+              <span style={{ flex: 'none', color: '#333' }}>{label}</span>
+              <span style={{ ...line, fontFamily: mono ? "'IBM Plex Mono',monospace" : 'inherit' }}>{val}</span>
+            </div>
+          );
+          return (
+            <div style={css("position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:60;overflow-y:auto;padding:14px")}>
+              <div style={css("max-width:560px;margin:0 auto")}>
+                <div id="rcSheet" style={{ background: '#fff', color: '#111', borderRadius: '10px', padding: '26px 22px', boxShadow: '0 10px 40px rgba(0,0,0,.35)' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <img src="assets/logo-black.png" alt="" onError={(e) => { e.target.style.display = 'none'; }} style={{ height: '34px', width: 'auto', display: 'block' }}/>
+                    <div style={{ fontFamily: "'Montserrat',sans-serif", fontSize: '17px', fontWeight: 800, letterSpacing: '.5px', flex: 1 }}>MORE <span style={{ color: '#00b368' }}>PRINT</span></div>
+                    <div style={{ fontSize: '17px', fontWeight: 800, flex: 'none' }}>ใบเสร็จรับเงิน</div>
+                  </div>
+                  <div style={{ marginTop: '16px', display: 'flex', gap: '14px', fontSize: '13px' }}>
+                    <div style={{ flex: 1, display: 'flex', alignItems: 'baseline', gap: '6px' }}><span style={{ flex: 'none' }}>วันที่</span><span style={{ ...line, fontFamily: "'IBM Plex Mono',monospace" }}>{rc.date}</span></div>
+                    <div style={{ flex: 1, display: 'flex', alignItems: 'baseline', gap: '6px' }}><span style={{ flex: 'none' }}>เลขที่</span><span style={{ ...line, fontFamily: "'IBM Plex Mono',monospace", fontWeight: 700 }}>{rc.no}</span></div>
+                  </div>
+                  <div style={{ marginTop: '16px' }}>
+                    {row('ชื่อผู้ซื้อ', rc.name)}
+                    {row('ที่อยู่', rc.addr)}
+                    <div style={{ display: 'flex', gap: '14px' }}>
+                      <div style={{ flex: 1.2, minWidth: 0 }}>{row('เลขประจำตัวผู้เสียภาษี', rc.tax, true)}</div>
+                      <div style={{ flex: 1, minWidth: 0 }}>{row('โทรศัพท์', rc.phone, true)}</div>
+                    </div>
+                  </div>
+                  <table style={{ marginTop: '18px', width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+                    <thead><tr>
+                      <th style={{ border: '1px solid #444', padding: '8px 6px', width: '52px', fontWeight: 700 }}>ลำดับ</th>
+                      <th style={{ border: '1px solid #444', padding: '8px 6px', fontWeight: 700 }}>รายการ</th>
+                      <th style={{ border: '1px solid #444', padding: '8px 6px', width: '110px', fontWeight: 700 }}>จำนวนเงิน (บาท)</th>
+                    </tr></thead>
+                    <tbody>
+                      <tr>
+                        <td style={{ border: '1px solid #444', padding: '10px 6px', textAlign: 'center', verticalAlign: 'top' }}>1</td>
+                        <td style={{ border: '1px solid #444', padding: '10px 8px', verticalAlign: 'top', lineHeight: 1.6 }}>
+                          <span style={{ fontFamily: "'IBM Plex Mono',monospace", fontWeight: 700 }}>{rc.oid}</span><br/>{rc.detail}
+                        </td>
+                        <td style={{ border: '1px solid #444', padding: '10px 8px', textAlign: 'right', verticalAlign: 'top', fontFamily: "'IBM Plex Mono',monospace" }}>{money}</td>
+                      </tr>
+                      <tr><td style={{ border: '1px solid #444', height: '90px' }} colSpan={3}></td></tr>
+                      <tr>
+                        <td colSpan={2} style={{ border: '1px solid #444', padding: '8px', textAlign: 'right', color: '#333' }}>ราคาสุทธิ</td>
+                        <td style={{ border: '1px solid #444', padding: '8px', textAlign: 'right', fontFamily: "'IBM Plex Mono',monospace" }}>{money}</td>
+                      </tr>
+                      <tr>
+                        <td colSpan={2} style={{ border: '1px solid #444', padding: '8px', textAlign: 'right', fontWeight: 800 }}>ยอดรวม</td>
+                        <td style={{ border: '1px solid #444', padding: '8px', textAlign: 'right', fontFamily: "'IBM Plex Mono',monospace", fontWeight: 800, fontSize: '15px' }}>{money}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                  <div style={{ marginTop: '10px', fontSize: '11px', color: '#555' }}>หน่วยเงิน: บาท · ใบเสร็จออนไลน์ ออกโดยระบบ MORE PRINT — ลูกค้าสั่งพิมพ์ได้เอง</div>
+                </div>
+                <div style={css("margin-top:12px;display:flex;gap:8px")}>
+                  <button onClick={v.printRc} style={css("flex:1;height:46px;border:none;border-radius:12px;background:var(--acc);color:#fff;font-size:14px;font-weight:700;cursor:pointer")}>🖨️ พิมพ์ / บันทึก PDF</button>
+                  <button onClick={v.closeRc} style={css("flex:none;height:46px;padding:0 20px;border:none;border-radius:12px;background:#fff;color:#111;font-size:14px;font-weight:700;cursor:pointer")}>ปิด</button>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
 
         {/* ── Toast ── */}
         {v.toast && (
