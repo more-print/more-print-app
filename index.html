@@ -301,6 +301,7 @@ class App extends React.Component {
     this.fileRef = React.createRef();
     this.slipRef = React.createRef();
     this.reupRef = React.createRef(); // ช่องเลือกไฟล์สำหรับส่งไฟล์ที่อัปพลาดใหม่
+    this.chatImgRef = React.createRef(); // ช่องเลือกรูปแนบในแชท (เช่น สลิปส่วนต่างค่าส่ง)
     this.state = {
       screen: 'home', files: [], tier: 'standard', ptype: 'bw', paper: 'A4', sides: 1, orient: 'portrait', nup: 1, bind: 'none', copies: 1,
       vehicle: 'bike', // พาหนะส่งที่ลูกค้าเลือกเอง: 'bike' มอเตอร์ไซค์ · 'car' รถยนต์ (ใช้ทั้ง Standard และ Pro)
@@ -1342,13 +1343,18 @@ class App extends React.Component {
     this.setState({ chAdBusy: false });
     if (error) { this.chatBot('ระบบเปลี่ยนที่อยู่อัตโนมัติยังไม่เปิดใช้ครับ 🙏 พิมพ์ที่อยู่ใหม่บอกร้านในแชทนี้ได้เลย เดี๋ยวทีมงานแก้ให้'); return this.setState({ chAdOpen: false }); }
     if (data === 'too-late') { this.chatBot('ออเดอร์นี้กำลังจัดส่งแล้ว เปลี่ยนที่อยู่ไม่ทันแล้วครับ 🙏 โทรหาไรเดอร์/ร้านด่วนได้เลย'); return this.setState({ chAdOpen: false }); }
-    if (data !== 'ok') { this.chatBot('เปลี่ยนที่อยู่ไม่สำเร็จ (' + data + ') — พิมพ์บอกร้านในแชทนะครับ'); return this.setState({ chAdOpen: false }); }
-    // สำเร็จ: อัปเดตสำเนาในเครื่องให้ตรง แล้วรีเฟรชแชท (ข้อความระบบจากเซิร์ฟเวอร์จะโชว์ให้ทั้งลูกค้าและร้าน)
+    if (!/^ok/.test(String(data || ''))) { this.chatBot('เปลี่ยนที่อยู่ไม่สำเร็จ (' + data + ') — พิมพ์บอกร้านในแชทนะครับ'); return this.setState({ chAdOpen: false }); }
+    // สำเร็จ: RPC คืน 'ok:<ค่าส่งเดิม>' → คิดส่วนต่างตามนโยบายร้าน (เกณฑ์ราคาเดิม แค่คิดตามระยะใหม่)
+    const oldFee = parseFloat(String(data).split(':')[1] || '') || 0;
+    const diff = Math.round((pt.fee - oldFee) * 100) / 100;
     const veh = (o.addr || '').match(/^(🚗|🏍️)/); const na = (veh ? veh[1] + ' ' : '') + txt;
-    this.setState({ order: { ...o, addr: na }, chAdOpen: false, chAdMode: '', chAdLink: '', chAdText: '', chAdPt: null });
+    this.setState({ order: { ...o, addr: na, total: Math.max(0, (o.total || 0) - oldFee + pt.fee) }, chAdOpen: false, chAdMode: '', chAdLink: '', chAdText: '', chAdPt: null });
     try { const od = JSON.parse(localStorage.getItem('mp_order') || 'null');
-      if (od && od.id === o.id) { od.addr = na; od.dist = pt.km; localStorage.setItem('mp_order', JSON.stringify(od)); this.upsertOrderList(od); } } catch (e) {}
+      if (od && od.id === o.id) { od.addr = na; od.dist = pt.km; od.total = Math.max(0, (od.total || 0) - oldFee + pt.fee); localStorage.setItem('mp_order', JSON.stringify(od)); this.upsertOrderList(od); } } catch (e) {}
     this.showToast('✓ เปลี่ยนที่อยู่จัดส่งเรียบร้อยครับ 🎉');
+    if (diff > 0) this.chatBot('🤖 ที่อยู่ใหม่ไกลขึ้น ค่าส่งเพิ่มเป็น ฿' + pt.fee + ' (เพิ่มจากเดิม ฿' + diff + ') — รบกวนโอนส่วนต่าง ฿' + diff + ' มาที่พร้อมเพย์เดิมของร้าน แล้วแนบสลิปในแชทนี้ได้เลยครับ 🙏');
+    else if (diff < 0) this.chatBot('🤖 ที่อยู่ใหม่ใกล้ขึ้น ค่าส่งลดเหลือ ฿' + pt.fee + ' (ลดลง ฿' + (-diff) + ') 🎉 ร้านจะโอนส่วนต่างคืนให้ — พิมพ์เลขพร้อมเพย์/บัญชีของคุณในแชทนี้ได้เลย เดี๋ยวร้านโอนคืนพร้อมส่งสลิปให้ครับ');
+    else this.chatBot('🤖 ค่าส่งที่อยู่ใหม่เท่าเดิม (฿' + pt.fee + ') — ไม่ต้องโอนเพิ่ม และร้านไม่ต้องโอนคืนครับ ✓');
     this.loadChat();
   }
   // เก็บออเดอร์ที่จบแล้ว (ส่งสำเร็จ/ลูกค้ารับแล้ว) เข้าประวัติในเครื่อง — กันซ้ำด้วยรหัสออเดอร์
@@ -2012,6 +2018,24 @@ class App extends React.Component {
       },
       chAdConfirm: () => this.chAdConfirm(),
       chatKey: (e) => { if (e.key === 'Enter') this.sendChat(); },
+      // ลูกค้าแนบรูปในแชท (สลิปส่วนต่าง/รูปงาน) — อัปเข้าคลังแล้วส่งผ่าน post_message
+      pickChatImg: () => this.chatImgRef.current && this.chatImgRef.current.click(),
+      onChatImg: async (e) => {
+        const f = (e.target.files || [])[0]; e.target.value = '';
+        if (!f) return;
+        if (!(f.type || '').startsWith('image/')) return this.showToast('แนบเป็นรูปภาพนะครับ 🖼️');
+        const co = s.chatFor || s.order;
+        if (!co || !this.db) return;
+        this.setState({ chatBusy: true });
+        const ext = (f.name.split('.').pop() || 'jpg').replace(/[^a-zA-Z0-9]/g, '').slice(0, 5) || 'jpg';
+        const path = 'chat/' + co.id.replace('#', '') + '/c' + Date.now().toString(36) + '.' + ext;
+        const { error } = await this.db.storage.from('uploads').upload(path, f);
+        if (error) { this.setState({ chatBusy: false }); return this.showToast('อัปโหลดรูปไม่สำเร็จ ลองใหม่ครับ 🙏'); }
+        const { error: e2 } = await this.db.rpc('post_message', { oid: co.id, body: '📷 ส่งรูปภาพ', img: path });
+        this.setState({ chatBusy: false });
+        if (e2) return this.showToast('ระบบส่งรูปในแชทยังไม่เปิดใช้ — พิมพ์ข้อความบอกร้านแทนก่อนนะครับ');
+        this.loadChat();
+      },
       // ── ประกาศแจ้งปัญหา/งานล่าช้า (เปิด-ปิดจากหลังบ้าน ผ่านแบนเนอร์ชนิด alert) ──
       alertBn: (() => { const a = s.banners.find(b => b.color === 'alert'); return a ? { title: a.title || '', subtitle: a.subtitle || '' } : null; })(),
       alertPrompt: s.alertPrompt,
@@ -3002,6 +3026,8 @@ class App extends React.Component {
               ))}
             </div>
             <div style={css("padding:10px 16px 14px;background:var(--card);display:flex;gap:8px")}>
+              <input ref={this.chatImgRef} type="file" accept="image/*" onChange={v.onChatImg} style={{ display: 'none' }}/>
+              <button onClick={v.pickChatImg} disabled={v.chatBusy} title="แนบรูป/สลิป" style={css("flex:none;width:44px;height:44px;border:1px solid var(--line);border-radius:50%;background:var(--soft);color:var(--acc);font-size:18px;cursor:pointer" + (v.chatBusy ? ";opacity:.5" : ""))}>📎</button>
               <input value={v.chatText} onChange={v.setChatText} onKeyDown={v.chatKey} maxLength={500} placeholder="พิมพ์ข้อความ…"
                 style={css("flex:1;min-width:0;box-sizing:border-box;height:44px;border:1px solid var(--line);border-radius:22px;background:var(--soft);color:var(--ink);padding:0 16px;font-size:13.5px;outline:none;font-family:inherit")}/>
               <button onClick={v.sendChat} disabled={v.chatBusy || !v.chatText.trim()} style={css("flex:none;width:44px;height:44px;border:none;border-radius:50%;background:var(--acc);color:#fff;font-size:17px;font-weight:700;cursor:pointer" + (v.chatBusy || !v.chatText.trim() ? ";opacity:.45" : ""))}>➤</button>
