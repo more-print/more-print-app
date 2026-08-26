@@ -302,6 +302,7 @@ function ProOrder({ o, idx, isOwner, payoutReady, onPrice, onPayout, onAdvance, 
       {/* ── ใบออเดอร์เต็ม: กดปุ่มถึงโชว์รายละเอียดทั้งหมด (ที่อยู่ · สลิป · ยอดเงิน) ── */}
       <button onClick={() => setFull(v => !v)} style={css("margin-top:10px;width:100%;height:38px;border:1px solid var(--line);border-radius:10px;background:var(--soft);color:var(--ink);font-size:12px;font-weight:700;cursor:pointer")}>{FI.clipboard(13)} {full ? 'ซ่อนใบออเดอร์เต็ม ▴' : 'ดูใบออเดอร์เต็ม — ที่อยู่ · สลิป · ยอดเงิน ▾'}</button>
       {full && <div style={css("margin-top:10px;border-top:1px dashed var(--line);padding-top:10px;display:flex;flex-direction:column;gap:8px")}>
+        {o.note && <div style={css("background:#fff7e0;border:1px solid #f0c36d;border-radius:10px;padding:8px 11px;font-size:12px;color:#8a6d1a;line-height:1.6")}><b>{FI.file(11)} หมายเหตุจากลูกค้า:</b> {o.note}</div>}
         <div style={css("display:flex;gap:10px;font-size:12px")}>
           <span style={css("flex:none;width:76px;color:var(--sub);font-weight:600")}>{FI.truck(13)} การรับงาน</span>
           <div style={css("flex:1;min-width:0;line-height:1.6")}>
@@ -456,7 +457,7 @@ function Dash({ role }){
     if (!DB) return;
     setLoading(true);
     const cols = 'id,created_at,status,times,cancel_reason,customer_fname,customer_lname,customer_phone,paper,sides,copies,print_cost,bind_cost,delivery_cost,night_fee,total,files,slip_path,addr,point,lat,lng';
-    let r = await DB.from('orders').select(cols + ',payout_at,pickup,cancelled_at').eq('ptype', 'pro').order('created_at', { ascending: false }).limit(2000);
+    let r = await DB.from('orders').select(cols + ',payout_at,pickup,cancelled_at,note').eq('ptype', 'pro').order('created_at', { ascending: false }).limit(2000);
     if (r.error) r = await DB.from('orders').select(cols + ',payout_at,pickup').eq('ptype', 'pro').order('created_at', { ascending: false }).limit(2000); // ยังไม่รัน SQL ลบอัตโนมัติ
     if (r.error) {
       // ยังไม่มีคอลัมน์ payout_at — โหลดแบบไม่มีไปก่อน (ตั้งราคายังใช้ได้ แต่บันทึกการโอนยังไม่ได้)
@@ -555,6 +556,22 @@ function Dash({ role }){
   const owedSum = owed.reduce((a, o) => a + partnerOf(o), 0);
   // บันทึกข้อมูลออเดอร์รายเดือน (ดูย้อนหลังได้ตลอด — แถวออเดอร์เก็บถาวรในฐานข้อมูล)
   const TH_M = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
+  // ── บิลรายได้รายสัปดาห์ (จ.–อา.) ย้อนหลัง 8 สัปดาห์ — ส่วนของร้าน 80% + สถานะโอน ──
+  const fmtDM = (d) => d.getDate() + ' ' + TH_M[d.getMonth()];
+  const weekBills = (() => {
+    const out = [];
+    for (let i = 0; i < 8; i++) {
+      const from = new Date(week); from.setDate(week.getDate() - 7 * i);
+      const to = new Date(from); to.setDate(from.getDate() + 7);
+      const rows = valid.filter(o => { const t = new Date(o.created_at); return t >= from && t < to; });
+      if (!rows.length) continue;
+      const job = rows.reduce((a, o) => a + jobValue(o), 0);
+      const priced = rows.filter(o => jobValue(o) > 0);
+      out.push({ label: 'จ. ' + fmtDM(from) + ' – อา. ' + fmtDM(new Date(to.getTime() - 86400000)), job, mine: Math.round(job * (1 - COMMISSION) * 100) / 100,
+        n: rows.length, paidAll: priced.length > 0 && priced.every(o => o.payout_at), cur: i === 0 });
+    }
+    return out;
+  })();
   // ── ข้อมูลกราฟยอดขาย (ยอดค่างานปริ้นของออเดอร์ที่ไม่ถูกยกเลิก) ──
   const chartData = (() => {
     const out = [];
@@ -697,6 +714,25 @@ function Dash({ role }){
               </div>
             </div>
           </div>
+        </div>
+
+        {/* บิลรายได้รายสัปดาห์ */}
+        <div style={css("background:var(--card);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow);padding:14px 16px")}>
+          <div style={css("font-size:13px;font-weight:800")}>{FI.receipt(13)} บิลรายได้รายสัปดาห์ (จ.–อา.)</div>
+          <div style={css("margin-top:2px;font-size:10.5px;color:var(--sub)")}>ยอดค่างานปริ้นแต่ละสัปดาห์ และส่วนของร้านคุณ {Math.round((1 - COMMISSION) * 100)}% · ขึ้น "โอนแล้ว" เมื่อ MORE PRINT โอนครบทุกใบในสัปดาห์นั้น</div>
+          {weekBills.length === 0 && <div style={css("margin-top:10px;font-size:12px;color:var(--sub)")}>ยังไม่มียอดขายใน 8 สัปดาห์ล่าสุดครับ</div>}
+          {weekBills.map((w, i) => (
+            <div key={i} style={css("margin-top:8px;border:1px solid " + (w.cur ? "var(--acc)" : "var(--line)") + ";border-radius:12px;padding:10px 12px;display:flex;align-items:center;gap:10px" + (w.cur ? ";background:var(--accSoft)" : ""))}>
+              <div style={css("flex:1;min-width:0")}>
+                <div style={css("font-size:12px;font-weight:800")}>{w.label}{w.cur ? ' · สัปดาห์นี้' : ''}</div>
+                <div style={css("margin-top:1px;font-size:10.5px;color:var(--sub)")}>{w.n} ออเดอร์ · ยอดงานรวม {baht(w.job)}</div>
+              </div>
+              <div style={css("flex:none;text-align:right")}>
+                <div style={css("font-size:14.5px;font-weight:800;font-family:'IBM Plex Mono',monospace;color:var(--gold)")}>{baht(w.mine)}</div>
+                <div style={css("font-size:9.5px;font-weight:800;color:" + (w.paidAll ? "#0ca678" : "#c98a00"))}>{w.paidAll ? 'โอนแล้ว ✓' : 'รอรอบโอนจาก MORE PRINT'}</div>
+              </div>
+            </div>
+          ))}
         </div>
 
         {/* กราฟยอดขาย */}

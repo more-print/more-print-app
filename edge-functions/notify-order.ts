@@ -1,4 +1,4 @@
-// Edge Function: notify-order — แจ้งเตือน LINE แยกกลุ่มตามประเภทงาน
+// Edge Function: notify-order v8 — แจ้งเตือน LINE แยกกลุ่มตามประเภทงาน + ร้านทักลูกค้า (action=msg) + หมายเหตุลูกค้าในแจ้งเตือน
 // Secrets: LINE_TOKEN
 //   LINE_OWNER_ID = กลุ่มทีมงาน Standard (ออเดอร์งานทั่วไป)
 //   LINE_PRO_ID   = กลุ่มทีมงาน Pro (ออเดอร์งาน Pro) — ยังไม่ตั้ง = ส่งเข้ากลุ่ม Standard ไปก่อน กันแจ้งเตือนหาย
@@ -7,6 +7,7 @@
 // ?action=chat + {id} → ลูกค้าแชทมาใน Live Chat → แจ้งกลุ่มให้เข้าไปตอบ (กันสแปม: แจ้งเฉพาะข้อความแรกที่ยังไม่อ่าน)
 // ?action=test → ข้อความทดสอบหาเจ้าของ · ?action=cancelled + {id} → แจ้งลูกค้า (ต้องมี line_uid)
 // ?action=customer-cancelled + {id} → ลูกค้ายกเลิกเองใน 10 นาที → แจ้งเจ้าของ (+พาร์ทเนอร์ถ้างาน Pro) ว่าไม่ต้องทำงานนี้
+// ?action=msg + {id, text} → ร้านทักลูกค้า: push ข้อความเข้า LINE ของลูกค้า (ต้องมี line_uid) — v8
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -52,16 +53,32 @@ Deno.serve(async (req) => {
     }
 
     // ดึงออเดอร์จริงจากฐานข้อมูล (สิทธิ์ระบบ) — กันคนนอกยิงมั่ว
-    const { id } = await req.json();
+    const reqBody = await req.json().catch(() => ({}));
+    const id = reqBody.id;
     if (!id) return json({ error: 'no-id' }, 400);
     const sbUrl = Deno.env.get('SUPABASE_URL') || '';
     const srKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '';
-    const r = await fetch(sbUrl + '/rest/v1/orders?id=eq.' + encodeURIComponent(id) + '&select=id,created_at,status,cancel_reason,line_uid,customer_fname,total,ptype,paper,addr,pickup,copies', {
-      headers: { apikey: srKey, Authorization: 'Bearer ' + srKey },
-    });
-    const rows = await r.json();
+    const hdrs = { apikey: srKey, Authorization: 'Bearer ' + srKey };
+    const baseCols = 'id,created_at,status,cancel_reason,line_uid,customer_fname,total,ptype,paper,addr,pickup,copies';
+    // ขอคอลัมน์ note ด้วย — ฐานข้อมูลที่ยังไม่มีคอลัมน์นี้ให้ถอยไปขอชุดเดิม (ห้ามพังทุก action)
+    let rows = await (await fetch(sbUrl + '/rest/v1/orders?id=eq.' + encodeURIComponent(id) + '&select=' + baseCols + ',note', { headers: hdrs })).json();
+    if (!Array.isArray(rows)) rows = await (await fetch(sbUrl + '/rest/v1/orders?id=eq.' + encodeURIComponent(id) + '&select=' + baseCols, { headers: hdrs })).json();
     const o = Array.isArray(rows) && rows[0];
     if (!o) return json({ error: 'order-not-found' }, 404);
+
+    if (action === 'msg') {
+      // ร้านทักลูกค้าทาง LINE OA — ส่งได้เฉพาะออเดอร์จริงที่ลูกค้าล็อกอินด้วย LINE
+      const t = String(reqBody.text || '').trim().slice(0, 500);
+      if (!t) return json({ error: 'no-text' }, 400);
+      if (!o.line_uid) return json({ ok: false, reason: 'no-line-uid' });
+      const rr = await pushOne(o.line_uid,
+        '💬 MORE PRINT ถึงคุณ' + (o.customer_fname || 'ลูกค้า') + ' (ออเดอร์ ' + o.id + ')\n'
+        + t + '\n\n'
+        + 'ตอบกลับได้ใน Live Chat: https://more-print.github.io/more-print-app/').catch(() => null);
+      if (!rr) return json({ ok: false, reason: 'network' });
+      if (rr.status === 429) return json({ ok: false, reason: 'quota' });
+      return json({ ok: rr.ok, status: rr.status });
+    }
 
     if (action === 'cancelled') {
       // แจ้งลูกค้าว่าออเดอร์ถูกยกเลิก (เฉพาะลูกค้าที่ล็อกอินด้วย LINE)
@@ -128,10 +145,12 @@ Deno.serve(async (req) => {
     const text = '🖨️ ออเดอร์ใหม่ ' + o.id + '\n'
       + 'คุณ' + (o.customer_fname || 'ลูกค้า') + ' · ' + (isPro ? '✨ PRO ' + (o.paper || '') : 'งานทั่วไป') + ' · ฿' + (o.total || 0) + '\n'
       + (o.pickup ? '🏪 ลูกค้ามารับเองที่อุดมสุข' : '📍 ' + (o.addr || '-')) + '\n'
+      + (o.note ? '📝 หมายเหตุ: ' + String(o.note).slice(0, 200) + '\n' : '')
       + 'จัดการ: https://more-print.github.io/more-print-app/' + (isPro ? 'commission' : 'admin') + '.html';
     const r1 = await push(teamOf(isPro), text);
     if (isPro && partners.length) {
       await push(partners, '✨ งาน PRO ใหม่ ' + o.id + '\n' + (o.paper || '') + ' × ' + (o.copies || 1) + ' ชุด'
+        + (o.note ? '\n📝 หมายเหตุ: ' + String(o.note).slice(0, 200) : '')
         + (o.pickup ? '\n🏪 ลูกค้าจะมารับเองที่ร้าน' : '\n🛵 MORE PRINT จะมารับไปส่ง')
         + '\nเปิดงาน: https://more-print.github.io/more-print-app/pro.html');
     }

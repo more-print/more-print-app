@@ -348,6 +348,7 @@ function Manage({ o, onPrice, onPayout, onAdvance, onCancel, onRemove }){
         </div>
       )}
       {o.status === 0 && o.cancel_reason && <div style={css("font-size:11px;color:#c92a2a")}>เหตุผลที่ยกเลิก: {o.cancel_reason}</div>}
+      {o.note && <div style={css("background:#fff7e0;border:1px solid #f0c36d;border-radius:10px;padding:8px 11px;font-size:12px;color:#8a6d1a;line-height:1.6")}><b>{FI.file(11)} หมายเหตุจากลูกค้า:</b> {o.note}</div>}
       {/* ที่อยู่จัดส่ง + นำทาง + สลิป (เท่าหลังบ้าน Standard) */}
       {!o.pickup && (o.addr || o.point) && (
         <div style={css("font-size:11.5px;color:var(--sub);line-height:1.6")}>{FI.pin(12)} {o.addr || o.point}
@@ -435,7 +436,7 @@ function Dash(){
     setLoading(true);
     const cols = 'id,created_at,status,print_cost,bind_cost,slip_path,customer_fname,paper,copies';
     const colsFull = cols + ',payout_at,pickup,sides,customer_lname,customer_phone,delivery_cost,night_fee,times,cancel_reason,files,total,addr,point,lat,lng';
-    let r = await DB.from('orders').select(colsFull + ',cancelled_at').eq('ptype', 'pro').order('created_at', { ascending: false }).limit(3000);
+    let r = await DB.from('orders').select(colsFull + ',cancelled_at,note').eq('ptype', 'pro').order('created_at', { ascending: false }).limit(3000);
     if (r.error) r = await DB.from('orders').select(colsFull).eq('ptype', 'pro').order('created_at', { ascending: false }).limit(3000); // ยังไม่รัน SQL ลบอัตโนมัติ
     if (r.error) r = await DB.from('orders').select(cols).eq('ptype', 'pro').order('created_at', { ascending: false }).limit(3000);
     if (!r.error && r.data) { setOrders(r.data.filter(o => !cancelledExpired(o))); purgeCancelled(r.data); }
