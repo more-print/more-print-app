@@ -334,7 +334,7 @@ class App extends React.Component {
     let rc0 = null; try { rc0 = JSON.parse(localStorage.getItem('mp_rc') || 'null'); } catch (e) {} // ข้อมูลผู้ซื้อในใบเสร็จที่เคยกรอก
     this.state = {
       screen: 'home', files: [], tier: 'standard', ptype: 'bw', paper: 'A4', sides: 1, orient: 'portrait', nup: 1, bind: 'none', copies: 1, note: '',
-      rcOn: false, rcName: (rc0 && rc0.name) || '', rcAddr: (rc0 && rc0.addr) || '', rcTax: (rc0 && rc0.tax) || '', rcPhone: (rc0 && rc0.phone) || '', rcView: null, // ใบเสร็จรับเงิน
+      rcOn: false, rcName: (rc0 && rc0.name) || '', rcAddr: (rc0 && rc0.addr) || '', rcTax: (rc0 && rc0.tax) || '', rcPhone: (rc0 && rc0.phone) || '', rcView: null, logoutArm: false, // ใบเสร็จรับเงิน + ยืนยันออกจากระบบ
       vehicle: 'bike', // พาหนะส่งที่ลูกค้าเลือกเอง: 'bike' มอเตอร์ไซค์ · 'car' รถยนต์ (ใช้ทั้ง Standard และ Pro)
       reviews: [], reviewsReady: false, revAll: false, revStars: 5, revText: '', trackStars: 5, trackText: '',
       alertPrompt: false, alertAck: false,
@@ -382,9 +382,10 @@ class App extends React.Component {
       { id: 2, name: 'ก้อง', stars: 5, comment: null, ptype: 'ปริ้นขาวดำ', auto: true, created_at: new Date().toISOString() },
       { id: 1, name: 'boat', stars: 4, comment: 'ดีครับ ราคาโอเค ส่งตรงเวลา', ptype: null, auto: false, created_at: new Date().toISOString() }
     ] });
-    // ⚠️ ด่านล็อกอินต้องมาก่อนเสมอ — ไม่มีบัญชี = หน้า login เท่านั้น
+    // ⚠️ ด่านล็อกอินต้องมาก่อนเสมอ — ไม่มีบัญชี = หน้า login เท่านั้น (localStorage หาย → ลองคุกกี้สำรองก่อน)
     try {
-      const u0 = JSON.parse(localStorage.getItem('mp_user') || 'null');
+      let u0 = null; try { u0 = JSON.parse(localStorage.getItem('mp_user') || 'null'); } catch (e2) {}
+      if (!u0 || !u0.fname) u0 = this.userFromCookie();
       if (!u0 || !u0.fname) this.setState({ screen: 'login' });
     } catch (e) { this.setState({ screen: 'login' }); }
     // LINE Login (LIFF) — เชื่อมกับ LINE OA ของร้าน
@@ -404,9 +405,13 @@ class App extends React.Component {
         .catch((e) => { console.error('liff init:', e); });
     }
     try {
-      const u = JSON.parse(localStorage.getItem('mp_user') || 'null');
-      if (u && u.fname) this.setState({ user: u, phone: this.fmtPhone(u.phone || '') });
-      else this.setState({ screen: 'login' });
+      let u = null; try { u = JSON.parse(localStorage.getItem('mp_user') || 'null'); } catch (e2) {}
+      if (!u || !u.fname) u = this.userFromCookie(); // localStorage โดนล้าง — กู้จากคุกกี้สำรอง ไม่เด้ง login
+      if (u && u.fname) {
+        try { localStorage.setItem('mp_user', JSON.stringify(u)); } catch (e2) {}
+        this.backupUser(u);
+        this.setState({ user: u, phone: this.fmtPhone(u.phone || '') });
+      } else this.setState({ screen: 'login' });
     } catch (e) { this.setState({ screen: 'login' }); }
     // กู้คืนออเดอร์ล่าสุดที่จำไว้ในเครื่อง (เผื่อลูกค้าปิดเว็บแล้วกลับเข้ามา)
     try {
@@ -550,6 +555,26 @@ class App extends React.Component {
       this.setState({ couponOk: { code: c.code, kind: c.kind, value: Number(c.value), min_total: Number(c.min_total || 0) } });
       this.showToast('ใช้โค้ดสำเร็จ! 🎉 ' + (c.kind === 'percent' ? 'ลด ' + c.value + '%' : c.kind === 'freeship' ? 'ส่งฟรีออเดอร์นี้เลย' : 'ลด ฿' + c.value));
     });
+  }
+
+  // ── กันเด้งหลุดล็อกอินเอง: กู้บัญชีจาก localStorage หรือคุกกี้สำรอง (เบราว์เซอร์ในแอป LINE/iOS ชอบล้าง storage เอง) ──
+  userFromCookie(){
+    try { const m = document.cookie.match(/(?:^|;\s*)mp_user_bk=([^;]+)/); const u = m ? JSON.parse(decodeURIComponent(m[1])) : null; return (u && u.fname) ? u : null; } catch (e) { return null; }
+  }
+  backupUser(u){
+    try { document.cookie = 'mp_user_bk=' + encodeURIComponent(JSON.stringify(u)) + ';max-age=31536000;path=/;SameSite=Lax'; } catch (e) {}
+  }
+  ensureUser(){
+    if (this.state.user) return true;
+    let u = null;
+    try { u = JSON.parse(localStorage.getItem('mp_user') || 'null'); } catch (e) {}
+    if (!u || !u.fname) u = this.userFromCookie();
+    if (u && u.fname) {
+      try { localStorage.setItem('mp_user', JSON.stringify(u)); } catch (e) {}
+      this.setState({ user: u, phone: this.fmtPhone(u.phone || '') });
+      return true;
+    }
+    return false;
   }
 
   // ── ใบเสร็จรับเงิน: ขอเลขรันจากฐานข้อมูล (MP001, MP002, … คนแรกที่ขอได้เลขแรก) แล้วบันทึกเลขกลับทุกที่ที่จำออเดอร์ไว้ ──
@@ -867,6 +892,7 @@ class App extends React.Component {
       const p = await window.liff.getProfile();
       const user = { fname: p.displayName || 'ลูกค้า LINE', lname: '', phone: '', email: '', line_uid: p.userId || '', picture: p.pictureUrl || '' };
       try { localStorage.setItem('mp_user', JSON.stringify(user)); } catch (e) {}
+        this.backupUser(user);
       this.setState({ user, screen: 'home' });
       this.showToast('ยินดีต้อนรับ คุณ' + user.fname + ' 💚');
     } catch (e) {
@@ -1041,6 +1067,10 @@ class App extends React.Component {
 
   // บันทึกออเดอร์ + อัปโหลดไฟล์ขึ้นฐานข้อมูลกลาง (ให้เจ้าของเห็นในหน้าหลังบ้าน)
   async saveOrder(id, c, t0){
+    this._savingOrder = id; // ระหว่างอัปไฟล์+บันทึก — หน้าติดตามห้ามตีความว่าออเดอร์ถูกลบ
+    try { await this._saveOrderInner(id, c, t0); } finally { if (this._savingOrder === id) this._savingOrder = null; }
+  }
+  async _saveOrderInner(id, c, t0){
     const s = this.state;
     try {
       // อัปโหลดพลาดครั้งแรก (เน็ตสะดุด) ให้ลองซ้ำอีกรอบ — ถ้าไฟล์ขึ้นไปแล้วเจอ "already exists" ถือว่าสำเร็จ
@@ -1141,8 +1171,9 @@ class App extends React.Component {
         // (เว้นออเดอร์อายุ < 5 นาที กันชนกับเคสบันทึกออนไลน์ไม่สำเร็จ)
         const od = (() => { try { return JSON.parse(localStorage.getItem('mp_order') || 'null'); } catch (e) { return null; } })();
         const ageMin = od && od.ts ? (Date.now() - od.ts) / 60000 : 999;
+        if (this._savingOrder === id) return; // ออเดอร์กำลังอัปไฟล์/บันทึกอยู่ ยังไม่ลงฐานข้อมูล — ไม่ใช่ถูกร้านลบ
         if (ageMin > 5 && this.state.trackStep !== 0 && this.state.trackStep < 4) { // ใบที่ส่งสำเร็จแล้วโดนร้านลบทีหลัง = งานจบปกติ ไม่ใช่ถูกยกเลิก
-          clearInterval(this.trackTimer);
+          if (this.state.order && this.state.order.id === id) clearInterval(this.trackTimer);
           const rsn = 'ออเดอร์นี้ถูกยกเลิกและลบออกจากระบบโดยร้านแล้ว — ถ้าโอนเงินไปแล้ว ทักแชทร้านทาง LINE เพื่อขอคืนได้เลยครับ';
           this.setState(st => st.order && st.order.id === id ? { trackStep: 0, cancelReason: rsn } : null);
           try { if (od && od.id === id) { od.step = 0; od.cancelReason = rsn; if (!od.cancelledAt) od.cancelledAt = Date.now(); localStorage.setItem('mp_order', JSON.stringify(od)); this.upsertOrderList(od); } } catch (e) {}
@@ -1165,8 +1196,14 @@ class App extends React.Component {
             this.upsertOrderList(od);
           }
         } catch (e) {}
-        if (row.status === 0 || row.status >= 4) clearInterval(this.trackTimer);
-        if (row.status >= 4) { this.maybeAutoReview(id); this.addHistory(); this.dropFromOrderList(id); }
+        const isCurrent = this.state.order && this.state.order.id === id; // ผลของออเดอร์อื่นที่มาช้า — ห้ามแตะ timer/ประวัติของใบที่เลือกอยู่
+        if (isCurrent && (row.status === 0 || row.status >= 4)) clearInterval(this.trackTimer);
+        if (row.status >= 4) {
+          this.maybeAutoReview(id);
+          if (isCurrent) this.addHistory();
+          else { try { const rec = JSON.parse(localStorage.getItem('mp_orders') || '[]').find(x => x.id === id); if (rec) this.addHistory(rec); } catch (e) {} }
+          this.dropFromOrderList(id);
+        }
       }
     } catch (e) {}
   }
@@ -1427,7 +1464,7 @@ class App extends React.Component {
       if (h.some(x => x.id === o.id)) return;
       h.unshift({ id: o.id, ts: o.ts || Date.now(), doneAt: Date.now(), total: o.total || 0,
         plabel: o.plabel || 'งานปริ้น', pages: o.pages || 0, copies: o.copies || 1,
-        pickup: !!o.pickup, veh: o.veh || '', addr: o.addr || '' });
+        pickup: !!o.pickup, veh: o.veh || '', addr: o.addr || '', rc: o.rc || null }); // rc ต้องติดไปด้วย — ใบเสร็จเปิดจากประวัติได้
       const cut = h.slice(0, 30);
       localStorage.setItem('mp_history', JSON.stringify(cut));
       this.setState({ history: cut });
@@ -1436,13 +1473,21 @@ class App extends React.Component {
   loadChat(){
     const s = this.state, co = s.chatFor || s.order; // chatFor = แชทของออเดอร์ในประวัติ
     if (!this.db || !co || s.chatOff) return;
-    this.db.rpc('get_messages', { oid: co.id }).then(({ data, error }) => {
-      if (error) { this.setState({ chatOff: true }); return; } // ยังไม่ได้สร้างตาราง — ซ่อนไปเงียบ ๆ
+    const cid = co.id; // จำห้องที่ขอไว้ — ผลที่มาช้าหลังสลับห้องต้องถูกทิ้ง (กันโชว์/mark อ่านผิดออเดอร์)
+    this.db.rpc('get_messages', { oid: cid }).then(({ data, error }) => {
+      if (error) {
+        // ปิดแชทถาวรเฉพาะ "ระบบยังไม่ติดตั้ง" (ไม่มีฟังก์ชัน/ตาราง) — เน็ตสะดุดชั่วคราวแค่ข้ามรอบนี้ รอบหน้าลองใหม่
+        const m = String(error.message || '') + String(error.code || '');
+        if (/42883|PGRST202|does not exist|not find the function/i.test(m)) this.setState({ chatOff: true });
+        return;
+      }
+      const cur = this.state.chatFor || this.state.order;
+      if (!cur || cur.id !== cid) return; // สลับห้องไปแล้ว — ทิ้งผลเก่า
       this.setState({ chat: Array.isArray(data) ? data : [] }); // กันข้อมูลเพี้ยนทำจอพัง
       // นับว่าอ่านแล้วเฉพาะตอนกล่องแชทโผล่ให้เห็น (ออเดอร์ที่ย่อไว้ยังไม่นับว่าอ่าน)
       const st = this.state;
       if (st.screen === 'chat' && (data || []).some(m => m.sender === 'shop' && !m.seen_by_customer)) {
-        this.db.rpc('mark_read', { oid: co.id }).then(() => this.setState({ chat: (data || []).map(m => ({ ...m, seen_by_customer: true })) }));
+        this.db.rpc('mark_read', { oid: cid }).then(() => { const c2 = this.state.chatFor || this.state.order; if (c2 && c2.id === cid) this.setState({ chat: (data || []).map(m => ({ ...m, seen_by_customer: true })) }); });
       }
     });
   }
@@ -1512,6 +1557,7 @@ class App extends React.Component {
         const md = (data.user && data.user.user_metadata) || {};
         const user = { fname: md.fname || email.split('@')[0], lname: md.lname || '', phone: md.phone || '', email };
         try { localStorage.setItem('mp_user', JSON.stringify(user)); } catch (e) {}
+        this.backupUser(user);
         this.setState({ user, phone: user.phone || s.phone, screen: 'home' });
         this.showToast('ยินดีต้อนรับกลับ คุณ' + user.fname + ' 👋');
       },
@@ -1524,6 +1570,7 @@ class App extends React.Component {
         if (!this.auth) {
           const user = { fname, lname, phone: '', email };
           try { localStorage.setItem('mp_user', JSON.stringify(user)); } catch (e) {}
+        this.backupUser(user);
           this.setState({ user, screen: 'home' });
           return this.showToast('ยินดีต้อนรับ คุณ' + fname + ' 🎉');
         }
@@ -1541,15 +1588,26 @@ class App extends React.Component {
         }
         const user = { fname, lname, phone: '', email };
         try { localStorage.setItem('mp_user', JSON.stringify(user)); } catch (e) {}
+        this.backupUser(user);
         this.setState({ user, screen: 'home' });
         this.showToast('สมัครสำเร็จ! ยินดีต้อนรับ คุณ' + fname + ' 🎉');
       },
+      logoutArm: s.logoutArm,
       doLogout: () => {
+        if (!s.logoutArm) { // แตะครั้งแรก = ขอยืนยันก่อน (กันกดพลาดแล้วรายการติดตามหายทั้งเครื่อง)
+          clearTimeout(this._logoutTimer);
+          this._logoutTimer = setTimeout(() => this.setState({ logoutArm: false }), 4000);
+          return this.setState({ logoutArm: true });
+        }
+        clearTimeout(this._logoutTimer);
+        this.setState({ logoutArm: false });
+        try { document.cookie = 'mp_user_bk=;max-age=0;path=/'; } catch (e) {}
         if (this.auth) this.auth.auth.signOut();
         try { if (this._liffReady && window.liff.isLoggedIn()) window.liff.logout(); } catch (e) {}
-        try { localStorage.removeItem('mp_user'); localStorage.removeItem('mp_order'); localStorage.removeItem('mp_orders'); } catch (e) {}
+        try { localStorage.removeItem('mp_user'); localStorage.removeItem('mp_order'); localStorage.removeItem('mp_orders'); localStorage.removeItem('mp_history'); } catch (e) {}
         clearInterval(this.trackTimer);
-        this.setState({ order: null, trackStep: 1, cancelReason: '' });
+        // ล้างใน state ด้วย — ไม่งั้นตัว poll 30 วิเขียนรายการเก่ากลับลงเครื่อง แล้วบัญชีถัดไปเห็นออเดอร์/ประวัติของคนก่อน
+        this.setState({ order: null, trackStep: 1, cancelReason: '', orderList: [], history: [], chat: null, chatFor: null, histOpen: null });
         this.setState({ user: null, emailIn: '', passIn: '', regFname: '', regLname: '', regEmail: '', regPass1: '', regPass2: '', authMode: 'login', screen: 'login' });
       },
       userName: s.user ? s.user.fname + ' ' + s.user.lname : '',
@@ -1564,7 +1622,7 @@ class App extends React.Component {
         this.setState({ screen: s.screen === 'profile' ? 'home' : s.screen === 'pay' ? 'review' : s.screen === 'review' ? 'delivery' : s.screen === 'delivery' ? 'order' : 'home' });
       },
       startOrder: () => {
-        if (!s.user) { this.setState({ screen: 'login' }); return this.showToast('เข้าสู่ระบบก่อนสั่งปริ้นนะครับ 🙏'); }
+        if (!this.ensureUser()) { this.setState({ screen: 'login' }); return this.showToast('เข้าสู่ระบบก่อนสั่งปริ้นนะครับ 🙏'); }
         // มีประกาศแจ้งปัญหา/ล่าช้า → ถามลูกค้าก่อนหนึ่งครั้งว่ายังจะสั่งต่อไหม
         if (s.banners.some(b => b.color === 'alert') && !s.alertAck) return this.setState({ alertPrompt: true });
         this.setState({ screen: 'order' });
@@ -1879,9 +1937,12 @@ class App extends React.Component {
       },
       slipChecking: s.slipChecking,
       confirmPay: () => {
+        if (this._payTs && Date.now() - this._payTs < 5000) return; // กันกดยืนยันรัว/เบิ้ล — ออเดอร์ต้องไม่ซ้ำ
+        if (s.tier === 'pro' && new Date().getDay() === 0) return this.showToast('ร้าน Pro หยุดทุกวันอาทิตย์ครับ 🙏 สั่งได้อีกครั้งวันจันทร์ 08:30 น.');
         if (s.slipChecking) return this.showToast('กำลังตรวจสลิปอยู่ แป๊บนึงครับ ⏳');
         if (s.rcOn && !(s.rcName.trim() && s.rcAddr.trim() && s.rcTax.trim() && s.rcPhone.trim())) return this.showToast('ขอใบเสร็จ — กรอกข้อมูลผู้ซื้อให้ครบ 4 ช่องก่อนนะครับ 🧾');
         if (this.db && !s.slip && c.grandTotal > 0) return this.showToast('แนบสลิปโอนเงินก่อนยืนยันนะครับ 🧾');
+        this._payTs = Date.now(); // ผ่านทุกด่านแล้วค่อยล็อก — โดนเตือนอยู่ยังกดใหม่ได้ แต่กดเบิ้ลจะไม่สร้างออเดอร์ซ้ำ
         const id = '#MP-' + Array.from(crypto.getRandomValues(new Uint8Array(8))).map(b => 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'[b % 31]).join('');
         const t0 = this.fmtTime(new Date());
         clearInterval(this.trackTimer);
@@ -2046,6 +2107,11 @@ class App extends React.Component {
       sendChat: () => this.sendChat(),
       openChat: () => { this.setState({ screen: 'chat', chatFrom: 'track', chat: s.chatFor ? [] : s.chat, chatFor: null, chatBots: [], chAdOpen: false }); setTimeout(() => this.loadChat(), 60); },
       // แชทของออเดอร์ในหน้าประวัติ — ใช้ห้องแชทเดิม แค่ชี้ไปออเดอร์นั้นแทน
+      histDel: (id) => {
+        try { const h = JSON.parse(localStorage.getItem('mp_history') || '[]').filter(x => x.id !== id); localStorage.setItem('mp_history', JSON.stringify(h)); } catch (e) {}
+        this.setState(st => ({ history: (st.history || []).filter(x => x.id !== id), histOpen: null }));
+        this.showToast('ลบออกจากประวัติแล้ว ✓');
+      },
       openHistChat: (h) => { this.setState({ screen: 'chat', chatFrom: 'history', chatFor: h, chat: [], chatBots: [], chAdOpen: false }); setTimeout(() => this.loadChat(), 60); },
       // การ์ดสรุปออเดอร์ที่โชว์บนสุดของห้องแชท (ร้านจะได้รู้ว่าคุยเรื่องงานไหน)
       chatOrder: (() => { const co = s.chatFor || s.order; return co ? {
@@ -2204,6 +2270,7 @@ class App extends React.Component {
         if (ph && (ph.length !== 10 || ph[0] !== '0')) return this.showToast('เบอร์โทรต้องเป็นตัวเลข 10 หลัก ขึ้นต้นด้วย 0 ครับ 📞');
         const user = { ...(s.user || {}), fname, lname: s.profLname.trim(), phone: s.profPhone };
         try { localStorage.setItem('mp_user', JSON.stringify(user)); } catch (e) {}
+        this.backupUser(user);
         this.setState({ user, phone: s.profPhone || s.phone });
         this.showToast('บันทึกข้อมูลแล้ว ✓');
       },
@@ -2230,8 +2297,8 @@ class App extends React.Component {
         pick: () => {
           // มีออเดอร์/ประวัติอยู่แล้ว = ดูได้เสมอ (สิทธิ์จริงยึดรหัสออเดอร์ฝั่งเซิร์ฟเวอร์) — กันเคสเด้ง login ทั้งที่เพิ่งสั่งเสร็จ
           const hasLocal = !!s.order || (s.orderList || []).length > 0 || (s.history || []).length > 0;
-          if (n.k === 'order' && !s.user) { this.setState({ screen: 'login' }); return this.showToast('เข้าสู่ระบบก่อนนะครับ 🙏'); }
-          if ((n.k === 'track' || n.k === 'history') && !s.user && !hasLocal) { this.setState({ screen: 'login' }); return this.showToast('เข้าสู่ระบบก่อนนะครับ 🙏'); }
+          if (n.k === 'order' && !this.ensureUser()) { this.setState({ screen: 'login' }); return this.showToast('เข้าสู่ระบบก่อนนะครับ 🙏'); }
+          if ((n.k === 'track' || n.k === 'history') && !hasLocal && !this.ensureUser()) { this.setState({ screen: 'login' }); return this.showToast('เข้าสู่ระบบก่อนนะครับ 🙏'); }
           if (n.k === 'order' && s.banners.some(b => b.color === 'alert') && !s.alertAck) return this.setState({ alertPrompt: true });
           this.setState({ screen: n.k });
         },
@@ -3239,7 +3306,7 @@ class App extends React.Component {
                 )}
               </div>
             ))}
-            <div onClick={v.doLogout} style={css("margin-top:4px;display:flex;align-items:center;justify-content:center;gap:6px;font-size:12.5px;color:#c92a2a;font-weight:700;cursor:pointer;padding:10px")}>{fi('out', 14)} ออกจากระบบ / เปลี่ยนบัญชี</div>
+            <div onClick={v.doLogout} style={css("margin-top:4px;display:flex;align-items:center;justify-content:center;gap:6px;font-size:12.5px;font-weight:700;cursor:pointer;padding:10px;border-radius:12px;" + (v.logoutArm ? "background:#ffe3e3;border:1.5px solid #ffa8a8;color:#c92a2a" : "color:#c92a2a"))}>{fi('out', 14)} {v.logoutArm ? 'แตะอีกครั้งเพื่อยืนยันออกจากระบบ' : 'ออกจากระบบ / เปลี่ยนบัญชี'}</div>
           </div>
         )}
 
@@ -3284,6 +3351,7 @@ class App extends React.Component {
                       </div>
                       <span style={css("color:#fff")}>›</span>
                     </div>
+                    <div onClick={() => v.histDel(h.id)} style={css("margin-top:9px;text-align:center;font-size:11.5px;color:#c92a2a;font-weight:700;cursor:pointer;padding:6px")}>ลบรายการนี้ออกจากประวัติในเครื่อง</div>
                   </div>
                 )}
               </div>
@@ -3362,9 +3430,9 @@ class App extends React.Component {
                   <div style={{ marginTop: '16px' }}>
                     {row('ชื่อผู้ซื้อ', rc.name)}
                     {row('ที่อยู่', rc.addr)}
-                    <div style={{ display: 'flex', gap: '14px' }}>
-                      <div style={{ flex: 1.2, minWidth: 0 }}>{row('เลขประจำตัวผู้เสียภาษี', rc.tax, true)}</div>
-                      <div style={{ flex: 1, minWidth: 0 }}>{row('โทรศัพท์', rc.phone, true)}</div>
+                    <div style={{ display: 'flex', gap: '0 14px', flexWrap: 'wrap' }}>
+                      <div style={{ flex: '1 1 250px', minWidth: 0 }}>{row('เลขประจำตัวผู้เสียภาษี', rc.tax, true)}</div>
+                      <div style={{ flex: '1 1 170px', minWidth: 0 }}>{row('โทรศัพท์', rc.phone, true)}</div>
                     </div>
                   </div>
                   <table style={{ marginTop: '18px', width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
