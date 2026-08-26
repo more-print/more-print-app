@@ -43,7 +43,7 @@ const CONFIG = { nightOverride: 'auto', nightFee: 10, expressFee: 20, expressEna
   // เวลาผลิต+ส่งโดยประมาณ (นาที) — บวกเพิ่มตามคิวค้างจริง: คิวก่อนหน้า × queuePerOrderMin
   etaStandardMin: 45, queuePerOrderMin: 15,
   cancelWindowMin: 10, // ลูกค้ายกเลิกเองได้ภายในกี่นาทีหลังชำระ (ต้องยังสถานะ "รับออเดอร์") — SQL customer_cancel ใช้เลขเดียวกัน แก้ต้องแก้คู่กัน
-  etaProMin: { plate: 90, plateBig: 180, poster: 45, postcard: 90, foldbook: 90, portfolio: 60, sticker: 90, namecard: 90, standee: 90, blueprint: 90 } }; // นาทีผลิต+พร้อมส่งของงาน Pro แต่ละประเภท (postcard = 1 ชม.ครึ่ง ตามเจ้าของกำหนด) — ใช้คำนวณเวลาคาดว่าได้รับบนหน้าติดตาม
+  etaProMin: { plate: 60, plateBig: 90, poster: 45, postcard: 90, foldbook: 90, portfolio: 60, sticker: 90, namecard: 90, standee: 90, blueprint: 90 } }; // นาทีผลิต+พร้อมส่งของงาน Pro แต่ละประเภท (เพลท A3-A4 = 1 ชม. · เพลทใหญ่ A0-A2 = 1 ชม.ครึ่ง ตามเจ้าของกำหนด 2026-08-26) — คิวค้างบวกเพิ่ม queuePerOrderMin ต่อใบ
 
 
 // ── ไอคอนแถบเมนูล่าง (SVG ฝังในไฟล์ — คมทุกขนาด + เปลี่ยนสีตามแท็บที่เลือกอัตโนมัติ) ──
@@ -294,6 +294,30 @@ function css(str){
   });
   return o;
 }
+// ── ชุดไอคอนเส้น (Feather, MIT) — ใช้แทนอิโมจิให้หน้าตาเป็นทางการ ──
+const FI = {
+  user: '<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>',
+  file: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>',
+  heart: '<path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>',
+  pin: '<path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/>',
+  card: '<rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/>',
+  tag: '<path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.83z"/><line x1="7" y1="7" x2="7.01" y2="7"/>',
+  chevR: '<polyline points="9 18 15 12 9 6"/>',
+  chevUp: '<polyline points="18 15 12 9 6 15"/>',
+  check: '<path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/>',
+  chat: '<path d="M21 11.5a8.5 8.5 0 0 1-8.5 8.5 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 8.5-8.5h.5a8.5 8.5 0 0 1 8.5 8.5z"/>',
+  truck: '<rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/>',
+  printer: '<polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/>',
+  star: '<polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>',
+  home: '<path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/>',
+  nav: '<polygon points="3 11 22 2 13 21 11 13 3 11"/>',
+  shop: '<path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/>',
+  out: '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>'
+};
+function fi(name, size, color){
+  return <svg width={size || 18} height={size || 18} viewBox="0 0 24 24" fill="none" stroke={color || 'currentColor'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flex: 'none', display: 'block' }} dangerouslySetInnerHTML={{ __html: FI[name] || '' }}/>;
+}
+
 
 class App extends React.Component {
   constructor(props){
@@ -517,7 +541,7 @@ class App extends React.Component {
       const c = Array.isArray(data) ? data[0] : data;
       if (!c || !c.code) { this.setState({ couponOk: null }); return this.showToast('โค้ดไม่ถูกต้อง หมดอายุ หรือถูกใช้ครบแล้ว ❌'); }
       this.setState({ couponOk: { code: c.code, kind: c.kind, value: Number(c.value), min_total: Number(c.min_total || 0) } });
-      this.showToast('ใช้โค้ดสำเร็จ! 🎉 ' + (c.kind === 'percent' ? 'ลด ' + c.value + '%' : 'ลด ฿' + c.value));
+      this.showToast('ใช้โค้ดสำเร็จ! 🎉 ' + (c.kind === 'percent' ? 'ลด ' + c.value + '%' : c.kind === 'freeship' ? 'ส่งฟรีออเดอร์นี้เลย' : 'ลด ฿' + c.value));
     });
   }
 
@@ -929,7 +953,7 @@ class App extends React.Component {
     const s = this.state;
     if (s.tier !== 'pro') return CONFIG.etaStandardMin ?? 45;
     const m = CONFIG.etaProMin || {};
-    if (s.proType === 'plate') return ['A2', 'A1', 'A0'].includes(s.proSize) ? (m.plateBig ?? 180) : (m.plate ?? 90);
+    if (s.proType === 'plate') return ['A2', 'A1', 'A0'].includes(s.proSize) ? (m.plateBig ?? 90) : (m.plate ?? 60);
     return m[s.proType] ?? 90; // ประเภทที่ไม่ได้ระบุใน etaProMin = 90 นาที
   }
 
@@ -3046,23 +3070,23 @@ class App extends React.Component {
                 : <div style={css("width:52px;height:52px;border-radius:50%;background:var(--accSoft);color:var(--acc);display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:800;flex:none")}>{(v.userName || '?').charAt(0)}</div>}
               <div style={css("flex:1;min-width:0")}>
                 <div style={css("font-size:15.5px;font-weight:800")}>คุณ{v.userName}</div>
-                <div style={css("margin-top:2px;font-size:11px;color:var(--sub)")}>{v.profLineOn ? '💚 เชื่อมต่อกับ LINE แล้ว' : 'สมาชิก MORE PRINT'}</div>
+                <div style={css("margin-top:2px;font-size:11px;color:var(--sub);display:flex;align-items:center;gap:4px")}>{v.profLineOn ? <React.Fragment>{fi('check', 12, '#06C755')}<span>เชื่อมต่อกับ LINE แล้ว</span></React.Fragment> : 'สมาชิก MORE PRINT'}</div>
               </div>
             </div>
 
             {[
-              ['info', '👤', 'ข้อมูลส่วนตัว'],
-              ['orders', '🧾', 'ออเดอร์ของฉัน'],
-              ['fav', '❤️', 'ร้านโปรด'],
-              ['addr', '📍', 'ที่อยู่ / จุดรับงาน'],
-              ['pay', '💳', 'การชำระเงิน'],
-              ['coupon', '🎟️', 'คูปอง / คะแนน']
+              ['info', 'user', 'ข้อมูลส่วนตัว'],
+              ['orders', 'file', 'ออเดอร์ของฉัน'],
+              ['fav', 'heart', 'ร้านโปรด'],
+              ['addr', 'pin', 'ที่อยู่ / จุดรับงาน'],
+              ['pay', 'card', 'การชำระเงิน'],
+              ['coupon', 'tag', 'คูปอง / คะแนน']
             ].map(([k, ic, label]) => (
               <div key={k} style={css("background:var(--card);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);overflow:hidden")}>
                 <div onClick={v.profToggle(k)} style={css("padding:14px 16px;display:flex;align-items:center;gap:12px;cursor:pointer")}>
-                  <span style={css("font-size:19px;flex:none")}>{ic}</span>
+                  <span style={css("flex:none;display:flex;color:var(--acc)")}>{fi(ic, 19)}</span>
                   <span style={css("flex:1;font-size:13.5px;font-weight:700")}>{label}</span>
-                  <span style={css("color:var(--sub);font-size:12px")}>{v.profOpen === k ? '▲' : '›'}</span>
+                  <span style={css("flex:none;display:flex;color:var(--sub)")}>{v.profOpen === k ? fi('chevUp', 15) : fi('chevR', 15)}</span>
                 </div>
                 {v.profOpen === k && (
                   <div style={css("border-top:1px dashed var(--line);padding:13px 16px")}>
@@ -3073,7 +3097,7 @@ class App extends React.Component {
                           <input value={v.profLname} onChange={v.setProfLname} placeholder="นามสกุล" style={css("flex:1;min-width:0;box-sizing:border-box;height:42px;border:1px solid var(--line);border-radius:10px;background:var(--soft);color:var(--ink);padding:0 12px;font-size:13px;outline:none")}/>
                         </div>
                         <input value={v.profPhone} onChange={v.setProfPhone} placeholder="เบอร์โทร 08x-xxx-xxxx" inputMode="tel" maxLength={12} style={css("width:100%;box-sizing:border-box;height:42px;border:1px solid var(--line);border-radius:10px;background:var(--soft);color:var(--ink);padding:0 12px;font-size:13px;outline:none")}/>
-                        <div style={css("font-size:11px;color:var(--sub)")}>{v.profLineOn ? '💚 บัญชีนี้เชื่อมกับ LINE — รับแจ้งเตือนออเดอร์ทาง LINE อัตโนมัติ' : '💬 อยากรับแจ้งเตือนทาง LINE? ออกจากระบบแล้วเข้าใหม่ด้วยปุ่ม LINE ได้ครับ'}</div>
+                        <div style={css("font-size:11px;color:var(--sub);display:flex;align-items:flex-start;gap:5px")}>{v.profLineOn ? <React.Fragment><span style={css("flex:none;padding-top:2px")}>{fi('check', 13, '#06C755')}</span><span>บัญชีนี้เชื่อมกับ LINE — รับแจ้งเตือนออเดอร์ทาง LINE อัตโนมัติ</span></React.Fragment> : <React.Fragment><span style={css("flex:none;padding-top:2px")}>{fi('chat', 13)}</span><span>อยากรับแจ้งเตือนทาง LINE? ออกจากระบบแล้วเข้าใหม่ด้วยปุ่ม LINE ได้ครับ</span></React.Fragment>}</div>
                         <button onClick={v.profSave} style={css("height:42px;border:none;border-radius:10px;background:var(--acc);color:#fff;font-size:13px;font-weight:700;cursor:pointer")}>บันทึก</button>
                       </div>
                     )}
@@ -3082,20 +3106,20 @@ class App extends React.Component {
                         {v.hasOrder
                           ? <div style={css("font-size:12.5px;line-height:1.6")}>ออเดอร์ล่าสุด: <b style={css("font-family:'IBM Plex Mono',monospace")}>{v.orderId}</b> · {v.trackLabel}</div>
                           : <div style={css("font-size:12px;color:var(--sub)")}>ยังไม่มีออเดอร์ในเครื่องนี้</div>}
-                        <button onClick={v.profGoTrack} style={css("height:42px;border:1px solid var(--acc);border-radius:10px;background:var(--accSoft);color:var(--acc);font-size:13px;font-weight:700;cursor:pointer")}>🛵 ไปหน้าติดตามออเดอร์</button>
+                        <button onClick={v.profGoTrack} style={css("height:42px;border:1px solid var(--acc);border-radius:10px;background:var(--accSoft);color:var(--acc);font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:7px")}>{fi('truck', 15)} ไปหน้าติดตามออเดอร์</button>
                       </div>
                     )}
                     {k === 'fav' && (
                       <div style={css("display:flex;flex-direction:column;gap:8px")}>
                         <div style={css("border:1px solid var(--line);border-radius:11px;padding:11px 13px;display:flex;align-items:center;gap:10px")}>
-                          <span style={css("font-size:18px")}>🖨️</span>
+                          <span style={css("flex:none;display:flex;color:var(--acc)")}>{fi('printer', 18)}</span>
                           <div style={css("flex:1;min-width:0")}><div style={css("font-size:12.5px;font-weight:700")}>MORE PRINT</div><div style={css("font-size:10.5px;color:var(--sub)")}>ปริ้นเอกสารพร้อมส่ง 24 ชม. รอบ มข.</div></div>
                           <a href={(window.MP_CONFIG || {}).LINE_OA_URL || 'https://line.me/R/ti/p/@346kifvy'} target="_blank" rel="noreferrer" style={css("flex:none;font-size:11px;font-weight:700;background:#06C755;color:#fff;padding:6px 11px;border-radius:9px;text-decoration:none")}>LINE</a>
                         </div>
                         <div style={css("border:1px solid var(--line);border-radius:11px;padding:11px 13px;display:flex;align-items:center;gap:10px")}>
-                          <span style={css("font-size:18px")}>✨</span>
+                          <span style={css("flex:none;display:flex;color:var(--acc)")}>{fi('star', 18)}</span>
                           <div style={css("flex:1;min-width:0")}><div style={css("font-size:12.5px;font-weight:700")}>ร้านอุดมสุขปริ้นติ้ง</div><div style={css("font-size:10.5px;color:var(--sub)")}>งานปริ้นพรีเมียม / งานใหญ่ (Pro)</div></div>
-                          <a href="https://maps.app.goo.gl/SshjXkvaCxvKPugL7" target="_blank" rel="noreferrer" style={css("flex:none;font-size:11px;font-weight:700;background:var(--accSoft);color:var(--acc);border:1px solid var(--acc);padding:6px 11px;border-radius:9px;text-decoration:none")}>🧭 แผนที่</a>
+                          <a href="https://maps.app.goo.gl/SshjXkvaCxvKPugL7" target="_blank" rel="noreferrer" style={css("flex:none;font-size:11px;font-weight:700;background:var(--accSoft);color:var(--acc);border:1px solid var(--acc);padding:6px 11px;border-radius:9px;text-decoration:none;display:flex;align-items:center;gap:4px")}>{fi('nav', 12)} แผนที่</a>
                         </div>
                       </div>
                     )}
@@ -3105,12 +3129,12 @@ class App extends React.Component {
                         {v.savedAddrs.length === 0 && <div style={css("font-size:12px;color:var(--sub)")}>ยังไม่มี — สั่งปริ้นครั้งแรกแล้วระบบจะจำให้อัตโนมัติ</div>}
                         {v.savedAddrs.map((a, i) => (
                           <div key={i} style={css("border:1px solid var(--line);border-radius:11px;padding:10px 13px;display:flex;align-items:center;gap:10px")}>
-                            <span style={css("font-size:16px;flex:none")}>{i === 0 ? '⭐' : '🏠'}</span>
+                            <span style={css("flex:none;display:flex")}>{i === 0 ? fi('star', 16, 'var(--acc)') : fi('home', 16, 'var(--sub)')}</span>
                             <div style={css("flex:1;min-width:0;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap")}>{a.addr}</div>
                             <span onClick={a.del} style={css("flex:none;color:#c92a2a;font-size:12px;font-weight:700;cursor:pointer")}>ลบ</span>
                           </div>
                         ))}
-                        <div style={css("border-top:1px dashed var(--line);padding-top:9px;font-size:11.5px;line-height:1.6;color:var(--sub)")}>🏪 <b style={css("color:var(--ink)")}>จุดรับงานด้วยตัวเอง (งาน Pro):</b> ร้านอุดมสุขปริ้นติ้ง (กังสดาล) · <a href="https://maps.app.goo.gl/SshjXkvaCxvKPugL7" target="_blank" rel="noreferrer" style={css("color:var(--acc);font-weight:700")}>เปิดแผนที่</a></div>
+                        <div style={css("border-top:1px dashed var(--line);padding-top:9px;font-size:11.5px;line-height:1.6;color:var(--sub);display:flex;align-items:flex-start;gap:6px")}><span style={css("flex:none;padding-top:2px")}>{fi('shop', 14)}</span><span><b style={css("color:var(--ink)")}>จุดรับงานด้วยตัวเอง (งาน Pro):</b> ร้านอุดมสุขปริ้นติ้ง (กังสดาล) · <a href="https://maps.app.goo.gl/SshjXkvaCxvKPugL7" target="_blank" rel="noreferrer" style={css("color:var(--acc);font-weight:700")}>เปิดแผนที่</a></span></div>
                       </div>
                     )}
                     {k === 'pay' && (
@@ -3121,13 +3145,13 @@ class App extends React.Component {
                       </div>
                     )}
                     {k === 'coupon' && (
-                      <div style={css("font-size:12px;line-height:1.7;color:var(--sub)")}>🎟️ มีโค้ดส่วนลด? <b style={css("color:var(--ink)")}>ใส่ได้ที่หน้าชำระเงินตอนสั่งปริ้น</b><br/>ติดตามโค้ดแจกในกลุ่ม/เพจของร้าน — ระบบสะสมคะแนนกำลังจะตามมาเร็วๆ นี้ครับ</div>
+                      <div style={css("font-size:12px;line-height:1.7;color:var(--sub);display:flex;align-items:flex-start;gap:6px")}><span style={css("flex:none;padding-top:3px")}>{fi('tag', 14)}</span><span>มีโค้ดส่วนลด? <b style={css("color:var(--ink)")}>ใส่ได้ที่หน้าชำระเงินตอนสั่งปริ้น</b><br/>ติดตามโค้ดแจกในกลุ่ม/เพจของร้าน — ระบบสะสมคะแนนกำลังจะตามมาเร็วๆ นี้ครับ</span></div>
                     )}
                   </div>
                 )}
               </div>
             ))}
-            <div onClick={v.doLogout} style={css("margin-top:4px;text-align:center;font-size:12.5px;color:#c92a2a;font-weight:700;cursor:pointer;padding:10px")}>⎋ ออกจากระบบ / เปลี่ยนบัญชี</div>
+            <div onClick={v.doLogout} style={css("margin-top:4px;display:flex;align-items:center;justify-content:center;gap:6px;font-size:12.5px;color:#c92a2a;font-weight:700;cursor:pointer;padding:10px")}>{fi('out', 14)} ออกจากระบบ / เปลี่ยนบัญชี</div>
           </div>
         )}
 
