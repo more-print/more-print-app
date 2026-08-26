@@ -507,7 +507,7 @@ class App extends React.Component {
     const s = this.state, code = (s.couponCode || '').trim().toUpperCase();
     if (!code) return this.showToast('พิมพ์โค้ดส่วนลดก่อนนะครับ 🎟️');
     if (!this.db) { // โหมดตัวอย่าง
-      if (code === 'DEMO10') { this.setState({ couponOk: { code, kind: 'percent', value: 10 } }); return this.showToast('ใช้โค้ดสำเร็จ! ลด 10% 🎉'); }
+      if (code === 'MP5555') { this.setState({ couponOk: { code, kind: 'percent', value: 10 } }); return this.showToast('ใช้โค้ดสำเร็จ! ลด 10% 🎉'); }
       return this.showToast('โค้ดไม่ถูกต้องหรือหมดอายุ ❌');
     }
     this.setState({ couponBusy: true });
@@ -914,7 +914,9 @@ class App extends React.Component {
     let discount = 0;
     const cp = s.couponOk;
     if (cp && beforeDiscount >= (cp.min_total || 0)) {
-      discount = cp.kind === 'percent' ? Math.floor(beforeDiscount * cp.value / 100) : Math.min(cp.value, beforeDiscount);
+      discount = cp.kind === 'percent' ? Math.floor(beforeDiscount * cp.value / 100)
+        : cp.kind === 'freeship' ? deliveryCost // โค้ดส่งฟรี — หักเท่าค่าส่งของออเดอร์นี้
+        : Math.min(cp.value, beforeDiscount);
     }
     return { pages, totalPages, sheets, rate, heavyPages, lightPages, printCost, bindCost, printTotal: printCost + bindCost,
       deliveryFee, carJob, farNote, outOfArea, proPickupOn, deliveryPending: !proPickupOn && km == null,
@@ -2779,7 +2781,7 @@ class App extends React.Component {
                 : <React.Fragment>
                     <div style={css("font-size:12px;font-weight:700")}>🎟️ มีโค้ดส่วนลด?</div>
                     <div style={css("margin-top:8px;display:flex;gap:8px")}>
-                      <input value={v.couponCode} onChange={v.setCouponCode} placeholder="พิมพ์โค้ด เช่น SAVE10" maxLength={20}
+                      <input value={v.couponCode} onChange={v.setCouponCode} placeholder="กรอกโค้ดส่วนลดตรงนี้เลย" maxLength={20}
                         style={css("flex:1;min-width:0;box-sizing:border-box;height:42px;border:1px solid var(--line);border-radius:10px;background:var(--soft);color:var(--ink);padding:0 12px;font-size:13px;outline:none;text-transform:uppercase;font-family:'IBM Plex Mono',monospace")}/>
                       <button onClick={v.applyCoupon} disabled={v.couponBusy} style={css("flex:none;height:42px;padding:0 16px;border:none;border-radius:10px;background:var(--acc);color:#fff;font-size:13px;font-weight:700;cursor:pointer" + (v.couponBusy ? ";opacity:.6" : ""))}>{v.couponBusy ? '⏳' : 'ใช้โค้ด'}</button>
                     </div>
