@@ -333,6 +333,7 @@ class App extends React.Component {
     this.reupRef = React.createRef(); // ช่องเลือกไฟล์สำหรับส่งไฟล์ที่อัปพลาดใหม่
     this.chatImgRef = React.createRef(); // ช่องเลือกรูปแนบในแชท (เช่น สลิปส่วนต่างค่าส่ง)
     let rc0 = null; try { rc0 = JSON.parse(localStorage.getItem('mp_rc') || 'null'); } catch (e) {} // ข้อมูลผู้ซื้อในใบเสร็จที่เคยกรอก
+    if (!rc0) try { const m = document.cookie.match(/(?:^|;\s*)mp_rc_bk=([^;]+)/); rc0 = m ? JSON.parse(decodeURIComponent(m[1])) : null; } catch (e) {} // สำรองในคุกกี้ — เครื่องล้าง storage เองก็ยังจำได้
     this.state = {
       screen: 'home', files: [], tier: 'standard', ptype: 'bw', paper: 'A4', sides: 1, orient: 'portrait', nup: 1, bind: 'none', copies: 1, note: '',
       rcOn: false, rcName: (rc0 && rc0.name) || '', rcAddr: (rc0 && rc0.addr) || '', rcTax: (rc0 && rc0.tax) || '', rcPhone: (rc0 && rc0.phone) || '', rcView: null, logoutArm: false, // ใบเสร็จรับเงิน + ยืนยันออกจากระบบ
@@ -1644,7 +1645,7 @@ class App extends React.Component {
         }
         clearTimeout(this._logoutTimer);
         this.setState({ logoutArm: false });
-        try { document.cookie = 'mp_user_bk=;max-age=0;path=/'; } catch (e) {}
+        try { document.cookie = 'mp_user_bk=;max-age=0;path=/'; document.cookie = 'mp_rc_bk=;max-age=0;path=/'; localStorage.removeItem('mp_rc'); } catch (e) {}
         if (this.auth) this.auth.auth.signOut();
         try { if (this._liffReady && window.liff.isLoggedIn()) window.liff.logout(); } catch (e) {}
         try { localStorage.removeItem('mp_user'); localStorage.removeItem('mp_order'); localStorage.removeItem('mp_orders'); localStorage.removeItem('mp_history'); } catch (e) {}
@@ -2029,7 +2030,11 @@ class App extends React.Component {
         const rcReq = s.rcOn ? { no: null, name: s.rcName.trim(), addr: s.rcAddr.trim(), tax: s.rcTax.trim(), phone: s.rcPhone.trim() } : null;
         // จำโค้ดส่วนลดที่ใช้ (ชนิด/ค่า/จำนวนเงินที่ลด) — บรรทัดส่วนลดในใบเสร็จเขียนเองอัตโนมัติตามนี้ ไม่ว่าอนาคตจะมีโค้ดแบบไหน
         const cpUsed = (c.discount > 0 && s.couponOk) ? { code: c.coupon, kind: s.couponOk.kind, value: s.couponOk.value, amt: c.discount } : null;
-        if (rcReq) try { localStorage.setItem('mp_rc', JSON.stringify({ name: rcReq.name, addr: rcReq.addr, tax: rcReq.tax, phone: rcReq.phone })); } catch (e) {}
+        if (rcReq) try {
+          const rcSave = JSON.stringify({ name: rcReq.name, addr: rcReq.addr, tax: rcReq.tax, phone: rcReq.phone });
+          localStorage.setItem('mp_rc', rcSave);
+          document.cookie = 'mp_rc_bk=' + encodeURIComponent(rcSave) + ';max-age=31536000;path=/;SameSite=Lax'; // สำรองคุกกี้ 1 ปี
+        } catch (e) {}
         this.setState({ order: { id, total: c.grandTotal, times: [t0, '', '', ''], plabel, eta, pickup, ts, addr: oaddr, phone: s.phone, veh: oveh, copies: s.copies, pages: c.totalPages, dist: s.distKm, rc: rcReq, cp: cpUsed }, trackStep: 1, cancelReason: '', screen: 'track',
           files: [], slip: null, copies: 1, bind: 'none', express: false, tier: 'standard', ptype: 'bw', paper: 'A4', sides: 1, orient: 'portrait', nup: 1, note: '', proPickup: false, proLam: 'none', proSpecial: false, proStaple: false, proStand: false, vehicle: 'bike', trackOpen: false, trackMin: false, histOpen: null, chatFor: null, chatFrom: 'track', selfCancelArm: false, couponCode: '', couponOk: null });
         // จำออเดอร์ไว้ในเครื่อง — ปิดเว็บแล้วกลับมา การติดตามยังอยู่
