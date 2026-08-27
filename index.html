@@ -618,7 +618,7 @@ class App extends React.Component {
     this.setState({});
   }
   pickAddr(a){
-    this.setState({ addr: a.addr, vehicle: a.veh || 'bike', pinMode: 'map', pinSrc: 'saved', mapLocked: false });
+    this.setState({ addr: a.addr, vehicle: a.veh || 'bike', pinMode: 'map', pinSrc: 'saved', mapLocked: true }); // ที่อยู่เคยใช้จริง — ล็อกหมุดให้เลย (ปลดได้ถ้าจะย้าย)
     if (a.lat != null) this.setPin(a.lat, a.lng, true);
     this.showToast('ใช้ที่อยู่ประจำแล้ว 🏠 เช็คหมุดบนแผนที่อีกทีนะครับ');
   }
@@ -1863,6 +1863,7 @@ class App extends React.Component {
           if (s.lat == null) return this.showToast('ปักหมุดตำแหน่งส่งบนแผนที่ก่อนนะครับ 📍');
           if (c.deliveryPending) return this.showToast('กำลังวัดระยะทางจากร้าน รอสักครู่นะครับ ⏳ (ค่าส่งจะอัปเดตเอง)');
           if (c.outOfArea) return this.showToast('ส่งด้วยรถยนต์ได้ในระยะ 6 กม. — จุดนี้ไกลเกิน 🙏 เลือกส่งด้วยมอเตอร์ไซค์ (ไม่จำกัดระยะ) หรือปรึกษาทาง LINE ' + ((window.MP_CONFIG || {}).LINE_OA_ID || '@346kifvy') + ' ได้ครับ');
+          if (!s.mapLocked) return this.showToast('กดปุ่ม "📍 ยืนยันตำแหน่งนี้ — ล็อกหมุด" ใต้แผนที่ก่อนนะครับ กันหมุดเลื่อนแล้วค่าส่งผิดครับ 🔒');
           if (!s.addr.trim()) return this.showToast('กรอกรายละเอียดที่อยู่ด้วยครับ 🏠');
         }
         const ph = s.phone.replace(/\D/g, '');
@@ -1895,7 +1896,9 @@ class App extends React.Component {
       gpsConfirm: s.gpsConfirm && s.lat != null,
       gpsAccText: s.gpsAcc == null ? '' : (s.gpsAcc >= 1000 ? '~' + (s.gpsAcc / 1000).toFixed(1) + ' กม.' : '~' + s.gpsAcc + ' ม.'),
       gpsRough: (s.gpsAcc || 0) > 150, // เกิน 150 ม. = หยาบ (มักเป็นเครื่องคอมที่ใช้ WiFi/IP)
-      gpsOk: () => this.setState({ gpsConfirm: false }),
+      gpsOk: () => { this.setState({ gpsConfirm: false, mapLocked: true }); this.showToast('🔒 ล็อกหมุดแล้ว — ค่าส่งคิดตามจุดนี้ครับ'); }, // ยืนยันตำแหน่ง GPS = ล็อกหมุดกันมือลั่นด้วย
+      pinSet: s.lat != null,
+      lockMap: () => { this.setState({ mapLocked: true, gpsConfirm: false }); this.showToast('🔒 ล็อกหมุดแล้ว — ค่าส่งคิดตามจุดนี้ครับ'); },
       geoHelp: s.geoHelp,
       geoHelpClose: () => this.setState({ geoHelp: '' }),
       geoHelpTitle: s.geoHelp === 'safari' ? 'เปิดสิทธิ์ตำแหน่งใน Safari (Mac)'
@@ -2809,6 +2812,9 @@ class App extends React.Component {
                 {!v.mapLocked && <button onClick={v.locateMe} title="ใช้ตำแหน่งปัจจุบันของฉัน" style={css("position:absolute;right:12px;bottom:12px;z-index:902;width:46px;height:46px;border-radius:50%;border:none;background:#fff;box-shadow:0 2px 10px rgba(0,0,0,.3);font-size:21px;cursor:pointer;display:flex;align-items:center;justify-content:center")}>{v.locating ? '⏳' : '🎯'}</button>}
                 {v.mapLocked && <div style={css("position:absolute;left:0;right:0;bottom:0;z-index:903;background:rgba(0,0,0,.62);color:#fff;padding:8px 12px;font-size:11.5px;font-weight:600;text-align:center")}>🔒 ล็อกหมุดไว้แล้ว — กันเลื่อนพลาด</div>}
               </div>}
+              {v.showMap && !v.mapLocked && !v.gpsConfirm && v.pinSet && (
+                <button onClick={v.lockMap} style={css("margin-top:8px;width:100%;height:46px;border:none;border-radius:12px;background:var(--acc);color:#fff;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit")}>📍 ยืนยันตำแหน่งนี้ — ล็อกหมุด</button>
+              )}
               {v.gpsConfirm && (
                 <div style={css("margin-top:8px;border:1.5px solid " + (v.gpsRough ? "#f0b429" : "var(--acc)") + ";background:" + (v.gpsRough ? "#fff7e0" : "var(--accSoft)") + ";border-radius:12px;padding:11px 13px")}>
                   <div style={css("font-size:12.5px;font-weight:700;color:" + (v.gpsRough ? "#a16207" : "var(--acc)"))}>
@@ -2824,14 +2830,20 @@ class App extends React.Component {
               )}
               {v.mapLocked
                 ? <div style={css("margin-top:7px;display:flex;gap:7px")}>
-                    <button onClick={v.unlockMap} style={css("flex:1;height:38px;border:1px solid var(--line);border-radius:10px;background:var(--card);color:var(--ink);font-size:11.5px;font-weight:700;cursor:pointer;font-family:inherit")}>🔓 ปรับหมุดเอง</button>
-                    <button onClick={v.relinkMap} style={css("flex:1;height:38px;border:1px solid var(--line);border-radius:10px;background:var(--card);color:var(--ink);font-size:11.5px;font-weight:700;cursor:pointer;font-family:inherit")}>🔗 วางลิงก์ใหม่</button>
+                    <button onClick={v.unlockMap} style={css("flex:1;height:38px;border:1px solid var(--line);border-radius:10px;background:var(--card);color:var(--ink);font-size:11.5px;font-weight:700;cursor:pointer;font-family:inherit")}>🔓 ปลดล็อก — ย้ายหมุด</button>
+                    {v.pinModeLink && <button onClick={v.relinkMap} style={css("flex:1;height:38px;border:1px solid var(--line);border-radius:10px;background:var(--card);color:var(--ink);font-size:11.5px;font-weight:700;cursor:pointer;font-family:inherit")}>🔗 วางลิงก์ใหม่</button>}
                   </div>
-                : v.showMap && <div style={css("margin-top:6px;font-size:11px;color:var(--sub);line-height:1.6")}>{v.pinModeLink ? 'ตรวจดูว่าหมุดตรงจุดส่งจริงไหม — เลื่อนแผนที่แก้ได้' : 'เลื่อนแผนที่ให้หมุด 📍 ชี้ตรงจุดส่ง · แตะจุดไหนหมุดวิ่งไปให้'}</div>}
+                : v.showMap && <div style={css("margin-top:6px;font-size:11px;color:#a16207;font-weight:600;line-height:1.6")}>⚠️ ค่าส่งคิดตามตำแหน่งหมุดนะครับ — {v.pinModeLink ? 'ตรวจดูว่าหมุดตรงจุดส่งจริงไหม เลื่อนแผนที่แก้ได้' : 'เลื่อนแผนที่ให้หมุด 📍 ชี้ตรงจุดส่งจริง (แตะจุดไหนหมุดวิ่งไปให้)'} แล้วกดปุ่ม "ยืนยันตำแหน่ง" เพื่อล็อกหมุด กันมือลั่นเลื่อนแล้วค่าส่งเพี้ยนครับ</div>}
               {v.distLine && <div style={css("margin-top:7px;border-radius:11px;padding:9px 12px;font-size:12px;font-weight:700;line-height:1.55;" + (v.distOut ? "background:#fff0f0;border:1px solid #ffa8a8;color:#c92a2a" : "background:var(--accSoft);border:1px solid var(--acc);color:var(--acc)"))}>{v.distLine}</div>}
               {v.pinModeMap && <div style={css("margin-top:4px;font-size:11px;color:var(--acc);font-weight:600;line-height:1.5")}>💡 ค้นหาชื่อหอไม่เจอ? ไม่เป็นไร — แตะปักหมุดเองตรงที่พักของคุณ แล้วพิมพ์ชื่อหอ + รายละเอียดในช่องด้านล่างได้เลย</div>}
-              <div style={css("margin-top:12px;font-size:12px;font-weight:600;color:var(--sub)")}>รายละเอียดที่อยู่ (หอ / คณะ / บ้านเลขที่ / ซอย / จุดนัด) <span style={css("color:#d9480f")}>*</span></div>
-              <input value={v.addr} onChange={v.setAddr} placeholder="เช่น หอ 9 ตึก B ชั้น 2, บ้านเลขที่ 123/4 ซอยมะลิวัลย์ 5" style={css("margin-top:6px;width:100%;box-sizing:border-box;height:42px;border:1px solid var(--line);border-radius:10px;background:var(--soft);color:var(--ink);padding:0 12px;font-size:13px;outline:none")}/>
+              {v.mapLocked
+                ? <React.Fragment>
+                    <div style={css("margin-top:12px;font-size:12px;font-weight:600;color:var(--sub)")}>รายละเอียดที่อยู่ (หอ / คณะ / บ้านเลขที่ / ซอย / จุดนัด) <span style={css("color:#d9480f")}>*</span></div>
+                    <input value={v.addr} onChange={v.setAddr} placeholder="เช่น หอ 9 ตึก B ชั้น 2, บ้านเลขที่ 123/4 ซอยมะลิวัลย์ 5" style={css("margin-top:6px;width:100%;box-sizing:border-box;height:42px;border:1px solid var(--line);border-radius:10px;background:var(--soft);color:var(--ink);padding:0 12px;font-size:13px;outline:none")}/>
+                  </React.Fragment>
+                : v.pinSet
+                ? <div style={css("margin-top:12px;background:var(--soft);border:1px dashed var(--line);border-radius:11px;padding:11px 13px;font-size:11.5px;color:var(--sub);line-height:1.6")}>🔒 กดปุ่ม "ยืนยันตำแหน่ง" ด้านบนก่อน — แล้วช่องกรอกรายละเอียดที่อยู่จะเปิดให้กรอกครับ (กันมือลั่นเลื่อนหมุดแล้วค่าส่ง/จุดส่งผิด)</div>
+                : null}
               </React.Fragment>}
               <div style={css("margin-top:10px;font-size:12px;font-weight:600;color:var(--sub)")}>เบอร์โทรผู้รับ <span style={css("color:#d9480f")}>*</span></div>
               <input value={v.phone} onChange={v.setPhone} placeholder="08x-xxx-xxxx" inputMode="tel" maxLength={12} style={css("margin-top:6px;width:100%;box-sizing:border-box;height:42px;border:1px solid var(--line);border-radius:10px;background:var(--soft);color:var(--ink);padding:0 12px;font-size:13px;outline:none")}/>
