@@ -539,22 +539,41 @@ class App extends React.Component {
     return 'other';                   // Chrome / Edge / Firefox
   }
   // ── โค้ดส่วนลด: ตรวจกับฐานข้อมูลผ่าน RPC check_coupon (ปลอมฝั่งเว็บไม่ได้ ราคาจริงคิดจากผลตรวจ) ──
-  applyCoupon(){
+  // รหัสประจำตัวลูกค้าไว้เช็คสิทธิ์คูปอง 1 คน/โค้ด — LINE ID ก่อน รองลงมาอีเมล ท้ายสุดรหัสประจำเครื่อง
+  couponUid(){
+    const u = this.state.user || {};
+    let id = String(u.line_uid || u.email || '').trim().toLowerCase();
+    if (!id) {
+      try {
+        id = localStorage.getItem('mp_did') || '';
+        if (!id) { id = 'dev-' + Math.random().toString(36).slice(2, 12); localStorage.setItem('mp_did', id); }
+      } catch (e) { id = 'dev-anon'; }
+    }
+    return id;
+  }
+  async applyCoupon(){
     const s = this.state, code = (s.couponCode || '').trim().toUpperCase();
     if (!code) return this.showToast('พิมพ์โค้ดส่วนลดก่อนนะครับ 🎟️');
-    if (!this.db) { // โหมดตัวอย่าง
+    const usedMsg = 'คุณใช้โค้ดนี้ไปแล้ว ใช้อีกไม่ได้แล้วครับ ❌ (โค้ดใช้ได้ 1 ครั้งต่อ 1 บัญชี)';
+    if (!this.db) { // โหมดตัวอย่าง — จำการใช้ในเครื่อง
+      let used = []; try { used = JSON.parse(localStorage.getItem('mp_used_demo') || '[]'); } catch (e) {}
+      if (used.includes(code)) return this.showToast(usedMsg);
       if (code === 'MP5555') { this.setState({ couponOk: { code, kind: 'percent', value: 10 } }); return this.showToast('ใช้โค้ดสำเร็จ! ลด 10% 🎉'); }
       return this.showToast('โค้ดไม่ถูกต้องหรือหมดอายุ ❌');
     }
     this.setState({ couponBusy: true });
-    this.db.rpc('check_coupon', { code_in: code }).then(({ data, error }) => {
-      this.setState({ couponBusy: false });
-      if (error) return this.showToast('ระบบคูปองยังไม่เปิดใช้งานครับ');
-      const c = Array.isArray(data) ? data[0] : data;
-      if (!c || !c.code) { this.setState({ couponOk: null }); return this.showToast('โค้ดไม่ถูกต้อง หมดอายุ หรือถูกใช้ครบแล้ว ❌'); }
-      this.setState({ couponOk: { code: c.code, kind: c.kind, value: Number(c.value), min_total: Number(c.min_total || 0) } });
-      this.showToast('ใช้โค้ดสำเร็จ! 🎉 ' + (c.kind === 'percent' ? 'ลด ' + c.value + '%' : c.kind === 'freeship' ? 'ส่งฟรีออเดอร์นี้เลย' : 'ลด ฿' + c.value));
-    });
+    // ส่ง uid ไปเช็คด้วย — ฐานข้อมูลยังเป็นเวอร์ชันเก่า (ไม่รู้จัก uid_in) ให้ถอยไปเช็คแบบเดิม เว็บต้องไม่พัง
+    let res = await this.db.rpc('check_coupon', { code_in: code, uid_in: this.couponUid() }).catch(() => ({ error: { message: 'network' } }));
+    if (res.error && /PGRST202|not find the function|does not exist/i.test(String(res.error.message || '') + String(res.error.code || ''))) {
+      res = await this.db.rpc('check_coupon', { code_in: code }).catch(() => ({ error: { message: 'network' } }));
+    }
+    this.setState({ couponBusy: false });
+    if (res.error) return this.showToast('ระบบคูปองยังไม่เปิดใช้งานครับ');
+    const c = Array.isArray(res.data) ? res.data[0] : res.data;
+    if (!c || !c.code) { this.setState({ couponOk: null }); return this.showToast('โค้ดไม่ถูกต้อง หมดอายุ หรือถูกใช้ครบแล้ว ❌'); }
+    if (c.kind === 'used') { this.setState({ couponOk: null }); return this.showToast(usedMsg); }
+    this.setState({ couponOk: { code: c.code, kind: c.kind, value: Number(c.value), min_total: Number(c.min_total || 0) } });
+    this.showToast('ใช้โค้ดสำเร็จ! 🎉 ' + (c.kind === 'percent' ? 'ลด ' + c.value + '%' : c.kind === 'freeship' ? 'ส่งฟรีออเดอร์นี้เลย' : 'ลด ฿' + c.value));
   }
 
   // ── กันเด้งหลุดล็อกอินเอง: กู้บัญชีจาก localStorage หรือคุกกี้สำรอง (เบราว์เซอร์ในแอป LINE/iOS ชอบล้าง storage เอง) ──
@@ -1160,7 +1179,11 @@ class App extends React.Component {
       if (error) throw error;
       // แจ้งเตือน LINE ทีมงาน (ยิงทิ้งไว้ — ถ้าระบบแจ้งเตือนยังไม่ตั้งค่า ออเดอร์ไม่กระทบ)
       try { fetch((window.MP_CONFIG || {}).SUPABASE_URL + '/functions/v1/notify-order', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id }) }); } catch (e) {}
-      if (c.coupon) { try { this.db.rpc('use_coupon', { code_in: c.coupon }); } catch (e) {} }
+      if (c.coupon) { try {
+        this.db.rpc('use_coupon', { code_in: c.coupon, uid_in: this.couponUid() }).then(r => {
+          if (r && r.error && /PGRST202|not find the function|does not exist/i.test(String(r.error.message || '') + String(r.error.code || ''))) this.db.rpc('use_coupon', { code_in: c.coupon });
+        });
+      } catch (e) {} }
     } catch (e) {
       console.error('saveOrder:', e);
       this.showToast('⚠️ บันทึกออนไลน์ไม่สำเร็จ — ติดต่อร้านทาง LINE');
@@ -1961,6 +1984,7 @@ class App extends React.Component {
         if (s.rcOn && !(s.rcName.trim() && s.rcAddr.trim() && s.rcTax.trim() && s.rcPhone.trim())) return this.showToast('ขอใบเสร็จ — กรอกข้อมูลผู้ซื้อให้ครบ 4 ช่องก่อนนะครับ 🧾');
         if (this.db && !s.slip && c.grandTotal > 0) return this.showToast('แนบสลิปโอนเงินก่อนยืนยันนะครับ 🧾');
         this._payTs = Date.now(); // ผ่านทุกด่านแล้วค่อยล็อก — โดนเตือนอยู่ยังกดใหม่ได้ แต่กดเบิ้ลจะไม่สร้างออเดอร์ซ้ำ
+        if (!this.db && c.coupon) try { const uD = JSON.parse(localStorage.getItem('mp_used_demo') || '[]'); if (!uD.includes(c.coupon)) { uD.push(c.coupon); localStorage.setItem('mp_used_demo', JSON.stringify(uD)); } } catch (e) {} // โหมดตัวอย่าง: จำว่าใช้โค้ดแล้ว
         const id = '#MP-' + Array.from(crypto.getRandomValues(new Uint8Array(8))).map(b => 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'[b % 31]).join('');
         const t0 = this.fmtTime(new Date());
         clearInterval(this.trackTimer);
