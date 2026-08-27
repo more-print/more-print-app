@@ -1587,7 +1587,10 @@ class App extends React.Component {
         this.setState({ authBusy: true });
         const { data, error } = await this.auth.auth.signInWithPassword({ email, password: s.passIn });
         this.setState({ authBusy: false });
-        if (error) return this.showToast('อีเมลหรือรหัสผ่านไม่ถูกต้อง ❌');
+        if (error) {
+          if (/not confirmed/i.test(error.message || '')) return this.showToast('อีเมลนี้ยังไม่ได้กดยืนยันครับ 📧 เปิดลิงก์ยืนยันในอีเมล (เช็คถังขยะ/Junk ด้วย) แล้วค่อยเข้าสู่ระบบ');
+          return this.showToast('อีเมลหรือรหัสผ่านไม่ถูกต้อง ❌');
+        }
         const md = (data.user && data.user.user_metadata) || {};
         const user = { fname: md.fname || email.split('@')[0], lname: md.lname || '', phone: md.phone || '', email };
         try { localStorage.setItem('mp_user', JSON.stringify(user)); } catch (e) {}
@@ -1609,7 +1612,7 @@ class App extends React.Component {
           return this.showToast('ยินดีต้อนรับ คุณ' + fname + ' 🎉');
         }
         this.setState({ authBusy: true });
-        const { data, error } = await this.auth.auth.signUp({ email, password: s.regPass1, options: { data: { fname, lname } } });
+        const { data, error } = await this.auth.auth.signUp({ email, password: s.regPass1, options: { data: { fname, lname }, emailRedirectTo: 'https://more-print.github.io/more-print-app/' } });
         this.setState({ authBusy: false });
         if (error) {
           const m = (error.message || '').toLowerCase();
@@ -1619,6 +1622,11 @@ class App extends React.Component {
         }
         if (data.user && Array.isArray(data.user.identities) && data.user.identities.length === 0) {
           return this.showToast('อีเมลนี้ถูกสมัครไว้แล้ว — กด "เข้าสู่ระบบ" ได้เลยครับ');
+        }
+        if (data.user && !data.session) {
+          // ระบบยืนยันอีเมลเปิดอยู่ — ต้องกดลิงก์ในอีเมลจริงก่อนถึงจะเข้าได้ (กันสมัครอีเมลมั่วมาปั๊มส่วนลด)
+          this.setState({ authMode: 'login', regPass1: '', regPass2: '', emailIn: email });
+          return this.showToast('สมัครสำเร็จ! 📧 ระบบส่งลิงก์ยืนยันไปที่ ' + email + ' แล้ว — เปิดอีเมลกดยืนยันก่อน แล้วกลับมาเข้าสู่ระบบครับ (ไม่เจอลองดูในถังขยะ/Junk)');
         }
         const user = { fname, lname, phone: '', email };
         try { localStorage.setItem('mp_user', JSON.stringify(user)); } catch (e) {}
