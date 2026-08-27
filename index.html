@@ -1963,7 +1963,7 @@ class App extends React.Component {
       sidesLabel: s.sides === 2 ? 'หน้า-หลัง' : s.tier === 'pro' && s.proType === 'poster' ? 'ด้านหน้าอย่างเดียว' : 'หน้าเดียว',
       orientLabel: s.orient === 'landscape' ? 'ปริ้นแนวนอน' : 'ปริ้นแนวตั้ง',
       nupLabel: (s.nup || 1) + ' หน้า/แผ่น',
-      bindLabel: s.tier === 'pro' ? (s.proType === 'foldbook' ? s.proBind : '—') : s.bind === 'corner' ? 'เย็บมุม' : s.bind === 'book' ? 'เข้าเล่ม' : s.bind === 'landscape' ? 'เล่มแนวนอน' : 'ไม่เข้าเล่ม',
+      bindLabel: s.tier === 'pro' ? (s.proType === 'foldbook' ? s.proBind : '—') : s.bind === 'corner' ? 'เย็บมุม' : s.bind === 'book' ? 'เข้าเล่ม' : s.bind === 'landscape' ? 'เล่มแนวนอน' : 'ไม่เย็บมุม',
       isColorType: s.ptype === 'color',
       destLabel: s.addr,
       timeLabel: (s.express ? 'ด่วน ~45 นาที' : s.time + ' น.'),
@@ -2700,7 +2700,7 @@ class App extends React.Component {
               {v.showSides && <div style={css("display:flex;flex-direction:column;gap:6px")}><div style={css("font-size:12px;font-weight:600;color:var(--sub)")}>ด้านที่พิมพ์</div><div style={css("display:flex;gap:8px")}>{v.sidesOpts.map((o, i) => <button key={i} onClick={o.pick} style={o.st}>{o.label}</button>)}</div></div>}
               {v.showSides && <div style={css("display:flex;flex-direction:column;gap:6px")}><div style={css("font-size:12px;font-weight:600;color:var(--sub)")}>ทิศทางกระดาษ</div><div style={css("display:flex;gap:8px")}>{v.orientOpts.map((o, i) => <button key={i} onClick={o.pick} style={o.st}>{o.label}</button>)}</div></div>}
               {v.showSides && <div style={css("display:flex;flex-direction:column;gap:6px")}><div style={css("font-size:12px;font-weight:600;color:var(--sub)")}>การกำหนดหน้า</div><div style={css("display:flex;gap:8px;flex-wrap:wrap")}>{v.nupOpts.map((o, i) => <button key={i} onClick={o.pick} style={{...o.st, flex:'1 1 40%'}}>{o.label}</button>)}</div></div>}
-              {v.showBind && <div style={css("display:flex;flex-direction:column;gap:6px")}><div style={css("font-size:12px;font-weight:600;color:var(--sub)")}>การเข้าเล่ม</div><div style={css("display:flex;gap:8px;flex-wrap:wrap")}>{v.bindOpts.map((o, i) => <button key={i} onClick={o.pick} style={o.st}>{o.label}</button>)}</div></div>}
+              {v.showBind && <div style={css("display:flex;flex-direction:column;gap:6px")}><div style={css("font-size:12px;font-weight:600;color:var(--sub)")}>การเย็บมุม</div><div style={css("display:flex;gap:8px;flex-wrap:wrap")}>{v.bindOpts.map((o, i) => <button key={i} onClick={o.pick} style={o.st}>{o.label}</button>)}</div></div>}
               <div style={css("display:flex;justify-content:space-between;align-items:center")}><div style={css("font-size:12px;font-weight:600;color:var(--sub)")}>จำนวนชุด (สำเนา)</div>
                 <div style={css("display:flex;align-items:center;gap:10px")}>
                   <button onClick={v.copyDec} style={css("width:30px;height:30px;border:1px solid var(--line);background:var(--soft);color:var(--ink);border-radius:9px;font-size:15px;cursor:pointer")}>−</button>
@@ -2933,7 +2933,7 @@ class App extends React.Component {
             <div style={css("background:var(--accSoft);border:1.5px solid var(--acc);border-radius:14px;padding:14px 16px;box-shadow:var(--shadow)")}>
               <div style={css("font-size:11px;font-weight:700;color:var(--acc);letter-spacing:.5px")}>🖨️ สเปกงานปริ้นที่คุณเลือก</div>
               <div style={css("margin-top:10px;display:flex;flex-direction:column;gap:9px")}>
-                {[['ประเภทงาน', v.typeLabel], ['ขนาดกระดาษ', v.paperLabel], ['ด้านที่พิมพ์', v.sidesLabel], ...(v.isPro ? [] : [['ทิศทางกระดาษ', v.orientLabel], ['การกำหนดหน้า', v.nupLabel]]), ['การเข้าเล่ม', v.bindLabel], ['จำนวน', v.copies + ' ชุด']].map((p, i) => (
+                {[['ประเภทงาน', v.typeLabel], ['ขนาดกระดาษ', v.paperLabel], ['ด้านที่พิมพ์', v.sidesLabel], ...(v.isPro ? [] : [['ทิศทางกระดาษ', v.orientLabel], ['การกำหนดหน้า', v.nupLabel]]), [v.isPro ? 'การเข้าเล่ม' : 'การเย็บมุม', v.bindLabel], ['จำนวน', v.copies + ' ชุด']].map((p, i) => (
                   <div key={i} style={css("display:flex;align-items:center;gap:10px")}>
                     <div style={css("width:20px;height:20px;border-radius:50%;background:var(--acc);color:#fff;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex:none")}>✓</div>
                     <span style={css("font-size:12.5px;color:var(--sub);min-width:88px")}>{p[0]}</span>
