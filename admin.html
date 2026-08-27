@@ -391,6 +391,7 @@ function OrderCard({ o, onAdvance, onCancel, onRemove, busy, unread, onSeen }){
                     <span style={{ lineHeight: 0, color: 'var(--acc)' }}>{FI.file(15)}</span>
                     <span style={css("flex:1;min-width:0;font-size:12.5px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap")}>{f.name}</span>
                     <span style={css("font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--sub);flex:none")}>{f.pages} หน้า</span>
+                    {f.auto === false && <span title="เว็บนับหน้าไฟล์ชนิดนี้เองไม่ได้ ลูกค้าเป็นคนกรอกจำนวน — เปิดไฟล์เทียบจำนวนหน้าจริงก่อนปริ้น ถ้าไม่ตรงทักแชทเก็บเพิ่ม/คืนเงิน" style={css("flex:none;font-size:10.5px;font-weight:700;background:#fff7e0;color:#a16207;border:1px solid #f0c36d;padding:3px 8px;border-radius:8px")}>✏️ ลูกค้าระบุหน้าเอง — เช็คไฟล์ก่อนปริ้น</span>}
                     {(o.ptype === 'color' || o.color) && f.scanned && <span style={css("flex:none;font-size:10.5px;font-weight:700;background:#e7f5ff;color:#1971c2;padding:3px 8px;border-radius:8px")}>{FI.drop(10)} สีเยอะ {f.heavy || 0}/{f.pages}</span>}
                     {f.drive_url
                       ? <a href={f.drive_url} target="_blank" rel="noreferrer" style={css("flex:none;font-size:11.5px;font-weight:700;background:#fff7e0;color:#a16207;border:1px solid #f0b429;padding:4px 10px;border-radius:8px;text-decoration:none")}>⬇ เปิดไฟล์ใหญ่</a>
