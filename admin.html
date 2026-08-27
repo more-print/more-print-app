@@ -431,6 +431,7 @@ function OrderCard({ o, onAdvance, onCancel, onRemove, busy, unread, onSeen }){
               <div style={css("margin-top:6px;font-size:11px;font-weight:700;color:#c92a2a;line-height:1.5")}>งาน PRO ยังไม่มีเรทราคา — ตกลง/ยืนยันราคาปริ้นกับลูกค้าก่อนเริ่มงาน (ยอดที่ลูกค้าชำระแล้วคือค่าส่งเท่านั้น)</div>
             )}
             <div style={css("margin-top:2px;font-size:12px;color:var(--sub)")}>ค่าปริ้น ฿{o.print_cost} · เข้าเล่ม ฿{o.bind_cost} · ค่าส่ง ฿{o.delivery_cost}{o.night_fee ? ' · กลางคืน ฿' + o.night_fee : ''}</div>
+            {(o.discount || 0) > 0 && <div style={css("margin-top:4px;display:inline-block;font-size:11px;font-weight:700;background:#fff0f6;color:#c2255c;border:1px solid #faa2c1;padding:3px 10px;border-radius:8px")}>🎟️ ใช้โค้ดส่วนลด {o.coupon || ''} −฿{o.discount} (ยอดชำระหักส่วนลดแล้ว)</div>}
           </div>
           <div style={css("background:var(--soft);border:1px solid var(--line);border-radius:12px;padding:10px 12px")}>
             <div style={css("font-size:11px;font-weight:700;color:var(--sub);letter-spacing:.5px")}>{FI.pin(12)} จัดส่ง</div>
@@ -781,7 +782,7 @@ function AdminApp(){
   const exportCsv = () => {
     const esc = (v) => { const s = v == null ? '' : String(v); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
     const STL = ['ยกเลิก', 'รับออเดอร์', 'กำลังปริ้น', 'กำลังจัดส่ง', 'ส่งแล้ว'];
-    const head = ['รหัสออเดอร์', 'วันที่สั่ง', 'สถานะ', 'ชื่อลูกค้า', 'เบอร์ลูกค้า', 'อีเมล', 'ประเภทงาน', 'ขนาด', 'ด้านที่พิมพ์', 'ทิศทางกระดาษ', 'หน้าต่อแผ่น', 'เข้าเล่ม', 'จำนวนชุด', 'จำนวนหน้า', 'รายชื่อไฟล์', 'จุดส่ง', 'ที่อยู่', 'เบอร์ผู้รับ', 'เวลารับ', 'ส่งด่วน', 'กลางคืน', 'ค่าปริ้น', 'ค่าเข้าเล่ม', 'ค่าส่ง', 'ค่ากลางคืน', 'ยอดรวม', 'เหตุผลที่ยกเลิก'];
+    const head = ['รหัสออเดอร์', 'วันที่สั่ง', 'สถานะ', 'ชื่อลูกค้า', 'เบอร์ลูกค้า', 'อีเมล', 'ประเภทงาน', 'ขนาด', 'ด้านที่พิมพ์', 'ทิศทางกระดาษ', 'หน้าต่อแผ่น', 'เข้าเล่ม', 'จำนวนชุด', 'จำนวนหน้า', 'รายชื่อไฟล์', 'จุดส่ง', 'ที่อยู่', 'เบอร์ผู้รับ', 'เวลารับ', 'ส่งด่วน', 'กลางคืน', 'ค่าปริ้น', 'ค่าเข้าเล่ม', 'ค่าส่ง', 'ค่ากลางคืน', 'โค้ดส่วนลด', 'ส่วนลด', 'ยอดรวม', 'เหตุผลที่ยกเลิก'];
     const rows = orders.map(o => [
       o.id, new Date(o.created_at).toLocaleString('th-TH'), STL[o.status] != null ? STL[o.status] : o.status,
       ((o.customer_fname || '') + ' ' + (o.customer_lname || '')).trim(), o.customer_phone || '', o.customer_email || '',
@@ -793,7 +794,7 @@ function AdminApp(){
       o.copies || 1, (o.files || []).reduce((a, f) => a + (f.pages || 0), 0),
       (o.files || []).map(f => f.name).join(' | '), o.point || '', o.addr || '', o.phone || '', o.time || '',
       o.express ? 'ใช่' : '', o.night ? 'ใช่' : '',
-      o.print_cost || 0, o.bind_cost || 0, o.delivery_cost || 0, o.night_fee || 0, o.total || 0, o.cancel_reason || ''
+      o.print_cost || 0, o.bind_cost || 0, o.delivery_cost || 0, o.night_fee || 0, o.coupon || '', o.discount || 0, o.total || 0, o.cancel_reason || ''
     ]);
     const csv = '\ufeff' + [head].concat(rows).map(r => r.map(esc).join(',')).join('\r\n');
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });

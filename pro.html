@@ -330,6 +330,7 @@ function ProOrder({ o, idx, isOwner, payoutReady, onPrice, onPayout, onAdvance, 
         )}
       {priced && !edit ? (
         <div style={css("margin-top:10px;background:var(--soft);border-radius:10px;padding:10px 12px;font-size:12.5px;display:flex;flex-direction:column;gap:4px")}>
+          {(o.discount || 0) > 0 && <div style={css("font-size:11px;font-weight:700;color:#c2255c")}>🎟️ ลูกค้าใช้โค้ดส่วนลด {o.coupon || ''} −฿{o.discount} — ส่วนลดเป็นของฝั่ง MORE PRINT ร้านได้ส่วนแบ่งจากราคางานเต็มตามปกติ</div>}
           {isOwner && <div style={css("display:flex;justify-content:space-between")}><span style={css("color:var(--sub)")}>ค่างานปริ้น (100%)</span><span style={css("font-family:'IBM Plex Mono',monospace;font-weight:600")}>{baht(jobValue(o))} <span onClick={() => { setEdit(true); setPrice(String(jobValue(o))); }} style={css("color:var(--acc);font-size:11px;cursor:pointer;text-decoration:underline")}>แก้</span></span></div>}
           {isOwner && <div style={css("display:flex;justify-content:space-between")}><span style={css("color:var(--sub)")}>ค่าคอม MORE PRINT ({Math.round(COMMISSION * 100)}%)</span><span style={css("font-family:'IBM Plex Mono',monospace;color:var(--acc);font-weight:600")}>−{baht(commOf(o))}</span></div>}
           <div style={css("display:flex;justify-content:space-between;font-weight:700" + (isOwner ? ";border-top:1px dashed var(--line);padding-top:5px" : ""))}><span>{isOwner ? 'ยอดโอนให้ร้านพาร์ทเนอร์' : 'ส่วนของร้านคุณ (หลังหักคอม ' + Math.round(COMMISSION * 100) + '%)'}</span><span style={css("font-family:'IBM Plex Mono',monospace;color:var(--gold)")}>{baht(partnerOf(o))}</span></div>
@@ -457,7 +458,7 @@ function Dash({ role }){
     if (!DB) return;
     setLoading(true);
     const cols = 'id,created_at,status,times,cancel_reason,customer_fname,customer_lname,customer_phone,paper,sides,copies,print_cost,bind_cost,delivery_cost,night_fee,total,files,slip_path,addr,point,lat,lng';
-    let r = await DB.from('orders').select(cols + ',payout_at,pickup,cancelled_at,note').eq('ptype', 'pro').order('created_at', { ascending: false }).limit(2000);
+    let r = await DB.from('orders').select(cols + ',payout_at,pickup,cancelled_at,note,coupon,discount').eq('ptype', 'pro').order('created_at', { ascending: false }).limit(2000);
     if (r.error) r = await DB.from('orders').select(cols + ',payout_at,pickup').eq('ptype', 'pro').order('created_at', { ascending: false }).limit(2000); // ยังไม่รัน SQL ลบอัตโนมัติ
     if (r.error) {
       // ยังไม่มีคอลัมน์ payout_at — โหลดแบบไม่มีไปก่อน (ตั้งราคายังใช้ได้ แต่บันทึกการโอนยังไม่ได้)
