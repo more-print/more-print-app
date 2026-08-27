@@ -1475,7 +1475,7 @@ class App extends React.Component {
       if (h.some(x => x.id === o.id)) return;
       h.unshift({ id: o.id, ts: o.ts || Date.now(), doneAt: Date.now(), total: o.total || 0,
         plabel: o.plabel || 'งานปริ้น', pages: o.pages || 0, copies: o.copies || 1,
-        pickup: !!o.pickup, veh: o.veh || '', addr: o.addr || '', rc: o.rc || null }); // rc ต้องติดไปด้วย — ใบเสร็จเปิดจากประวัติได้
+        pickup: !!o.pickup, veh: o.veh || '', addr: o.addr || '', rc: o.rc || null, cp: o.cp || null }); // rc+cp ต้องติดไปด้วย — ใบเสร็จ (พร้อมบรรทัดส่วนลด) เปิดจากประวัติได้
       const cut = h.slice(0, 30);
       localStorage.setItem('mp_history', JSON.stringify(cut));
       this.setState({ history: cut });
@@ -1807,7 +1807,7 @@ class App extends React.Component {
         if (!no) { this.showToast('กำลังออกเลขใบเสร็จ… ⏳'); no = await this.issueReceipt(o); }
         if (!no) return this.showToast('ยังออกใบเสร็จไม่ได้ครับ — ลองใหม่อีกครั้ง หรือทักแชทร้านได้เลย');
         const d = new Date(o.rc.at || o.ts || Date.now());
-        this.setState({ rcView: { no, name: o.rc.name, addr: o.rc.addr, tax: o.rc.tax, phone: o.rc.phone, oid: o.id, amount: o.total || 0,
+        this.setState({ rcView: { no, name: o.rc.name, addr: o.rc.addr, tax: o.rc.tax, phone: o.rc.phone, oid: o.id, amount: o.total || 0, cp: o.cp || null,
           detail: (o.plabel || 'งานปริ้น') + (o.pages ? ' · ' + o.pages + ' หน้า' : '') + ((o.copies || 1) > 1 ? ' × ' + o.copies + ' ชุด' : ''),
           date: ('0' + d.getDate()).slice(-2) + '/' + ('0' + (d.getMonth() + 1)).slice(-2) + '/' + (d.getFullYear() + 543) } });
       },
@@ -1994,12 +1994,14 @@ class App extends React.Component {
         if (!pickup && s.addr.trim() && s.lat != null) this.saveAddr({ addr: s.addr.trim(), lat: s.lat, lng: s.lng, veh: s.vehicle, ts: Date.now() });
         // ลูกค้าขอใบเสร็จ — ผูกข้อมูลผู้ซื้อไว้กับออเดอร์ (เลขที่จะรันให้หลังออเดอร์ลงฐานข้อมูล) + จำไว้ใช้รอบหน้า
         const rcReq = s.rcOn ? { no: null, name: s.rcName.trim(), addr: s.rcAddr.trim(), tax: s.rcTax.trim(), phone: s.rcPhone.trim() } : null;
+        // จำโค้ดส่วนลดที่ใช้ (ชนิด/ค่า/จำนวนเงินที่ลด) — บรรทัดส่วนลดในใบเสร็จเขียนเองอัตโนมัติตามนี้ ไม่ว่าอนาคตจะมีโค้ดแบบไหน
+        const cpUsed = (c.discount > 0 && s.couponOk) ? { code: c.coupon, kind: s.couponOk.kind, value: s.couponOk.value, amt: c.discount } : null;
         if (rcReq) try { localStorage.setItem('mp_rc', JSON.stringify({ name: rcReq.name, addr: rcReq.addr, tax: rcReq.tax, phone: rcReq.phone })); } catch (e) {}
-        this.setState({ order: { id, total: c.grandTotal, times: [t0, '', '', ''], plabel, eta, pickup, ts, addr: oaddr, phone: s.phone, veh: oveh, copies: s.copies, pages: c.totalPages, dist: s.distKm, rc: rcReq }, trackStep: 1, cancelReason: '', screen: 'track',
+        this.setState({ order: { id, total: c.grandTotal, times: [t0, '', '', ''], plabel, eta, pickup, ts, addr: oaddr, phone: s.phone, veh: oveh, copies: s.copies, pages: c.totalPages, dist: s.distKm, rc: rcReq, cp: cpUsed }, trackStep: 1, cancelReason: '', screen: 'track',
           files: [], slip: null, copies: 1, bind: 'none', express: false, tier: 'standard', ptype: 'bw', paper: 'A4', sides: 1, orient: 'portrait', nup: 1, note: '', proPickup: false, proLam: 'none', proSpecial: false, proStaple: false, proStand: false, vehicle: 'bike', trackOpen: false, trackMin: false, histOpen: null, chatFor: null, chatFrom: 'track', selfCancelArm: false, couponCode: '', couponOk: null });
         // จำออเดอร์ไว้ในเครื่อง — ปิดเว็บแล้วกลับมา การติดตามยังอยู่
         try {
-          const nod = { id, total: c.grandTotal, times: [t0, '', '', ''], step: 1, plabel, eta, pickup, ts, addr: oaddr, phone: s.phone, veh: oveh, copies: s.copies, pages: c.totalPages, dist: s.distKm, rc: rcReq };
+          const nod = { id, total: c.grandTotal, times: [t0, '', '', ''], step: 1, plabel, eta, pickup, ts, addr: oaddr, phone: s.phone, veh: oveh, copies: s.copies, pages: c.totalPages, dist: s.distKm, rc: rcReq, cp: cpUsed };
           localStorage.setItem('mp_order', JSON.stringify(nod));
           this.upsertOrderList(nod); // สั่งหลายใบไล่เลี่ยกัน — ทุกใบอยู่ในลิสต์ติดตาม
         } catch (e) {}
@@ -3436,6 +3438,12 @@ class App extends React.Component {
         {/* ── ใบเสร็จรับเงิน (ป๊อปอัพ — สั่งพิมพ์แล้วเห็นเฉพาะใบเสร็จ) ── */}
         {v.rcView && (() => {
           const rc = v.rcView, money = Number(rc.amount || 0).toLocaleString('en-US');
+          // บรรทัดส่วนลด: เขียนเองตามชนิดโค้ด — percent = "ส่วนลด 10% (โค้ด X)" · freeship = "ส่วนลดค่าจัดส่ง — ส่งฟรี" · อื่น ๆ = "ส่วนลด (โค้ด X)"
+          const cp = rc.cp && rc.cp.amt > 0 ? rc.cp : null;
+          const gross = Number((rc.amount || 0) + (cp ? cp.amt : 0)).toLocaleString('en-US');
+          const cpLabel = cp ? (cp.kind === 'percent' ? 'ส่วนลด ' + cp.value + '% (โค้ด ' + cp.code + ')'
+            : cp.kind === 'freeship' ? 'ส่วนลดค่าจัดส่ง — ส่งฟรี (โค้ด ' + cp.code + ')'
+            : 'ส่วนลด (โค้ด ' + cp.code + ')') : null;
           const line = { borderBottom: '1px dotted #999', flex: 1, minWidth: 0, padding: '0 6px 2px', wordBreak: 'break-word' };
           const row = (label, val, mono) => (
             <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px', fontSize: '13px', lineHeight: 1.9 }}>
@@ -3476,13 +3484,19 @@ class App extends React.Component {
                         <td style={{ border: '1px solid #444', padding: '10px 8px', verticalAlign: 'top', lineHeight: 1.6 }}>
                           <span style={{ fontFamily: "'IBM Plex Mono',monospace", fontWeight: 700 }}>{rc.oid}</span><br/>{rc.detail}
                         </td>
-                        <td style={{ border: '1px solid #444', padding: '10px 8px', textAlign: 'right', verticalAlign: 'top', fontFamily: "'IBM Plex Mono',monospace" }}>{money}</td>
+                        <td style={{ border: '1px solid #444', padding: '10px 8px', textAlign: 'right', verticalAlign: 'top', fontFamily: "'IBM Plex Mono',monospace" }}>{gross}</td>
                       </tr>
                       <tr><td style={{ border: '1px solid #444', height: '90px' }} colSpan={3}></td></tr>
                       <tr>
                         <td colSpan={2} style={{ border: '1px solid #444', padding: '8px', textAlign: 'right', color: '#333' }}>ราคาสุทธิ</td>
-                        <td style={{ border: '1px solid #444', padding: '8px', textAlign: 'right', fontFamily: "'IBM Plex Mono',monospace" }}>{money}</td>
+                        <td style={{ border: '1px solid #444', padding: '8px', textAlign: 'right', fontFamily: "'IBM Plex Mono',monospace" }}>{gross}</td>
                       </tr>
+                      {cpLabel && (
+                        <tr>
+                          <td colSpan={2} style={{ border: '1px solid #444', padding: '8px', textAlign: 'right', color: '#c2255c', fontWeight: 700 }}>{cpLabel}</td>
+                          <td style={{ border: '1px solid #444', padding: '8px', textAlign: 'right', fontFamily: "'IBM Plex Mono',monospace", color: '#c2255c', fontWeight: 700 }}>−{Number(cp.amt).toLocaleString('en-US')}</td>
+                        </tr>
+                      )}
                       <tr>
                         <td colSpan={2} style={{ border: '1px solid #444', padding: '8px', textAlign: 'right', fontWeight: 800 }}>ยอดรวม</td>
                         <td style={{ border: '1px solid #444', padding: '8px', textAlign: 'right', fontFamily: "'IBM Plex Mono',monospace", fontWeight: 800, fontSize: '15px' }}>{money}</td>
