@@ -45,6 +45,7 @@ const CONFIG = { nightOverride: 'auto', nightFee: 10, expressFee: 20, expressEna
   carTiers: [[2, 69], [4, 89], [6, 129]],
   // ปริ้นสี: คิดตามปริมาณสีที่สแกนจากไฟล์ (สัดส่วนพื้นที่สีเกิน colorHeavyPct% = หน้าสีเยอะ)
   colorLightPrice: 5, colorHeavyPrice: 7, colorHeavyPct: 50,
+  colorLightDuplex: 3.5, colorHeavyDuplex: 5, // หน้า-หลัง: สีน้อยแผ่นละ 7 (หน้าละ 3.5) · สีเยอะแผ่นละ 10 (หน้าละ 5)
   photoInkPct: 80, photoMinColorPct: 15, // กฎจับหน้ารูปภาพเต็มหน้า: หมึกคลุม >80% + มีสีจริง >15% = สีเยอะ
   // เวลาผลิต+ส่งโดยประมาณ (นาที) — บวกเพิ่มตามคิวค้างจริง: คิวก่อนหน้า × queuePerOrderMin
   etaStandardMin: 45, queuePerOrderMin: 15,
@@ -979,7 +980,10 @@ class App extends React.Component {
       lightPages = totalPages - heavyPages;
       // การกำหนดหน้า (nup): หลายหน้าลงแผ่นเดียว = ราคาหารตามจำนวนหน้าต่อแผ่นที่ลูกค้าเลือก
       const nupC = (s.tier !== 'pro' && (s.nup || 1) > 1) ? s.nup : 1;
-      printCost = Math.ceil((lightPages * (CONFIG.colorLightPrice ?? 5) + heavyPages * (CONFIG.colorHeavyPrice ?? 7)) / nupC);
+      // หน้าเดียว: สีน้อย 5 · สีเยอะ 7 ต่อหน้า — หน้า-หลัง: สีน้อยแผ่นละ 7 (หน้าละ 3.5) · สีเยอะแผ่นละ 10 (หน้าละ 5)
+      const lpC = s.sides === 2 ? (CONFIG.colorLightDuplex ?? 3.5) : (CONFIG.colorLightPrice ?? 5);
+      const hpC = s.sides === 2 ? (CONFIG.colorHeavyDuplex ?? 5) : (CONFIG.colorHeavyPrice ?? 7);
+      printCost = Math.ceil((lightPages * lpC + heavyPages * hpC) / nupC);
     }
     // งาน Pro: ราคาจริงตามเรทเจ้าของ (แผ่นรวม = หน้าไฟล์ × ชุด) — ยกเว้น "พับครึ่ง เข้าเล่ม/เมนู" ที่ร้านยังยืนยันราคาทาง LINE
     if (s.tier === 'pro') {
@@ -1811,20 +1815,20 @@ class App extends React.Component {
         : s.ptype === 'bw'
         ? 'เรทตอนนี้ ' + (c.rate < 1 ? Math.round(c.rate * 100) + ' สต.' : '฿' + (Math.round(c.rate * 1000) / 1000)) + '/หน้าที่พิมพ์' + (c.sheets > 0 ? ' (รวม ' + c.sheets + ' หน้าพิมพ์ — ยิ่งเยอะยิ่งถูก)' : ' — ยิ่งเยอะยิ่งถูก')
         : s.ptype === 'color'
-        ? 'เรท สีน้อย ฿' + (CONFIG.colorLightPrice ?? 5) + ' · สีเยอะ ฿' + (CONFIG.colorHeavyPrice ?? 7) + ' /หน้า — ระบบสแกนไฟล์ให้อัตโนมัติ'
+        ? (s.sides === 2 ? 'เรทหน้า-หลัง สีน้อยแผ่นละ ฿7 · สีเยอะแผ่นละ ฿10 (แผ่นละ 2 หน้า) — ระบบสแกนไฟล์ให้อัตโนมัติ' : 'เรท สีน้อย ฿' + (CONFIG.colorLightPrice ?? 5) + ' · สีเยอะ ฿' + (CONFIG.colorHeavyPrice ?? 7) + ' /หน้า — ระบบสแกนไฟล์ให้อัตโนมัติ')
         : 'เรท ฿' + c.rate + '/' + (s.ptype === 'poster' ? 'แผ่น' : 'หน้า'),
       colorNote: s.tier === 'pro' ? ''
         : s.ptype === 'color'
         ? (!s.files.length ? '* หน้าสีเกิน ' + (CONFIG.colorHeavyPct ?? 50) + '% ของพื้นที่ หรือเป็นรูปภาพเต็มหน้า = สีเยอะ ฿' + (CONFIG.colorHeavyPrice ?? 7)
           : s.files.some(f => !f.scanned) ? '* ไฟล์ที่ระบบสแกนสีไม่ได้ คิดเรทสีน้อยไว้ก่อน — ร้านตรวจไฟล์จริงและยืนยันราคาก่อนปริ้น'
-          : c.heavyPages > 0 ? '* สแกนไฟล์แล้ว: สีเยอะ ' + c.heavyPages + ' หน้า × ฿' + (CONFIG.colorHeavyPrice ?? 7) + ' · สีน้อย ' + c.lightPages + ' หน้า × ฿' + (CONFIG.colorLightPrice ?? 5)
+          : c.heavyPages > 0 ? '* สแกนไฟล์แล้ว: สีเยอะ ' + c.heavyPages + ' หน้า × ฿' + (s.sides === 2 ? (CONFIG.colorHeavyDuplex ?? 5) : (CONFIG.colorHeavyPrice ?? 7)) + ' · สีน้อย ' + c.lightPages + ' หน้า × ฿' + (s.sides === 2 ? (CONFIG.colorLightDuplex ?? 3.5) : (CONFIG.colorLightPrice ?? 5))
           : '* สแกนไฟล์แล้ว: ทุกหน้าสีน้อย ฿' + (CONFIG.colorLightPrice ?? 5) + '/หน้า')
         : s.ptype === 'poster' ? '* กระดาษอาร์ตมัน/ด้าน ราคาเท่ากัน' : '',
       colorBreak: s.tier === 'pro' ? ''
         : s.ptype === 'color' && (c.heavyPages > 0 || (s.nup || 1) > 1) && c.totalPages > 0 ? (() => {
-            const lp = CONFIG.colorLightPrice ?? 5, hp = CONFIG.colorHeavyPrice ?? 7;
+            const lp = s.sides === 2 ? (CONFIG.colorLightDuplex ?? 3.5) : (CONFIG.colorLightPrice ?? 5), hp = s.sides === 2 ? (CONFIG.colorHeavyDuplex ?? 5) : (CONFIG.colorHeavyPrice ?? 7);
             const raw = c.lightPages * lp + c.heavyPages * hp;
-            let t = '🎨 สีน้อย ' + c.lightPages + ' หน้า × ฿' + lp + (c.heavyPages > 0 ? ' + สีเยอะ ' + c.heavyPages + ' หน้า × ฿' + hp : '');
+            let t = '🎨 สีน้อย ' + c.lightPages + ' หน้า × ฿' + lp + (c.heavyPages > 0 ? ' + สีเยอะ ' + c.heavyPages + ' หน้า × ฿' + hp : '') + (s.sides === 2 ? ' (หน้า-หลัง: สีน้อยแผ่นละ 7 · สีเยอะแผ่นละ 10)' : '');
             if ((s.nup || 1) > 1) t += ' = ฿' + raw + ' ÷ ' + s.nup + ' (เลือก ' + s.nup + ' หน้า/แผ่น) = ฿' + c.printCost; // ราคาหารตามจำนวนหน้าต่อแผ่นแล้ว — โชว์วิธีคิดกันงง
             return t;
           })()
