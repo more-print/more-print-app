@@ -251,11 +251,10 @@ const PRO_NAMECARD = { one: 250, two: 450 };              // ต่อ 100 ใ�
 const PRO_STANDEE = { base: 380, stand: 480 };            // 60×120 ซม. / ใส่ขาตั้ง
 const BLUEPRINT_PRICE = { A1: 40, A2: 20, A3: 5 };        // แบบแปลนขาวดำ /แผ่น
 const POSTER_PRICE = { A5: 10, A4: 15, A3: 30, A2: 130, A1: 250, A0: 500 };
-// เรทขาวดำ คิดต่อแผ่นกระดาษ ตามจำนวนแผ่นรวมทั้งงาน: ≤30 แผ่น ฿1 · 31–100 ฿0.75 · >100 ฿0.50
-// หน้า-หลัง (1 แผ่น = 2 หน้าเอกสาร): ราคาแผ่นละ = เรทฐาน + ครึ่งหนึ่งของเรทฐาน (×1.5)
+// เรทขาวดำ คิดต่อ "หน้าที่พิมพ์จริง" (พิมพ์ 1 ด้าน = 1 หน้า): ≤30 หน้า ฿1 · 31–100 ฿0.75 · >100 ฿0.50
+// หน้า-หลังพิมพ์ 2 ด้านก็คิด 2 หน้า — ด้านหลังไม่ฟรี (นโยบาย 2026-08-27) · การกำหนดหน้า (nup) เท่านั้นที่ทำให้จำนวนหน้าพิมพ์ลดลง
 function bwSheetRate(totalSheets, sides){
-  const base = totalSheets > 100 ? 0.50 : totalSheets > 30 ? 0.75 : 1.00;
-  return sides === 2 ? base * 1.5 : base;
+  return totalSheets > 100 ? 0.50 : totalSheets > 30 ? 0.75 : 1.00;
 }
 function pageRate(ptype, size, sides, totalPages){
   if (ptype === 'bw') return bwSheetRate(totalPages, sides);
@@ -962,12 +961,12 @@ class App extends React.Component {
     const totalPages = pages * s.copies;
     let rate = pageRate(s.ptype, s.paper, s.sides, totalPages);
     let printCost = Math.ceil(totalPages * rate);
-    // ขาวดำ: คิดต่อแผ่นกระดาษจริง — หน้า-หลัง 1 แผ่นจุ 2 หน้า (เศษหน้าคี่ปัดขึ้นเป็นแผ่นเต็มรายไฟล์)
-    let sheets = totalPages;
+    // ขาวดำ: คิดต่อ "หน้าที่พิมพ์จริง" — หน้า-หลังพิมพ์ทั้ง 2 ด้านก็คิดทั้ง 2 ด้าน (ด้านหลังไม่ฟรี — นโยบาย 2026-08-27)
+    let sheets = totalPages; // = จำนวนหน้าพิมพ์ที่คิดเงิน
     if (s.ptype === 'bw') {
-      // การกำหนดหน้า (nup): รวมหลายหน้าลงแผ่นเดียว = กระดาษลดลง ราคาลดตามจริง — หน้า-หลังจุเพิ่มอีกเท่าตัว
-      const perSheet = ((s.tier !== 'pro' && (s.nup || 1) > 1) ? s.nup : 1) * (s.sides === 2 ? 2 : 1);
-      const perCopy = perSheet > 1 ? s.files.reduce((a, f) => a + Math.ceil(f.pages / perSheet), 0) : pages;
+      // การกำหนดหน้า (nup): รวมหลายหน้าเอกสารลงหน้าพิมพ์เดียว = จำนวนหน้าพิมพ์ลดลง ราคาลดตามจริง (เศษปัดขึ้นรายไฟล์)
+      const nupC = (s.tier !== 'pro' && (s.nup || 1) > 1) ? s.nup : 1;
+      const perCopy = nupC > 1 ? s.files.reduce((a, f) => a + Math.ceil(f.pages / nupC), 0) : pages;
       sheets = perCopy * s.copies;
       rate = bwSheetRate(sheets, s.sides);
       printCost = Math.ceil(sheets * rate);
@@ -1788,7 +1787,7 @@ class App extends React.Component {
         return this.seg(label, s.paper === sz, () => this.setState({ paper: sz }));
       }),
       showSides: s.tier !== 'pro' && (s.ptype === 'bw' || s.ptype === 'laser' || s.ptype === 'color'),
-      sidesOpts: [this.seg('หน้าเดียว', s.sides === 1, () => this.setState({ sides: 1 }), true), this.seg('หน้า-หลัง' + (s.tier !== 'pro' && s.ptype === 'bw' ? ' (ถูกกว่า)' : ''), s.sides === 2, () => this.setState({ sides: 2 }), true)],
+      sidesOpts: [this.seg('หน้าเดียว', s.sides === 1, () => this.setState({ sides: 1 }), true), this.seg('หน้า-หลัง', s.sides === 2, () => this.setState({ sides: 2 }), true)],
       orientOpts: [this.seg('ปริ้นแนวตั้ง', s.orient !== 'landscape', () => this.setState({ orient: 'portrait' }), true), this.seg('ปริ้นแนวนอน', s.orient === 'landscape', () => this.setState({ orient: 'landscape' }), true)],
       nupOpts: [1, 2, 4, 6].map(n => this.seg(n + ' หน้า/แผ่น', (s.nup || 1) === n, () => this.setState({ nup: n }), true)),
       showBind: s.tier !== 'pro' && s.ptype !== 'poster',
@@ -1810,7 +1809,7 @@ class App extends React.Component {
             : s.proType === 'standee' ? '✨ Standy ฿' + (s.proStand ? PRO_STANDEE.stand : PRO_STANDEE.base) + '/ชิ้น × ' + s.copies + ' = ฿' + c.printCost
             : '✨ ' + this.proLabel() + ' ฿' + c.rate + '/แผ่น' + (c.pages > 0 ? ' × ' + (c.pages * s.copies) + ' แผ่น = ฿' + c.printCost : ' — อัปโหลดไฟล์แล้วระบบคำนวณให้ทันที'))
         : s.ptype === 'bw'
-        ? 'เรทตอนนี้ ' + (c.rate < 1 ? Math.round(c.rate * 100) + ' สต.' : '฿' + (Math.round(c.rate * 1000) / 1000)) + '/แผ่น' + (c.sheets > 0 ? ' (รวม ' + c.sheets + ' แผ่น — ยิ่งเยอะยิ่งถูก)' : ' — ยิ่งเยอะยิ่งถูก')
+        ? 'เรทตอนนี้ ' + (c.rate < 1 ? Math.round(c.rate * 100) + ' สต.' : '฿' + (Math.round(c.rate * 1000) / 1000)) + '/หน้าที่พิมพ์' + (c.sheets > 0 ? ' (รวม ' + c.sheets + ' หน้าพิมพ์ — ยิ่งเยอะยิ่งถูก)' : ' — ยิ่งเยอะยิ่งถูก')
         : s.ptype === 'color'
         ? 'เรท สีน้อย ฿' + (CONFIG.colorLightPrice ?? 5) + ' · สีเยอะ ฿' + (CONFIG.colorHeavyPrice ?? 7) + ' /หน้า — ระบบสแกนไฟล์ให้อัตโนมัติ'
         : 'เรท ฿' + c.rate + '/' + (s.ptype === 'poster' ? 'แผ่น' : 'หน้า'),
@@ -1829,7 +1828,7 @@ class App extends React.Component {
             if ((s.nup || 1) > 1) t += ' = ฿' + raw + ' ÷ ' + s.nup + ' (เลือก ' + s.nup + ' หน้า/แผ่น) = ฿' + c.printCost; // ราคาหารตามจำนวนหน้าต่อแผ่นแล้ว — โชว์วิธีคิดกันงง
             return t;
           })()
-        : s.ptype === 'bw' && (s.sides === 2 || (s.nup || 1) > 1) && c.sheets > 0 ? '📄 ใช้กระดาษจริง ' + c.sheets + ' แผ่น × ฿' + (Math.round(c.rate * 1000) / 1000) + '/แผ่น' : '',
+        : s.ptype === 'bw' && (s.sides === 2 || (s.nup || 1) > 1) && c.sheets > 0 ? '📄 คิดตามหน้าที่พิมพ์จริง ' + c.sheets + ' หน้า × ฿' + (Math.round(c.rate * 1000) / 1000) + '/หน้า' + (s.sides === 2 ? ' (หน้า-หลังคิดทั้ง 2 ด้าน)' : '') : '',
       typeLabel: s.tier === 'pro' ? '✨ PRO พรีเมียม' : ((PRINT_TYPES.find(t => t.k === s.ptype) || {}).label || ''),
       pageSummary: c.pages + ' หน้า × ' + s.copies + ' ชุด (' + (s.tier === 'pro' ? 'PRO ' + this.proLabel() : ((PRINT_TYPES.find(t => t.k === s.ptype) || {}).label || '') + ' ' + s.paper + ((s.nup || 1) > 1 ? ' · ' + s.nup + ' หน้า/แผ่น' : '')) + ')',
       printCost: c.printCost, bindCost: c.bindCost, printTotal: c.printTotal,
