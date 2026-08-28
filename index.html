@@ -340,7 +340,7 @@ class App extends React.Component {
       vehicle: 'bike', // พาหนะส่งที่ลูกค้าเลือกเอง: 'bike' มอเตอร์ไซค์ · 'car' รถยนต์ (ใช้ทั้ง Standard และ Pro)
       reviews: [], reviewsReady: false, revAll: false, revStars: 5, revText: '', trackStars: 5, trackText: '',
       alertPrompt: false, alertAck: false,
-      proType: 'plate', proSize: 'A4', proBind: 'ไสกาว', proQty: 100, proPickup: false,
+      proType: 'plate', proSize: 'A4', proBind: 'ไสกาว', proQty: 100, proPickup: false, stdPickup: false, // stdPickup = งาน Standard รับหน้าร้าน MORE PRINT
       proLam: 'none', proSpecial: false, proStaple: false, proStand: false, // ตัวเลือกเสริมงาน Pro (เคลือบ/กระดาษพิเศษ/เย็บ/ขาตั้ง)
       distKm: null, distSrc: '', trackOpen: false, trackMin: false,
       // ประวัติการสั่ง (เก็บในเครื่อง): ออเดอร์ที่ผลิต/ส่งสำเร็จแล้ว ทั้ง standard และ pro
@@ -1008,7 +1008,7 @@ class App extends React.Component {
       printCost = Math.ceil(pc);
     }
     // งาน Pro เลือกมารับเองที่ร้านอุดมสุข = ไม่มีค่าส่ง ไม่ต้องปักหมุด
-    const proPickupOn = s.tier === 'pro' && s.proPickup;
+    const proPickupOn = s.tier === 'pro' ? s.proPickup : s.stdPickup; // รับเองที่ร้าน: Pro = อุดมสุข · Standard = หน้าร้าน MORE PRINT
     if (proPickupOn) { deliveryFee = 0; farNote = false; outOfArea = false; }
     // 'landscape' (เล่มแนวนอน) ถูกตัดออกจากตัวเลือกแล้ว — เก็บสูตรราคาไว้ให้ออเดอร์เก่าที่เคยเลือกยังแสดงถูก
     const bindCost = s.tier === 'pro' ? 0 : (s.bind === 'corner' ? 0 : s.bind === 'book' ? 40 : s.bind === 'landscape' ? 60 : 0) * s.copies; // เย็บมุมฟรี (2026-08-24)
@@ -1043,7 +1043,11 @@ class App extends React.Component {
   // เวลาผลิต+ส่งโดยประมาณของงานปัจจุบัน (นาที ยังไม่รวมคิว)
   etaMinutes(){
     const s = this.state;
-    if (s.tier !== 'pro') return CONFIG.etaStandardMin ?? 45;
+    if (s.tier !== 'pro') {
+      // งาน Standard: 1-150 หน้า = 1 ชม. · 151-300 = 2 ชม. · ทุก ๆ 150 หน้าถัดไป +1 ชม. (นับรวมทุกไฟล์ × จำนวนชุด — นโยบาย 2026-08-27)
+      const tp = (s.files || []).reduce((a, f) => a + (f.pages || 1), 0) * Math.max(1, s.copies || 1);
+      return Math.max(60, Math.ceil(tp / 150) * 60);
+    }
     const m = CONFIG.etaProMin || {};
     if (s.proType === 'plate') return ['A2', 'A1', 'A0'].includes(s.proSize) ? (m.plateBig ?? 90) : (m.plate ?? 60);
     return m[s.proType] ?? 90; // ประเภทที่ไม่ได้ระบุใน etaProMin = 90 นาที
@@ -1155,10 +1159,10 @@ class App extends React.Component {
         nup: s.tier === 'pro' ? null : (s.nup || 1),
         bind: s.tier === 'pro' ? (s.proType === 'foldbook' ? s.proBind : 'none') : s.bind, copies: s.copies,
         point: s.geoLabel || '', lat: s.lat, lng: s.lng,
-        pickup: s.tier === 'pro' && s.proPickup,
+        pickup: s.tier === 'pro' ? s.proPickup : s.stdPickup,
         line_uid: (s.user && s.user.line_uid) || null, // ไว้แจ้งเตือนลูกค้าทาง LINE (เฉพาะคนล็อกอินด้วย LINE)
         // นำหน้าที่อยู่ด้วยพาหนะที่ลูกค้าเลือก — ไรเดอร์/หลังบ้านเห็นทันทีว่าต้องใช้รถอะไร (ไม่ต้องเพิ่มคอลัมน์ใหม่)
-        addr: (s.tier === 'pro' && s.proPickup) ? '🏪 มารับเองที่ร้านอุดมสุขปริ้นติ้ง' : (s.vehicle === 'car' ? '🚗 ' : '🏍️ ') + s.addr,
+        addr: (s.tier === 'pro' && s.proPickup) ? '🏪 มารับเองที่ร้านอุดมสุขปริ้นติ้ง' : (s.tier !== 'pro' && s.stdPickup) ? '🏪 รับหน้าร้าน MORE PRINT (หอพักบริบูรณ์เพลส)' : (s.vehicle === 'car' ? '🚗 ' : '🏍️ ') + s.addr,
         phone: s.phone, time: '', express: s.express, night: this.isNight(),
         print_cost: c.printCost, bind_cost: c.bindCost, delivery_cost: c.deliveryCost,
         night_fee: c.nightFee || 0, // ตามสูตรจริง — งาน Pro/มารับเอง = 0
@@ -1731,9 +1735,12 @@ class App extends React.Component {
         svg: ICON_PRO[t.k]
       })),
       proPickupOn: c.proPickupOn,
-      proPickupOpts: [
+      proPickupOpts: s.tier === 'pro' ? [
         { svg: ICON_SCOOTER, name: 'บริการส่ง', sub: 'คิดราคาตามระยะทาง', on: !s.proPickup, pick: () => this.setState({ proPickup: false }) },
         { svg: ICON_HANDOVER, name: 'มารับเองที่ร้าน', sub: 'ฟรี · ร้านอุดมสุขปริ้นติ้ง (กังสดาล)', on: s.proPickup, pick: () => this.setState({ proPickup: true }) }
+      ] : [
+        { svg: ICON_SCOOTER, name: 'บริการส่งถึงที่', sub: 'คิดค่าส่งตามระยะทาง', on: !s.stdPickup, pick: () => this.setState({ stdPickup: false }) },
+        { svg: ICON_HANDOVER, name: 'รับหน้าร้าน', sub: 'ฟรี · ร้าน MORE PRINT (หอพักบริบูรณ์เพลส)', on: s.stdPickup, pick: () => this.setState({ stdPickup: true }) }
       ],
       proShowQty: !!((PRO_TYPES.find(t => t.k === s.proType) || {}).qty),
       proQtyOpts: (((PRO_TYPES.find(t => t.k === s.proType) || {}).qty) || []).map(n => this.seg(n + ' ใบ ฿' + Math.ceil((s.sides === 2 ? PRO_NAMECARD.two : PRO_NAMECARD.one) * n / 100), s.proQty === n, () => this.setState({ proQty: n }))),
@@ -2020,9 +2027,9 @@ class App extends React.Component {
         }
         const eta = etaStart + etaBaseMin * 60000;
         // ยืนยันแล้วล้างรายการงานทิ้ง — เข้ามาสั่งรอบหน้าต้องเป็นหน้าว่างพร้อมดรอปไฟล์ใหม่ ไม่มีไฟล์เก่าค้าง
-        const pickup = s.tier === 'pro' && s.proPickup;
+        const pickup = s.tier === 'pro' ? s.proPickup : s.stdPickup;
         const ts = Date.now(); // เวลาชำระ — ใช้นับถอยหลังช่วงที่ลูกค้ายกเลิกเองได้
-        const oaddr = pickup ? '🏪 มารับเองที่ร้านอุดมสุขปริ้นติ้ง' : s.addr;
+        const oaddr = pickup ? (s.tier === 'pro' ? '🏪 มารับเองที่ร้านอุดมสุขปริ้นติ้ง' : '🏪 รับหน้าร้าน MORE PRINT (หอพักบริบูรณ์เพลส)') : s.addr;
         const oveh = pickup ? '' : (s.vehicle === 'car' ? '🚗 รถยนต์' : '🏍️ มอเตอร์ไซค์');
         // จำเป็นที่อยู่จัดส่งประจำ ไว้เลือกซ้ำรอบหน้า
         if (!pickup && s.addr.trim() && s.lat != null) this.saveAddr({ addr: s.addr.trim(), lat: s.lat, lng: s.lng, veh: s.vehicle, ts: Date.now() });
@@ -2036,7 +2043,7 @@ class App extends React.Component {
           document.cookie = 'mp_rc_bk=' + encodeURIComponent(rcSave) + ';max-age=31536000;path=/;SameSite=Lax'; // สำรองคุกกี้ 1 ปี
         } catch (e) {}
         this.setState({ order: { id, total: c.grandTotal, times: [t0, '', '', ''], plabel, eta, pickup, ts, addr: oaddr, phone: s.phone, veh: oveh, copies: s.copies, pages: c.totalPages, dist: s.distKm, rc: rcReq, cp: cpUsed }, trackStep: 1, cancelReason: '', screen: 'track',
-          files: [], slip: null, copies: 1, bind: 'none', express: false, tier: 'standard', ptype: 'bw', paper: 'A4', sides: 1, orient: 'portrait', nup: 1, note: '', proPickup: false, proLam: 'none', proSpecial: false, proStaple: false, proStand: false, vehicle: 'bike', trackOpen: false, trackMin: false, histOpen: null, chatFor: null, chatFrom: 'track', selfCancelArm: false, couponCode: '', couponOk: null });
+          files: [], slip: null, copies: 1, bind: 'none', express: false, tier: 'standard', ptype: 'bw', paper: 'A4', sides: 1, orient: 'portrait', nup: 1, note: '', proPickup: false, stdPickup: false, proLam: 'none', proSpecial: false, proStaple: false, proStand: false, vehicle: 'bike', trackOpen: false, trackMin: false, histOpen: null, chatFor: null, chatFrom: 'track', selfCancelArm: false, couponCode: '', couponOk: null });
         // จำออเดอร์ไว้ในเครื่อง — ปิดเว็บแล้วกลับมา การติดตามยังอยู่
         try {
           const nod = { id, total: c.grandTotal, times: [t0, '', '', ''], step: 1, plabel, eta, pickup, ts, addr: oaddr, phone: s.phone, veh: oveh, copies: s.copies, pages: c.totalPages, dist: s.distKm, rc: rcReq, cp: cpUsed };
@@ -2049,15 +2056,23 @@ class App extends React.Component {
         // บวกเวลาตามคิวที่ค้างจริง (ออเดอร์ที่ยังไม่ออกส่ง) — รอ insert ลงฐานก่อนแล้วค่อยนับ
         if (this.db) setTimeout(async () => {
           try {
-            const { data, error } = await this.db.rpc('get_queue_count');
-            if (error || !data) return; // ยังไม่ได้รัน SQL สร้างฟังก์ชันคิว — ใช้เวลาฐานไปก่อน
-            const ahead = Math.max(0, data - 1); // ไม่นับออเดอร์ของตัวเอง
-            if (!ahead) return;
-            const eta2 = etaStart + (etaBaseMin + ahead * (CONFIG.queuePerOrderMin ?? 15)) * 60000;
+            let eta2 = null;
+            if (s.tier !== 'pro') {
+              // คิวงาน Standard: บวกเวลาผลิตจริงของทุกใบที่ค้างอยู่ (สั่งก่อนได้ก่อน) — RPC คืนนาทีรวมของงานค้างรวมใบนี้
+              const r = await this.db.rpc('get_queue_load');
+              if (!r.error && r.data != null) eta2 = etaStart + Math.max(Number(r.data) || 0, etaBaseMin) * 60000;
+            }
+            if (eta2 == null) { // งาน Pro หรือฟังก์ชันคิวใหม่ยังไม่ติดตั้ง — วิธีเดิม: บวกใบละ 15 นาที
+              const { data, error } = await this.db.rpc('get_queue_count');
+              if (error || !data) return;
+              const ahead = Math.max(0, data - 1); // ไม่นับออเดอร์ของตัวเอง
+              if (!ahead) return;
+              eta2 = etaStart + (etaBaseMin + ahead * (CONFIG.queuePerOrderMin ?? 15)) * 60000;
+            }
             this.setState(st => st.order && st.order.id === id ? { order: { ...st.order, eta: eta2 } } : null);
             try { const od = JSON.parse(localStorage.getItem('mp_order') || 'null'); if (od && od.id === id) { od.eta = eta2; localStorage.setItem('mp_order', JSON.stringify(od)); } } catch (e) {}
           } catch (e) {}
-        }, 2500);
+        }, 6000);
         if (!this.db) {
           // โหมดออฟไลน์: จำลองสถานะเดินเอง
           this.trackTimer = setInterval(() => {
@@ -2738,10 +2753,25 @@ class App extends React.Component {
           <div style={css("padding:18px 20px 110px;display:flex;flex-direction:column;gap:14px")}>
             <div style={css("font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:var(--sub);letter-spacing:1px")}>STEP 02 / 04 — จุดส่ง</div>
             <div style={css("background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px;box-shadow:var(--shadow)")}>
+              {!v.isPro && <div style={css("margin-bottom:14px")}>
+                <div style={css("font-size:12px;font-weight:600;color:var(--sub);margin-bottom:7px")}>การรับงาน</div>
+                <div style={css("display:flex;flex-direction:column;gap:8px")}>
+                  {v.proPickupOpts.map((o, i) => (
+                    <div key={i} onClick={o.pick} style={css("border:" + (o.on ? "1.5px solid var(--acc)" : "1px solid var(--line)") + ";border-radius:12px;padding:11px 14px;background:" + (o.on ? "var(--accSoft)" : "var(--card)") + ";display:flex;align-items:center;gap:11px;cursor:pointer")}>
+                      <div style={{ flex: 'none', fontSize: '22px', lineHeight: o.svg ? 0 : 'normal', color: o.on ? 'var(--acc)' : 'var(--ink)' }}>{o.svg || o.icon}</div>
+                      <div style={css("flex:1;min-width:0")}>
+                        <div style={css("font-size:13.5px;font-weight:700;color:" + (o.on ? "var(--acc)" : "var(--ink)"))}>{o.name}</div>
+                        <div style={css("margin-top:1px;font-size:11px;color:var(--sub);line-height:1.5")}>{o.sub}</div>
+                      </div>
+                      <div style={css("width:20px;height:20px;border-radius:50%;flex:none;border:2px solid " + (o.on ? "var(--acc)" : "var(--line)") + ";display:flex;align-items:center;justify-content:center")}>{o.on && <div style={css("width:10px;height:10px;border-radius:50%;background:var(--acc)")}></div>}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>}
               {v.proPickupOn && (
                 <div style={css("border:1.5px solid var(--acc);border-radius:12px;padding:12px 14px;background:var(--accSoft)")}>
-                  <div style={css("font-size:13.5px;font-weight:800;color:var(--acc)")}>🏪 มารับเองที่ร้านอุดมสุขปริ้นติ้ง (กังสดาล)</div>
-                  <div style={css("margin-top:4px;font-size:11.5px;color:var(--sub);line-height:1.6")}>ไม่มีค่าส่ง · ไม่ต้องปักหมุด — เมื่อสินค้าเสร็จ สถานะจะขึ้น "เสร็จแล้ว รอมารับ" แล้วมารับได้เลยครับ · <a href="https://maps.app.goo.gl/SshjXkvaCxvKPugL7" target="_blank" rel="noreferrer" style={css("color:var(--acc);font-weight:700")}>🧭 เปิดแผนที่ร้าน</a></div>
+                  <div style={css("font-size:13.5px;font-weight:800;color:var(--acc)")}>🏪 {v.isPro ? 'มารับเองที่ร้านอุดมสุขปริ้นติ้ง (กังสดาล)' : 'รับหน้าร้าน MORE PRINT (หอพักบริบูรณ์เพลส)'}</div>
+                  <div style={css("margin-top:4px;font-size:11.5px;color:var(--sub);line-height:1.6")}>ไม่มีค่าส่ง · ไม่ต้องปักหมุด — เมื่อสินค้าเสร็จ สถานะจะขึ้น "เสร็จแล้ว รอมารับ" แล้วมารับได้เลยครับ · <a href={v.isPro ? 'https://maps.app.goo.gl/SshjXkvaCxvKPugL7' : 'https://maps.app.goo.gl/NeVkZbtj6soQpwFx7'} target="_blank" rel="noreferrer" style={css("color:var(--acc);font-weight:700")}>🧭 เปิดแผนที่ร้าน</a></div>
                 </div>
               )}
               {!v.proPickupOn && <React.Fragment>
