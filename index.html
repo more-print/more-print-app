@@ -568,12 +568,14 @@ class App extends React.Component {
       return this.showToast('โค้ดไม่ถูกต้องหรือหมดอายุ ❌');
     }
     this.setState({ couponBusy: true });
-    // ส่ง uid ไปเช็คด้วย — ฐานข้อมูลยังเป็นเวอร์ชันเก่า (ไม่รู้จัก uid_in) ให้ถอยไปเช็คแบบเดิม เว็บต้องไม่พัง
-    let res = await this.db.rpc('check_coupon', { code_in: code, uid_in: this.couponUid() }).catch(() => ({ error: { message: 'network' } }));
-    if (res.error && /PGRST202|not find the function|does not exist/i.test(String(res.error.message || '') + String(res.error.code || ''))) {
-      res = await this.db.rpc('check_coupon', { code_in: code }).catch(() => ({ error: { message: 'network' } }));
+    // ส่ง uid ไปเช็คด้วย — ฐานข้อมูลเวอร์ชันเก่า (ไม่รู้จัก uid_in) ให้ถอยไปเช็คแบบเดิม · ห้ามใช้ .catch กับตัวเรียกตรง ๆ (ไลบรารีไม่มีเมธอดนี้ — เคยทำปุ่มค้าง ⏳)
+    let res = null;
+    try { res = await this.db.rpc('check_coupon', { code_in: code, uid_in: this.couponUid() }); } catch (e) { res = { error: { message: String((e && e.message) || 'network') } }; }
+    if (res && res.error && /PGRST202|not find the function|does not exist/i.test(String(res.error.message || '') + String(res.error.code || ''))) {
+      try { res = await this.db.rpc('check_coupon', { code_in: code }); } catch (e) { res = { error: { message: 'network' } }; }
     }
     this.setState({ couponBusy: false });
+    if (!res) return this.showToast('เช็คโค้ดไม่สำเร็จ ลองอีกครั้งครับ 🙏');
     if (res.error) return this.showToast('ระบบคูปองยังไม่เปิดใช้งานครับ');
     const c = Array.isArray(res.data) ? res.data[0] : res.data;
     if (!c || !c.code) { this.setState({ couponOk: null }); return this.showToast('โค้ดไม่ถูกต้อง หมดอายุ หรือถูกใช้ครบแล้ว ❌'); }
