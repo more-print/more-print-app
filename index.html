@@ -1733,6 +1733,12 @@ class App extends React.Component {
       // งาน Pro สั่งได้ 24 ชม. — ออเดอร์หลัง 17:00 (ถึงก่อน 08:30) เริ่มผลิตวันถัดไป 08:30 (นโยบาย 2026-08-24)
       proAfterCut: (() => { const h = s.now.getHours(), m = s.now.getMinutes(); return h >= 17 || h < 8 || (h === 8 && m < 30); })(),
       proWeekendHold: this.proWeekendHold(), // ช่วงวันหยุดผลิต (เสาร์ 17:00 – จันทร์ 08:30) — สั่งได้ แต่เริ่มผลิตวันจันทร์
+      proMonDate: (() => { // วันที่วันจันทร์ที่จะเริ่มผลิต (วว/ดด/ปป พ.ศ.) — โชว์ในคำเตือนช่วงวันหยุด
+        if (!this.proWeekendHold()) return '';
+        const n = new Date(s.now.getTime()), d = n.getDay();
+        n.setDate(n.getDate() + (d === 6 ? 2 : d === 0 ? 1 : 0));
+        return n.getDate() + '/' + (n.getMonth() + 1) + '/' + String(n.getFullYear() + 543).slice(-2);
+      })(),
       shopClosed: s.shopOpen === false, // ร้านกดปิดรับออเดอร์จากหลังบ้าน
       proAfter17: s.now.getHours() >= 17, // แยกข้อความ: หลัง 17:00 = ผลิตพรุ่งนี้ · ก่อน 08:30 = ผลิตเช้านี้
       pickStandard: () => this.setState({ tier: 'standard', paper: SIZE_BY_TYPE[s.ptype][0] }),
@@ -2699,7 +2705,7 @@ class App extends React.Component {
                   </div>
                 ))}
                 {v.isPro && (v.proWeekendHold
-                  ? <div style={css("background:#fff7e0;border:1.5px solid #f0c36d;border-radius:12px;padding:11px 14px;font-size:12px;font-weight:700;color:#8a6d1a;line-height:1.6")}>⏰ สั่งได้เลยครับ — ออเดอร์ที่สั่งหลัง 17:00 น. วันเสาร์ จะเริ่มผลิต<b>วันจันทร์ 08:30 น.</b> เพราะวันอาทิตย์เป็นวันหยุดร้าน (รับออเดอร์ได้ตามปกติ แต่เริ่มผลิตวันจันทร์ครับ)</div>
+                  ? <div style={css("background:#fff7e0;border:1.5px solid #f0c36d;border-radius:12px;padding:11px 14px;font-size:12px;font-weight:700;color:#8a6d1a;line-height:1.6")}>⏰ วันหยุดยังรับออเดอร์ปกติครับ — งานจะเริ่มผลิต<b>วันจันทร์ที่ {v.proMonDate} เวลา 08:30 น.</b></div>
                   : v.proAfterCut
                   ? <div style={css("background:#fff7e0;border:1.5px solid #f0c36d;border-radius:12px;padding:11px 14px;font-size:12px;font-weight:700;color:#8a6d1a;line-height:1.6")}>⏰ สั่งได้เลยครับ — ออเดอร์จะเริ่มผลิตเวลา 08:30 น.</div>
                   : <div style={css("background:var(--accSoft);border:1px solid var(--acc);border-radius:12px;padding:9px 13px;font-size:11.5px;font-weight:700;color:var(--acc)")}>⏰ งาน Pro สั่งได้ตลอด 24 ชม. · หลัง 17:00 น. เริ่มผลิตวันถัดไป 08:30 น. · เสาร์หลัง 17:00 – อาทิตย์ เริ่มผลิตวันจันทร์ 08:30 น. (อาทิตย์วันหยุดร้าน)</div>)}
