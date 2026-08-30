@@ -151,10 +151,12 @@ function MpChat({ o, me, title }){
   const [msgs, setMsgs] = React.useState([]);
   const [text, setText] = React.useState('');
   const [busy, setBusy] = React.useState(false);
+  const seqRef = React.useRef(0);
   const load = React.useCallback(async () => {
     if (!DB) return;
+    const seq = ++seqRef.current; // ผลรอบเก่าที่มาช้ากว่ารอบใหม่ = ทิ้ง (กันข้อความที่เพิ่งส่งหายวูบชั่วคราว)
     const { data } = await DB.from('messages').select('*').eq('order_id', o.id).in('sender', ['partner', 'moreprint']).order('id', { ascending: true }).limit(200);
-    if (data) setMsgs(data);
+    if (data && seq === seqRef.current) setMsgs(data);
   }, [o.id]);
   React.useEffect(() => { if (!open) return; load(); const t = setInterval(load, 10000); return () => clearInterval(t); }, [open, load]);
   const send = async () => {
@@ -206,10 +208,14 @@ function Chat({ o }){
   const [missing, setMissing] = React.useState(false);
   const boxRef = React.useRef(null);
   const camRef = React.useRef(null);
+  const chatSeq = React.useRef(0);
   const load = React.useCallback(async () => {
     if (!DB) { setMsgs(DEMO_MSGS); return; }
+    const seq = ++chatSeq.current;
     const { data, error } = await DB.from('messages').select('*').eq('order_id', o.id).in('sender', ['shop', 'customer']).order('id'); // เฉพาะช่องแชทลูกค้า — ข้อความภายใน (partner/moreprint) แยกช่อง
-    if (error) { setMissing(true); return; }
+    if (error) { if (/42P01|does not exist/i.test(String(error.message || '') + String(error.code || ''))) setMissing(true); return; }
+    if (seq !== chatSeq.current) return; // ผลเก่ามาช้า — ทิ้ง
+    setMissing(false);
     setMsgs(data || []);
     const unseen = (data || []).filter(m => m.sender === 'customer' && !m.seen_by_shop);
     if (unseen.length) await DB.from('messages').update({ seen_by_shop: true }).eq('order_id', o.id).eq('sender', 'customer');
@@ -401,7 +407,7 @@ function Dash(){
   // บันทึกโอนแล้วทั้งรอบ: ประทับ payout_at ทุกใบค้างโอนในรอบ + อัปสลิป + บันทึกบิลลงตาราง payouts (ร้านอุดมสุขเห็นใน pro.html หน้า "บิลโอน")
   const payoutPeriod = async (b) => {
     const ts = new Date().toISOString();
-    const list = orders.filter(o => o.status === 4 && !o.payout_at && new Date(o.created_at) >= b.from && new Date(o.created_at) < b.to);
+    const list = orders.filter(o => o.status === 4 && jobValue(o) > 0 && !o.payout_at && new Date(o.created_at) >= b.from && new Date(o.created_at) < b.to); // ใบที่ยังไม่ตั้งราคา (0 บาท) ห้ามประทับโอน — เดี๋ยวตั้งราคาแล้วเงินร้านหาย
     const ids = list.map(o => o.id);
     if (!ids.length) return;
     const amount = Math.round(list.reduce((a, o) => a + jobValue(o) * (1 - COMMISSION), 0) * 100) / 100;
@@ -414,7 +420,8 @@ function Dash(){
       const { error: se } = await DB.storage.from('uploads').upload(slip_path, paySlip);
       if (se) { console.error('payout slip:', se); slip_path = null; }
     }
-    await DB.from('orders').update({ payout_at: ts }).in('id', ids); // หัวใจ: ประทับรายใบ
+    const { error: ue } = await DB.from('orders').update({ payout_at: ts }).in('id', ids); // หัวใจ: ประทับรายใบ
+    if (ue) { setPayBusy(false); return alert('ประทับสถานะโอนไม่สำเร็จ ยังไม่ได้ออกบิล — ลองใหม่อีกครั้งครับ: ' + ue.message); } // กันบิลหลอก (บิลออกแต่ใบยังค้างโอน แล้วกดซ้ำได้บิลซ้ำ)
     const { error: pe } = await DB.from('payouts').insert({ label: b.label, ptype: billMode, from_at: b.from.toISOString(), to_at: b.to.toISOString(), amount, n: ids.length, slip_path });
     setPayBusy(false); setPayPanel(null); setPaySlip(null);
     if (pe) alert('บันทึกโอนรายใบสำเร็จ ✓ แต่ยังส่งบิล+สลิปให้ร้านไม่ได้ — ต้องรัน SQL สร้างตาราง payouts ก่อนครับ');
@@ -456,6 +463,7 @@ function Dash(){
     else setOrders(l => l.map(x => x.id === o.id ? { ...x, payout_at: ts } : x));
   };
   const advance = async (o) => {
+    if (o.status === 0 || o.status >= 4) return; // ใบยกเลิก/จบแล้ว ห้ามเลื่อนสถานะ (status 0 เป็นค่า falsy — เคยเสี่ยงชุบชีวิตใบยกเลิก)
     const next = Math.min((o.status || 1) + 1, 4);
     const times = (o.times || ['', '', '', '']).slice();
     times[next - 1] = fmtHM(new Date());

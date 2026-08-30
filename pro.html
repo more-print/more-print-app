@@ -179,10 +179,12 @@ function MpChat({ o, me, title }){
   const [msgs, setMsgs] = React.useState([]);
   const [text, setText] = React.useState('');
   const [busy, setBusy] = React.useState(false);
+  const seqRef = React.useRef(0);
   const load = React.useCallback(async () => {
     if (!DB) return;
+    const seq = ++seqRef.current; // ผลรอบเก่าที่มาช้ากว่ารอบใหม่ = ทิ้ง (กันข้อความที่เพิ่งส่งหายวูบชั่วคราว)
     const { data } = await DB.from('messages').select('*').eq('order_id', o.id).in('sender', ['partner', 'moreprint']).order('id', { ascending: true }).limit(200);
-    if (data) setMsgs(data);
+    if (data && seq === seqRef.current) setMsgs(data);
   }, [o.id]);
   React.useEffect(() => { if (!open) return; load(); const t = setInterval(load, 10000); return () => clearInterval(t); }, [open, load]);
   const send = async () => {
@@ -482,6 +484,7 @@ function Dash({ role }){
   };
   // สถานะงาน Pro จัดการที่นี่ (หลังบ้านหลักไม่แสดงงาน Pro แล้ว) — ลูกค้าเห็นสถานะวิ่งเหมือนเดิม
   const advance = async (o) => {
+    if (o.status === 0 || o.status >= 4) return; // ใบยกเลิก/จบแล้ว ห้ามเลื่อนสถานะ (status 0 เป็นค่า falsy — เคยเสี่ยงชุบชีวิตใบยกเลิก)
     const next = Math.min((o.status || 1) + 1, 4);
     const times = (o.times || ['', '', '', '']).slice();
     times[next - 1] = fmtTime(new Date());
@@ -566,10 +569,12 @@ function Dash({ role }){
       const to = new Date(from); to.setDate(from.getDate() + 7);
       const rows = valid.filter(o => { const t = new Date(o.created_at); return t >= from && t < to; });
       if (!rows.length) continue;
-      const job = rows.reduce((a, o) => a + jobValue(o), 0);
-      const priced = rows.filter(o => jobValue(o) > 0);
+      // ฐานบิล = เฉพาะงานส่งสำเร็จ (ตรงกับรอบโอนจริงของ MORE PRINT) — งานที่ยังทำอยู่แยกโชว์ต่างหาก ไม่ปนยอด
+      const done = rows.filter(o => o.status === 4 && jobValue(o) > 0);
+      const job = done.reduce((a, o) => a + jobValue(o), 0);
+      const inflight = rows.filter(o => o.status > 0 && o.status < 4).reduce((a, o) => a + jobValue(o), 0);
       out.push({ label: 'จ. ' + fmtDM(from) + ' – อา. ' + fmtDM(new Date(to.getTime() - 86400000)), job, mine: Math.round(job * (1 - COMMISSION) * 100) / 100,
-        n: rows.length, paidAll: priced.length > 0 && priced.every(o => o.payout_at), cur: i === 0 });
+        n: done.length, inflight: Math.round(inflight * (1 - COMMISSION) * 100) / 100, paidAll: done.length > 0 && done.every(o => o.payout_at), cur: i === 0 });
     }
     return out;
   })();
@@ -726,7 +731,7 @@ function Dash({ role }){
             <div key={i} style={css("margin-top:8px;border:1px solid " + (w.cur ? "var(--acc)" : "var(--line)") + ";border-radius:12px;padding:10px 12px;display:flex;align-items:center;gap:10px" + (w.cur ? ";background:var(--accSoft)" : ""))}>
               <div style={css("flex:1;min-width:0")}>
                 <div style={css("font-size:12px;font-weight:800")}>{w.label}{w.cur ? ' · สัปดาห์นี้' : ''}</div>
-                <div style={css("margin-top:1px;font-size:10.5px;color:var(--sub)")}>{w.n} ออเดอร์ · ยอดงานรวม {baht(w.job)}</div>
+                <div style={css("margin-top:1px;font-size:10.5px;color:var(--sub)")}>{w.n} งานจบแล้ว · ยอดงานรวม {baht(w.job)}{w.inflight > 0 ? ' · กำลังทำอีก ' + baht(w.inflight) : ''}</div>
               </div>
               <div style={css("flex:none;text-align:right")}>
                 <div style={css("font-size:14.5px;font-weight:800;font-family:'IBM Plex Mono',monospace;color:var(--gold)")}>{baht(w.mine)}</div>

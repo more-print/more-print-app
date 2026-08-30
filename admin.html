@@ -229,10 +229,14 @@ function Chat({ o, onSeen }){
   const [upBusy, setUpBusy] = React.useState(false);
   const boxRef = React.useRef(null);
   const camRef = React.useRef(null);
+  const chatSeq = React.useRef(0);
   const load = React.useCallback(async () => {
     if (!DB) { setMsgs(DEMO_MSGS); return; }
+    const seq = ++chatSeq.current; // ผลรอบเก่าที่มาช้า = ทิ้ง (กันข้อความที่เพิ่งส่งหายวูบ)
     const { data, error } = await DB.from('messages').select('*').eq('order_id', o.id).order('id');
-    if (error) { setMissing(true); return; }
+    if (error) { if (/42P01|does not exist/i.test(String(error.message || '') + String(error.code || ''))) setMissing(true); return; } // ปิดถาวรเฉพาะยังไม่สร้างตาราง — เน็ตสะดุดแค่ข้ามรอบ
+    if (seq !== chatSeq.current) return;
+    setMissing(false);
     setMsgs(data || []);
     // ทำเครื่องหมายว่าร้านอ่านข้อความลูกค้าแล้ว
     const unseen = (data || []).filter(m => m.sender === 'customer' && !m.seen_by_shop);
@@ -275,6 +279,7 @@ function Chat({ o, onSeen }){
   const sendLine = async () => {
     const body = text.trim();
     if (!body || busy) return;
+    if (!DB) { setMsgs(l => [...(l || []), { id: Date.now(), sender: 'shop', body, created_at: new Date().toISOString() }]); setText(''); return; } // โหมดตัวอย่าง
     setBusy(true);
     try {
       if (DB) {
@@ -636,11 +641,14 @@ function AdminApp(){
   const [shopBusy, setShopBusy] = React.useState(false);
   const loadShopStatus = React.useCallback(async () => {
     if (!DB) { setShopOpen(true); return; }
-    try { const { data, error } = await DB.from('shop_status').select('open').eq('id', 1).single(); if (!error && data) setShopOpen(!!data.open); } catch (e) {}
+    const stamp = shopStamp.current; // ผลที่มาช้ากว่าการกดสวิตช์ล่าสุด = ทิ้ง (กันสวิตช์เด้งกลับหลอกตา)
+    try { const { data, error } = await DB.from('shop_status').select('open').eq('id', 1).single(); if (!error && data && stamp === shopStamp.current) setShopOpen(!!data.open); } catch (e) {}
   }, []);
   React.useEffect(() => { if (authed) { loadShopStatus(); const t = setInterval(loadShopStatus, 30000); return () => clearInterval(t); } }, [authed, loadShopStatus]);
+  const shopStamp = React.useRef(0);
   const toggleShop = async () => {
     if (shopBusy) return;
+    shopStamp.current++;
     const next = !shopOpen;
     if (!next && !window.confirm('ปิดรับออเดอร์หน้าเว็บลูกค้าตอนนี้เลยไหม? ลูกค้าจะสั่งงานไม่ได้จนกว่าจะกดเปิดอีกครั้ง')) return;
     if (!DB) { setShopOpen(next); return; }
@@ -679,7 +687,8 @@ function AdminApp(){
       if (error) { console.error(error); image_path = null; }
     }
     if (DB) {
-      await DB.from('banners').insert({ title: bnTitle.trim(), subtitle: bnSub.trim(), emoji: (bnEmoji || '🎉').trim(), color: bnColor, image_path });
+      const { error: ie } = await DB.from('banners').insert({ title: bnTitle.trim(), subtitle: bnSub.trim(), emoji: (bnEmoji || '🎉').trim(), color: bnColor, image_path });
+      if (ie) { setBnBusy(false); return alert('สร้างแบนเนอร์ไม่สำเร็จ ลองอีกครั้งครับ: ' + ie.message); } // ห้ามเงียบ — เจ้าของต้องรู้ว่าลูกค้ายังไม่เห็นประกาศ
       await loadBanners();
     } else {
       setBanners(l => [{ id: Date.now(), title: bnTitle.trim(), subtitle: bnSub.trim(), emoji: bnEmoji, color: bnColor, active: true }, ...l]);
@@ -731,7 +740,7 @@ function AdminApp(){
       try {
         const paths = (o.files || []).map(f => f.path).filter(Boolean);
         if (o.slip_path) paths.push(o.slip_path);
-        if (paths.length) await DB.storage.from('uploads').remove(paths); // ลบไฟล์+สลิปด้วย — แชทถูก trigger ในฐานข้อมูลลบตามเอง
+        if (paths.length) { const { error: se } = await DB.storage.from('uploads').remove(paths); if (se) return; } // ลบไฟล์ไม่สำเร็จ = ข้ามรอบนี้ กันไฟล์กำพร้า (แชทถูก trigger ฐานข้อมูลลบตามเอง)
         await DB.from('orders').delete().eq('id', o.id);
       } catch (e) {}
     });
@@ -834,7 +843,7 @@ function AdminApp(){
         const paths = [];
         (o.files || []).forEach(f => { if (f.path) paths.push(f.path); });
         if (o.slip_path) paths.push(o.slip_path);
-        if (paths.length) await DB.storage.from('uploads').remove(paths);
+        if (paths.length) { const { error: se } = await DB.storage.from('uploads').remove(paths); if (se) { alert('ลบไฟล์แนบไม่สำเร็จ ลองใหม่อีกครั้งครับ'); setBusyId(null); return; } }
         await DB.from('orders').delete().eq('id', o.id);
         await refresh();
       } catch (e) { console.error(e); }
@@ -1231,7 +1240,7 @@ function AdminApp(){
                   {ord.customer_phone && <a href={'tel:' + String(ord.customer_phone).replace(/[^0-9+]/g, '')} style={css("flex:none;font-size:11.5px;font-weight:700;background:var(--accSoft);color:var(--acc);padding:7px 12px;border-radius:9px;text-decoration:none")}>{FI.phone(11)} โทร</a>}
                 </div>
                 {ord.addr && <div style={css("background:var(--soft);border:1px solid var(--line);border-radius:12px;padding:9px 12px;font-size:11.5px;line-height:1.6")}>{FI.pin(11)} {ord.addr}{ord.phone ? ' · ' + ord.phone : ''}</div>}
-                <Chat o={ord} onSeen={clearUnread}/>
+                <Chat key={openChat} o={ord} onSeen={clearUnread}/>
               </React.Fragment>
             );
           })()}

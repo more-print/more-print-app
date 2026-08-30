@@ -425,7 +425,7 @@ class App extends React.Component {
       if (od && od.id) {
         this.setState({
           order: { id: od.id, total: od.total || 0, times: od.times || ['', '', '', ''], plabel: od.plabel || '', eta: od.eta || null, pickup: !!od.pickup, ts: od.ts || null,
-            addr: od.addr || '', phone: od.phone || '', veh: od.veh || '', copies: od.copies || 0, pages: od.pages || 0, fails: od.fails || [], dist: od.dist ?? null },
+            addr: od.addr || '', phone: od.phone || '', veh: od.veh || '', copies: od.copies || 0, pages: od.pages || 0, fails: od.fails || [], dist: od.dist ?? null, rc: od.rc || null, cp: od.cp || null },
           trackStep: od.step == null ? 1 : od.step, // step 0 (ยกเลิก) เป็น falsy — ห้ามใช้ || 1
           cancelReason: od.cancelReason || ''
         });
@@ -919,8 +919,8 @@ class App extends React.Component {
       const p = await window.liff.getProfile();
       const user = { fname: p.displayName || 'ลูกค้า LINE', lname: '', phone: '', email: '', line_uid: p.userId || '', picture: p.pictureUrl || '' };
       try { localStorage.setItem('mp_user', JSON.stringify(user)); } catch (e) {}
-        this.backupUser(user);
-      this.setState({ user, screen: 'home' });
+      this.backupUser(user);
+      this.setState({ user, phone: '', screen: 'home' }); // บัญชีใหม่ — ไม่สืบทอดเบอร์คนก่อน
       this.showToast('ยินดีต้อนรับ คุณ' + user.fname + ' 💚');
     } catch (e) {
       console.error('line profile:', e);
@@ -1194,7 +1194,7 @@ class App extends React.Component {
       try { fetch((window.MP_CONFIG || {}).SUPABASE_URL + '/functions/v1/notify-order', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id }) }); } catch (e) {}
       if (c.coupon) { try {
         this.db.rpc('use_coupon', { code_in: c.coupon, uid_in: this.couponUid() }).then(r => {
-          if (r && r.error && /PGRST202|not find the function|does not exist/i.test(String(r.error.message || '') + String(r.error.code || ''))) this.db.rpc('use_coupon', { code_in: c.coupon });
+          if (r && r.error && /PGRST202|not find the function|does not exist/i.test(String(r.error.message || '') + String(r.error.code || ''))) this.db.rpc('use_coupon', { code_in: c.coupon }).then(() => {}); // ต้อง .then ไม่งั้น builder ไม่ยิงคำขอจริง
         });
       } catch (e) {} }
     } catch (e) {
@@ -1276,9 +1276,14 @@ class App extends React.Component {
       const k = 'mp_review_' + id;
       if (localStorage.getItem(k)) return;
       localStorage.setItem(k, 'auto'); // กันยิงซ้ำจากการเช็คสถานะหลายรอบ
-      const od = (() => { try { return JSON.parse(localStorage.getItem('mp_order') || 'null'); } catch (e) { return null; } })();
+      // ป้ายประเภทงาน: หาใบจริงจากลิสต์/ใบที่เลือก (กันใช้ป้ายของใบอื่นตอนมีหลายออเดอร์)
+      const pl = (() => { try {
+        const cur = this.state.order; if (cur && cur.id === id) return cur.plabel || null;
+        const rec = JSON.parse(localStorage.getItem('mp_orders') || '[]').find(x => x.id === id); if (rec) return rec.plabel || null;
+        const od0 = JSON.parse(localStorage.getItem('mp_order') || 'null'); return (od0 && od0.id === id && od0.plabel) || null;
+      } catch (e) { return null; } })();
       const u = this.state.user || {};
-      this.db.from('reviews').insert({ order_id: id, name: u.fname || 'ลูกค้า', stars: 5, comment: null, ptype: (od && od.plabel) || null, auto: true })
+      this.db.from('reviews').insert({ order_id: id, name: u.fname || 'ลูกค้า', stars: 5, comment: null, ptype: pl, auto: true })
         .then(({ error }) => {
           if (error) { console.error('auto review:', error); try { localStorage.removeItem(k); } catch (e) {} }
           else this.loadReviews();
@@ -1377,7 +1382,7 @@ class App extends React.Component {
     try { localStorage.setItem('mp_order', JSON.stringify(o)); } catch (e) {}
     clearInterval(this.trackTimer);
     this.setState({
-      order: { id: o.id, total: o.total || 0, times: o.times || ['', '', '', ''], plabel: o.plabel || '', eta: o.eta || null, pickup: !!o.pickup, ts: o.ts || null, addr: o.addr || '', phone: o.phone || '', veh: o.veh || '', copies: o.copies || 0, pages: o.pages || 0, fails: o.fails || [], dist: o.dist ?? null },
+      order: { id: o.id, total: o.total || 0, times: o.times || ['', '', '', ''], plabel: o.plabel || '', eta: o.eta || null, pickup: !!o.pickup, ts: o.ts || null, addr: o.addr || '', phone: o.phone || '', veh: o.veh || '', copies: o.copies || 0, pages: o.pages || 0, fails: o.fails || [], dist: o.dist ?? null, rc: o.rc || null, cp: o.cp || null },
       trackStep: o.step == null ? 1 : o.step, cancelReason: o.cancelReason || '', chat: [], trackOpen: true, trackMin: false, selfCancelArm: false // ระวัง: step 0 (ยกเลิก) เป็น falsy ห้ามใช้ || 1 · trackOpen true = ใบที่เพิ่งแตะเลือกกางให้เห็นทันทีเสมอ
     }, () => {
       if (this.db && o.step !== 0 && (o.step || 1) < 4) this.startPolling(o.id);
@@ -1608,7 +1613,7 @@ class App extends React.Component {
         const user = { fname: md.fname || email.split('@')[0], lname: md.lname || '', phone: md.phone || '', email };
         try { localStorage.setItem('mp_user', JSON.stringify(user)); } catch (e) {}
         this.backupUser(user);
-        this.setState({ user, phone: user.phone || s.phone, screen: 'home' });
+        this.setState({ user, phone: user.phone || '', screen: 'home' }); // ห้ามสืบทอดเบอร์ของบัญชีก่อนหน้าในเครื่องเดียวกัน
         this.showToast('ยินดีต้อนรับกลับ คุณ' + user.fname + ' 👋');
       },
       doRegister: async () => {
@@ -1659,10 +1664,10 @@ class App extends React.Component {
         try { document.cookie = 'mp_user_bk=;max-age=0;path=/'; document.cookie = 'mp_rc_bk=;max-age=0;path=/'; localStorage.removeItem('mp_rc'); } catch (e) {}
         if (this.auth) this.auth.auth.signOut();
         try { if (this._liffReady && window.liff.isLoggedIn()) window.liff.logout(); } catch (e) {}
-        try { localStorage.removeItem('mp_user'); localStorage.removeItem('mp_order'); localStorage.removeItem('mp_orders'); localStorage.removeItem('mp_history'); } catch (e) {}
+        try { localStorage.removeItem('mp_user'); localStorage.removeItem('mp_order'); localStorage.removeItem('mp_orders'); localStorage.removeItem('mp_history'); localStorage.removeItem('mp_addrs'); } catch (e) {} // ที่อยู่ประจำเป็นข้อมูลส่วนตัว — ล้างด้วย
         clearInterval(this.trackTimer);
         // ล้างใน state ด้วย — ไม่งั้นตัว poll 30 วิเขียนรายการเก่ากลับลงเครื่อง แล้วบัญชีถัดไปเห็นออเดอร์/ประวัติของคนก่อน
-        this.setState({ order: null, trackStep: 1, cancelReason: '', orderList: [], history: [], chat: null, chatFor: null, histOpen: null });
+        this.setState({ order: null, trackStep: 1, cancelReason: '', orderList: [], history: [], chat: null, chatFor: null, histOpen: null, phone: '', addr: '' });
         this.setState({ user: null, emailIn: '', passIn: '', regFname: '', regLname: '', regEmail: '', regPass1: '', regPass2: '', authMode: 'login', screen: 'login' });
       },
       userName: s.user ? s.user.fname + ' ' + s.user.lname : '',
@@ -1742,7 +1747,7 @@ class App extends React.Component {
       shopClosed: s.shopOpen === false, // ร้านกดปิดรับออเดอร์จากหลังบ้าน
       proAfter17: s.now.getHours() >= 17, // แยกข้อความ: หลัง 17:00 = ผลิตพรุ่งนี้ · ก่อน 08:30 = ผลิตเช้านี้
       pickStandard: () => this.setState({ tier: 'standard', paper: SIZE_BY_TYPE[s.ptype][0] }),
-      pickPro: () => this.setState({ tier: 'pro' }),
+      pickPro: () => this.setState({ tier: 'pro', sides: (s.proType === 'poster' || s.proType === 'portfolio' || s.proType === 'namecard' || s.proType === 'foldbook') ? s.sides : 1 }), // ประเภทที่พิมพ์หน้าเดียว ห้ามติดค่าหน้า-หลังค้างจาก Standard
       proTypeOpts: PRO_TYPES.map(t => ({
         ...this.seg(t.label, s.proType === t.k,
           () => this.setState({ proType: t.k, proSize: (t.sizes || [''])[0], proQty: (t.qty || [100])[0], sides: t.k === 'foldbook' ? 2 : 1,
@@ -1850,6 +1855,9 @@ class App extends React.Component {
       printCost: c.printCost, bindCost: c.bindCost, printTotal: c.printTotal,
       deliveryCost: c.deliveryCost, grandTotal: c.grandTotal,
       noteText: s.note, setNote: (e) => this.setState({ note: e.target.value }),
+      // ไฟล์ใหญ่กำลังอัปโหลดอยู่กี่ไฟล์ กี่ % — ไว้ขึ้นป้ายบอกลูกค้าให้รอ (หลายคนงงว่าทำไมกดต่อไปไม่ได้)
+      bigUp: (() => { const l = s.files.filter(f => f.big && !f.upDone && !f.upErr); if (!l.length) return null;
+        return { n: l.length, pct: Math.round(l.reduce((a, f) => a + (f.up || 0), 0) / l.length) }; })(),
       // ใบเสร็จรับเงิน (หน้าชำระเงิน + ป๊อปอัพใบเสร็จ)
       rcOn: s.rcOn, rcToggle: (on) => () => this.setState({ rcOn: on }),
       rcName: s.rcName, rcAddr: s.rcAddr, rcTax: s.rcTax, rcPhone: s.rcPhone,
@@ -2499,7 +2507,7 @@ class App extends React.Component {
             {v.userName && (
               <div style={css("margin:14px 20px 0;display:flex;justify-content:space-between;align-items:center")}>
                 <div style={css("font-size:13px;color:var(--sub)")}>สวัสดี, <b style={css("color:var(--ink)")}>คุณ{v.userName}</b> 👋</div>
-                <button onClick={v.doLogout} style={css("border:none;background:none;color:var(--sub);font-size:11px;text-decoration:underline;cursor:pointer")}>เปลี่ยนบัญชี</button>
+                <button onClick={v.doLogout} style={css("border:none;background:none;font-size:11px;text-decoration:underline;cursor:pointer;color:" + (v.logoutArm ? "#c92a2a" : "var(--sub)") + (v.logoutArm ? ";font-weight:700" : ""))}>{v.logoutArm ? 'แตะอีกครั้งเพื่อยืนยัน' : 'เปลี่ยนบัญชี'}</button>
               </div>
             )}
             {v.banners.length > 0 && (
@@ -2768,7 +2776,17 @@ class App extends React.Component {
                 <div style={css("display:flex;justify-content:space-between;border-top:1px dashed var(--line);padding-top:6px;margin-top:2px;font-weight:700")}><span>รวมค่าปริ้น (ยังไม่รวมค่าส่ง)</span><span style={css("font-family:'IBM Plex Mono',monospace;color:var(--acc)")}>฿{v.printTotal}</span></div>
               </div>
             </div>
-            <button onClick={v.toDelivery} style={css("width:100%;height:50px;border:none;border-radius:14px;background:var(--acc);color:#fff;font-size:15px;font-weight:700;cursor:pointer")}>ต่อไป: จุดส่ง &amp; เวลา →</button>
+            {v.bigUp && (
+              <div style={css("background:#fff7e0;border:1.5px solid #f0c36d;border-radius:12px;padding:11px 14px;display:flex;gap:10px;align-items:center")}>
+                <span style={css("font-size:17px;animation:mpPulse 1.5s infinite")}>📤</span>
+                <div style={css("flex:1;min-width:0")}>
+                  <div style={css("font-size:12.5px;font-weight:800;color:#8a6d1a")}>กำลังอัปโหลดไฟล์ใหญ่… {v.bigUp.pct}%</div>
+                  <div style={css("margin-top:2px;font-size:11px;color:#8a6d1a;line-height:1.55")}>รอสักครู่ครับ ไม่ต้องกดอะไรเพิ่ม — อัปโหลดเสร็จปุ๊บกด "ต่อไป" ได้ทันที (อย่าเพิ่งปิดหน้านี้)</div>
+                  <div style={css("margin-top:6px;height:6px;border-radius:99px;background:#f1e3b8;overflow:hidden")}><div style={{ height: '100%', width: v.bigUp.pct + '%', background: '#e8a413', borderRadius: '99px', transition: 'width .4s' }}></div></div>
+                </div>
+              </div>
+            )}
+            <button onClick={v.toDelivery} style={css("width:100%;height:50px;border:none;border-radius:14px;color:#fff;font-size:15px;font-weight:700;cursor:pointer;background:" + (v.bigUp ? "#b8b8ad" : "var(--acc)"))}>{v.bigUp ? '⏳ รอไฟล์ใหญ่อัปโหลด… ' + v.bigUp.pct + '%' : 'ต่อไป: จุดส่ง & เวลา →'}</button>
           </div>
         )}
 
@@ -3058,7 +3076,7 @@ class App extends React.Component {
                     <span style={css("font-size:18px;flex:none")}>🎟️</span>
                     <div style={css("flex:1;min-width:0")}>
                       <div style={css("font-size:12.5px;font-weight:700;color:var(--acc)")}>ใช้โค้ด {v.couponOk.code} แล้ว</div>
-                      <div style={css("font-size:11px;color:var(--sub)")}>{v.discount > 0 ? 'ลดไป ฿' + v.discount : 'ยอดยังไม่ถึงขั้นต่ำของโค้ดนี้'}</div>
+                      <div style={css("font-size:11px;color:var(--sub)")}>{v.discount > 0 ? 'ลดไป ฿' + v.discount : (v.couponOk.kind === 'freeship' ? 'ออเดอร์นี้ไม่มีค่าส่ง (รับหน้าร้าน) — โค้ดส่งฟรีจึงไม่ลด และสิทธิ์ยังไม่ถูกนับครับ' : 'ยอดยังไม่ถึงขั้นต่ำของโค้ดนี้')}</div>
                     </div>
                     <span onClick={v.clearCoupon} style={css("flex:none;font-size:11.5px;color:#c92a2a;font-weight:700;cursor:pointer")}>ยกเลิกโค้ด</span>
                   </div>
