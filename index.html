@@ -336,6 +336,7 @@ class App extends React.Component {
     if (!rc0) try { const m = document.cookie.match(/(?:^|;\s*)mp_rc_bk=([^;]+)/); rc0 = m ? JSON.parse(decodeURIComponent(m[1])) : null; } catch (e) {} // สำรองในคุกกี้ — เครื่องล้าง storage เองก็ยังจำได้
     this.state = {
       screen: 'home', files: [], tier: 'standard', ptype: 'bw', paper: 'A4', sides: 1, orient: 'portrait', nup: 1, bind: 'none', copies: 1, note: '',
+      shopOpen: true, // สถานะรับออเดอร์จากหลังบ้าน (false = ร้านกดปิดรับชั่วคราว)
       rcOn: false, rcName: (rc0 && rc0.name) || '', rcAddr: (rc0 && rc0.addr) || '', rcTax: (rc0 && rc0.tax) || '', rcPhone: (rc0 && rc0.phone) || '', rcView: null, logoutArm: false, // ใบเสร็จรับเงิน + ยืนยันออกจากระบบ
       vehicle: 'bike', // พาหนะส่งที่ลูกค้าเลือกเอง: 'bike' มอเตอร์ไซค์ · 'car' รถยนต์ (ใช้ทั้ง Standard และ Pro)
       reviews: [], reviewsReady: false, revAll: false, revStars: 5, revText: '', trackStars: 5, trackText: '',
@@ -377,6 +378,9 @@ class App extends React.Component {
         .then(({ data }) => { if (data && data.length) this.setState({ banners: data }); })
         .catch(() => {});
       this.loadReviews();
+      // สถานะเปิด/ปิดรับออเดอร์ (ร้านกดจากหลังบ้าน) — เช็คตอนเปิดเว็บ + ทุก 60 วิ
+      const chkShop = () => { try { this.db.from('shop_status').select('open').eq('id', 1).single().then(({ data, error }) => { if (!error && data) this.setState({ shopOpen: !!data.open }); }).catch(() => {}); } catch (e) {} };
+      chkShop(); this._shopTimer = setInterval(chkShop, 60000);
     }
     // โหมดตัวอย่าง (ยังไม่เชื่อมฐานข้อมูล): โชว์รีวิวตัวอย่างไว้ดูหน้าตา
     if (!this.db) this.setState({ reviewsReady: true, reviews: [
@@ -447,7 +451,7 @@ class App extends React.Component {
   componentDidUpdate(){ this.syncNight(); this.syncMap(); }
   componentWillUnmount(){
     clearInterval(this.clockTimer); clearInterval(this.trackTimer);
-    clearTimeout(this.toastTimer); clearTimeout(this._revTimer); clearTimeout(this._distTimer);
+    clearTimeout(this.toastTimer); clearTimeout(this._revTimer); clearTimeout(this._distTimer); clearInterval(this._shopTimer);
     if (this._map) { this._map.remove(); this._map = null; }
   }
 
@@ -1673,6 +1677,7 @@ class App extends React.Component {
         this.setState({ screen: s.screen === 'profile' ? 'home' : s.screen === 'pay' ? 'review' : s.screen === 'review' ? 'delivery' : s.screen === 'delivery' ? 'order' : 'home' });
       },
       startOrder: () => {
+        if (s.shopOpen === false) return this.showToast('ขออภัยครับ ตอนนี้ร้านปิดรับออเดอร์ชั่วคราว 🙏 เปิดรับอีกครั้งเร็ว ๆ นี้ครับ');
         if (!this.ensureUser()) { this.setState({ screen: 'login' }); return this.showToast('เข้าสู่ระบบก่อนสั่งปริ้นนะครับ 🙏'); }
         // มีประกาศแจ้งปัญหา/ล่าช้า → ถามลูกค้าก่อนหนึ่งครั้งว่ายังจะสั่งต่อไหม
         if (s.banners.some(b => b.color === 'alert') && !s.alertAck) return this.setState({ alertPrompt: true });
@@ -1728,6 +1733,7 @@ class App extends React.Component {
       // งาน Pro สั่งได้ 24 ชม. — ออเดอร์หลัง 17:00 (ถึงก่อน 08:30) เริ่มผลิตวันถัดไป 08:30 (นโยบาย 2026-08-24)
       proAfterCut: (() => { const h = s.now.getHours(), m = s.now.getMinutes(); return h >= 17 || h < 8 || (h === 8 && m < 30); })(),
       proClosed: this.proClosedNow(), // ข้อความเวลาเปิดรับรอบหน้า หรือ null = เปิดรับอยู่
+      shopClosed: s.shopOpen === false, // ร้านกดปิดรับออเดอร์จากหลังบ้าน
       proAfter17: s.now.getHours() >= 17, // แยกข้อความ: หลัง 17:00 = ผลิตพรุ่งนี้ · ก่อน 08:30 = ผลิตเช้านี้
       pickStandard: () => this.setState({ tier: 'standard', paper: SIZE_BY_TYPE[s.ptype][0] }),
       pickPro: () => this.setState({ tier: 'pro' }),
@@ -1855,6 +1861,7 @@ class App extends React.Component {
           date: ('0' + d.getDate()).slice(-2) + '/' + ('0' + (d.getMonth() + 1)).slice(-2) + '/' + (d.getFullYear() + 543) } });
       },
       toDelivery: () => {
+        if (s.shopOpen === false) return this.showToast('ขออภัยครับ ตอนนี้ร้านปิดรับออเดอร์ชั่วคราว 🙏 เปิดรับอีกครั้งเร็ว ๆ นี้ครับ');
         const pc0 = s.tier === 'pro' ? this.proClosedNow() : null;
         if (pc0) return this.showToast('ร้าน Pro ปิดรับออเดอร์ช่วงวันหยุดครับ 🙏 เปิดให้สั่งอีกครั้ง' + pc0);
         if (!s.files.length) return this.showToast('เพิ่มไฟล์ก่อนนะครับ 📄');
@@ -1998,6 +2005,7 @@ class App extends React.Component {
       slipChecking: s.slipChecking,
       confirmPay: () => {
         if (this._payTs && Date.now() - this._payTs < 5000) return; // กันกดยืนยันรัว/เบิ้ล — ออเดอร์ต้องไม่ซ้ำ
+        if (s.shopOpen === false) return this.showToast('ขออภัยครับ ตอนนี้ร้านปิดรับออเดอร์ชั่วคราว 🙏 ยังไม่หักเงินนะครับ — เปิดรับอีกครั้งเร็ว ๆ นี้');
         const pc1 = s.tier === 'pro' ? this.proClosedNow() : null;
         if (pc1) return this.showToast('ร้าน Pro ปิดรับออเดอร์ช่วงวันหยุดครับ 🙏 เปิดให้สั่งอีกครั้ง' + pc1);
         if (s.slipChecking) return this.showToast('กำลังตรวจสลิปอยู่ แป๊บนึงครับ ⏳');
@@ -2373,6 +2381,7 @@ class App extends React.Component {
         pick: () => {
           // มีออเดอร์/ประวัติอยู่แล้ว = ดูได้เสมอ (สิทธิ์จริงยึดรหัสออเดอร์ฝั่งเซิร์ฟเวอร์) — กันเคสเด้ง login ทั้งที่เพิ่งสั่งเสร็จ
           const hasLocal = !!s.order || (s.orderList || []).length > 0 || (s.history || []).length > 0;
+          if (n.k === 'order' && s.shopOpen === false) { return this.showToast('ขออภัยครับ ตอนนี้ร้านปิดรับออเดอร์ชั่วคราว 🙏'); }
           if (n.k === 'order' && !this.ensureUser()) { this.setState({ screen: 'login' }); return this.showToast('เข้าสู่ระบบก่อนนะครับ 🙏'); }
           if ((n.k === 'track' || n.k === 'history') && !hasLocal && !this.ensureUser()) { this.setState({ screen: 'login' }); return this.showToast('เข้าสู่ระบบก่อนนะครับ 🙏'); }
           if (n.k === 'order' && s.banners.some(b => b.color === 'alert') && !s.alertAck) return this.setState({ alertPrompt: true });
@@ -2406,6 +2415,13 @@ class App extends React.Component {
               </div>
             : <div style={css("font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:var(--accBright);display:flex;align-items:center;gap:6px")}><span style={css("animation:mpPulse 2s infinite")}>●</span>{v.headStatus}</div>}
         </div>
+
+        {/* ── ป้ายร้านปิดรับออเดอร์ชั่วคราว (ร้านกดปิดจากหลังบ้าน) ── */}
+        {v.shopClosed && (
+          <div style={css("margin:14px 20px 0;background:#ffe3e3;border:1.5px solid #ffa8a8;border-radius:12px;padding:11px 14px;display:flex;gap:10px;align-items:center")}>
+            <span style={css("font-size:16px")}>🔴</span><div style={css("font-size:12px;color:#c92a2a;font-weight:700;line-height:1.55")}>ขออภัยครับ ตอนนี้ร้านปิดรับออเดอร์ชั่วคราว — เปิดรับอีกครั้งเร็ว ๆ นี้ · ติดตาม/แชทออเดอร์เดิมได้ตามปกติครับ</div>
+          </div>
+        )}
 
         {/* ── Night banner ── */}
         {v.night && (

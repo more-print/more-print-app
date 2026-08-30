@@ -631,6 +631,26 @@ function AdminApp(){
   }, []);
   React.useEffect(() => { if (authed && DB) loadBanners(); }, [authed, loadBanners]);
 
+  // ── สวิตช์เปิด/ปิดรับออเดอร์หน้าเว็บลูกค้า (ตาราง shop_status แถวเดียว — ลูกค้าทุกคนเห็นพร้อมกัน) ──
+  const [shopOpen, setShopOpen] = React.useState(null); // null = ยังไม่รู้/ยังไม่รัน SQL
+  const [shopBusy, setShopBusy] = React.useState(false);
+  const loadShopStatus = React.useCallback(async () => {
+    if (!DB) { setShopOpen(true); return; }
+    try { const { data, error } = await DB.from('shop_status').select('open').eq('id', 1).single(); if (!error && data) setShopOpen(!!data.open); } catch (e) {}
+  }, []);
+  React.useEffect(() => { if (authed) { loadShopStatus(); const t = setInterval(loadShopStatus, 30000); return () => clearInterval(t); } }, [authed, loadShopStatus]);
+  const toggleShop = async () => {
+    if (shopBusy) return;
+    const next = !shopOpen;
+    if (!next && !window.confirm('ปิดรับออเดอร์หน้าเว็บลูกค้าตอนนี้เลยไหม? ลูกค้าจะสั่งงานไม่ได้จนกว่าจะกดเปิดอีกครั้ง')) return;
+    if (!DB) { setShopOpen(next); return; }
+    setShopBusy(true);
+    const { error } = await DB.from('shop_status').update({ open: next, updated_at: new Date().toISOString() }).eq('id', 1);
+    setShopBusy(false);
+    if (error) return alert('ยังใช้สวิตช์ไม่ได้ — ต้องรัน SQL สร้างตาราง shop_status ก่อนครับ');
+    setShopOpen(next);
+  };
+
   // ── รีวิวลูกค้า (ลบรีวิวไม่เหมาะสมได้) ──
   const [reviews, setReviews] = React.useState([]);
   const [revDelId, setRevDelId] = React.useState(null);
@@ -1016,6 +1036,18 @@ function AdminApp(){
           <div>
             <div style={css("font-size:17px;font-weight:800")}>ภาพรวมร้านค้า</div>
             <div style={css("font-size:11px;color:var(--sub);margin-top:2px")}>{new Date().toLocaleDateString('th-TH', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</div>
+          </div>
+
+          {/* สวิตช์เปิด/ปิดรับออเดอร์หน้าเว็บลูกค้า */}
+          <div style={css("background:var(--card);border:1.5px solid " + (shopOpen === false ? "#ffa8a8" : "var(--line)") + ";border-radius:14px;padding:13px 15px;box-shadow:var(--shadow);display:flex;align-items:center;gap:12px")}>
+            <div style={css("width:12px;height:12px;border-radius:50%;flex:none;background:" + (shopOpen === false ? "#e03131" : shopOpen ? "#2f9e44" : "var(--line)") + (shopOpen !== false ? ";animation:mpPulse 2s infinite" : ""))}></div>
+            <div style={css("flex:1;min-width:0")}>
+              <div style={css("font-size:13.5px;font-weight:800")}>หน้าเว็บลูกค้า: {shopOpen === false ? 'ปิดรับออเดอร์อยู่' : shopOpen ? 'เปิดรับออเดอร์ปกติ' : 'กำลังเช็คสถานะ…'}</div>
+              <div style={css("margin-top:1px;font-size:10.5px;color:var(--sub)")}>{shopOpen === false ? 'ลูกค้าเห็นป้ายปิดรับชั่วคราว สั่งงานไม่ได้ — กดเปิดเมื่อพร้อมรับงาน' : 'ไม่พร้อมรับงานเมื่อไหร่ กดปิดได้เลย ลูกค้าจะสั่งไม่ได้จนกว่าจะเปิดใหม่'}</div>
+            </div>
+            <button onClick={toggleShop} disabled={shopBusy || shopOpen === null}
+              style={css("flex:none;height:40px;padding:0 18px;border:none;border-radius:10px;font-size:13px;font-weight:800;cursor:pointer;font-family:inherit;color:#fff;background:" + (shopOpen === false ? "#2f9e44" : "#e03131") + ((shopBusy || shopOpen === null) ? ";opacity:.5" : ""))}>
+              {shopBusy ? '⏳' : shopOpen === false ? 'เปิดรับออเดอร์' : 'ปิดรับออเดอร์'}</button>
           </div>
 
           {/* การ์ดสรุป 4 ช่อง (แบบเรฟ) */}
