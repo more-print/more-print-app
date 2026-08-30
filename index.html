@@ -1040,13 +1040,11 @@ class App extends React.Component {
 
   // ── ตารางรับงาน Pro (นโยบาย 2026-08-27): จ. 08:30 – ส. 17:00 เปิดสั่งตลอด (หลัง 17:00 จ.-ศ. เริ่มผลิตวันถัดไป 08:30)
   //    ปิดรับ: เสาร์ 17:00 → จันทร์ 08:30 (รวมอาทิตย์ทั้งวัน) — คืนข้อความเวลาที่จะเปิด หรือ null = เปิดรับอยู่
-  proClosedNow(){
+  // ช่วงวันหยุดผลิตงาน Pro: เสาร์ 17:00 → จันทร์ 08:30 (รวมอาทิตย์ทั้งวัน) — รับออเดอร์ได้ตามปกติ แต่เริ่มผลิตวันจันทร์ 08:30 (นโยบาย 2026-08-30)
+  proWeekendHold(){
     const n = this.state.now || new Date(), d = n.getDay(), h = n.getHours(), m = n.getMinutes();
     const before830 = h < 8 || (h === 8 && m < 30);
-    if (d === 0) return 'วันจันทร์ 08:30 น.';
-    if (d === 6 && h >= 17) return 'วันจันทร์ 08:30 น.';
-    if (d === 1 && before830) return 'เช้านี้ 08:30 น.';
-    return null;
+    return d === 0 || (d === 6 && h >= 17) || (d === 1 && before830);
   }
 
   // เวลาผลิต+ส่งโดยประมาณของงานปัจจุบัน (นาที ยังไม่รวมคิว)
@@ -1734,7 +1732,7 @@ class App extends React.Component {
       isPro: s.tier === 'pro',
       // งาน Pro สั่งได้ 24 ชม. — ออเดอร์หลัง 17:00 (ถึงก่อน 08:30) เริ่มผลิตวันถัดไป 08:30 (นโยบาย 2026-08-24)
       proAfterCut: (() => { const h = s.now.getHours(), m = s.now.getMinutes(); return h >= 17 || h < 8 || (h === 8 && m < 30); })(),
-      proClosed: this.proClosedNow(), // ข้อความเวลาเปิดรับรอบหน้า หรือ null = เปิดรับอยู่
+      proWeekendHold: this.proWeekendHold(), // ช่วงวันหยุดผลิต (เสาร์ 17:00 – จันทร์ 08:30) — สั่งได้ แต่เริ่มผลิตวันจันทร์
       shopClosed: s.shopOpen === false, // ร้านกดปิดรับออเดอร์จากหลังบ้าน
       proAfter17: s.now.getHours() >= 17, // แยกข้อความ: หลัง 17:00 = ผลิตพรุ่งนี้ · ก่อน 08:30 = ผลิตเช้านี้
       pickStandard: () => this.setState({ tier: 'standard', paper: SIZE_BY_TYPE[s.ptype][0] }),
@@ -1864,8 +1862,6 @@ class App extends React.Component {
       },
       toDelivery: () => {
         if (s.shopOpen === false) return this.showToast('ขออภัยครับ ตอนนี้ร้านปิดรับออเดอร์ชั่วคราว 🙏 เปิดรับอีกครั้งเร็ว ๆ นี้ครับ');
-        const pc0 = s.tier === 'pro' ? this.proClosedNow() : null;
-        if (pc0) return this.showToast('ร้าน Pro ปิดรับออเดอร์ช่วงวันหยุดครับ 🙏 เปิดให้สั่งอีกครั้ง' + pc0);
         if (!s.files.length) return this.showToast('เพิ่มไฟล์ก่อนนะครับ 📄');
         if (s.files.some(f => f.counting)) return this.showToast('รอระบบอ่านไฟล์แป๊บนึงครับ ⏳');
         const bigPending = s.files.find(f => f.big && !f.upDone);
@@ -2008,8 +2004,6 @@ class App extends React.Component {
       confirmPay: () => {
         if (this._payTs && Date.now() - this._payTs < 5000) return; // กันกดยืนยันรัว/เบิ้ล — ออเดอร์ต้องไม่ซ้ำ
         if (s.shopOpen === false) return this.showToast('ขออภัยครับ ตอนนี้ร้านปิดรับออเดอร์ชั่วคราว 🙏 ยังไม่หักเงินนะครับ — เปิดรับอีกครั้งเร็ว ๆ นี้');
-        const pc1 = s.tier === 'pro' ? this.proClosedNow() : null;
-        if (pc1) return this.showToast('ร้าน Pro ปิดรับออเดอร์ช่วงวันหยุดครับ 🙏 เปิดให้สั่งอีกครั้ง' + pc1);
         if (s.slipChecking) return this.showToast('กำลังตรวจสลิปอยู่ แป๊บนึงครับ ⏳');
         if (s.rcOn && !(s.rcName.trim() && s.rcAddr.trim() && s.rcTax.trim() && s.rcPhone.trim())) return this.showToast('ขอใบเสร็จ — กรอกข้อมูลผู้ซื้อให้ครบ 4 ช่องก่อนนะครับ 🧾');
         if (this.db && !s.slip && c.grandTotal > 0) return this.showToast('แนบสลิปโอนเงินก่อนยืนยันนะครับ 🧾');
@@ -2031,10 +2025,10 @@ class App extends React.Component {
         // งาน Pro ที่สั่งช่วงหลัง 17:00 (ถึงก่อน 08:30) — เวลาคาดว่าได้รับเริ่มนับจาก 08:30 ของวันทำงานถัดไป
         let etaStart = Date.now();
         if (s.tier === 'pro') {
-          const n0 = new Date(); const h0 = n0.getHours(), m0 = n0.getMinutes();
-          if (h0 >= 17 || h0 < 8 || (h0 === 8 && m0 < 30)) {
+          const n0 = new Date(); const h0 = n0.getHours(), m0 = n0.getMinutes(), d0 = n0.getDay();
+          if (d0 === 0 || h0 >= 17 || h0 < 8 || (h0 === 8 && m0 < 30)) { // นอกเวลาผลิต หรือวันอาทิตย์ (หยุดผลิตทั้งวัน)
             const st0 = new Date(n0); if (h0 >= 17) st0.setDate(st0.getDate() + 1);
-            if (st0.getDay() === 0) st0.setDate(st0.getDate() + 1); // วันอาทิตย์ร้าน Pro หยุด — เลื่อนไปเริ่มวันจันทร์
+            if (st0.getDay() === 0) st0.setDate(st0.getDate() + 1); // วันอาทิตย์ร้านหยุดผลิต — เลื่อนไปเริ่มวันจันทร์
             st0.setHours(8, 30, 0, 0); etaStart = st0.getTime();
           }
         }
@@ -2682,7 +2676,7 @@ class App extends React.Component {
                 <div style={{ flex: 'none', lineHeight: 0 }}>{ICON_CMYK}</div>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: '13.5px', fontWeight: 700, color: v.isPro ? 'var(--acc)' : 'var(--ink)' }}>Pro — งานพิมพ์พิเศษ (ร้านอุดมสุขปริ้นติ้ง)</div>
-                  <div style={{ fontSize: '11px', color: 'var(--sub)', marginTop: '1px' }}>งานใหญ่ถึง A0 · เปิดรับ จ. 08:30 – ส. 17:00 (หลัง 17:00 เริ่มผลิตวันถัดไป) · ปิดรับ เสาร์ 17:00 – จันทร์ 08:30</div>
+                  <div style={{ fontSize: '11px', color: 'var(--sub)', marginTop: '1px' }}>งานใหญ่ถึง A0 · สั่งได้ 24 ชม. (หลัง 17:00 เริ่มผลิตวันถัดไป · อาทิตย์หยุดผลิต เริ่มวันจันทร์ 08:30)</div>
                 </div>
                 <div style={{ width: '20px', height: '20px', borderRadius: '50%', flex: 'none', boxSizing: 'border-box',
                   border: v.isPro ? '6px solid var(--acc)' : '2px solid var(--line)', background: '#fff' }}></div>
@@ -2704,11 +2698,11 @@ class App extends React.Component {
                       border: t.on ? '6px solid var(--acc)' : '2px solid var(--line)', background: '#fff' }}></div>
                   </div>
                 ))}
-                {v.isPro && (v.proClosed
-                  ? <div style={css("background:#ffe3e3;border:1.5px solid #ffa8a8;border-radius:12px;padding:11px 14px;font-size:12px;font-weight:700;color:#c92a2a;line-height:1.6")}>🙏 ขออภัยครับ ตอนนี้ร้าน Pro ปิดรับออเดอร์ช่วงวันหยุด (เสาร์ 17:00 น. – จันทร์ 08:30 น.) — เปิดให้สั่งอีกครั้ง{v.proClosed} · งาน Standard สั่งได้ตามปกติครับ</div>
+                {v.isPro && (v.proWeekendHold
+                  ? <div style={css("background:#fff7e0;border:1.5px solid #f0c36d;border-radius:12px;padding:11px 14px;font-size:12px;font-weight:700;color:#8a6d1a;line-height:1.6")}>⏰ สั่งได้เลยครับ — ออเดอร์ที่สั่งหลัง 17:00 น. วันเสาร์ จะเริ่มผลิต<b>วันจันทร์ 08:30 น.</b> เพราะวันอาทิตย์เป็นวันหยุดร้าน (รับออเดอร์ได้ตามปกติ แต่เริ่มผลิตวันจันทร์ครับ)</div>
                   : v.proAfterCut
                   ? <div style={css("background:#fff7e0;border:1.5px solid #f0c36d;border-radius:12px;padding:11px 14px;font-size:12px;font-weight:700;color:#8a6d1a;line-height:1.6")}>⏰ สั่งได้เลยครับ — ออเดอร์จะเริ่มผลิตเวลา 08:30 น.</div>
-                  : <div style={css("background:var(--accSoft);border:1px solid var(--acc);border-radius:12px;padding:9px 13px;font-size:11.5px;font-weight:700;color:var(--acc)")}>⏰ งาน Pro เปิดรับออเดอร์ จันทร์ 08:30 น. – เสาร์ 17:00 น. · ออเดอร์หลัง 17:00 น. (จ.-ศ.) เริ่มผลิตวันถัดไป 08:30 น.</div>)}
+                  : <div style={css("background:var(--accSoft);border:1px solid var(--acc);border-radius:12px;padding:9px 13px;font-size:11.5px;font-weight:700;color:var(--acc)")}>⏰ งาน Pro สั่งได้ตลอด 24 ชม. · หลัง 17:00 น. เริ่มผลิตวันถัดไป 08:30 น. · เสาร์หลัง 17:00 – อาทิตย์ เริ่มผลิตวันจันทร์ 08:30 น. (อาทิตย์วันหยุดร้าน)</div>)}
                 {v.isPro && <div style={css("display:flex;flex-direction:column;gap:6px")}><div style={css("font-size:12px;font-weight:600;color:var(--sub)")}>ประเภทงาน Pro (ร้านอุดมสุขปริ้นติ้ง)</div><div style={css("display:flex;flex-direction:column;gap:8px")}>{v.proTypeOpts.map((o, i) => (
                   <button key={i} onClick={o.pick} style={{ ...o.st, width: '100%', boxSizing: 'border-box', minHeight: '46px', display: 'flex', alignItems: 'center', gap: '10px', textAlign: 'left', fontSize: '13px' }}>
                     <span style={{ flex: 'none', lineHeight: 0 }}>{o.svg}</span>{o.label}
