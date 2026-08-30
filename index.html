@@ -2705,7 +2705,10 @@ class App extends React.Component {
                   </div>
                 ))}
                 {v.isPro && (v.proWeekendHold
-                  ? <div style={css("background:#fff7e0;border:1.5px solid #f0c36d;border-radius:12px;padding:11px 14px;font-size:12px;font-weight:700;color:#8a6d1a;line-height:1.6")}>⏰ วันหยุดยังรับออเดอร์ปกติครับ — งานจะเริ่มผลิต<b>วันจันทร์ที่ {v.proMonDate} เวลา 08:30 น.</b></div>
+                  ? <div style={css("background:#fff7e0;border:1.5px solid #f0c36d;border-radius:12px;padding:11px 14px;color:#8a6d1a")}>
+                      <div style={css("font-size:12.5px;font-weight:800;line-height:1.5")}>⏰ วันหยุดยังรับออเดอร์ตามปกติครับ</div>
+                      <div style={css("margin-top:3px;font-size:12px;font-weight:600;line-height:1.5")}>งานเริ่มผลิตวันจันทร์ที่ {v.proMonDate} เวลา 08:30 น.</div>
+                    </div>
                   : v.proAfterCut
                   ? <div style={css("background:#fff7e0;border:1.5px solid #f0c36d;border-radius:12px;padding:11px 14px;font-size:12px;font-weight:700;color:#8a6d1a;line-height:1.6")}>⏰ สั่งได้เลยครับ — ออเดอร์จะเริ่มผลิตเวลา 08:30 น.</div>
                   : <div style={css("background:var(--accSoft);border:1px solid var(--acc);border-radius:12px;padding:9px 13px;font-size:11.5px;font-weight:700;color:var(--acc)")}>⏰ งาน Pro สั่งได้ตลอด 24 ชม. · หลัง 17:00 น. เริ่มผลิตวันถัดไป 08:30 น. · เสาร์หลัง 17:00 – อาทิตย์ เริ่มผลิตวันจันทร์ 08:30 น. (อาทิตย์วันหยุดร้าน)</div>)}
