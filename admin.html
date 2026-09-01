@@ -1081,7 +1081,7 @@ function AdminApp(){
             <div style={css("font-size:20px;flex:none")}>{shopRain ? '🌧️' : '🌤️'}</div>
             <div style={css("flex:1;min-width:0")}>
               <div style={css("font-size:13.5px;font-weight:800;" + (shopRain ? "color:#1971c2" : ""))}>โหมดฝนตก: {shopRain ? 'เปิดอยู่ — งานแผ่นใหญ่บังคับส่งรถยนต์' : 'ปิดอยู่'}</div>
-              <div style={css("margin-top:1px;font-size:10.5px;color:var(--sub)")}>{shopRain ? 'ลูกค้าเห็นป้ายฝนตก · เพลททุกขนาด/โปสเตอร์ A3ขึ้นไป/แบบแปลน A2-A1 เลือกได้แค่รถยนต์ — ฝนหยุดอย่าลืมกดปิด' : 'ฝนตกเมื่อไหร่กดเปิด — งานแผ่นใหญ่ (เพลททุกขนาด/โปสเตอร์ A3ขึ้นไป/แบบแปลน A2-A1) จะบังคับส่งรถยนต์ กันงานเปียก'}</div>
+              <div style={css("margin-top:1px;font-size:10.5px;color:var(--sub)")}>{shopRain ? 'ลูกค้าเห็นป้ายฝนตก · เพลททุกขนาด/โปสเตอร์ A2ขึ้นไป/แบบแปลน A2-A1 เลือกได้แค่รถยนต์ — ฝนหยุดอย่าลืมกดปิด' : 'ฝนตกเมื่อไหร่กดเปิด — งานแผ่นใหญ่ (เพลททุกขนาด/โปสเตอร์ A2ขึ้นไป/แบบแปลน A2-A1) จะบังคับส่งรถยนต์ กันงานเปียก'}</div>
             </div>
             <button onClick={toggleRain} disabled={rainBusy}
               style={css("flex:none;height:40px;padding:0 18px;border:none;border-radius:10px;font-size:13px;font-weight:800;cursor:pointer;font-family:inherit;color:#fff;background:" + (shopRain ? "#868e96" : "#1971c2") + (rainBusy ? ";opacity:.5" : ""))}>

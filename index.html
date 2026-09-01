@@ -1079,13 +1079,13 @@ class App extends React.Component {
   }
 
   // บังคับรถยนต์ไหม: งานแข็ง (เพลท A3-A0/Standy — บังคับตลอด) หรือ โหมดฝนตกเฉพาะงานแผ่นใหญ่ (นโยบาย 2026-09-01):
-  // ฝนตก → เพลททุกขนาด · โปสเตอร์ A3-A0 · แบบแปลน A2/A1 — งานอื่น (พับครึ่ง/สติ๊กเกอร์/โปสเตอร์เล็ก ฯลฯ) และ Standard ยังส่งมอไซค์ได้
+  // ฝนตก → เพลททุกขนาด · โปสเตอร์ A2-A0 · แบบแปลน A2/A1 — งานอื่น (โปสเตอร์ A3 ลงมา/พับครึ่ง/สติ๊กเกอร์ ฯลฯ) และ Standard ยังส่งมอไซค์ได้
   forceCar(){
     if (this.bigJob()) return true;
     const s = this.state;
     if (s.shopRain !== true || s.tier !== 'pro') return false;
     if (s.proType === 'plate') return true;
-    if (s.proType === 'poster' && ['A0', 'A1', 'A2', 'A3'].includes(s.proSize)) return true;
+    if (s.proType === 'poster' && ['A0', 'A1', 'A2'].includes(s.proSize)) return true; // โปสเตอร์ A3 ยังม้วนใส่มอไซค์ได้
     if (s.proType === 'blueprint' && ['A1', 'A2'].includes(s.proSize)) return true;
     return false;
   }
