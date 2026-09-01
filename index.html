@@ -1069,8 +1069,17 @@ class App extends React.Component {
     return m[s.proType] ?? 90; // ประเภทที่ไม่ได้ระบุใน etaProMin = 90 นาที
   }
 
-  // บังคับรถยนต์ไหม: งานแข็ง (เพลท A3-A0/Standy) หรือ โหมดฝนตก (งาน Pro แบบส่งทุกใบ — Standard ไม่บังคับ)
-  forceCar(){ return this.bigJob() || (this.state.shopRain === true && this.state.tier === 'pro'); }
+  // บังคับรถยนต์ไหม: งานแข็ง (เพลท A3-A0/Standy — บังคับตลอด) หรือ โหมดฝนตกเฉพาะงานแผ่นใหญ่ (นโยบาย 2026-09-01):
+  // ฝนตก → เพลททุกขนาด · โปสเตอร์ A3-A0 · แบบแปลน A2/A1 — งานอื่น (พับครึ่ง/สติ๊กเกอร์/โปสเตอร์เล็ก ฯลฯ) และ Standard ยังส่งมอไซค์ได้
+  forceCar(){
+    if (this.bigJob()) return true;
+    const s = this.state;
+    if (s.shopRain !== true || s.tier !== 'pro') return false;
+    if (s.proType === 'plate') return true;
+    if (s.proType === 'poster' && ['A0', 'A1', 'A2', 'A3'].includes(s.proSize)) return true;
+    if (s.proType === 'blueprint' && ['A1', 'A2'].includes(s.proSize)) return true;
+    return false;
+  }
 
   // งานแข็ง = บังคับส่งรถยนต์เท่านั้น (นโยบาย 2026-09-01): เพลท A3-A0 (ติดบอร์ดแข็ง) + Standy — งานกระดาษอื่นม้วนใส่มอไซค์ได้ ไม่บังคับ
   bigJob(){
@@ -1957,10 +1966,10 @@ class App extends React.Component {
       ].map(o => {
         const dis = this.forceCar() && o.k === 'bike'; // งานแข็ง หรือ ฝนตก+งาน Pro — ห้ามมอไซค์
         return { ...o, on: s.vehicle === o.k, dis,
-          desc: dis ? (this.bigJob() ? 'งานแข็งแผ่นใหญ่ส่งมอเตอร์ไซค์ไม่ได้ครับ (หัก/เสียหาย)' : 'ช่วงฝนตก งาน Pro ส่งรถยนต์เท่านั้นครับ (กันงานเปียก)') : o.desc,
-          pick: dis ? () => this.showToast(this.bigJob() ? 'เพลท A3 ขึ้นไป / Standy เป็นงานแข็ง ต้องส่งด้วยรถยนต์เท่านั้นครับ 🚗' : '🌧️ ช่วงฝนตก งาน Pro จัดส่งด้วยรถยนต์เท่านั้นครับ กันงานเปียกเสียหาย') : () => this.setState({ vehicle: o.k }) };
+          desc: dis ? (this.bigJob() ? 'งานแข็งแผ่นใหญ่ส่งมอเตอร์ไซค์ไม่ได้ครับ (หัก/เสียหาย)' : 'ช่วงฝนตก งานแผ่นใหญ่ส่งรถยนต์เท่านั้นครับ (กันงานเปียก)') : o.desc,
+          pick: dis ? () => this.showToast(this.bigJob() ? 'เพลท A3 ขึ้นไป / Standy เป็นงานแข็ง ต้องส่งด้วยรถยนต์เท่านั้นครับ 🚗' : '🌧️ ช่วงฝนตก งานแผ่นใหญ่จัดส่งด้วยรถยนต์เท่านั้นครับ กันงานเปียกเสียหาย') : () => this.setState({ vehicle: o.k }) };
       }),
-      vehicleHint: this.bigJob() ? '🚗 งานแข็งแผ่นใหญ่ (เพลท A3 ขึ้นไป / Standy) — ระบบเลือกส่งด้วยรถยนต์ให้อัตโนมัติ กันงานหัก/เสียหาย' : this.forceCar() ? '🌧️ ช่วงฝนตก — งาน Pro จัดส่งด้วยรถยนต์เท่านั้น กันงานเปียก/เสียหาย' : '',
+      vehicleHint: this.bigJob() ? '🚗 งานแข็งแผ่นใหญ่ (เพลท A3 ขึ้นไป / Standy) — ระบบเลือกส่งด้วยรถยนต์ให้อัตโนมัติ กันงานหัก/เสียหาย' : this.forceCar() ? '🌧️ ช่วงฝนตก — งานแผ่นใหญ่จัดส่งด้วยรถยนต์เท่านั้น กันงานเปียก/เสียหาย' : '',
       vehicleLabel: s.vehicle === 'car' ? '🚗 รถยนต์' : '🏍️ มอเตอร์ไซค์',
       // ระยะทาง + ค่าส่งสด แสดงใต้แผนที่
       distLine: c.proPickupOn ? '' : s.lat == null ? ''
@@ -2456,7 +2465,7 @@ class App extends React.Component {
         {/* ── ป้ายโหมดฝนตก (ร้านกดเปิดจากหลังบ้าน) ── */}
         {v.rainMode && (
           <div style={css("margin:14px 20px 0;background:#e7f5ff;border:1.5px solid #74c0fc;border-radius:12px;padding:11px 14px;display:flex;gap:10px;align-items:center")}>
-            <span style={css("font-size:16px")}>🌧️</span><div style={css("font-size:12px;color:#1971c2;font-weight:700;line-height:1.55")}>วันนี้ฝนตก — งาน Pro จัดส่งด้วยรถยนต์เท่านั้น กันงานเปียกครับ · งาน Standard ส่งได้ทุกแบบตามปกติ</div>
+            <span style={css("font-size:16px")}>🌧️</span><div style={css("font-size:12px;color:#1971c2;font-weight:700;line-height:1.55")}>วันนี้ฝนตก — งานแผ่นใหญ่ (เพลททุกขนาด · โปสเตอร์/แบบแปลนแผ่นใหญ่) จัดส่งด้วยรถยนต์เท่านั้น กันงานเปียกครับ · งานอื่นส่งได้ทุกแบบตามปกติ</div>
           </div>
         )}
 
