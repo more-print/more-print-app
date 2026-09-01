@@ -1062,12 +1062,12 @@ class App extends React.Component {
     return m[s.proType] ?? 90; // ประเภทที่ไม่ได้ระบุใน etaProMin = 90 นาที
   }
 
-  // งานใหญ่ = บังคับส่งรถยนต์เท่านั้น (นโยบาย 2026-09-01): Standy + งาน Pro ทุกประเภทที่เลือกขนาด A3/A2/A1/A0 (มอไซค์ขนไม่ได้ งานยับ)
+  // งานแข็ง = บังคับส่งรถยนต์เท่านั้น (นโยบาย 2026-09-01): เพลท A3-A0 (ติดบอร์ดแข็ง) + Standy — งานกระดาษอื่นม้วนใส่มอไซค์ได้ ไม่บังคับ
   bigJob(){
     const s = this.state;
     if (s.tier !== 'pro') return false;
-    if (s.proType === 'standee') return true; // 60×120 ซม.
-    return ['A0', 'A1', 'A2', 'A3'].includes(s.proSize) && ['plate', 'poster', 'foldbook', 'blueprint'].includes(s.proType); // เฉพาะประเภทที่มีตัวเลือกขนาดจริง
+    if (s.proType === 'standee') return true; // 60×120 ซม. แข็ง
+    return s.proType === 'plate' && ['A0', 'A1', 'A2', 'A3'].includes(s.proSize);
   }
 
   // ป้ายสรุปงาน Pro เช่น "เพลท A2" / "พับครึ่ง A3" — ใช้แสดงผลและบันทึกลงช่อง paper
@@ -1946,10 +1946,10 @@ class App extends React.Component {
       ].map(o => {
         const dis = this.bigJob() && o.k === 'bike'; // งานใหญ่ (A3 ขึ้นไป/Standy) ห้ามมอไซค์
         return { ...o, on: s.vehicle === o.k, dis,
-          desc: dis ? 'งานขนาดใหญ่ส่งมอเตอร์ไซค์ไม่ได้ครับ (งานยับ/เสียหาย)' : o.desc,
-          pick: dis ? () => this.showToast('งานขนาดใหญ่ (A3 ขึ้นไป / Standy) ต้องส่งด้วยรถยนต์เท่านั้นครับ 🚗') : () => this.setState({ vehicle: o.k }) };
+          desc: dis ? 'งานแข็งแผ่นใหญ่ส่งมอเตอร์ไซค์ไม่ได้ครับ (หัก/เสียหาย)' : o.desc,
+          pick: dis ? () => this.showToast('เพลท A3 ขึ้นไป / Standy เป็นงานแข็ง ต้องส่งด้วยรถยนต์เท่านั้นครับ 🚗') : () => this.setState({ vehicle: o.k }) };
       }),
-      vehicleHint: this.bigJob() ? '🚗 งานขนาดใหญ่ — ระบบเลือกส่งด้วยรถยนต์ให้อัตโนมัติ (บังคับ กันงานยับ/เสียหาย)' : '',
+      vehicleHint: this.bigJob() ? '🚗 งานแข็งแผ่นใหญ่ (เพลท A3 ขึ้นไป / Standy) — ระบบเลือกส่งด้วยรถยนต์ให้อัตโนมัติ กันงานหัก/เสียหาย' : '',
       vehicleLabel: s.vehicle === 'car' ? '🚗 รถยนต์' : '🏍️ มอเตอร์ไซค์',
       // ระยะทาง + ค่าส่งสด แสดงใต้แผนที่
       distLine: c.proPickupOn ? '' : s.lat == null ? ''
