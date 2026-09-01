@@ -642,10 +642,27 @@ function AdminApp(){
   const loadShopStatus = React.useCallback(async () => {
     if (!DB) { setShopOpen(true); return; }
     const stamp = shopStamp.current; // ผลที่มาช้ากว่าการกดสวิตช์ล่าสุด = ทิ้ง (กันสวิตช์เด้งกลับหลอกตา)
-    try { const { data, error } = await DB.from('shop_status').select('open').eq('id', 1).single(); if (!error && data && stamp === shopStamp.current) setShopOpen(!!data.open); } catch (e) {}
+    try {
+      let { data, error } = await DB.from('shop_status').select('open,rain').eq('id', 1).single();
+      if (error) { const r2 = await DB.from('shop_status').select('open').eq('id', 1).single(); data = r2.data; error = r2.error; if (data) data.rain = null; } // ยังไม่รัน SQL เพิ่มคอลัมน์ rain
+      if (!error && data && stamp === shopStamp.current) { setShopOpen(!!data.open); setShopRain(data.rain == null ? null : !!data.rain); }
+    } catch (e) {}
   }, []);
   React.useEffect(() => { if (authed) { loadShopStatus(); const t = setInterval(loadShopStatus, 30000); return () => clearInterval(t); } }, [authed, loadShopStatus]);
   const shopStamp = React.useRef(0);
+  const [shopRain, setShopRain] = React.useState(false); // โหมดฝนตก: งาน Pro แบบส่งบังคับรถยนต์ (null = ยังไม่รัน SQL เพิ่มคอลัมน์)
+  const [rainBusy, setRainBusy] = React.useState(false);
+  const toggleRain = async () => {
+    if (rainBusy) return;
+    const next = !shopRain;
+    shopStamp.current++;
+    if (!DB) { setShopRain(next); return; }
+    setRainBusy(true);
+    const { error } = await DB.from('shop_status').update({ rain: next, updated_at: new Date().toISOString() }).eq('id', 1);
+    setRainBusy(false);
+    if (error) return alert('ยังใช้โหมดฝนตกไม่ได้ — ต้องรัน SQL เพิ่มคอลัมน์ rain ก่อนครับ');
+    setShopRain(next);
+  };
   const toggleShop = async () => {
     if (shopBusy) return;
     shopStamp.current++;
@@ -1057,6 +1074,18 @@ function AdminApp(){
             <button onClick={toggleShop} disabled={shopBusy || shopOpen === null}
               style={css("flex:none;height:40px;padding:0 18px;border:none;border-radius:10px;font-size:13px;font-weight:800;cursor:pointer;font-family:inherit;color:#fff;background:" + (shopOpen === false ? "#2f9e44" : "#e03131") + ((shopBusy || shopOpen === null) ? ";opacity:.5" : ""))}>
               {shopBusy ? '⏳' : shopOpen === false ? 'เปิดรับออเดอร์' : 'ปิดรับออเดอร์'}</button>
+          </div>
+
+          {/* โหมดฝนตก: งาน Pro แบบส่งบังคับรถยนต์ทุกใบ (Standard ส่งมอไซค์ได้ปกติ) */}
+          <div style={css("background:" + (shopRain ? "#e7f5ff" : "var(--card)") + ";border:1.5px solid " + (shopRain ? "#74c0fc" : "var(--line)") + ";border-radius:14px;padding:13px 15px;box-shadow:var(--shadow);display:flex;align-items:center;gap:12px")}>
+            <div style={css("font-size:20px;flex:none")}>{shopRain ? '🌧️' : '🌤️'}</div>
+            <div style={css("flex:1;min-width:0")}>
+              <div style={css("font-size:13.5px;font-weight:800;" + (shopRain ? "color:#1971c2" : ""))}>โหมดฝนตก: {shopRain ? 'เปิดอยู่ — งาน Pro บังคับส่งรถยนต์ทุกใบ' : 'ปิดอยู่'}</div>
+              <div style={css("margin-top:1px;font-size:10.5px;color:var(--sub)")}>{shopRain ? 'หน้าเว็บลูกค้าขึ้นป้ายฝนตก งาน Pro เลือกได้แค่รถยนต์ · Standard ส่งมอไซค์ได้ปกติ — ฝนหยุดอย่าลืมกดปิด' : 'ฝนตกเมื่อไหร่กดเปิด — งาน Pro ทุกใบจะบังคับส่งรถยนต์ กันงานเปียก (Standard ไม่บังคับ)'}</div>
+            </div>
+            <button onClick={toggleRain} disabled={rainBusy}
+              style={css("flex:none;height:40px;padding:0 18px;border:none;border-radius:10px;font-size:13px;font-weight:800;cursor:pointer;font-family:inherit;color:#fff;background:" + (shopRain ? "#868e96" : "#1971c2") + (rainBusy ? ";opacity:.5" : ""))}>
+              {rainBusy ? '⏳' : shopRain ? 'ปิดโหมดฝนตก' : 'เปิดโหมดฝนตก'}</button>
           </div>
 
           {/* การ์ดสรุป 4 ช่อง (แบบเรฟ) */}

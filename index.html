@@ -337,6 +337,7 @@ class App extends React.Component {
     this.state = {
       screen: 'home', files: [], tier: 'standard', ptype: 'bw', paper: 'A4', sides: 1, orient: 'portrait', nup: 1, bind: 'none', copies: 1, note: '',
       shopOpen: true, // สถานะรับออเดอร์จากหลังบ้าน (false = ร้านกดปิดรับชั่วคราว)
+      shopRain: false, // โหมดฝนตก (ร้านกดจากหลังบ้าน) — งาน Pro แบบส่งบังคับรถยนต์ทุกใบ
       rcOn: false, rcName: (rc0 && rc0.name) || '', rcAddr: (rc0 && rc0.addr) || '', rcTax: (rc0 && rc0.tax) || '', rcPhone: (rc0 && rc0.phone) || '', rcView: null, logoutArm: false, // ใบเสร็จรับเงิน + ยืนยันออกจากระบบ
       vehicle: 'bike', // พาหนะส่งที่ลูกค้าเลือกเอง: 'bike' มอเตอร์ไซค์ · 'car' รถยนต์ (ใช้ทั้ง Standard และ Pro)
       reviews: [], reviewsReady: false, revAll: false, revStars: 5, revText: '', trackStars: 5, trackText: '',
@@ -379,7 +380,13 @@ class App extends React.Component {
         .catch(() => {});
       this.loadReviews();
       // สถานะเปิด/ปิดรับออเดอร์ (ร้านกดจากหลังบ้าน) — เช็คตอนเปิดเว็บ + ทุก 60 วิ
-      const chkShop = () => { try { this.db.from('shop_status').select('open').eq('id', 1).single().then(({ data, error }) => { if (!error && data) this.setState({ shopOpen: !!data.open }); }).catch(() => {}); } catch (e) {} };
+      const chkShop = () => { try {
+        this.db.from('shop_status').select('open,rain').eq('id', 1).single().then(({ data, error }) => {
+          if (!error && data) return this.setState({ shopOpen: !!data.open, shopRain: !!data.rain });
+          // คอลัมน์ rain ยังไม่ถูกสร้าง — ถอยไปเช็คเฉพาะเปิด/ปิดร้าน เว็บห้ามพัง
+          this.db.from('shop_status').select('open').eq('id', 1).single().then(({ data: d2, error: e2 }) => { if (!e2 && d2) this.setState({ shopOpen: !!d2.open, shopRain: false }); }).catch(() => {});
+        }).catch(() => {});
+      } catch (e) {} };
       chkShop(); this._shopTimer = setInterval(chkShop, 60000);
     }
     // โหมดตัวอย่าง (ยังไม่เชื่อมฐานข้อมูล): โชว์รีวิวตัวอย่างไว้ดูหน้าตา
@@ -647,7 +654,7 @@ class App extends React.Component {
     this.setState({});
   }
   pickAddr(a){
-    this.setState({ addr: a.addr, vehicle: this.bigJob() ? 'car' : (a.veh || 'bike'), pinMode: 'map', pinSrc: 'saved', mapLocked: true }); // ที่อยู่เคยใช้จริง — ล็อกหมุดให้เลย · งานใหญ่บังคับรถยนต์
+    this.setState({ addr: a.addr, vehicle: this.forceCar() ? 'car' : (a.veh || 'bike'), pinMode: 'map', pinSrc: 'saved', mapLocked: true }); // ที่อยู่เคยใช้จริง — ล็อกหมุดให้เลย · งานแข็ง/ฝนตกบังคับรถยนต์
     if (a.lat != null) this.setPin(a.lat, a.lng, true);
     this.showToast('ใช้ที่อยู่ประจำแล้ว 🏠 เช็คหมุดบนแผนที่อีกทีนะครับ');
   }
@@ -952,7 +959,7 @@ class App extends React.Component {
     const expressFee = (CONFIG.expressEnabled !== false && s.express) ? (CONFIG.expressFee ?? 20) : 0;
     // ค่าส่ง 2 ชั้นตามระยะถนนจริง — ลูกค้าเลือกพาหนะเอง (ยังไม่ปักหมุด = โชว์ราคาเริ่มต้น)
     const km = s.distKm;
-    const carJob = s.vehicle === 'car' || this.bigJob(); // งานใหญ่บังคับเรทรถยนต์เสมอ
+    const carJob = s.vehicle === 'car' || this.forceCar(); // งานแข็ง/โหมดฝนตก บังคับเรทรถยนต์เสมอ
     const tiers = CONFIG.carTiers || [[2, 69], [4, 89], [6, 129]];
     let deliveryFee, farNote = false, outOfArea = false;
     if (carJob) {
@@ -1061,6 +1068,9 @@ class App extends React.Component {
     if (s.proType === 'plate') return ['A2', 'A1', 'A0'].includes(s.proSize) ? (m.plateBig ?? 90) : (m.plate ?? 60);
     return m[s.proType] ?? 90; // ประเภทที่ไม่ได้ระบุใน etaProMin = 90 นาที
   }
+
+  // บังคับรถยนต์ไหม: งานแข็ง (เพลท A3-A0/Standy) หรือ โหมดฝนตก (งาน Pro แบบส่งทุกใบ — Standard ไม่บังคับ)
+  forceCar(){ return this.bigJob() || (this.state.shopRain === true && this.state.tier === 'pro'); }
 
   // งานแข็ง = บังคับส่งรถยนต์เท่านั้น (นโยบาย 2026-09-01): เพลท A3-A0 (ติดบอร์ดแข็ง) + Standy — งานกระดาษอื่นม้วนใส่มอไซค์ได้ ไม่บังคับ
   bigJob(){
@@ -1749,6 +1759,7 @@ class App extends React.Component {
         return n.getDate() + '/' + (n.getMonth() + 1) + '/' + String(n.getFullYear() + 543).slice(-2);
       })(),
       shopClosed: s.shopOpen === false, // ร้านกดปิดรับออเดอร์จากหลังบ้าน
+      rainMode: s.shopRain === true, // โหมดฝนตก — งาน Pro บังคับรถยนต์
       proAfter17: s.now.getHours() >= 17, // แยกข้อความ: หลัง 17:00 = ผลิตพรุ่งนี้ · ก่อน 08:30 = ผลิตเช้านี้
       pickStandard: () => this.setState({ tier: 'standard', paper: SIZE_BY_TYPE[s.ptype][0] }),
       pickPro: () => this.setState({ tier: 'pro', sides: (s.proType === 'poster' || s.proType === 'portfolio' || s.proType === 'namecard' || s.proType === 'foldbook') ? s.sides : 1 }), // ประเภทที่พิมพ์หน้าเดียว ห้ามติดค่าหน้า-หลังค้างจาก Standard
@@ -1884,7 +1895,7 @@ class App extends React.Component {
         if (s.files.some(f => f.counting)) return this.showToast('รอระบบอ่านไฟล์แป๊บนึงครับ ⏳');
         const bigPending = s.files.find(f => f.big && !f.upDone);
         if (bigPending) return this.showToast(bigPending.upErr ? 'ไฟล์ใหญ่อัปโหลดไม่สำเร็จ — กดปุ่ม "ลองใหม่" ที่ไฟล์ก่อนนะครับ 🔁' : 'รอไฟล์ใหญ่อัปโหลดให้เสร็จก่อนนะครับ ⏳ (ดู % ที่รายการไฟล์)');
-        this.setState({ screen: 'delivery', vehicle: this.bigJob() ? 'car' : s.vehicle }); // งานใหญ่สลับเป็นรถยนต์ให้อัตโนมัติ
+        this.setState({ screen: 'delivery', vehicle: this.forceCar() ? 'car' : s.vehicle }); // งานแข็ง/ฝนตก สลับเป็นรถยนต์ให้อัตโนมัติ
       },
       gmapLink: s.gmapLink, gmapBusy: s.gmapBusy,
       gmapWrongApp: /share\.google/i.test(s.gmapLink || ''), // ลูกค้าวางลิงก์แชร์จากแอป Google (ไม่ใช่ Google Maps) — เตือนทันทีก่อนกดตกลง
@@ -1944,12 +1955,12 @@ class App extends React.Component {
         { k: 'bike', icon: '🏍️', name: 'มอเตอร์ไซค์', desc: 'ไม่เกิน 2 กม. ฿' + (CONFIG.deliveryBase ?? 19) + ' · เกินนั้น +฿' + (CONFIG.bikePerKm ?? 6) + '/กม. · ส่งได้ทุกระยะ' },
         { k: 'car', icon: '🚗', name: 'รถยนต์', desc: '฿69-129 · งานใหญ่ ไม่เกิน 6 กม.' }
       ].map(o => {
-        const dis = this.bigJob() && o.k === 'bike'; // งานใหญ่ (A3 ขึ้นไป/Standy) ห้ามมอไซค์
+        const dis = this.forceCar() && o.k === 'bike'; // งานแข็ง หรือ ฝนตก+งาน Pro — ห้ามมอไซค์
         return { ...o, on: s.vehicle === o.k, dis,
-          desc: dis ? 'งานแข็งแผ่นใหญ่ส่งมอเตอร์ไซค์ไม่ได้ครับ (หัก/เสียหาย)' : o.desc,
-          pick: dis ? () => this.showToast('เพลท A3 ขึ้นไป / Standy เป็นงานแข็ง ต้องส่งด้วยรถยนต์เท่านั้นครับ 🚗') : () => this.setState({ vehicle: o.k }) };
+          desc: dis ? (this.bigJob() ? 'งานแข็งแผ่นใหญ่ส่งมอเตอร์ไซค์ไม่ได้ครับ (หัก/เสียหาย)' : 'ช่วงฝนตก งาน Pro ส่งรถยนต์เท่านั้นครับ (กันงานเปียก)') : o.desc,
+          pick: dis ? () => this.showToast(this.bigJob() ? 'เพลท A3 ขึ้นไป / Standy เป็นงานแข็ง ต้องส่งด้วยรถยนต์เท่านั้นครับ 🚗' : '🌧️ ช่วงฝนตก งาน Pro จัดส่งด้วยรถยนต์เท่านั้นครับ กันงานเปียกเสียหาย') : () => this.setState({ vehicle: o.k }) };
       }),
-      vehicleHint: this.bigJob() ? '🚗 งานแข็งแผ่นใหญ่ (เพลท A3 ขึ้นไป / Standy) — ระบบเลือกส่งด้วยรถยนต์ให้อัตโนมัติ กันงานหัก/เสียหาย' : '',
+      vehicleHint: this.bigJob() ? '🚗 งานแข็งแผ่นใหญ่ (เพลท A3 ขึ้นไป / Standy) — ระบบเลือกส่งด้วยรถยนต์ให้อัตโนมัติ กันงานหัก/เสียหาย' : this.forceCar() ? '🌧️ ช่วงฝนตก — งาน Pro จัดส่งด้วยรถยนต์เท่านั้น กันงานเปียก/เสียหาย' : '',
       vehicleLabel: s.vehicle === 'car' ? '🚗 รถยนต์' : '🏍️ มอเตอร์ไซค์',
       // ระยะทาง + ค่าส่งสด แสดงใต้แผนที่
       distLine: c.proPickupOn ? '' : s.lat == null ? ''
@@ -2439,6 +2450,13 @@ class App extends React.Component {
         {v.shopClosed && (
           <div style={css("margin:14px 20px 0;background:#ffe3e3;border:1.5px solid #ffa8a8;border-radius:12px;padding:11px 14px;display:flex;gap:10px;align-items:center")}>
             <span style={css("font-size:16px")}>🔴</span><div style={css("font-size:12px;color:#c92a2a;font-weight:700;line-height:1.55")}>ขออภัยครับ ตอนนี้ร้านปิดรับออเดอร์ชั่วคราว — เปิดรับอีกครั้งเร็ว ๆ นี้ · ติดตาม/แชทออเดอร์เดิมได้ตามปกติครับ</div>
+          </div>
+        )}
+
+        {/* ── ป้ายโหมดฝนตก (ร้านกดเปิดจากหลังบ้าน) ── */}
+        {v.rainMode && (
+          <div style={css("margin:14px 20px 0;background:#e7f5ff;border:1.5px solid #74c0fc;border-radius:12px;padding:11px 14px;display:flex;gap:10px;align-items:center")}>
+            <span style={css("font-size:16px")}>🌧️</span><div style={css("font-size:12px;color:#1971c2;font-weight:700;line-height:1.55")}>วันนี้ฝนตก — งาน Pro จัดส่งด้วยรถยนต์เท่านั้น กันงานเปียกครับ · งาน Standard ส่งได้ทุกแบบตามปกติ</div>
           </div>
         )}
 
