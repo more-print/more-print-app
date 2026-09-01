@@ -382,7 +382,7 @@ class App extends React.Component {
       // สถานะเปิด/ปิดรับออเดอร์ (ร้านกดจากหลังบ้าน) — เช็คตอนเปิดเว็บ + ทุก 60 วิ
       const chkShop = () => { try {
         this.db.from('shop_status').select('open,rain').eq('id', 1).single().then(({ data, error }) => {
-          if (!error && data) return this.setState({ shopOpen: !!data.open, shopRain: !!data.rain });
+          if (!error && data) return this.setState({ shopOpen: !!data.open, shopRain: !!data.rain }, () => this.syncForcedVehicle());
           // คอลัมน์ rain ยังไม่ถูกสร้าง — ถอยไปเช็คเฉพาะเปิด/ปิดร้าน เว็บห้ามพัง
           this.db.from('shop_status').select('open').eq('id', 1).single().then(({ data: d2, error: e2 }) => { if (!e2 && d2) this.setState({ shopOpen: !!d2.open, shopRain: false }); }).catch(() => {});
         }).catch(() => {});
@@ -393,7 +393,7 @@ class App extends React.Component {
         this.db.channel('shop-status-live')
           .on('postgres_changes', { event: '*', schema: 'public', table: 'shop_status' }, (payload) => {
             const r = payload && payload.new;
-            if (r && r.id === 1) this.setState({ shopOpen: r.open !== false, shopRain: r.rain === true });
+            if (r && r.id === 1) this.setState({ shopOpen: r.open !== false, shopRain: r.rain === true }, () => this.syncForcedVehicle());
           })
           .subscribe();
       } catch (e) {}
@@ -1078,6 +1078,15 @@ class App extends React.Component {
     return m[s.proType] ?? 90; // ประเภทที่ไม่ได้ระบุใน etaProMin = 90 นาที
   }
 
+  // โหมดฝนตกถูกเปิดระหว่างลูกค้าค้างอยู่กลางขั้นตอนสั่ง — สลับเป็นรถยนต์ให้ทันที (ป้าย/ราคา/ข้อมูลบันทึกจะได้ตรงกันหมด)
+  syncForcedVehicle(){
+    const s = this.state;
+    if (s.vehicle !== 'car' && this.forceCar() && ['order', 'delivery', 'review', 'pay'].includes(s.screen)) {
+      this.setState({ vehicle: 'car' });
+      if (s.screen !== 'order') this.showToast('🌧️ งานนี้ต้องจัดส่งด้วยรถยนต์ครับ — ระบบปรับวิธีส่งและค่าส่งให้แล้ว');
+    }
+  }
+
   // บังคับรถยนต์ไหม: งานแข็ง (เพลท A3-A0/Standy — บังคับตลอด) หรือ โหมดฝนตกเฉพาะงานแผ่นใหญ่ (นโยบาย 2026-09-01):
   // ฝนตก → เพลททุกขนาด · โปสเตอร์ A2-A0 · แบบแปลน A2/A1 — งานอื่น (โปสเตอร์ A3 ลงมา/พับครึ่ง/สติ๊กเกอร์ ฯลฯ) และ Standard ยังส่งมอไซค์ได้
   forceCar(){
@@ -1201,7 +1210,7 @@ class App extends React.Component {
         pickup: s.tier === 'pro' ? s.proPickup : s.stdPickup,
         line_uid: (s.user && s.user.line_uid) || null, // ไว้แจ้งเตือนลูกค้าทาง LINE (เฉพาะคนล็อกอินด้วย LINE)
         // นำหน้าที่อยู่ด้วยพาหนะที่ลูกค้าเลือก — ไรเดอร์/หลังบ้านเห็นทันทีว่าต้องใช้รถอะไร (ไม่ต้องเพิ่มคอลัมน์ใหม่)
-        addr: (s.tier === 'pro' && s.proPickup) ? '🏪 มารับเองที่ร้านอุดมสุขปริ้นติ้ง' : (s.tier !== 'pro' && s.stdPickup) ? '🏪 รับหน้าร้าน MORE PRINT (หอพักบริบูรณ์เพลส)' : (s.vehicle === 'car' ? '🚗 ' : '🏍️ ') + s.addr,
+        addr: (s.tier === 'pro' && s.proPickup) ? '🏪 มารับเองที่ร้านอุดมสุขปริ้นติ้ง' : (s.tier !== 'pro' && s.stdPickup) ? '🏪 รับหน้าร้าน MORE PRINT (หอพักบริบูรณ์เพลส)' : ((s.vehicle === 'car' || this.forceCar()) ? '🚗 ' : '🏍️ ') + s.addr, // งานบังคับรถยนต์ป้ายต้องตรง
         phone: s.phone, time: '', express: s.express, night: this.isNight(),
         print_cost: c.printCost, bind_cost: c.bindCost, delivery_cost: c.deliveryCost,
         night_fee: c.nightFee || 0, // ตามสูตรจริง — งาน Pro/มารับเอง = 0
@@ -2089,7 +2098,7 @@ class App extends React.Component {
         const pickup = s.tier === 'pro' ? s.proPickup : s.stdPickup;
         const ts = Date.now(); // เวลาชำระ — ใช้นับถอยหลังช่วงที่ลูกค้ายกเลิกเองได้
         const oaddr = pickup ? (s.tier === 'pro' ? '🏪 มารับเองที่ร้านอุดมสุขปริ้นติ้ง' : '🏪 รับหน้าร้าน MORE PRINT (หอพักบริบูรณ์เพลส)') : s.addr;
-        const oveh = pickup ? '' : (s.vehicle === 'car' ? '🚗 รถยนต์' : '🏍️ มอเตอร์ไซค์');
+        const oveh = pickup ? '' : ((s.vehicle === 'car' || this.forceCar()) ? '🚗 รถยนต์' : '🏍️ มอเตอร์ไซค์');
         // จำเป็นที่อยู่จัดส่งประจำ ไว้เลือกซ้ำรอบหน้า
         if (!pickup && s.addr.trim() && s.lat != null) this.saveAddr({ addr: s.addr.trim(), lat: s.lat, lng: s.lng, veh: s.vehicle, ts: Date.now() });
         // ลูกค้าขอใบเสร็จ — ผูกข้อมูลผู้ซื้อไว้กับออเดอร์ (เลขที่จะรันให้หลังออเดอร์ลงฐานข้อมูล) + จำไว้ใช้รอบหน้า

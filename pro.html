@@ -480,7 +480,8 @@ function Dash({ role }){
       if (fresh.length) {
         try { const C = window.AudioContext || window.webkitAudioContext; const ctx = new C(); const os = ctx.createOscillator(); const g = ctx.createGain();
           os.connect(g); g.connect(ctx.destination); os.frequency.value = 880; g.gain.setValueAtTime(0.3, ctx.currentTime);
-          g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.7); os.start(); os.stop(ctx.currentTime + 0.7); } catch (e) {}
+          g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.7); os.start(); os.stop(ctx.currentTime + 0.7);
+          setTimeout(() => { try { ctx.close(); } catch (e2) {} }, 1000); } catch (e) {} // ปิด context ทุกครั้ง — เบราว์เซอร์จำกัดจำนวน เปิดค้างเสียงจะเงียบ
         try { const orig = document.title.replace(/^🔔.*?· /, ''); let n = 0;
           const iv = setInterval(() => { document.title = (n % 2 === 0) ? ('🔔 ออเดอร์ใหม่! · ' + orig) : orig; n++; if (n > 9) { clearInterval(iv); document.title = orig; } }, 900); } catch (e) {}
       }
