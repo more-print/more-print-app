@@ -647,7 +647,7 @@ class App extends React.Component {
     this.setState({});
   }
   pickAddr(a){
-    this.setState({ addr: a.addr, vehicle: a.veh || 'bike', pinMode: 'map', pinSrc: 'saved', mapLocked: true }); // ที่อยู่เคยใช้จริง — ล็อกหมุดให้เลย (ปลดได้ถ้าจะย้าย)
+    this.setState({ addr: a.addr, vehicle: this.bigJob() ? 'car' : (a.veh || 'bike'), pinMode: 'map', pinSrc: 'saved', mapLocked: true }); // ที่อยู่เคยใช้จริง — ล็อกหมุดให้เลย · งานใหญ่บังคับรถยนต์
     if (a.lat != null) this.setPin(a.lat, a.lng, true);
     this.showToast('ใช้ที่อยู่ประจำแล้ว 🏠 เช็คหมุดบนแผนที่อีกทีนะครับ');
   }
@@ -952,7 +952,7 @@ class App extends React.Component {
     const expressFee = (CONFIG.expressEnabled !== false && s.express) ? (CONFIG.expressFee ?? 20) : 0;
     // ค่าส่ง 2 ชั้นตามระยะถนนจริง — ลูกค้าเลือกพาหนะเอง (ยังไม่ปักหมุด = โชว์ราคาเริ่มต้น)
     const km = s.distKm;
-    const carJob = s.vehicle === 'car';
+    const carJob = s.vehicle === 'car' || this.bigJob(); // งานใหญ่บังคับเรทรถยนต์เสมอ
     const tiers = CONFIG.carTiers || [[2, 69], [4, 89], [6, 129]];
     let deliveryFee, farNote = false, outOfArea = false;
     if (carJob) {
@@ -1062,10 +1062,12 @@ class App extends React.Component {
     return m[s.proType] ?? 90; // ประเภทที่ไม่ได้ระบุใน etaProMin = 90 นาที
   }
 
-  // งานใหญ่ (Standy / เพลท A3 ขึ้นไป) — ไม่บังคับรถยนต์แล้ว แค่ใช้ "แนะนำ" ให้ลูกค้าเห็นตอนเลือกพาหนะ
+  // งานใหญ่ = บังคับส่งรถยนต์เท่านั้น (นโยบาย 2026-09-01): Standy + งาน Pro ทุกประเภทที่เลือกขนาด A3/A2/A1/A0 (มอไซค์ขนไม่ได้ งานยับ)
   bigJob(){
     const s = this.state;
-    return s.tier === 'pro' && (s.proType === 'standee' || (s.proType === 'plate' && ['A0', 'A1', 'A2', 'A3'].includes(s.proSize)));
+    if (s.tier !== 'pro') return false;
+    if (s.proType === 'standee') return true; // 60×120 ซม.
+    return ['A0', 'A1', 'A2', 'A3'].includes(s.proSize) && ['plate', 'poster', 'foldbook', 'blueprint'].includes(s.proType); // เฉพาะประเภทที่มีตัวเลือกขนาดจริง
   }
 
   // ป้ายสรุปงาน Pro เช่น "เพลท A2" / "พับครึ่ง A3" — ใช้แสดงผลและบันทึกลงช่อง paper
@@ -1882,7 +1884,7 @@ class App extends React.Component {
         if (s.files.some(f => f.counting)) return this.showToast('รอระบบอ่านไฟล์แป๊บนึงครับ ⏳');
         const bigPending = s.files.find(f => f.big && !f.upDone);
         if (bigPending) return this.showToast(bigPending.upErr ? 'ไฟล์ใหญ่อัปโหลดไม่สำเร็จ — กดปุ่ม "ลองใหม่" ที่ไฟล์ก่อนนะครับ 🔁' : 'รอไฟล์ใหญ่อัปโหลดให้เสร็จก่อนนะครับ ⏳ (ดู % ที่รายการไฟล์)');
-        this.setState({ screen: 'delivery' });
+        this.setState({ screen: 'delivery', vehicle: this.bigJob() ? 'car' : s.vehicle }); // งานใหญ่สลับเป็นรถยนต์ให้อัตโนมัติ
       },
       gmapLink: s.gmapLink, gmapBusy: s.gmapBusy,
       gmapWrongApp: /share\.google/i.test(s.gmapLink || ''), // ลูกค้าวางลิงก์แชร์จากแอป Google (ไม่ใช่ Google Maps) — เตือนทันทีก่อนกดตกลง
@@ -1941,8 +1943,13 @@ class App extends React.Component {
       vehicleOpts: [
         { k: 'bike', icon: '🏍️', name: 'มอเตอร์ไซค์', desc: 'ไม่เกิน 2 กม. ฿' + (CONFIG.deliveryBase ?? 19) + ' · เกินนั้น +฿' + (CONFIG.bikePerKm ?? 6) + '/กม. · ส่งได้ทุกระยะ' },
         { k: 'car', icon: '🚗', name: 'รถยนต์', desc: '฿69-129 · งานใหญ่ ไม่เกิน 6 กม.' }
-      ].map(o => ({ ...o, on: s.vehicle === o.k, pick: () => this.setState({ vehicle: o.k }) })),
-      vehicleHint: this.bigJob() ? '💡 งานใหญ่แนะนำรถยนต์ กันงานยับ' : '',
+      ].map(o => {
+        const dis = this.bigJob() && o.k === 'bike'; // งานใหญ่ (A3 ขึ้นไป/Standy) ห้ามมอไซค์
+        return { ...o, on: s.vehicle === o.k, dis,
+          desc: dis ? 'งานขนาดใหญ่ส่งมอเตอร์ไซค์ไม่ได้ครับ (งานยับ/เสียหาย)' : o.desc,
+          pick: dis ? () => this.showToast('งานขนาดใหญ่ (A3 ขึ้นไป / Standy) ต้องส่งด้วยรถยนต์เท่านั้นครับ 🚗') : () => this.setState({ vehicle: o.k }) };
+      }),
+      vehicleHint: this.bigJob() ? '🚗 งานขนาดใหญ่ — ระบบเลือกส่งด้วยรถยนต์ให้อัตโนมัติ (บังคับ กันงานยับ/เสียหาย)' : '',
       vehicleLabel: s.vehicle === 'car' ? '🚗 รถยนต์' : '🏍️ มอเตอร์ไซค์',
       // ระยะทาง + ค่าส่งสด แสดงใต้แผนที่
       distLine: c.proPickupOn ? '' : s.lat == null ? ''
@@ -2844,7 +2851,7 @@ class App extends React.Component {
               <div style={css("font-size:12px;font-weight:600;color:var(--sub);margin-bottom:8px")}>🚚 เลือกวิธีจัดส่ง <span style={css("color:#d9480f")}>*</span></div>
               <div style={css("display:flex;flex-direction:column;gap:8px;margin-bottom:14px")}>
                 {v.vehicleOpts.map((o, i) => (
-                  <div key={i} onClick={o.pick} style={css("border:" + (o.on ? "1.5px solid var(--acc)" : "1px solid var(--line)") + ";border-radius:12px;padding:11px 14px;background:" + (o.on ? "var(--accSoft)" : "var(--card)") + ";display:flex;align-items:center;gap:11px;cursor:pointer")}>
+                  <div key={i} onClick={o.pick} style={css("border:" + (o.on ? "1.5px solid var(--acc)" : "1px solid var(--line)") + ";border-radius:12px;padding:11px 14px;background:" + (o.on ? "var(--accSoft)" : "var(--card)") + ";display:flex;align-items:center;gap:11px;cursor:" + (o.dis ? "not-allowed;opacity:.5" : "pointer"))}>
                     <div style={css("font-size:22px;flex:none")}>{o.icon}</div>
                     <div style={css("flex:1;min-width:0")}>
                       <div style={css("font-size:13.5px;font-weight:700;color:" + (o.on ? "var(--acc)" : "var(--ink)"))}>{o.name}</div>
