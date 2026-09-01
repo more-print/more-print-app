@@ -496,7 +496,7 @@ function Dash(){
       } catch (e) { alert('ลบไม่สำเร็จ: ' + e.message); }
     } else setOrders(l => l.filter(x => x.id !== o.id));
   };
-  React.useEffect(() => { load(); }, [load]);
+  React.useEffect(() => { load(); const t = setInterval(load, 15000); return () => clearInterval(t); }, [load]); // รีเฟรชออเดอร์เองทุก 15 วิ
 
   const now = new Date();
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());

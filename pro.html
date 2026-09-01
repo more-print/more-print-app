@@ -470,7 +470,23 @@ function Dash({ role }){
     if (!r.error && r.data) { setOrders(r.data.filter(o => !cancelledExpired(o))); purgeCancelled(r.data); }
     setLoading(false);
   }, []);
-  React.useEffect(() => { load(); }, [load]);
+  React.useEffect(() => { load(); const t = setInterval(load, 15000); return () => clearInterval(t); }, [load]); // รีเฟรชออเดอร์เองทุก 15 วิ — ออเดอร์ใหม่ต้องโผล่เองไม่ต้องกดรีเฟรช
+  // ออเดอร์ใหม่เข้า → เสียงติ๊ง + ชื่อแท็บกะพริบ (ร้านเปิดแท็บทิ้งไว้ก็รู้ทันที)
+  const prevActIds = React.useRef(null);
+  React.useEffect(() => {
+    const act = orders.filter(o => o.status > 0 && o.status < 4).map(o => o.id);
+    if (prevActIds.current) {
+      const fresh = act.filter(id => !prevActIds.current.includes(id));
+      if (fresh.length) {
+        try { const C = window.AudioContext || window.webkitAudioContext; const ctx = new C(); const os = ctx.createOscillator(); const g = ctx.createGain();
+          os.connect(g); g.connect(ctx.destination); os.frequency.value = 880; g.gain.setValueAtTime(0.3, ctx.currentTime);
+          g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.7); os.start(); os.stop(ctx.currentTime + 0.7); } catch (e) {}
+        try { const orig = document.title.replace(/^🔔.*?· /, ''); let n = 0;
+          const iv = setInterval(() => { document.title = (n % 2 === 0) ? ('🔔 ออเดอร์ใหม่! · ' + orig) : orig; n++; if (n > 9) { clearInterval(iv); document.title = orig; } }, 900); } catch (e) {}
+      }
+    }
+    prevActIds.current = act;
+  }, [orders]);
 
   const setPrice = async (o, n) => {
     const total = n + (o.bind_cost || 0) + (o.delivery_cost || 0) + (o.night_fee || 0);

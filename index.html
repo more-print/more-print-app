@@ -601,6 +601,8 @@ class App extends React.Component {
       this.setState({ user: u, phone: this.fmtPhone(u.phone || '') });
       return true;
     }
+    // ด่านสุดท้าย: เครื่องล้างทั้ง storage และคุกกี้ แต่ session LINE ยังอยู่ — ดึงโปรไฟล์กลับมาเองเงียบ ๆ ไม่เด้งหน้า login
+    try { if (this._liffReady && window.liff && window.liff.isLoggedIn()) { this.finishLineLogin(); return true; } } catch (e) {}
     return false;
   }
 
@@ -920,7 +922,7 @@ class App extends React.Component {
       const user = { fname: p.displayName || 'ลูกค้า LINE', lname: '', phone: '', email: '', line_uid: p.userId || '', picture: p.pictureUrl || '' };
       try { localStorage.setItem('mp_user', JSON.stringify(user)); } catch (e) {}
       this.backupUser(user);
-      this.setState({ user, phone: '', screen: 'home' }); // บัญชีใหม่ — ไม่สืบทอดเบอร์คนก่อน
+      this.setState({ user, phone: '', screen: this.state.screen === 'login' ? 'home' : this.state.screen }); // บัญชีใหม่ — ไม่สืบทอดเบอร์คนก่อน · กู้กลางทางให้อยู่หน้าเดิม
       this.showToast('ยินดีต้อนรับ คุณ' + user.fname + ' 💚');
     } catch (e) {
       console.error('line profile:', e);
