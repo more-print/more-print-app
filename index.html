@@ -387,7 +387,16 @@ class App extends React.Component {
           this.db.from('shop_status').select('open').eq('id', 1).single().then(({ data: d2, error: e2 }) => { if (!e2 && d2) this.setState({ shopOpen: !!d2.open, shopRain: false }); }).catch(() => {});
         }).catch(() => {});
       } catch (e) {} };
-      chkShop(); this._shopTimer = setInterval(chkShop, 60000);
+      chkShop(); this._shopTimer = setInterval(chkShop, 20000); // poll สำรองทุก 20 วิ
+      // เรียลไทม์: หลังบ้านกดสวิตช์ปุ๊บ หน้าเว็บลูกค้ารู้ทันทีในวินาทีเดียว (ต้องเปิด Realtime ให้ตาราง shop_status — ยังไม่เปิดก็มี poll สำรองทำงานแทน)
+      try {
+        this.db.channel('shop-status-live')
+          .on('postgres_changes', { event: '*', schema: 'public', table: 'shop_status' }, (payload) => {
+            const r = payload && payload.new;
+            if (r && r.id === 1) this.setState({ shopOpen: r.open !== false, shopRain: r.rain === true });
+          })
+          .subscribe();
+      } catch (e) {}
     }
     // โหมดตัวอย่าง (ยังไม่เชื่อมฐานข้อมูล): โชว์รีวิวตัวอย่างไว้ดูหน้าตา
     if (!this.db) this.setState({ reviewsReady: true, reviews: [
