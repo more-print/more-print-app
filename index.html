@@ -1702,7 +1702,7 @@ class App extends React.Component {
         this.setState({ order: null, trackStep: 1, cancelReason: '', orderList: [], history: [], chat: null, chatFor: null, histOpen: null, phone: '', addr: '' });
         this.setState({ user: null, emailIn: '', passIn: '', regFname: '', regLname: '', regEmail: '', regPass1: '', regPass2: '', authMode: 'login', screen: 'login' });
       },
-      userName: s.user ? s.user.fname + ' ' + s.user.lname : '',
+      userName: s.user ? (s.user.fname + ' ' + (s.user.lname || '')).trim() : '', // กันโชว์ undefined ถ้าไม่มีนามสกุล
       userFirst: s.user ? s.user.fname : '',
       userPic: (s.user && s.user.picture) || '',
       userInitial: s.user ? ((s.user.fname || '?').trim().charAt(0) || '?') : '',
@@ -2474,14 +2474,20 @@ class App extends React.Component {
         {/* ── ป้ายโหมดฝนตก (ร้านกดเปิดจากหลังบ้าน) ── */}
         {v.rainMode && (
           <div style={css("margin:14px 20px 0;background:#e7f5ff;border:1.5px solid #74c0fc;border-radius:12px;padding:11px 14px;display:flex;gap:10px;align-items:center")}>
-            <span style={css("font-size:16px")}>🌧️</span><div style={css("font-size:12px;color:#1971c2;font-weight:700;line-height:1.55")}>วันนี้ฝนตก — งานแผ่นใหญ่ (เพลททุกขนาด · โปสเตอร์/แบบแปลนแผ่นใหญ่) จัดส่งด้วยรถยนต์เท่านั้น กันงานเปียกครับ · งานอื่นส่งได้ทุกแบบตามปกติ</div>
+            <span style={css("font-size:16px")}>🌧️</span><div style={css("min-width:0")}>
+              <div style={css("font-size:12.5px;color:#1971c2;font-weight:800;line-height:1.5")}>วันนี้ฝนตก — งานชิ้นใหญ่จัดส่งด้วยรถยนต์เท่านั้นครับ</div>
+              <div style={css("margin-top:2px;font-size:11.5px;color:#1971c2;font-weight:600;line-height:1.5")}>ป้องกันงานเปียก งานอื่นส่งได้ตามปกติครับ</div>
+            </div>
           </div>
         )}
 
         {/* ── Night banner ── */}
         {v.night && (
           <div style={css("margin:14px 20px 0;background:var(--warnBg);border:1px solid var(--warnLine);border-radius:12px;padding:10px 14px;display:flex;gap:10px;align-items:center")}>
-            <span style={css("font-size:16px")}>🌙</span><div style={css("font-size:12px;color:var(--warnInk);line-height:1.45")}>ตอนนี้ {v.clock} — ช่วงกลางคืน (22:00–06:00) มีค่าบริการกลางคืน <b>+฿{v.nightFee}</b> (เฉพาะงาน Standard · งาน Pro ราคาปกติไม่บวกเพิ่ม)</div>
+            <span style={css("font-size:16px")}>🌙</span><div style={css("min-width:0")}>
+              <div style={css("font-size:12.5px;color:var(--warnInk);font-weight:800;line-height:1.5")}>ตอนนี้ {v.clock} เป็นช่วงกลางคืน (22:00–06:00)</div>
+              <div style={css("margin-top:2px;font-size:11.5px;color:var(--warnInk);font-weight:600;line-height:1.5")}>งาน Standard มีค่าบริการกลางคืน +฿{v.nightFee} ส่วนงาน Pro ราคาปกติไม่บวกเพิ่มครับ</div>
+            </div>
           </div>
         )}
 
