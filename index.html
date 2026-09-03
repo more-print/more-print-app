@@ -2401,6 +2401,7 @@ class App extends React.Component {
       // ── หน้า My Profile ──
       goLogin: () => this.setState({ screen: 'login', authMode: 'login' }),
       backToHome: () => this.setState({ screen: 'home' }),
+      popPick: (nm) => this.setState({ pinMode: 'map', mapLocked: false, gpsConfirm: false, searchQ: nm }, () => this.doSearch()), // ชิปจุดส่งยอดนิยม — ค้นหาสถานที่ให้ทันที
       openProfile: () => { if (!s.user) return this.setState({ screen: 'login', authMode: 'login' }); const u = s.user; this.setState({ screen: 'profile', profOpen: '', profFname: u.fname || '', profLname: u.lname || '', profPhone: this.fmtPhone(u.phone || '') }); },
       profOpen: s.profOpen,
       profToggle: (k) => () => this.setState({ profOpen: s.profOpen === k ? '' : k }),
@@ -2626,14 +2627,22 @@ class App extends React.Component {
                 <div style={css("margin-top:6px;font-size:11px;color:var(--sub)")}>แตะเพื่อดูสถานะจัดส่ง →</div>
               </div>
             )}
+            {/* วิธีสั่งปริ้น 4 ขั้นตอน — ลูกค้าใหม่เห็นภาพรวมการใช้งานทันที (จากรีวิวลูกค้า 2026-09-02) */}
             <div style={css("padding:18px 20px 0")}>
-              <div style={css("font-size:13px;font-weight:700;margin-bottom:9px")}>📍 จุดส่งยอดนิยม</div>
-              <div style={css("display:flex;gap:8px;flex-wrap:wrap")}>
-                <span style={css("background:var(--soft);color:var(--ink);font-size:12px;font-weight:500;padding:7px 12px;border-radius:99px")}>โรงชาย มข.</span>
-                <span style={css("background:var(--soft);color:var(--ink);font-size:12px;font-weight:500;padding:7px 12px;border-radius:99px")}>คณะบริหารธุรกิจฯ</span>
-                <span style={css("background:var(--soft);color:var(--ink);font-size:12px;font-weight:500;padding:7px 12px;border-radius:99px")}>คณะวิศวะ</span>
-                <span style={css("background:var(--soft);color:var(--ink);font-size:12px;font-weight:500;padding:7px 12px;border-radius:99px")}>หอใน มข.</span>
-                <span style={css("border:1px dashed var(--line);color:var(--sub);font-size:12px;padding:7px 12px;border-radius:99px")}>+ ทุกที่รอบ มข.</span>
+              <div style={css("font-size:13px;font-weight:700;margin-bottom:9px")}>🧭 สั่งปริ้นง่ายๆ ใน 4 ขั้นตอน</div>
+              <div style={css("background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px;box-shadow:var(--shadow);display:flex;flex-direction:column;gap:11px")}>
+                {[['1', '📄 อัปโหลดไฟล์ PDF', 'ระบบนับหน้า คำนวณราคาให้ทันที'],
+                  ['2', '🛠️ เลือกแบบงาน', 'ขาวดำ/สี หน้าเดียว-หน้าหลัง หรืองาน Pro'],
+                  ['3', '📍 เลือกวิธีรับงาน', 'ปักหมุดให้ไปส่ง หรือมารับหน้าร้าน (ฟรี)'],
+                  ['4', '💸 สแกนจ่าย แนบสลิป', 'ติดตามสถานะสด ๆ จนของถึงมือ']].map((st, i) => (
+                  <div key={i} style={css("display:flex;align-items:flex-start;gap:11px")}>
+                    <div style={css("width:22px;height:22px;border-radius:50%;background:var(--accSoft);color:var(--acc);font-size:11.5px;font-weight:800;display:flex;align-items:center;justify-content:center;flex:none;margin-top:1px")}>{st[0]}</div>
+                    <div style={css("min-width:0")}>
+                      <div style={css("font-size:12.5px;font-weight:700")}>{st[1]}</div>
+                      <div style={css("font-size:11px;color:var(--sub);line-height:1.5")}>{st[2]}</div>
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
             {/* ── รีวิวจากลูกค้า: ให้ดาว+คอมเมนต์ได้ตรงนี้เลย (ซ่อนจนกว่าตาราง reviews พร้อม) ── */}
@@ -2929,6 +2938,14 @@ class App extends React.Component {
                   </div>
                 ))}
                 {v.vehicleHint && <div style={css("font-size:11px;color:var(--acc);font-weight:600;line-height:1.5")}>{v.vehicleHint}</div>}
+              </div>
+              <div style={css("margin-bottom:12px")}>
+                <div style={css("font-size:12px;font-weight:600;color:var(--sub);margin-bottom:7px")}>📍 จุดส่งยอดนิยม — แตะแล้วระบบค้นหาให้เลย</div>
+                <div style={css("display:flex;gap:7px;flex-wrap:wrap")}>
+                  {['โรงชาย มข.', 'คณะบริหารธุรกิจ มข.', 'คณะวิศวกรรมศาสตร์ มข.', 'หอใน มข.', 'ตึกอธิการบดี มข.'].map((nm, i) => (
+                    <span key={i} onClick={() => v.popPick(nm)} style={css("background:var(--soft);border:1px solid var(--line);color:var(--ink);font-size:11.5px;font-weight:600;padding:7px 12px;border-radius:99px;cursor:pointer")}>{nm}</span>
+                  ))}
+                </div>
               </div>
               <div style={css("font-size:12px;font-weight:600;color:var(--sub);margin-bottom:8px")}>📍 บอกจุดส่งเอกสารด้วยวิธีไหนดีครับ? <span style={css("color:#d9480f")}>*</span></div>
               {/* เลือกวิธีก่อน แล้วค่อยโชว์เฉพาะวิธีนั้น — ไม่ให้ลูกค้าสับสน */}
