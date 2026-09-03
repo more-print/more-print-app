@@ -338,6 +338,7 @@ class App extends React.Component {
       screen: 'home', files: [], tier: 'standard', ptype: 'bw', paper: 'A4', sides: 1, orient: 'portrait', nup: 1, bind: 'none', copies: 1, note: '',
       shopOpen: true, // สถานะรับออเดอร์จากหลังบ้าน (false = ร้านกดปิดรับชั่วคราว)
       shopRain: false, // โหมดฝนตก (ร้านกดจากหลังบ้าน) — งาน Pro แบบส่งบังคับรถยนต์ทุกใบ
+      prevBroken: {}, prevOpen: false, // ตัวอย่างงาน Pro: ประเภทที่ยังไม่มีรูป + สถานะขยายรูปเต็มจอ
       rcOn: false, rcName: (rc0 && rc0.name) || '', rcAddr: (rc0 && rc0.addr) || '', rcTax: (rc0 && rc0.tax) || '', rcPhone: (rc0 && rc0.phone) || '', rcView: null, logoutArm: false, // ใบเสร็จรับเงิน + ยืนยันออกจากระบบ
       vehicle: 'bike', // พาหนะส่งที่ลูกค้าเลือกเอง: 'bike' มอเตอร์ไซค์ · 'car' รถยนต์ (ใช้ทั้ง Standard และ Pro)
       reviews: [], reviewsReady: false, revAll: false, revStars: 5, revText: '', trackStars: 5, trackText: '',
@@ -1897,6 +1898,10 @@ class App extends React.Component {
       printCost: c.printCost, bindCost: c.bindCost, printTotal: c.printTotal,
       deliveryCost: c.deliveryCost, grandTotal: c.grandTotal,
       noteText: s.note, setNote: (e) => this.setState({ note: e.target.value }),
+      // ตัวอย่างงานจริงของประเภท Pro ที่เลือกอยู่ — ไฟล์ assets/pro/<ประเภท>.jpg ยังไม่มีรูป = ซ่อนการ์ดเงียบ ๆ ไม่รกตา
+      proPrev: (s.tier === 'pro' && !s.prevBroken[s.proType]) ? 'assets/pro/' + s.proType + '.jpg' : null,
+      proPrevFail: () => this.setState(st => ({ prevBroken: { ...st.prevBroken, [st.proType]: true } })),
+      prevOpen: s.prevOpen, openPrev: () => this.setState({ prevOpen: true }), closePrev: () => this.setState({ prevOpen: false }),
       // ไฟล์ใหญ่กำลังอัปโหลดอยู่กี่ไฟล์ กี่ % — ไว้ขึ้นป้ายบอกลูกค้าให้รอ (หลายคนงงว่าทำไมกดต่อไปไม่ได้)
       bigUp: (() => { const l = s.files.filter(f => f.big && !f.upDone && !f.upErr); if (!l.length) return null;
         return { n: l.length, pct: Math.round(l.reduce((a, f) => a + (f.up || 0), 0) / l.length) }; })(),
@@ -2808,6 +2813,12 @@ class App extends React.Component {
                   ))}
                 </div></div>}
                 {v.isPro && <div style={css("font-size:11.5px;font-weight:700;color:var(--acc)")}>✓ ที่เลือก: {v.proPicked}{v.proShowBind ? ' · ' + (v.bindLabel || '') : ''}</div>}
+                {v.isPro && v.proPrev && (
+                  <div onClick={v.openPrev} style={css("border:1px solid var(--line);border-radius:12px;overflow:hidden;cursor:pointer;background:var(--soft)")}>
+                    <img key={v.proPrev} src={v.proPrev} alt="" onError={v.proPrevFail} style={css("width:100%;height:150px;object-fit:cover;display:block")}/>
+                    <div style={css("padding:7px 12px;font-size:10.5px;color:var(--sub);display:flex;align-items:center;gap:6px")}>📸 ตัวอย่างงานจริงจากร้าน · แตะที่รูปเพื่อดูขยาย</div>
+                  </div>
+                )}
                 <div style={css("font-size:11.5px;color:var(--acc);font-weight:600")}>💡 {v.rateHint}</div>
                 {v.colorNote && <div style={css("font-size:10.5px;color:var(--sub)")}>{v.colorNote}</div>}
               </div>
@@ -3686,6 +3697,14 @@ class App extends React.Component {
             </div>
           );
         })()}
+
+        {/* ── ขยายรูปตัวอย่างงาน Pro ── */}
+        {v.prevOpen && v.proPrev && (
+          <div onClick={v.closePrev} style={css("position:fixed;inset:0;background:rgba(0,0,0,.88);z-index:70;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:18px;cursor:pointer")}>
+            <img src={v.proPrev} alt="" style={css("max-width:100%;max-height:82vh;border-radius:12px;object-fit:contain")}/>
+            <div style={css("margin-top:12px;color:#fff;font-size:12.5px;font-weight:600")}>ตัวอย่าง{v.proPicked ? 'งาน ' + v.proPicked : ''} · แตะที่ไหนก็ได้เพื่อปิด</div>
+          </div>
+        )}
 
         {/* ── Toast ── */}
         {v.toast && (
