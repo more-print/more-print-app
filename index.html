@@ -338,7 +338,7 @@ class App extends React.Component {
       screen: 'home', files: [], tier: 'standard', ptype: 'bw', paper: 'A4', sides: 1, orient: 'portrait', nup: 1, bind: 'none', copies: 1, note: '',
       shopOpen: true, // สถานะรับออเดอร์จากหลังบ้าน (false = ร้านกดปิดรับชั่วคราว)
       shopRain: false, // โหมดฝนตก (ร้านกดจากหลังบ้าน) — งาน Pro แบบส่งบังคับรถยนต์ทุกใบ
-      prevBroken: {}, prevOpen: false, // ตัวอย่างงาน Pro: ประเภทที่ยังไม่มีรูป + สถานะขยายรูปเต็มจอ
+      prevOk: {}, prevOpen: false, // ตัวอย่างงาน Pro: ประเภทที่มีรูปจริง (พรีโหลดเช็คตอนเปิดเว็บ) + สถานะขยายรูปเต็มจอ
       rcOn: false, rcName: (rc0 && rc0.name) || '', rcAddr: (rc0 && rc0.addr) || '', rcTax: (rc0 && rc0.tax) || '', rcPhone: (rc0 && rc0.phone) || '', rcView: null, logoutArm: false, // ใบเสร็จรับเงิน + ยืนยันออกจากระบบ
       vehicle: 'bike', // พาหนะส่งที่ลูกค้าเลือกเอง: 'bike' มอเตอร์ไซค์ · 'car' รถยนต์ (ใช้ทั้ง Standard และ Pro)
       reviews: [], reviewsReady: false, revAll: false, revStars: 5, revText: '', trackStars: 5, trackText: '',
@@ -405,6 +405,8 @@ class App extends React.Component {
       { id: 2, name: 'ก้อง', stars: 5, comment: null, ptype: 'ปริ้นขาวดำ', auto: true, created_at: new Date().toISOString() },
       { id: 1, name: 'boat', stars: 4, comment: 'ดีครับ ราคาโอเค ส่งตรงเวลา', ptype: null, auto: false, created_at: new Date().toISOString() }
     ] });
+    // เช็คเงียบ ๆ ว่าประเภทงาน Pro ไหนมีรูปตัวอย่าง (assets/pro/<ประเภท>.jpg) — มีถึงโชว์ป้าย "กดดูตัวอย่างงาน"
+    PRO_TYPES.forEach(t => { try { const im = new Image(); im.onload = () => this.setState(st => ({ prevOk: { ...st.prevOk, [t.k]: true } })); im.src = 'assets/pro/' + t.k + '.jpg'; } catch (e) {} });
     // ⚠️ ด่านล็อกอินต้องมาก่อนเสมอ — ไม่มีบัญชี = หน้า login เท่านั้น (localStorage หาย → ลองคุกกี้สำรองก่อน)
     try {
       let u0 = null; try { u0 = JSON.parse(localStorage.getItem('mp_user') || 'null'); } catch (e2) {}
@@ -1899,9 +1901,8 @@ class App extends React.Component {
       printCost: c.printCost, bindCost: c.bindCost, printTotal: c.printTotal,
       deliveryCost: c.deliveryCost, grandTotal: c.grandTotal,
       noteText: s.note, setNote: (e) => this.setState({ note: e.target.value }),
-      // ตัวอย่างงานจริง: รูปย่อท้ายแถวเลือกประเภท (ประเภทไหนไม่มีไฟล์ assets/pro/<ประเภท>.jpg = ไม่โชว์รูปเงียบ ๆ) · แตะรูป = ขยายเต็มจอ
-      prevBroken: s.prevBroken,
-      prevFail: (k) => this.setState(st => ({ prevBroken: { ...st.prevBroken, [k]: true } })),
+      // ตัวอย่างงานจริง: ป้ายเทา "ตัวอย่างงาน" ท้ายแถวเลือกประเภท (เฉพาะประเภทที่มีรูปจริง) · แตะป้าย = รูปขยายเต็มจอ
+      prevOk: s.prevOk,
       prevOpen: s.prevOpen, openPrev: (k) => this.setState({ prevOpen: k }), closePrev: () => this.setState({ prevOpen: false }),
       prevLabel: s.prevOpen ? ((PRO_TYPES.find(t => t.k === s.prevOpen) || {}).label || '') : '',
       // ไฟล์ใหญ่กำลังอัปโหลดอยู่กี่ไฟล์ กี่ % — ไว้ขึ้นป้ายบอกลูกค้าให้รอ (หลายคนงงว่าทำไมกดต่อไปไม่ได้)
@@ -2791,13 +2792,12 @@ class App extends React.Component {
                   ? <div style={css("background:#fff7e0;border:1.5px solid #f0c36d;border-radius:12px;padding:11px 14px;font-size:12px;font-weight:700;color:#8a6d1a;line-height:1.6")}>⏰ สั่งได้เลยครับ — ออเดอร์จะเริ่มผลิตเวลา 08:30 น.</div>
                   : <div style={css("background:var(--accSoft);border:1px solid var(--acc);border-radius:12px;padding:9px 13px;font-size:11.5px;font-weight:700;color:var(--acc)")}>⏰ งาน Pro สั่งได้ตลอด 24 ชม. · หลัง 17:00 น. เริ่มผลิตวันถัดไป 08:30 น. · เสาร์หลัง 17:00 – อาทิตย์ เริ่มผลิตวันจันทร์ 08:30 น. (อาทิตย์วันหยุดร้าน)</div>)}
                 {v.isPro && <div style={css("display:flex;flex-direction:column;gap:6px")}><div style={css("font-size:12px;font-weight:600;color:var(--sub)")}>ประเภทงาน Pro (ร้านอุดมสุขปริ้นติ้ง)</div><div style={css("display:flex;flex-direction:column;gap:8px")}>{v.proTypeOpts.map((o, i) => (
-                  <button key={i} onClick={o.pick} style={{ ...o.st, width: '100%', boxSizing: 'border-box', minHeight: '46px', display: 'flex', alignItems: 'center', gap: '10px', textAlign: 'left', fontSize: '13px', paddingTop: '6px', paddingBottom: '6px' }}>
+                  <button key={i} onClick={o.pick} style={{ ...o.st, width: '100%', boxSizing: 'border-box', minHeight: '46px', display: 'flex', alignItems: 'center', gap: '10px', textAlign: 'left', fontSize: '13px' }}>
                     <span style={{ flex: 'none', lineHeight: 0 }}>{o.svg}</span>
                     <span style={{ flex: 1, minWidth: 0 }}>{o.label}</span>
-                    {!v.prevBroken[o.k] && (
-                      <img key={o.k} src={'assets/pro/' + o.k + '.jpg'} alt="" onError={() => v.prevFail(o.k)}
-                        onClick={(e) => { e.stopPropagation(); v.openPrev(o.k); }} title="ดูตัวอย่างงานจริง"
-                        style={{ flex: 'none', width: '46px', height: '46px', objectFit: 'cover', borderRadius: '9px', border: '1px solid var(--line)', cursor: 'zoom-in', display: 'block' }}/>
+                    {v.prevOk[o.k] && (
+                      <span onClick={(e) => { e.stopPropagation(); v.openPrev(o.k); }} title="ดูตัวอย่างงานจริง"
+                        style={{ flex: 'none', fontSize: '10px', fontWeight: 700, color: 'var(--sub)', background: 'var(--soft)', border: '1px solid var(--line)', borderRadius: '99px', padding: '3px 9px', lineHeight: 1.4, cursor: 'zoom-in' }}>กดดูตัวอย่างงาน</span>
                     )}
                   </button>
                 ))}</div></div>}
