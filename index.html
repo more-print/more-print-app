@@ -2953,6 +2953,7 @@ class App extends React.Component {
               {!v.vehSel ? (
                 <div style={css("background:var(--soft);border:1px dashed var(--line);border-radius:11px;padding:12px 14px;font-size:11.5px;color:var(--sub);line-height:1.6")}>เลือกวิธีจัดส่งก่อนครับ — แล้วค่อยบอกจุดส่งในขั้นถัดไป</div>
               ) : (<React.Fragment>
+              <div style={css("font-size:12.5px;font-weight:700;margin-bottom:8px")}><span style={css("color:var(--acc)")}>ขั้นที่ 3</span> · <span style={css("display:inline-flex;vertical-align:-2px;margin-right:2px")}>{fi('pin', 13)}</span> บอกจุดส่งเอกสารด้วยวิธีไหนดีครับ? <span style={css("color:#d9480f")}>*</span></div>
               {/* ที่อยู่จัดส่งประจำ — เลือกปุ๊บ กรอกที่อยู่+ปักหมุด+เลือกรถให้ครบทันที */}
               {v.savedAddrs.length > 0 && (
                 <div style={css("margin-bottom:14px")}>
@@ -2974,7 +2975,7 @@ class App extends React.Component {
                   </div>
                 </div>
               )}
-              <div style={css("font-size:12.5px;font-weight:700;margin-bottom:8px")}><span style={css("color:var(--acc)")}>ขั้นที่ 3</span> · <span style={css("display:inline-flex;vertical-align:-2px;margin-right:2px")}>{fi('pin', 13)}</span> บอกจุดส่งเอกสารด้วยวิธีไหนดีครับ? <span style={css("color:#d9480f")}>*</span></div>
+
               {/* เลือกวิธีก่อน แล้วค่อยโชว์เฉพาะวิธีนั้น — ไม่ให้ลูกค้าสับสน */}
               <div style={css("display:flex;flex-direction:column;gap:8px;margin-bottom:" + (v.pinMode ? "12px" : "0"))}>
                 {v.pinModeOpts.map((o, i) => (
