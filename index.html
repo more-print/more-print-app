@@ -407,12 +407,7 @@ class App extends React.Component {
     ] });
     // เช็คเงียบ ๆ ว่าประเภทงาน Pro ไหนมีรูปตัวอย่าง (assets/pro/<ประเภท>.jpg) — มีถึงโชว์ป้าย "กดดูตัวอย่างงาน"
     PRO_TYPES.forEach(t => { try { const im = new Image(); im.onload = () => this.setState(st => ({ prevOk: { ...st.prevOk, [t.k]: true } })); im.src = 'assets/pro/' + t.k + '.jpg'; } catch (e) {} });
-    // ⚠️ ด่านล็อกอินต้องมาก่อนเสมอ — ไม่มีบัญชี = หน้า login เท่านั้น (localStorage หาย → ลองคุกกี้สำรองก่อน)
-    try {
-      let u0 = null; try { u0 = JSON.parse(localStorage.getItem('mp_user') || 'null'); } catch (e2) {}
-      if (!u0 || !u0.fname) u0 = this.userFromCookie();
-      if (!u0 || !u0.fname) this.setState({ screen: 'login' });
-    } catch (e) { this.setState({ screen: 'login' }); }
+    // นโยบายใหม่ (2026-09-02 จากรีวิวลูกค้า): ลูกค้าใหม่ชมหน้าเว็บได้เลยไม่ต้องล็อกอิน — ด่านล็อกอินอยู่ตอนกดสั่งปริ้น/ติดตาม
     // LINE Login (LIFF) — เชื่อมกับ LINE OA ของร้าน
     // ถ้าเปิดจากเบราว์เซอร์ในแอป LINE (ไม่ใช่ LIFF) → เด้งไปเปิดแบบ LIFF จะได้ล็อกอินอัตโนมัติ
     if (cfg.LIFF_ID && window.liff && /Line\//i.test(navigator.userAgent) && !window.liff.isInClient()) {
@@ -436,8 +431,8 @@ class App extends React.Component {
         try { localStorage.setItem('mp_user', JSON.stringify(u)); } catch (e2) {}
         this.backupUser(u);
         this.setState({ user: u, phone: this.fmtPhone(u.phone || '') });
-      } else this.setState({ screen: 'login' });
-    } catch (e) { this.setState({ screen: 'login' }); }
+      } // ไม่มีบัญชี = ชมเว็บแบบแขกไปก่อน ล็อกอินตอนจะสั่งจริง
+    } catch (e) {}
     // กู้คืนออเดอร์ล่าสุดที่จำไว้ในเครื่อง (เผื่อลูกค้าปิดเว็บแล้วกลับเข้ามา)
     try {
       const od = JSON.parse(localStorage.getItem('mp_order') || 'null');
@@ -2404,7 +2399,9 @@ class App extends React.Component {
       discount: c.discount || 0,
 
       // ── หน้า My Profile ──
-      openProfile: () => { const u = s.user || {}; this.setState({ screen: 'profile', profOpen: '', profFname: u.fname || '', profLname: u.lname || '', profPhone: this.fmtPhone(u.phone || '') }); },
+      goLogin: () => this.setState({ screen: 'login', authMode: 'login' }),
+      backToHome: () => this.setState({ screen: 'home' }),
+      openProfile: () => { if (!s.user) return this.setState({ screen: 'login', authMode: 'login' }); const u = s.user; this.setState({ screen: 'profile', profOpen: '', profFname: u.fname || '', profLname: u.lname || '', profPhone: this.fmtPhone(u.phone || '') }); },
       profOpen: s.profOpen,
       profToggle: (k) => () => this.setState({ profOpen: s.profOpen === k ? '' : k }),
       profFname: s.profFname, profLname: s.profLname, profPhone: s.profPhone,
@@ -2478,7 +2475,7 @@ class App extends React.Component {
                 <span style={css("font-size:11.5px;font-weight:600;color:#fff;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0")}>{v.userFirst}</span>
                 <span style={css("width:7px;height:7px;border-radius:50%;background:var(--accBright);flex:none")}></span>
               </div>
-            : <div style={css("font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:var(--accBright);display:flex;align-items:center;gap:6px")}><span style={css("animation:mpPulse 2s infinite")}>●</span>{v.headStatus}</div>}
+            : <div onClick={v.goLogin} style={css("flex:none;background:var(--acc);color:#fff;font-size:11.5px;font-weight:700;padding:7px 14px;border-radius:99px;cursor:pointer")}>เข้าสู่ระบบ</div>}
         </div>
 
         {/* ── ป้ายร้านปิดรับออเดอร์ชั่วคราว (ร้านกดปิดจากหลังบ้าน) ── */}
@@ -2514,6 +2511,7 @@ class App extends React.Component {
         {/* ── Login / Register ── */}
         {v.isLogin && (
           <div style={css("padding:28px 24px;display:flex;flex-direction:column;gap:14px;align-items:stretch")}>
+            <div onClick={v.backToHome} style={css("align-self:flex-start;font-size:12px;color:var(--sub);cursor:pointer;font-weight:600")}>← กลับไปชมหน้าเว็บก่อน</div>
             <div style={css("display:flex;flex-direction:column;align-items:center;gap:10px;margin-bottom:2px")}>
               <img src="assets/logo-full.png" alt="MORE PRINT" style={css("width:160px;height:auto;display:block;background:#fff;border-radius:16px")}/>
               <div style={css("font-size:14px;color:var(--sub);text-align:center")}>สมัครครั้งเดียว สั่งปริ้นส่งถึงที่ ทุกที่ใน มข.</div>
@@ -2575,12 +2573,15 @@ class App extends React.Component {
         {/* ── Home ── */}
         {v.isHome && (
           <React.Fragment>
-            {v.userName && (
-              <div style={css("margin:14px 20px 0;display:flex;justify-content:space-between;align-items:center")}>
-                <div style={css("font-size:13px;color:var(--sub)")}>สวัสดี, <b style={css("color:var(--ink)")}>คุณ{v.userName}</b> 👋</div>
-                <button onClick={v.doLogout} style={css("border:none;background:none;font-size:11px;text-decoration:underline;cursor:pointer;color:" + (v.logoutArm ? "#c92a2a" : "var(--sub)") + (v.logoutArm ? ";font-weight:700" : ""))}>{v.logoutArm ? 'แตะอีกครั้งเพื่อยืนยัน' : 'เปลี่ยนบัญชี'}</button>
-              </div>
-            )}
+            {v.userName
+              ? <div style={css("margin:14px 20px 0;display:flex;justify-content:space-between;align-items:center")}>
+                  <div style={css("font-size:13px;color:var(--sub)")}>สวัสดี, <b style={css("color:var(--ink)")}>คุณ{v.userName}</b> 👋</div>
+                  <button onClick={v.doLogout} style={css("border:none;background:none;font-size:11px;text-decoration:underline;cursor:pointer;color:" + (v.logoutArm ? "#c92a2a" : "var(--sub)") + (v.logoutArm ? ";font-weight:700" : ""))}>{v.logoutArm ? 'แตะอีกครั้งเพื่อยืนยัน' : 'เปลี่ยนบัญชี'}</button>
+                </div>
+              : <div style={css("margin:14px 20px 0;display:flex;justify-content:space-between;align-items:center")}>
+                  <div style={css("font-size:12.5px;color:var(--sub)")}>ชมเว็บได้เลยครับ · ล็อกอินตอนกดสั่งปริ้น</div>
+                  <button onClick={v.goLogin} style={css("border:none;background:none;font-size:11.5px;font-weight:700;text-decoration:underline;cursor:pointer;color:var(--acc)")}>เข้าสู่ระบบ / สมัคร</button>
+                </div>}
             {v.banners.length > 0 && (
               <div style={css("margin-top:14px;display:flex;gap:10px;overflow-x:auto;padding:0 20px 4px;scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch")}>
                 {v.banners.map((b, i) => (
