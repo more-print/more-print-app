@@ -355,6 +355,7 @@ class App extends React.Component {
       shopRain: false, // โหมดฝนตก (ร้านกดจากหลังบ้าน) — งาน Pro แบบส่งบังคับรถยนต์ทุกใบ
       prevOk: {}, prevOpen: false, // ตัวอย่างงาน Pro: ประเภทที่มีรูปจริง (พรีโหลดเช็คตอนเปิดเว็บ) + สถานะขยายรูปเต็มจอ
       popSpots: POP_SPOTS, // จุดส่งยอดนิยม — โหลดของจริงจากฐานข้อมูล (pop_spots) ทับตอนเปิดเว็บ
+      recvSel: false, vehSel: false, // หน้าจุดส่งแบบทีละขั้น: เลือกการรับงานก่อน → เลือกพาหนะ → ค่อยบอกจุดส่ง
       rcOn: false, rcName: (rc0 && rc0.name) || '', rcAddr: (rc0 && rc0.addr) || '', rcTax: (rc0 && rc0.tax) || '', rcPhone: (rc0 && rc0.phone) || '', rcView: null, logoutArm: false, // ใบเสร็จรับเงิน + ยืนยันออกจากระบบ
       vehicle: 'bike', // พาหนะส่งที่ลูกค้าเลือกเอง: 'bike' มอเตอร์ไซค์ · 'car' รถยนต์ (ใช้ทั้ง Standard และ Pro)
       reviews: [], reviewsReady: false, revAll: false, revStars: 5, revText: '', trackStars: 5, trackText: '',
@@ -681,7 +682,7 @@ class App extends React.Component {
     this.setState({});
   }
   pickAddr(a){
-    this.setState({ addr: a.addr, vehicle: this.forceCar() ? 'car' : (a.veh || 'bike'), pinMode: 'map', pinSrc: 'saved', mapLocked: true }); // ที่อยู่เคยใช้จริง — ล็อกหมุดให้เลย · งานแข็ง/ฝนตกบังคับรถยนต์
+    this.setState({ addr: a.addr, vehicle: this.forceCar() ? 'car' : (a.veh || 'bike'), vehSel: true, pinMode: 'map', pinSrc: 'saved', mapLocked: true }); // ที่อยู่เคยใช้จริง — ล็อกหมุดให้เลย · งานแข็ง/ฝนตกบังคับรถยนต์
     if (a.lat != null) this.setPin(a.lat, a.lng, true);
     this.showToast('ใช้ที่อยู่ประจำแล้ว 🏠 เช็คหมุดบนแผนที่อีกทีนะครับ');
   }
@@ -1100,7 +1101,7 @@ class App extends React.Component {
   syncForcedVehicle(){
     const s = this.state;
     if (s.vehicle !== 'car' && this.forceCar() && ['order', 'delivery', 'review', 'pay'].includes(s.screen)) {
-      this.setState({ vehicle: 'car' });
+      this.setState({ vehicle: 'car', vehSel: true });
       if (s.screen !== 'order') this.showToast('🌧️ งานนี้ต้องจัดส่งด้วยรถยนต์ครับ — ระบบปรับวิธีส่งและค่าส่งให้แล้ว');
     }
   }
@@ -1820,8 +1821,8 @@ class App extends React.Component {
         { svg: ICON_SCOOTER, name: 'บริการส่ง', sub: 'คิดราคาตามระยะทาง', on: !s.proPickup, pick: () => this.setState({ proPickup: false }) },
         { svg: ICON_HANDOVER, name: 'มารับเองที่ร้าน', sub: 'ฟรี · ร้านอุดมสุขปริ้นติ้ง (กังสดาล)', on: s.proPickup, pick: () => this.setState({ proPickup: true }) }
       ] : [
-        { svg: ICON_SCOOTER, name: 'บริการส่งถึงที่', sub: 'คิดค่าส่งตามระยะทาง', on: !s.stdPickup, pick: () => this.setState({ stdPickup: false }) },
-        { svg: ICON_HANDOVER, name: 'รับหน้าร้าน', sub: 'ฟรี · ร้าน MORE PRINT (หอพักบริบูรณ์เพลส)', on: s.stdPickup, pick: () => this.setState({ stdPickup: true }) }
+        { svg: ICON_SCOOTER, name: 'บริการส่งถึงที่', sub: 'คิดค่าส่งตามระยะทาง', on: s.recvSel && !s.stdPickup, pick: () => this.setState({ stdPickup: false, recvSel: true }) },
+        { svg: ICON_HANDOVER, name: 'รับหน้าร้าน', sub: 'ฟรี · ร้าน MORE PRINT (หอพักบริบูรณ์เพลส)', on: s.recvSel && s.stdPickup, pick: () => this.setState({ stdPickup: true, recvSel: true }) }
       ],
       proShowQty: !!((PRO_TYPES.find(t => t.k === s.proType) || {}).qty),
       proQtyOpts: (((PRO_TYPES.find(t => t.k === s.proType) || {}).qty) || []).map(n => this.seg(n + ' ใบ ฿' + Math.ceil((s.sides === 2 ? PRO_NAMECARD.two : PRO_NAMECARD.one) * n / 100), s.proQty === n, () => this.setState({ proQty: n }))),
@@ -1921,6 +1922,7 @@ class App extends React.Component {
       prevOpen: s.prevOpen, openPrev: (k) => this.setState({ prevOpen: k }), closePrev: () => this.setState({ prevOpen: false }),
       prevLabel: s.prevOpen ? ((PRO_TYPES.find(t => t.k === s.prevOpen) || {}).label || '') : '',
       popSpots: s.popSpots,
+      recvSel: s.recvSel, vehSel: s.vehSel, // สถานะขั้นตอนหน้าจุดส่ง (เลือกแล้วถึงเปิดขั้นถัดไป)
       // ไฟล์ใหญ่กำลังอัปโหลดอยู่กี่ไฟล์ กี่ % — ไว้ขึ้นป้ายบอกลูกค้าให้รอ (หลายคนงงว่าทำไมกดต่อไปไม่ได้)
       bigUp: (() => { const l = s.files.filter(f => f.big && !f.upDone && !f.upErr); if (!l.length) return null;
         return { n: l.length, pct: Math.round(l.reduce((a, f) => a + (f.up || 0), 0) / l.length) }; })(),
@@ -1946,7 +1948,7 @@ class App extends React.Component {
         if (s.files.some(f => f.counting)) return this.showToast('รอระบบอ่านไฟล์แป๊บนึงครับ ⏳');
         const bigPending = s.files.find(f => f.big && !f.upDone);
         if (bigPending) return this.showToast(bigPending.upErr ? 'ไฟล์ใหญ่อัปโหลดไม่สำเร็จ — กดปุ่ม "ลองใหม่" ที่ไฟล์ก่อนนะครับ 🔁' : 'รอไฟล์ใหญ่อัปโหลดให้เสร็จก่อนนะครับ ⏳ (ดู % ที่รายการไฟล์)');
-        this.setState({ screen: 'delivery', vehicle: this.forceCar() ? 'car' : s.vehicle }); // งานแข็ง/ฝนตก สลับเป็นรถยนต์ให้อัตโนมัติ
+        this.setState({ screen: 'delivery', vehicle: this.forceCar() ? 'car' : s.vehicle, vehSel: this.forceCar() ? true : s.vehSel }); // งานแข็ง/ฝนตกบังคับรถยนต์ = ข้ามขั้นเลือกพาหนะให้เลย
       },
       gmapLink: s.gmapLink, gmapBusy: s.gmapBusy,
       gmapWrongApp: /share\.google/i.test(s.gmapLink || ''), // ลูกค้าวางลิงก์แชร์จากแอป Google (ไม่ใช่ Google Maps) — เตือนทันทีก่อนกดตกลง
@@ -2007,9 +2009,9 @@ class App extends React.Component {
         { k: 'car', icon: '🚗', name: 'รถยนต์', desc: '฿69-129 · งานใหญ่ ไม่เกิน 6 กม.' }
       ].map(o => {
         const dis = this.forceCar() && o.k === 'bike'; // งานแข็ง หรือ ฝนตก+งาน Pro — ห้ามมอไซค์
-        return { ...o, on: s.vehicle === o.k, dis,
+        return { ...o, on: s.vehSel && s.vehicle === o.k, dis,
           desc: dis ? (this.bigJob() ? 'งานแข็งแผ่นใหญ่ส่งมอเตอร์ไซค์ไม่ได้ครับ (หัก/เสียหาย)' : 'ช่วงฝนตก งานแผ่นใหญ่ส่งรถยนต์เท่านั้นครับ (กันงานเปียก)') : o.desc,
-          pick: dis ? () => this.showToast(this.bigJob() ? 'เพลท A3 ขึ้นไป / Standy เป็นงานแข็ง ต้องส่งด้วยรถยนต์เท่านั้นครับ 🚗' : '🌧️ ช่วงฝนตก งานแผ่นใหญ่จัดส่งด้วยรถยนต์เท่านั้นครับ กันงานเปียกเสียหาย') : () => this.setState({ vehicle: o.k }) };
+          pick: dis ? () => this.showToast(this.bigJob() ? 'เพลท A3 ขึ้นไป / Standy เป็นงานแข็ง ต้องส่งด้วยรถยนต์เท่านั้นครับ 🚗' : '🌧️ ช่วงฝนตก งานแผ่นใหญ่จัดส่งด้วยรถยนต์เท่านั้นครับ กันงานเปียกเสียหาย') : () => this.setState({ vehicle: o.k, vehSel: true }) };
       }),
       vehicleHint: this.bigJob() ? '🚗 งานแข็งแผ่นใหญ่ (เพลท A3 ขึ้นไป / Standy) — ระบบเลือกส่งด้วยรถยนต์ให้อัตโนมัติ กันงานหัก/เสียหาย' : this.forceCar() ? '🌧️ ช่วงฝนตก — งานแผ่นใหญ่จัดส่งด้วยรถยนต์เท่านั้น กันงานเปียก/เสียหาย' : '',
       vehicleLabel: s.vehicle === 'car' ? '🚗 รถยนต์' : '🏍️ มอเตอร์ไซค์',
@@ -2051,8 +2053,9 @@ class App extends React.Component {
       unlockMap: () => { this.setState({ mapLocked: false }); this.showToast('ปลดล็อกแล้ว — เลื่อนแผนที่ปรับหมุดได้เลยครับ 🔓'); },
       relinkMap: () => this.setState({ mapLocked: false, lat: null, lng: null, distKm: null, pinSrc: '', geoLabel: '' }),
       pinModeOpts: [
-        { k: 'link', icon: '🔗', name: 'ก๊อปลิงก์จาก Google Maps', sub: 'แม่นที่สุด — แชร์ลิงก์ที่อยู่มาวาง' },
-        { k: 'map', icon: '📍', name: 'ปักหมุดเอง', sub: 'ใช้ตำแหน่งปัจจุบัน หรือเลื่อนแผนที่' }
+        { k: 'link', icon: fi('nav', 20), name: 'ก๊อปลิงก์จาก Google Maps', sub: 'แม่นที่สุด — แชร์ลิงก์ที่อยู่มาวาง' },
+        { k: 'map', icon: fi('pin', 20), name: 'ปักหมุดเอง', sub: 'ใช้ตำแหน่งปัจจุบัน หรือเลื่อนแผนที่' },
+        ...(s.popSpots.length ? [{ k: 'spots', icon: fi('star', 20), name: 'จุดส่งยอดนิยม', sub: 'จุดที่ลูกค้าสั่งบ่อย — แตะแล้วปักหมุดให้ทันที' }] : [])
       ].map(o => ({ ...o, on: s.pinMode === o.k, pick: () => this.setState({ pinMode: o.k, mapLocked: false }) })),
       resetPinMode: () => this.setState({ pinMode: '' }),
       deliveryFee: c.deliveryFee, deliveryPending: c.deliveryPending,
@@ -2135,7 +2138,7 @@ class App extends React.Component {
           document.cookie = 'mp_rc_bk=' + encodeURIComponent(rcSave) + ';max-age=31536000;path=/;SameSite=Lax'; // สำรองคุกกี้ 1 ปี
         } catch (e) {}
         this.setState({ order: { id, total: c.grandTotal, times: [t0, '', '', ''], plabel, eta, pickup, ts, addr: oaddr, phone: s.phone, veh: oveh, copies: s.copies, pages: c.totalPages, dist: s.distKm, rc: rcReq, cp: cpUsed }, trackStep: 1, cancelReason: '', screen: 'track',
-          files: [], slip: null, copies: 1, bind: 'none', express: false, tier: 'standard', ptype: 'bw', paper: 'A4', sides: 1, orient: 'portrait', nup: 1, note: '', proPickup: false, stdPickup: false, proLam: 'none', proSpecial: false, proStaple: false, proStand: false, vehicle: 'bike', trackOpen: false, trackMin: false, histOpen: null, chatFor: null, chatFrom: 'track', selfCancelArm: false, couponCode: '', couponOk: null });
+          files: [], slip: null, copies: 1, bind: 'none', express: false, tier: 'standard', ptype: 'bw', paper: 'A4', sides: 1, orient: 'portrait', nup: 1, note: '', proPickup: false, stdPickup: false, recvSel: false, vehSel: false, proLam: 'none', proSpecial: false, proStaple: false, proStand: false, vehicle: 'bike', trackOpen: false, trackMin: false, histOpen: null, chatFor: null, chatFrom: 'track', selfCancelArm: false, couponCode: '', couponOk: null });
         // จำออเดอร์ไว้ในเครื่อง — ปิดเว็บแล้วกลับมา การติดตามยังอยู่
         try {
           const nod = { id, total: c.grandTotal, times: [t0, '', '', ''], step: 1, plabel, eta, pickup, ts, addr: oaddr, phone: s.phone, veh: oveh, copies: s.copies, pages: c.totalPages, dist: s.distKm, rc: rcReq, cp: cpUsed };
@@ -2908,7 +2911,7 @@ class App extends React.Component {
             <div style={css("font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:var(--sub);letter-spacing:1px")}>STEP 02 / 04 — จุดส่ง</div>
             <div style={css("background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px;box-shadow:var(--shadow)")}>
               {!v.isPro && <div style={css("margin-bottom:14px")}>
-                <div style={css("font-size:12px;font-weight:600;color:var(--sub);margin-bottom:7px")}>การรับงาน</div>
+                <div style={css("font-size:12.5px;font-weight:700;margin-bottom:7px")}><span style={css("color:var(--acc)")}>ขั้นที่ 1</span> · การรับงาน <span style={css("color:#d9480f")}>*</span></div>
                 <div style={css("display:flex;flex-direction:column;gap:8px")}>
                   {v.proPickupOpts.map((o, i) => (
                     <div key={i} onClick={o.pick} style={css("border:" + (o.on ? "1.5px solid var(--acc)" : "1px solid var(--line)") + ";border-radius:12px;padding:11px 14px;background:" + (o.on ? "var(--accSoft)" : "var(--card)") + ";display:flex;align-items:center;gap:11px;cursor:pointer")}>
@@ -2929,6 +2932,27 @@ class App extends React.Component {
                 </div>
               )}
               {!v.proPickupOn && <React.Fragment>
+              {!(v.isPro || v.recvSel) ? (
+                <div style={css("background:var(--soft);border:1px dashed var(--line);border-radius:11px;padding:12px 14px;font-size:11.5px;color:var(--sub);line-height:1.6")}>เลือก "การรับงาน" ด้านบนก่อนครับ — ขั้นตอนถัดไปจะแสดงขึ้นเอง</div>
+              ) : (<React.Fragment>
+              {/* ขั้น 2: เลือกพาหนะส่งเอง — ราคาเปลี่ยนทันทีตามที่เลือก */}
+              <div style={css("font-size:12.5px;font-weight:700;margin-bottom:8px")}><span style={css("color:var(--acc)")}>ขั้นที่ 2</span> · <span style={css("display:inline-flex;vertical-align:-2px;margin-right:2px")}>{fi('truck', 13)}</span> เลือกวิธีจัดส่ง <span style={css("color:#d9480f")}>*</span></div>
+              <div style={css("display:flex;flex-direction:column;gap:8px;margin-bottom:14px")}>
+                {v.vehicleOpts.map((o, i) => (
+                  <div key={i} onClick={o.pick} style={css("border:" + (o.on ? "1.5px solid var(--acc)" : "1px solid var(--line)") + ";border-radius:12px;padding:11px 14px;background:" + (o.on ? "var(--accSoft)" : "var(--card)") + ";display:flex;align-items:center;gap:11px;cursor:" + (o.dis ? "not-allowed;opacity:.5" : "pointer"))}>
+                    <div style={css("font-size:22px;flex:none")}>{o.icon}</div>
+                    <div style={css("flex:1;min-width:0")}>
+                      <div style={css("font-size:13.5px;font-weight:700;color:" + (o.on ? "var(--acc)" : "var(--ink)"))}>{o.name}</div>
+                      <div style={css("margin-top:1px;font-size:11px;color:var(--sub);line-height:1.5")}>{o.desc}</div>
+                    </div>
+                    <div style={css("width:20px;height:20px;border-radius:50%;flex:none;border:2px solid " + (o.on ? "var(--acc)" : "var(--line)") + ";display:flex;align-items:center;justify-content:center")}>{o.on && <div style={css("width:10px;height:10px;border-radius:50%;background:var(--acc)")}></div>}</div>
+                  </div>
+                ))}
+                {v.vehicleHint && <div style={css("font-size:11px;color:var(--acc);font-weight:600;line-height:1.5")}>{v.vehicleHint}</div>}
+              </div>
+              {!v.vehSel ? (
+                <div style={css("background:var(--soft);border:1px dashed var(--line);border-radius:11px;padding:12px 14px;font-size:11.5px;color:var(--sub);line-height:1.6")}>เลือกวิธีจัดส่งก่อนครับ — แล้วค่อยบอกจุดส่งในขั้นถัดไป</div>
+              ) : (<React.Fragment>
               {/* ที่อยู่จัดส่งประจำ — เลือกปุ๊บ กรอกที่อยู่+ปักหมุด+เลือกรถให้ครบทันที */}
               {v.savedAddrs.length > 0 && (
                 <div style={css("margin-bottom:14px")}>
@@ -2950,30 +2974,7 @@ class App extends React.Component {
                   </div>
                 </div>
               )}
-              {/* เลือกพาหนะส่งเอง — ราคาเปลี่ยนทันทีตามที่เลือก */}
-              <div style={css("font-size:12px;font-weight:600;color:var(--sub);margin-bottom:8px")}><span style={css("display:inline-flex;vertical-align:-2px;margin-right:5px")}>{fi('truck', 13)}</span>เลือกวิธีจัดส่ง <span style={css("color:#d9480f")}>*</span></div>
-              <div style={css("display:flex;flex-direction:column;gap:8px;margin-bottom:14px")}>
-                {v.vehicleOpts.map((o, i) => (
-                  <div key={i} onClick={o.pick} style={css("border:" + (o.on ? "1.5px solid var(--acc)" : "1px solid var(--line)") + ";border-radius:12px;padding:11px 14px;background:" + (o.on ? "var(--accSoft)" : "var(--card)") + ";display:flex;align-items:center;gap:11px;cursor:" + (o.dis ? "not-allowed;opacity:.5" : "pointer"))}>
-                    <div style={css("font-size:22px;flex:none")}>{o.icon}</div>
-                    <div style={css("flex:1;min-width:0")}>
-                      <div style={css("font-size:13.5px;font-weight:700;color:" + (o.on ? "var(--acc)" : "var(--ink)"))}>{o.name}</div>
-                      <div style={css("margin-top:1px;font-size:11px;color:var(--sub);line-height:1.5")}>{o.desc}</div>
-                    </div>
-                    <div style={css("width:20px;height:20px;border-radius:50%;flex:none;border:2px solid " + (o.on ? "var(--acc)" : "var(--line)") + ";display:flex;align-items:center;justify-content:center")}>{o.on && <div style={css("width:10px;height:10px;border-radius:50%;background:var(--acc)")}></div>}</div>
-                  </div>
-                ))}
-                {v.vehicleHint && <div style={css("font-size:11px;color:var(--acc);font-weight:600;line-height:1.5")}>{v.vehicleHint}</div>}
-              </div>
-              {v.popSpots.length > 0 && <div style={css("margin-bottom:12px")}>
-                <div style={css("font-size:12px;font-weight:600;color:var(--sub);margin-bottom:7px")}><span style={css("display:inline-flex;vertical-align:-2px;margin-right:5px")}>{fi('pin', 13)}</span>จุดส่งยอดนิยม — แตะแล้วปักหมุดให้เลย</div>
-                <div style={css("display:flex;gap:7px;flex-wrap:wrap")}>
-                  {v.popSpots.map((sp, i) => (
-                    <span key={i} onClick={() => v.popPick(sp)} style={css("background:var(--soft);border:1px solid var(--line);color:var(--ink);font-size:11.5px;font-weight:600;padding:7px 12px;border-radius:99px;cursor:pointer")}>{sp.name}</span>
-                  ))}
-                </div>
-              </div>}
-              <div style={css("font-size:12px;font-weight:600;color:var(--sub);margin-bottom:8px")}><span style={css("display:inline-flex;vertical-align:-2px;margin-right:5px")}>{fi('pin', 13)}</span>บอกจุดส่งเอกสารด้วยวิธีไหนดีครับ? <span style={css("color:#d9480f")}>*</span></div>
+              <div style={css("font-size:12.5px;font-weight:700;margin-bottom:8px")}><span style={css("color:var(--acc)")}>ขั้นที่ 3</span> · <span style={css("display:inline-flex;vertical-align:-2px;margin-right:2px")}>{fi('pin', 13)}</span> บอกจุดส่งเอกสารด้วยวิธีไหนดีครับ? <span style={css("color:#d9480f")}>*</span></div>
               {/* เลือกวิธีก่อน แล้วค่อยโชว์เฉพาะวิธีนั้น — ไม่ให้ลูกค้าสับสน */}
               <div style={css("display:flex;flex-direction:column;gap:8px;margin-bottom:" + (v.pinMode ? "12px" : "0"))}>
                 {v.pinModeOpts.map((o, i) => (
@@ -2987,6 +2988,16 @@ class App extends React.Component {
                   </div>
                 ))}
               </div>
+              {v.pinMode === 'spots' && v.popSpots.length > 0 && (
+                <div style={css("margin-bottom:12px;border:1.5px solid var(--acc);border-radius:12px;padding:11px 13px;background:var(--accSoft)")}>
+                  <div style={css("font-size:11.5px;font-weight:700;color:var(--acc);margin-bottom:8px")}>แตะจุดที่จะให้ไปส่ง — ระบบปักหมุดและล็อกให้ทันทีครับ</div>
+                  <div style={css("display:flex;gap:7px;flex-wrap:wrap")}>
+                    {v.popSpots.map((sp, i) => (
+                      <span key={i} onClick={() => v.popPick(sp)} style={css("background:var(--card);border:1px solid var(--acc);color:var(--acc);font-size:11.5px;font-weight:700;padding:8px 13px;border-radius:99px;cursor:pointer")}>{sp.name}</span>
+                    ))}
+                  </div>
+                </div>
+              )}
               {v.pinModeLink && <React.Fragment>
               <div style={css("border:1.5px solid var(--acc);border-radius:12px;padding:10px 12px;background:var(--accSoft)")}>
                 <div style={css("font-size:12px;font-weight:700;color:var(--acc)")}>🗺️ วางลิงก์จาก Google Maps</div>
@@ -3080,6 +3091,8 @@ class App extends React.Component {
                 : v.pinSet
                 ? <div style={css("margin-top:12px;background:var(--soft);border:1px dashed var(--line);border-radius:11px;padding:11px 13px;font-size:11.5px;color:var(--sub);line-height:1.6")}>🔒 กดปุ่ม "ยืนยันตำแหน่ง" ด้านบนก่อน — แล้วช่องกรอกรายละเอียดที่อยู่จะเปิดให้กรอกครับ (กันมือลั่นเลื่อนหมุดแล้วค่าส่ง/จุดส่งผิด)</div>
                 : null}
+              </React.Fragment>)}
+              </React.Fragment>)}
               </React.Fragment>}
               <div style={css("margin-top:10px;font-size:12px;font-weight:600;color:var(--sub)")}>เบอร์โทรผู้รับ <span style={css("color:#d9480f")}>*</span></div>
               <input value={v.phone} onChange={v.setPhone} placeholder="08x-xxx-xxxx" inputMode="tel" maxLength={12} style={css("margin-top:6px;width:100%;box-sizing:border-box;height:42px;border:1px solid var(--line);border-radius:10px;background:var(--soft);color:var(--ink);padding:0 12px;font-size:13px;outline:none")}/>
