@@ -407,7 +407,13 @@ class App extends React.Component {
       } catch (e) {} };
       chkShop(); this._shopTimer = setInterval(chkShop, 20000); // poll สำรองทุก 20 วิ
       // จุดส่งยอดนิยมจากหลังบ้าน (ตาราง pop_spots) — ยังไม่สร้างตาราง = ใช้ค่าสำรองในโค้ด
-      const loadSpots = () => { try { this.db.from('pop_spots').select('*').order('created_at').then(({ data, error }) => { if (!error && Array.isArray(data)) this.setState({ popSpots: data }); }).catch(() => {}); } catch (e) {} };
+      const loadSpots = () => { try {
+        this.db.from('pop_spots').select('*').order('ord', { ascending: true, nullsFirst: false }).order('created_at').then(({ data, error }) => {
+          if (!error && Array.isArray(data)) return this.setState({ popSpots: data });
+          // ยังไม่มีคอลัมน์ ord — เรียงตามเวลาเพิ่มไปก่อน
+          this.db.from('pop_spots').select('*').order('created_at').then(({ data: d2, error: e2 }) => { if (!e2 && Array.isArray(d2)) this.setState({ popSpots: d2 }); }).catch(() => {});
+        }).catch(() => {});
+      } catch (e) {} };
       loadSpots();
       // เรียลไทม์: หลังบ้านกดสวิตช์ปุ๊บ หน้าเว็บลูกค้ารู้ทันทีในวินาทีเดียว (ต้องเปิด Realtime ให้ตาราง shop_status — ยังไม่เปิดก็มี poll สำรองทำงานแทน)
       try {

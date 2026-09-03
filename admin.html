@@ -644,7 +644,8 @@ function AdminApp(){
   const [spotsMissing, setSpotsMissing] = React.useState(false);
   const loadSpots = React.useCallback(async () => {
     if (!DB) return;
-    const { data, error } = await DB.from('pop_spots').select('*').order('created_at');
+    let { data, error } = await DB.from('pop_spots').select('*').order('ord', { ascending: true, nullsFirst: false }).order('created_at');
+    if (error) { const r2 = await DB.from('pop_spots').select('*').order('created_at'); data = r2.data; error = r2.error; } // ยังไม่มีคอลัมน์ ord
     if (error) { if (/42P01|does not exist/i.test(String(error.message || ''))) setSpotsMissing(true); return; }
     setSpotsMissing(false); setSpots(data || []);
   }, []);
@@ -668,10 +669,24 @@ function AdminApp(){
     }
     if (!pt) { setSpBusy(false); return alert('อ่านพิกัดจากลิงก์นี้ไม่ได้ครับ 🙏\n\nวิธีเอาลิงก์ที่ใช้ได้: เปิด Google Maps → "กดค้าง" บนแผนที่ตรงจุดนั้นให้เกิดหมุดแดง → กดแชร์ → คัดลอกลิงก์ (ลิงก์แบบแชร์ชื่อสถานที่เฉยๆ ใช้ไม่ได้ เพราะไม่มีพิกัดแนบมา)'); }
     if (!DB) { setSpots(l => [...l, { id: Date.now(), name, lat: pt.lat, lng: pt.lng }]); setSpName(''); setSpUrl(''); setSpBusy(false); return; }
-    const { error } = await DB.from('pop_spots').insert({ name, lat: pt.lat, lng: pt.lng, url });
+    const maxOrd = spots.reduce((a, x) => Math.max(a, x.ord || 0), 0);
+    let { error } = await DB.from('pop_spots').insert({ name, lat: pt.lat, lng: pt.lng, url, ord: maxOrd + 1 });
+    if (error && /ord/.test(String(error.message || ''))) ({ error } = await DB.from('pop_spots').insert({ name, lat: pt.lat, lng: pt.lng, url })); // ยังไม่มีคอลัมน์ ord
     setSpBusy(false);
     if (error) return alert(/42P01|does not exist/i.test(String(error.message || '')) ? 'ต้องรัน SQL สร้างตาราง pop_spots ก่อนครับ' : 'เพิ่มไม่สำเร็จ: ' + error.message);
     setSpName(''); setSpUrl(''); await loadSpots();
+  };
+  const moveSpot = async (sp, dir) => { // เลื่อนขึ้น/ลง — สลับค่า ord กับเพื่อนบ้าน (จุดบนสุด = ลูกค้าเห็นก่อน)
+    const i = spots.findIndex(x => x.id === sp.id);
+    const j = i + dir;
+    if (j < 0 || j >= spots.length) return;
+    const a = spots[i], b = spots[j];
+    const ordA = a.ord != null ? a.ord : i + 1, ordB = b.ord != null ? b.ord : j + 1;
+    if (!DB) { const l = spots.slice(); l[i] = b; l[j] = a; setSpots(l); return; }
+    const r1 = await DB.from('pop_spots').update({ ord: ordB }).eq('id', a.id);
+    const r2 = await DB.from('pop_spots').update({ ord: ordA }).eq('id', b.id);
+    if ((r1 && r1.error) || (r2 && r2.error)) return alert('เลื่อนลำดับไม่สำเร็จ — ต้องรัน SQL เพิ่มคอลัมน์ ord ก่อนครับ');
+    await loadSpots();
   };
   const delSpot = async (sp) => {
     if (!window.confirm('ลบจุด "' + sp.name + '" ออกจากหน้าเว็บลูกค้าไหม?')) return;
@@ -1521,6 +1536,10 @@ function AdminApp(){
                 <div style={css("flex:1;min-width:0")}>
                   <div style={css("font-size:12.5px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap")}>{sp.name}</div>
                   <div style={css("font-size:10px;color:var(--sub);font-family:'IBM Plex Mono',monospace")}>{Number(sp.lat).toFixed(5)}, {Number(sp.lng).toFixed(5)}</div>
+                </div>
+                <div style={css("flex:none;display:flex;flex-direction:column;gap:2px")}>
+                  <button onClick={() => moveSpot(sp, -1)} disabled={spots.indexOf(sp) === 0} title="เลื่อนขึ้น — ลูกค้าเห็นก่อน" style={css("width:26px;height:20px;border:1px solid var(--line);background:var(--soft);color:var(--ink);border-radius:6px;font-size:10px;cursor:pointer;line-height:1" + (spots.indexOf(sp) === 0 ? ";opacity:.3" : ""))}>▲</button>
+                  <button onClick={() => moveSpot(sp, 1)} disabled={spots.indexOf(sp) === spots.length - 1} title="เลื่อนลง" style={css("width:26px;height:20px;border:1px solid var(--line);background:var(--soft);color:var(--ink);border-radius:6px;font-size:10px;cursor:pointer;line-height:1" + (spots.indexOf(sp) === spots.length - 1 ? ";opacity:.3" : ""))}>▼</button>
                 </div>
                 <a href={'https://www.google.com/maps?q=' + sp.lat + ',' + sp.lng} target="_blank" rel="noreferrer" style={css("flex:none;font-size:11px;font-weight:700;color:var(--acc);text-decoration:none")}>เช็คหมุด</a>
                 <span onClick={() => delSpot(sp)} style={css("flex:none;color:#c92a2a;font-size:12px;font-weight:700;cursor:pointer")}>ลบ</span>
