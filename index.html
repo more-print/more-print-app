@@ -354,6 +354,7 @@ class App extends React.Component {
       shopOpen: true, // สถานะรับออเดอร์จากหลังบ้าน (false = ร้านกดปิดรับชั่วคราว)
       shopRain: false, // โหมดฝนตก (ร้านกดจากหลังบ้าน) — งาน Pro แบบส่งบังคับรถยนต์ทุกใบ
       prevOk: {}, prevOpen: false, // ตัวอย่างงาน Pro: ประเภทที่มีรูปจริง (พรีโหลดเช็คตอนเปิดเว็บ) + สถานะขยายรูปเต็มจอ
+      popSpots: POP_SPOTS, // จุดส่งยอดนิยม — โหลดของจริงจากฐานข้อมูล (pop_spots) ทับตอนเปิดเว็บ
       rcOn: false, rcName: (rc0 && rc0.name) || '', rcAddr: (rc0 && rc0.addr) || '', rcTax: (rc0 && rc0.tax) || '', rcPhone: (rc0 && rc0.phone) || '', rcView: null, logoutArm: false, // ใบเสร็จรับเงิน + ยืนยันออกจากระบบ
       vehicle: 'bike', // พาหนะส่งที่ลูกค้าเลือกเอง: 'bike' มอเตอร์ไซค์ · 'car' รถยนต์ (ใช้ทั้ง Standard และ Pro)
       reviews: [], reviewsReady: false, revAll: false, revStars: 5, revText: '', trackStars: 5, trackText: '',
@@ -404,6 +405,9 @@ class App extends React.Component {
         }).catch(() => {});
       } catch (e) {} };
       chkShop(); this._shopTimer = setInterval(chkShop, 20000); // poll สำรองทุก 20 วิ
+      // จุดส่งยอดนิยมจากหลังบ้าน (ตาราง pop_spots) — ยังไม่สร้างตาราง = ใช้ค่าสำรองในโค้ด
+      const loadSpots = () => { try { this.db.from('pop_spots').select('*').order('created_at').then(({ data, error }) => { if (!error && Array.isArray(data)) this.setState({ popSpots: data }); }).catch(() => {}); } catch (e) {} };
+      loadSpots();
       // เรียลไทม์: หลังบ้านกดสวิตช์ปุ๊บ หน้าเว็บลูกค้ารู้ทันทีในวินาทีเดียว (ต้องเปิด Realtime ให้ตาราง shop_status — ยังไม่เปิดก็มี poll สำรองทำงานแทน)
       try {
         this.db.channel('shop-status-live')
@@ -411,6 +415,7 @@ class App extends React.Component {
             const r = payload && payload.new;
             if (r && r.id === 1) this.setState({ shopOpen: r.open !== false, shopRain: r.rain === true }, () => this.syncForcedVehicle());
           })
+          .on('postgres_changes', { event: '*', schema: 'public', table: 'pop_spots' }, () => loadSpots()) // หลังบ้านเพิ่ม/ลบจุด — หน้าเว็บอัปเดตทันที
           .subscribe();
       } catch (e) {}
     }
@@ -1915,6 +1920,7 @@ class App extends React.Component {
       prevOk: s.prevOk,
       prevOpen: s.prevOpen, openPrev: (k) => this.setState({ prevOpen: k }), closePrev: () => this.setState({ prevOpen: false }),
       prevLabel: s.prevOpen ? ((PRO_TYPES.find(t => t.k === s.prevOpen) || {}).label || '') : '',
+      popSpots: s.popSpots,
       // ไฟล์ใหญ่กำลังอัปโหลดอยู่กี่ไฟล์ กี่ % — ไว้ขึ้นป้ายบอกลูกค้าให้รอ (หลายคนงงว่าทำไมกดต่อไปไม่ได้)
       bigUp: (() => { const l = s.files.filter(f => f.big && !f.upDone && !f.upErr); if (!l.length) return null;
         return { n: l.length, pct: Math.round(l.reduce((a, f) => a + (f.up || 0), 0) / l.length) }; })(),
@@ -2959,10 +2965,10 @@ class App extends React.Component {
                 ))}
                 {v.vehicleHint && <div style={css("font-size:11px;color:var(--acc);font-weight:600;line-height:1.5")}>{v.vehicleHint}</div>}
               </div>
-              {POP_SPOTS.length > 0 && <div style={css("margin-bottom:12px")}>
+              {v.popSpots.length > 0 && <div style={css("margin-bottom:12px")}>
                 <div style={css("font-size:12px;font-weight:600;color:var(--sub);margin-bottom:7px")}><span style={css("display:inline-flex;vertical-align:-2px;margin-right:5px")}>{fi('pin', 13)}</span>จุดส่งยอดนิยม — แตะแล้วปักหมุดให้เลย</div>
                 <div style={css("display:flex;gap:7px;flex-wrap:wrap")}>
-                  {POP_SPOTS.map((sp, i) => (
+                  {v.popSpots.map((sp, i) => (
                     <span key={i} onClick={() => v.popPick(sp)} style={css("background:var(--soft);border:1px solid var(--line);color:var(--ink);font-size:11.5px;font-weight:600;padding:7px 12px;border-radius:99px;cursor:pointer")}>{sp.name}</span>
                   ))}
                 </div>
