@@ -38,7 +38,7 @@
 // ค่าส่ง 2 ชั้น คิดตามระยะทางถนนจริงจากร้าน (ระบบเลือกพาหนะเองจากประเภทงาน):
 // 🏍️ มอเตอร์ไซค์ (งานทั่วไป): ไม่เกิน 2 กม. เหมา ฿19 แล้ว +฿6/กม. ตั้งแต่ กม.ที่ 3 (ปัดเศษ กม. ขึ้น) ไม่มีเพดาน — แก้ 2026-08-24
 // 🚗 รถยนต์ (งานใหญ่: Standy / เพลท A3 ขึ้นไป): ≤2กม. ฿69 · ≤4กม. ฿89 · ≤6กม. ฿129 · เกิน 6 กม. สั่งทาง LINE
-const CONFIG = { nightOverride: 'auto', nightFee: 10, expressFee: 20, expressEnabled: true, // ส่งด่วน +20 เฉพาะงาน Standard แบบจัดส่ง — สัญญา 20-30 นาทีรวมส่งถึงมือ (เปลี่ยนเป็น false เพื่อปิด)
+const CONFIG = { nightOverride: 'auto', nightFee: 10, expressFee: 20, expressEnabled: true, // งานด่วน (Express) +20 เฉพาะงาน Standard แบบจัดส่ง — ลัดคิว+เร่งผลิต เวลาคาดการณ์ = 45 นาที/150 หน้า (เปลี่ยนเป็น false เพื่อปิด)
   bindBookOn: false, // บริการเข้าเล่ม +฿40 งาน Standard: ปิดชั่วคราว (2026-08-27 ยังทำไม่ได้) — เปลี่ยนเป็น true เพื่อเปิดคืน
   shopLat: 16.4633326, shopLng: 102.8241938, // จุดร้าน: โรงพิมพ์อุดมสุขปริ้นติ้ง (กังสดาล) — แก้ที่นี่ถ้าย้าย
   deliveryBase: 19, bikePerKm: 6,
@@ -1102,9 +1102,11 @@ class App extends React.Component {
   etaMinutes(){
     const s = this.state;
     if (s.tier !== 'pro') {
-      // งาน Standard: 1-150 หน้า = 1 ชม. · 151-300 = 2 ชม. · ทุก ๆ 150 หน้าถัดไป +1 ชม. (นับรวมทุกไฟล์ × จำนวนชุด — นโยบาย 2026-08-27)
+      // งาน Standard: ทุก ๆ 150 หน้า = 1 ชม. ขั้นต่ำ 1 ชม. (นับรวมทุกไฟล์ × จำนวนชุด — นโยบาย 2026-08-27)
+      // งานด่วน (Express): เร่งผลิต — บล็อกละ 45 นาทีแทน 1 ชม. (150 หน้า = 45 นาที · 300 หน้า = 1 ชม.ครึ่ง — นโยบาย 2026-09-05)
       const tp = (s.files || []).reduce((a, f) => a + (f.pages || 1), 0) * Math.max(1, s.copies || 1);
-      return Math.max(60, Math.ceil(tp / 150) * 60);
+      const per = this.isExpress() ? 45 : 60;
+      return Math.max(1, Math.ceil(tp / 150)) * per;
     }
     const m = CONFIG.etaProMin || {};
     if (s.proType === 'plate') return ['A2', 'A1', 'A0'].includes(s.proSize) ? (m.plateBig ?? 90) : (m.plate ?? 60);
@@ -2081,7 +2083,7 @@ class App extends React.Component {
       bindLabel: s.tier === 'pro' ? (s.proType === 'foldbook' ? s.proBind : '—') : s.bind === 'corner' ? 'เย็บมุม' : s.bind === 'book' ? 'เข้าเล่ม' : s.bind === 'landscape' ? 'เล่มแนวนอน' : 'ไม่เย็บมุม',
       isColorType: s.ptype === 'color',
       destLabel: s.addr,
-      timeLabel: (this.isExpress() ? 'ด่วน 20-30 นาที' : s.time + ' น.'),
+      timeLabel: (this.isExpress() ? 'งานด่วน (เร่งผลิต)' : s.time + ' น.'),
       deliveryLabel: this.isExpress() ? '(ด่วน)' : '',
       slipName: s.slip ? s.slip.name : '',
       pickSlip: () => this.slipRef.current && this.slipRef.current.click(),
@@ -2120,8 +2122,8 @@ class App extends React.Component {
         // จำป้ายประเภทงานไว้กับออเดอร์ — ใช้แสดงในรีวิว ("งานเอกสารขาวดำ" ฯลฯ)
         const plabel = s.tier === 'pro' ? 'PRO ' + this.proLabel() : ((PRINT_TYPES.find(t => t.k === s.ptype) || {}).label || '');
         // เวลาคาดว่าจะได้รับ: เวลาฐานตามประเภทงาน (คิวจริงจะบวกเพิ่มตามหลังเมื่อระบบตอบ)
-        const etaBaseMin = this.etaMinutes();
-        // ส่งด่วน (Standard): สัญญาได้รับงานภายใน 20-30 นาทีนับจากชำระเงิน — ใช้ค่าเดียวกับที่คิดเงินจริง (c.expressFee)
+        const etaBaseMin = this.etaMinutes(); // งานด่วน: etaMinutes ลดเวลาผลิตให้แล้ว (45 นาที/150 หน้า)
+        // งานด่วน (Express — Standard): ธงตามที่คิดเงินจริง (c.expressFee) — ร้านลัดคิวให้ ไม่บวกเวลาคิว
         const isExp = (c.expressFee || 0) > 0;
         // งาน Pro ที่สั่งช่วงหลัง 17:00 (ถึงก่อน 08:30) — เวลาคาดว่าได้รับเริ่มนับจาก 08:30 ของวันทำงานถัดไป
         let etaStart = Date.now();
@@ -2133,7 +2135,7 @@ class App extends React.Component {
             st0.setHours(8, 30, 0, 0); etaStart = st0.getTime();
           }
         }
-        const eta = isExp ? Date.now() + 30 * 60000 : etaStart + etaBaseMin * 60000; // ส่งด่วน = ถึงมือภายใน 30 นาที
+        const eta = etaStart + etaBaseMin * 60000; // งานด่วน: etaBaseMin สั้นลงอยู่แล้ว (45 นาที/บล็อก) และไม่โดนบวกคิวด้านล่าง
         // ยืนยันแล้วล้างรายการงานทิ้ง — เข้ามาสั่งรอบหน้าต้องเป็นหน้าว่างพร้อมดรอปไฟล์ใหม่ ไม่มีไฟล์เก่าค้าง
         const pickup = s.tier === 'pro' ? s.proPickup : s.stdPickup;
         const ts = Date.now(); // เวลาชำระ — ใช้นับถอยหลังช่วงที่ลูกค้ายกเลิกเองได้
@@ -2162,7 +2164,7 @@ class App extends React.Component {
         if (rcReq && this.db) setTimeout(() => { const od = this.state.order; if (od && od.id === id) this.issueReceipt(od); }, 8000);
         if (rcReq && !this.db) setTimeout(() => { const od = this.state.order; if (od && od.id === id) this.issueReceipt(od); }, 1500);
         // บวกเวลาตามคิวที่ค้างจริง (ออเดอร์ที่ยังไม่ออกส่ง) — รอ insert ลงฐานก่อนแล้วค่อยนับ
-        // ส่งด่วนไม่บวกคิว — สัญญา 20-30 นาทีตายตัว ร้านลัดคิวให้
+        // งานด่วนไม่บวกคิว — ร้านลัดคิวหยิบขึ้นทำก่อน เวลาคาดการณ์ใช้เวลาผลิตเร่งอย่างเดียว
         if (this.db && !isExp) setTimeout(async () => {
           try {
             let eta2 = null;
@@ -2234,16 +2236,17 @@ class App extends React.Component {
         const pk = !!(s.order && s.order.pickup);
         if (step >= 4) return pk ? '✅ รับสินค้าเรียบร้อยแล้ว ✓' : '🛵 ส่งแล้ว เรียบร้อย ✓';
         if (pk && step === 3) return '📦 สินค้าเสร็จแล้ว — มารับที่ร้านอุดมสุขปริ้นติ้ง (กังสดาล) ได้เลยครับ';
-        // ส่งด่วน (Standard): สัญญาได้รับงาน 20-30 นาทีนับจากเวลาชำระเงิน — ช่วงเวลาคำนวณสดทุกครั้งที่นาฬิกา s.now เดิน (ทุก 30 วิ)
+        // งานด่วน (Express — Standard): order.eta เป็นเวลาผลิตเร่งแล้ว (45 นาที/150 หน้า ไม่บวกคิว) + ช่วงเดินทางตามพาหนะ — คำนวณสดทุกครั้งที่นาฬิกา s.now เดิน (ทุก 30 วิ)
         if (s.order && s.order.express && !pk) {
           const bx = step === 3 ? '🛵 ไรเดอร์กำลังไปหาคุณ' : step === 2 ? '🖨️ กำลังปริ้นเอกสารของคุณ' : '✅ ร้านรับออเดอร์แล้ว';
-          const tx = s.order.ts;
-          // ป้ายส่งด่วนใช้ไอคอนรถส่งของ (FI.express) — etaLabel เลยคืนเป็น JSX เฉพาะ branch นี้ (branch อื่นยังเป็น string ใช้ร่วมกันได้)
+          const ex = s.order.eta;
+          // ป้ายงานด่วนใช้ไอคอนรถส่งของ (FI.express) — etaLabel เลยคืนเป็น JSX เฉพาะ branch นี้ (branch อื่นยังเป็น string ใช้ร่วมกันได้)
           const exIco = <span style={{ display: 'inline-flex', verticalAlign: '-3px', margin: '0 4px' }}>{fi('express', 14)}</span>;
-          if (!tx) return <React.Fragment>{bx + ' ·'}{exIco}{'ส่งด่วน — ได้รับงานภายใน 20-30 นาทีครับ'}</React.Fragment>;
-          const hiX = tx + 30 * 60000;
-          if (Date.now() > hiX) return <React.Fragment>{bx + ' ·'}{exIco}{'ส่งด่วน — ใกล้ถึงมือคุณแล้ว อีกไม่กี่นาทีครับ 🙏'}</React.Fragment>;
-          return <React.Fragment>{bx + ' ·'}{exIco}{'ส่งด่วน คาดว่าได้รับ ~' + this.fmtTime(new Date(tx + 20 * 60000)) + '–' + this.fmtTime(new Date(hiX)) + ' น.'}</React.Fragment>;
+          if (!ex) return <React.Fragment>{bx + ' ·'}{exIco}{'งานด่วน — ร้านเร่งผลิตงานของคุณเป็นคิวแรกครับ'}</React.Fragment>;
+          const carX = /รถยนต์|🚗/.test(s.order.veh || '');
+          const [xLo, xHi] = carX ? [25, 45] : [10, 25];
+          if (Date.now() > ex + xHi * 60000) return <React.Fragment>{bx + ' ·'}{exIco}{'งานด่วน — ใกล้ถึงมือคุณแล้ว อีกไม่กี่นาทีครับ 🙏'}</React.Fragment>;
+          return <React.Fragment>{bx + ' ·'}{exIco}{'งานด่วน คาดว่าได้รับ ~' + this.fmtTime(new Date(ex + xLo * 60000)) + '–' + this.fmtTime(new Date(ex + xHi * 60000)) + ' น.'}</React.Fragment>;
         }
         const isPro = !!stepsFor(s.order);
         // งาน Pro แบบส่ง ช่วงกำลังจัดส่ง (ในรอบ มข. ≤4 กม.จากร้าน): เวลาถึงโดยประมาณตามพาหนะ — มอไซค์ 10-25 นาที · รถยนต์ 25-45 นาที
@@ -3128,15 +3131,15 @@ class App extends React.Component {
                 <div style={css("font-size:12.5px;font-weight:700;margin-bottom:9px")}><span style={css("color:var(--acc)")}>ขั้นสุดท้าย</span> · อยากได้งานด่วนไหมครับ? <span style={css("font-weight:400;color:var(--sub)")}>(ไม่บังคับ)</span></div>
                 <div onClick={v.toggleExpress} style={css("display:flex;align-items:center;gap:12px;cursor:pointer")}>
                   <div style={v.expressTrack}><div style={v.expressKnob}></div></div>
-                  <div style={css("flex:1")}><div style={css("font-size:13px;font-weight:700")}><span style={css("display:inline-flex;vertical-align:-3px;margin-right:6px")}>{fi('express', 16)}</span>ส่งด่วน (Express) +฿{v.expressFee}</div><div style={css("margin-top:1px;font-size:11px;color:var(--sub);line-height:1.5")}>ได้รับงานถึงมือภายใน 20-30 นาที (รวมเวลาจัดส่งแล้ว)</div></div>
+                  <div style={css("flex:1")}><div style={css("font-size:13px;font-weight:700")}><span style={css("display:inline-flex;vertical-align:-3px;margin-right:6px")}>{fi('express', 16)}</span>งานด่วน (Express) +฿{v.expressFee}</div><div style={css("margin-top:1px;font-size:11px;color:var(--sub);line-height:1.5")}>งานของคุณแซงขึ้นคิวแรก ร้านหยิบทำทันที — ได้งานไวกว่าปกติแน่นอนครับ</div></div>
                 </div>
-                {v.express && <div style={css("margin-top:9px;background:var(--accSoft);border:1px solid var(--acc);border-radius:10px;padding:8px 11px;font-size:11.5px;color:var(--acc);font-weight:600;line-height:1.5")}><span style={css("display:inline-flex;vertical-align:-3px;margin-right:5px")}>{fi('express', 14)}</span>เปิดส่งด่วนแล้ว — คุณจะได้รับงานภายใน 20-30 นาทีหลังชำระเงินครับ</div>}
+                {v.express && <div style={css("margin-top:9px;background:var(--accSoft);border:1px solid var(--acc);border-radius:10px;padding:8px 11px;font-size:11.5px;color:var(--acc);font-weight:600;line-height:1.5")}><span style={css("display:inline-flex;vertical-align:-3px;margin-right:5px")}>{fi('express', 14)}</span>เปิดงานด่วนแล้ว — ร้านจะเร่งผลิตงานของคุณเป็นคิวแรก เสร็จไวกว่าปกติแน่นอนครับ</div>}
               </div>
             )}
             <div style={css("background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px")}>
               <div style={css("display:flex;flex-direction:column;gap:5px;font-size:12.5px")}>
                 <div style={css("display:flex;justify-content:space-between")}><span style={css("color:var(--sub)")}>ค่าส่ง{v.deliveryPending ? ' (เริ่มต้น — รอปักหมุด)' : ' (ตามระยะจริง)'}</span><span style={css("font-family:'IBM Plex Mono',monospace")}>฿{v.deliveryFee}</span></div>
-                {v.express && <div style={css("display:flex;justify-content:space-between")}><span style={css("color:var(--sub)")}>ส่งด่วน</span><span style={css("font-family:'IBM Plex Mono',monospace")}>+฿{v.expressFee}</span></div>}
+                {v.express && <div style={css("display:flex;justify-content:space-between")}><span style={css("color:var(--sub)")}>งานด่วน (Express)</span><span style={css("font-family:'IBM Plex Mono',monospace")}>+฿{v.expressFee}</span></div>}
                 {v.nightCharged && <div style={css("display:flex;justify-content:space-between")}><span style={css("color:var(--warnInk)")}>🌙 ค่าบริการกลางคืน</span><span style={css("font-family:'IBM Plex Mono',monospace;color:var(--warnInk)")}>+฿{v.nightFee}</span></div>}
                 <div style={css("display:flex;justify-content:space-between;border-top:1px dashed var(--line);padding-top:6px;margin-top:2px;font-weight:700")}><span>รวมทั้งหมด</span><span style={css("font-family:'IBM Plex Mono',monospace;color:var(--acc)")}>฿{v.grandTotal}</span></div>
               </div>
