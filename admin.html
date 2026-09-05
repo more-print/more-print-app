@@ -711,7 +711,7 @@ function AdminApp(){
   }, []);
   React.useEffect(() => { if (authed) { loadShopStatus(); const t = setInterval(loadShopStatus, 30000); return () => clearInterval(t); } }, [authed, loadShopStatus]);
   const shopStamp = React.useRef(0);
-  const [shopRain, setShopRain] = React.useState(false); // โหมดฝนตก: งาน Pro แบบส่งบังคับรถยนต์ (null = ยังไม่รัน SQL เพิ่มคอลัมน์)
+  const [shopRain, setShopRain] = React.useState(false); // โหมดฝนตก: ทุกงานแบบจัดส่ง (Pro+Standard) บังคับรถยนต์ (null = ยังไม่รัน SQL เพิ่มคอลัมน์)
   const [rainBusy, setRainBusy] = React.useState(false);
   const toggleRain = async () => {
     if (rainBusy) return;
@@ -1137,12 +1137,12 @@ function AdminApp(){
               {shopBusy ? '⏳' : shopOpen === false ? 'เปิดรับออเดอร์' : 'ปิดรับออเดอร์'}</button>
           </div>
 
-          {/* โหมดฝนตก: งาน Pro แบบส่งบังคับรถยนต์ทุกใบ (Standard ส่งมอไซค์ได้ปกติ) */}
+          {/* โหมดฝนตก: ทุกงานแบบจัดส่ง (Pro+Standard) บังคับรถยนต์ทุกใบ (นโยบาย 2026-09-05) */}
           <div style={css("background:" + (shopRain ? "#e7f5ff" : "var(--card)") + ";border:1.5px solid " + (shopRain ? "#74c0fc" : "var(--line)") + ";border-radius:14px;padding:13px 15px;box-shadow:var(--shadow);display:flex;align-items:center;gap:12px")}>
             <div style={css("font-size:20px;flex:none")}>{shopRain ? '🌧️' : '🌤️'}</div>
             <div style={css("flex:1;min-width:0")}>
-              <div style={css("font-size:13.5px;font-weight:800;" + (shopRain ? "color:#1971c2" : ""))}>โหมดฝนตก: {shopRain ? 'เปิดอยู่ — งานแผ่นใหญ่บังคับส่งรถยนต์' : 'ปิดอยู่'}</div>
-              <div style={css("margin-top:1px;font-size:10.5px;color:var(--sub)")}>{shopRain ? 'ลูกค้าเห็นป้ายฝนตก · เพลททุกขนาด/โปสเตอร์ A2ขึ้นไป/แบบแปลน A2-A1 เลือกได้แค่รถยนต์ — ฝนหยุดอย่าลืมกดปิด' : 'ฝนตกเมื่อไหร่กดเปิด — งานแผ่นใหญ่ (เพลททุกขนาด/โปสเตอร์ A2ขึ้นไป/แบบแปลน A2-A1) จะบังคับส่งรถยนต์ กันงานเปียก'}</div>
+              <div style={css("font-size:13.5px;font-weight:800;" + (shopRain ? "color:#1971c2" : ""))}>โหมดฝนตก: {shopRain ? 'เปิดอยู่ — ทุกงานบังคับส่งรถยนต์' : 'ปิดอยู่'}</div>
+              <div style={css("margin-top:1px;font-size:10.5px;color:var(--sub)")}>{shopRain ? 'ลูกค้าเห็นป้ายฝนตก · งานทุกรูปแบบทั้ง Pro และ Standard เลือกได้แค่รถยนต์ (เรทรถยนต์) — ฝนหยุดอย่าลืมกดปิด' : 'ฝนตกเมื่อไหร่กดเปิด — งานทุกรูปแบบทั้ง Pro และ Standard จะบังคับส่งรถยนต์ กันงานเปียกเสียหาย'}</div>
             </div>
             <button onClick={toggleRain} disabled={rainBusy}
               style={css("flex:none;height:40px;padding:0 18px;border:none;border-radius:10px;font-size:13px;font-weight:800;cursor:pointer;font-family:inherit;color:#fff;background:" + (shopRain ? "#868e96" : "#1971c2") + (rainBusy ? ";opacity:.5" : ""))}>
