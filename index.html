@@ -333,7 +333,8 @@ const FI = {
   tool: '<path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>',
   target: '<circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/>',
   upload: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>',
-  receipt: '<path d="M14 2H6a2 2 0 0 0-2 2v16l3-2 3 2 3-2 3 2 3-2V8z"/><line x1="8" y1="9" x2="16" y2="9"/><line x1="8" y1="13" x2="14" y2="13"/>'
+  receipt: '<path d="M14 2H6a2 2 0 0 0-2 2v16l3-2 3 2 3-2 3 2 3-2V8z"/><line x1="8" y1="9" x2="16" y2="9"/><line x1="8" y1="13" x2="14" y2="13"/>',
+  express: '<rect x="7" y="5" width="10" height="11" rx="1"/><path d="M17 9h2.5L22 12v4h-5"/><circle cx="10.5" cy="18" r="2"/><circle cx="19" cy="18" r="2"/><line x1="1" y1="7" x2="5" y2="7"/><line x1="2" y1="10.5" x2="5" y2="10.5"/><line x1="1" y1="14" x2="5" y2="14"/>' // รถส่งของ+เส้นสปีด — ใช้แทน 🚀 ทุกจุดของส่งด่วน (Express)
 };
 function fi(name, size, color){
   return <svg width={size || 18} height={size || 18} viewBox="0 0 24 24" fill="none" stroke={color || 'currentColor'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flex: 'none', display: 'block' }} dangerouslySetInnerHTML={{ __html: FI[name] || '' }}/>;
@@ -2241,10 +2242,12 @@ class App extends React.Component {
         if (s.order && s.order.express && !pk) {
           const bx = step === 3 ? '🛵 ไรเดอร์กำลังไปหาคุณ' : step === 2 ? '🖨️ กำลังปริ้นเอกสารของคุณ' : '✅ ร้านรับออเดอร์แล้ว';
           const tx = s.order.ts;
-          if (!tx) return bx + ' · 🚀 ส่งด่วน — ได้รับงานภายใน 20-30 นาทีครับ';
+          // ป้ายส่งด่วนใช้ไอคอนรถส่งของ (FI.express) — etaLabel เลยคืนเป็น JSX เฉพาะ branch นี้ (branch อื่นยังเป็น string ใช้ร่วมกันได้)
+          const exIco = <span style={{ display: 'inline-flex', verticalAlign: '-3px', margin: '0 4px' }}>{fi('express', 14)}</span>;
+          if (!tx) return <React.Fragment>{bx + ' ·'}{exIco}{'ส่งด่วน — ได้รับงานภายใน 20-30 นาทีครับ'}</React.Fragment>;
           const hiX = tx + 30 * 60000;
-          if (Date.now() > hiX) return bx + ' · 🚀 ส่งด่วน — ใกล้ถึงมือคุณแล้ว อีกไม่กี่นาทีครับ 🙏';
-          return bx + ' · 🚀 ส่งด่วน คาดว่าได้รับ ~' + this.fmtTime(new Date(tx + 20 * 60000)) + '–' + this.fmtTime(new Date(hiX)) + ' น.';
+          if (Date.now() > hiX) return <React.Fragment>{bx + ' ·'}{exIco}{'ส่งด่วน — ใกล้ถึงมือคุณแล้ว อีกไม่กี่นาทีครับ 🙏'}</React.Fragment>;
+          return <React.Fragment>{bx + ' ·'}{exIco}{'ส่งด่วน คาดว่าได้รับ ~' + this.fmtTime(new Date(tx + 20 * 60000)) + '–' + this.fmtTime(new Date(hiX)) + ' น.'}</React.Fragment>;
         }
         const isPro = !!stepsFor(s.order);
         // งาน Pro แบบส่ง ช่วงกำลังจัดส่ง (ในรอบ มข. ≤4 กม.จากร้าน): เวลาถึงโดยประมาณตามพาหนะ — มอไซค์ 10-25 นาที · รถยนต์ 25-45 นาที
@@ -3129,9 +3132,9 @@ class App extends React.Component {
                 <div style={css("font-size:12.5px;font-weight:700;margin-bottom:9px")}><span style={css("color:var(--acc)")}>ขั้นสุดท้าย</span> · อยากได้งานด่วนไหมครับ? <span style={css("font-weight:400;color:var(--sub)")}>(ไม่บังคับ)</span></div>
                 <div onClick={v.toggleExpress} style={css("display:flex;align-items:center;gap:12px;cursor:pointer")}>
                   <div style={v.expressTrack}><div style={v.expressKnob}></div></div>
-                  <div style={css("flex:1")}><div style={css("font-size:13px;font-weight:700")}>🚀 ส่งด่วน (Express) +฿{v.expressFee}</div><div style={css("margin-top:1px;font-size:11px;color:var(--sub);line-height:1.5")}>ได้รับงานถึงมือภายใน 20-30 นาที (รวมเวลาจัดส่งแล้ว)</div></div>
+                  <div style={css("flex:1")}><div style={css("font-size:13px;font-weight:700")}><span style={css("display:inline-flex;vertical-align:-3px;margin-right:6px")}>{fi('express', 16)}</span>ส่งด่วน (Express) +฿{v.expressFee}</div><div style={css("margin-top:1px;font-size:11px;color:var(--sub);line-height:1.5")}>ได้รับงานถึงมือภายใน 20-30 นาที (รวมเวลาจัดส่งแล้ว)</div></div>
                 </div>
-                {v.express && <div style={css("margin-top:9px;background:var(--accSoft);border:1px solid var(--acc);border-radius:10px;padding:8px 11px;font-size:11.5px;color:var(--acc);font-weight:600;line-height:1.5")}>🚀 เปิดส่งด่วนแล้ว — คุณจะได้รับงานภายใน 20-30 นาทีหลังชำระเงินครับ</div>}
+                {v.express && <div style={css("margin-top:9px;background:var(--accSoft);border:1px solid var(--acc);border-radius:10px;padding:8px 11px;font-size:11.5px;color:var(--acc);font-weight:600;line-height:1.5")}><span style={css("display:inline-flex;vertical-align:-3px;margin-right:5px")}>{fi('express', 14)}</span>เปิดส่งด่วนแล้ว — คุณจะได้รับงานภายใน 20-30 นาทีหลังชำระเงินครับ</div>}
               </div>
             )}
             <div style={css("background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px")}>
