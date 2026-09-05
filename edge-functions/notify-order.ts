@@ -1,4 +1,4 @@
-// Edge Function: notify-order v8 — แจ้งเตือน LINE แยกกลุ่มตามประเภทงาน + ร้านทักลูกค้า (action=msg) + หมายเหตุลูกค้าในแจ้งเตือน
+// Edge Function: notify-order v9 — แจ้งเตือน LINE แยกกลุ่มตามประเภทงาน + ร้านทักลูกค้า (action=msg) + เช็คโควตา (action=quota)
 // Secrets: LINE_TOKEN
 //   LINE_OWNER_ID = กลุ่มทีมงาน Standard (ออเดอร์งานทั่วไป)
 //   LINE_PRO_ID   = กลุ่มทีมงาน Pro (ออเดอร์งาน Pro) — ยังไม่ตั้ง = ส่งเข้ากลุ่ม Standard ไปก่อน กันแจ้งเตือนหาย
@@ -8,6 +8,7 @@
 // ?action=test → ข้อความทดสอบหาเจ้าของ · ?action=cancelled + {id} → แจ้งลูกค้า (ต้องมี line_uid)
 // ?action=customer-cancelled + {id} → ลูกค้ายกเลิกเองใน 10 นาที → แจ้งเจ้าของ (+พาร์ทเนอร์ถ้างาน Pro) ว่าไม่ต้องทำงานนี้
 // ?action=msg + {id, text} → ร้านทักลูกค้า: push ข้อความเข้า LINE ของลูกค้า (ต้องมี line_uid) — v8
+// ?action=quota → เช็คโควตาข้อความฟรี LINE OA เดือนนี้ {plan, limit, used, left} — อ่านอย่างเดียว ไม่กินโควตา — v9
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -50,6 +51,20 @@ Deno.serve(async (req) => {
       const r1 = await push(owners, '✅ ทดสอบสำเร็จ! กลุ่มนี้จะได้รับแจ้งเตือน "ออเดอร์งาน Standard" ครับ 🖨️');
       const r2 = prosG.length ? await push(prosG, '✅ ทดสอบสำเร็จ! กลุ่มนี้จะได้รับแจ้งเตือน "ออเดอร์งาน PRO" ครับ ✨') : null;
       return json({ ok: r1.ok, standard: r1.status, pro: r2 ? r2.status : 'ยังไม่ตั้ง LINE_PRO_ID' });
+    }
+
+    if (action === 'quota') {
+      // เช็คโควตาข้อความฟรีของ LINE OA เดือนนี้ — เป็นแค่การอ่านตัวเลข ไม่กินโควตา
+      const [qr, cr] = await Promise.all([
+        fetch('https://api.line.me/v2/bot/message/quota', { headers: { Authorization: 'Bearer ' + token } }),
+        fetch('https://api.line.me/v2/bot/message/quota/consumption', { headers: { Authorization: 'Bearer ' + token } }),
+      ]);
+      const q = await qr.json().catch(() => ({}));
+      const c = await cr.json().catch(() => ({}));
+      const limit = q.type === 'limited' ? q.value : null; // 'none' = แพลนไม่จำกัด
+      const used = typeof c.totalUsage === 'number' ? c.totalUsage : null;
+      return json({ ok: qr.ok && cr.ok, plan: q.type || 'unknown', limit, used,
+        left: (limit != null && used != null) ? Math.max(0, limit - used) : null });
     }
 
     // ดึงออเดอร์จริงจากฐานข้อมูล (สิทธิ์ระบบ) — กันคนนอกยิงมั่ว
