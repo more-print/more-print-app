@@ -38,7 +38,7 @@
 // ค่าส่ง 2 ชั้น คิดตามระยะทางถนนจริงจากร้าน (ระบบเลือกพาหนะเองจากประเภทงาน):
 // 🏍️ มอเตอร์ไซค์ (งานทั่วไป): ไม่เกิน 2 กม. เหมา ฿19 แล้ว +฿6/กม. ตั้งแต่ กม.ที่ 3 (ปัดเศษ กม. ขึ้น) ไม่มีเพดาน — แก้ 2026-08-24
 // 🚗 รถยนต์ (งานใหญ่: Standy / เพลท A3 ขึ้นไป): ≤2กม. ฿69 · ≤4กม. ฿89 · ≤6กม. ฿129 · เกิน 6 กม. สั่งทาง LINE
-const CONFIG = { nightOverride: 'auto', nightFee: 10, expressFee: 20, expressEnabled: false, // ส่งด่วนปิดชั่วคราว — เปลี่ยนเป็น true เพื่อเปิดคืน
+const CONFIG = { nightOverride: 'auto', nightFee: 10, expressFee: 20, expressEnabled: true, // ส่งด่วน +20 เฉพาะงาน Standard แบบจัดส่ง — สัญญา 20-30 นาทีรวมส่งถึงมือ (เปลี่ยนเป็น false เพื่อปิด)
   bindBookOn: false, // บริการเข้าเล่ม +฿40 งาน Standard: ปิดชั่วคราว (2026-08-27 ยังทำไม่ได้) — เปลี่ยนเป็น true เพื่อเปิดคืน
   shopLat: 16.4633326, shopLng: 102.8241938, // จุดร้าน: โรงพิมพ์อุดมสุขปริ้นติ้ง (กังสดาล) — แก้ที่นี่ถ้าย้าย
   deliveryBase: 19, bikePerKm: 6,
@@ -465,7 +465,7 @@ class App extends React.Component {
       const od = JSON.parse(localStorage.getItem('mp_order') || 'null');
       if (od && od.id) {
         this.setState({
-          order: { id: od.id, total: od.total || 0, times: od.times || ['', '', '', ''], plabel: od.plabel || '', eta: od.eta || null, pickup: !!od.pickup, ts: od.ts || null,
+          order: { id: od.id, total: od.total || 0, times: od.times || ['', '', '', ''], plabel: od.plabel || '', eta: od.eta || null, pickup: !!od.pickup, ts: od.ts || null, express: !!od.express,
             addr: od.addr || '', phone: od.phone || '', veh: od.veh || '', copies: od.copies || 0, pages: od.pages || 0, fails: od.fails || [], dist: od.dist ?? null, rc: od.rc || null, cp: od.cp || null },
           trackStep: od.step == null ? 1 : od.step, // step 0 (ยกเลิก) เป็น falsy — ห้ามใช้ || 1
           cancelReason: od.cancelReason || ''
@@ -987,10 +987,17 @@ class App extends React.Component {
     this.toastTimer = setTimeout(() => this.setState({ toast: '' }), 2200);
   }
 
+  // ส่งด่วน (Express) ใช้ได้เฉพาะ: งาน Standard + แบบจัดส่ง (ไม่ใช่รับหน้าร้าน) + ล็อกหมุดจุดส่งแล้ว
+  // ต้องเช็คครบทุกเงื่อนไขที่นี่ที่เดียว — ถ้าการ์ดส่งด่วนถูกซ่อน (เช่น สลับไปรับหน้าร้าน) ค่าธรรมเนียมต้องหายตามทันที ห้ามคิดเงินเงียบๆ
+  isExpress(){
+    const s = this.state;
+    return CONFIG.expressEnabled !== false && !!s.express && s.tier !== 'pro' && !s.stdPickup && !!s.mapLocked;
+  }
+
   calc(){
     const s = this.state;
     const nightFee = this.isNight() ? (CONFIG.nightFee ?? 10) : 0;
-    const expressFee = (CONFIG.expressEnabled !== false && s.express) ? (CONFIG.expressFee ?? 20) : 0;
+    const expressFee = this.isExpress() ? (CONFIG.expressFee ?? 20) : 0;
     // ค่าส่ง 2 ชั้นตามระยะถนนจริง — ลูกค้าเลือกพาหนะเอง (ยังไม่ปักหมุด = โชว์ราคาเริ่มต้น)
     const km = s.distKm;
     const carJob = s.vehicle === 'car' || this.forceCar(); // งานแข็ง/โหมดฝนตก บังคับเรทรถยนต์เสมอ
@@ -1077,7 +1084,7 @@ class App extends React.Component {
     }
     return { pages, totalPages, sheets, rate, heavyPages, lightPages, printCost, bindCost, printTotal: printCost + bindCost,
       deliveryFee, carJob, farNote, outOfArea, proPickupOn, deliveryPending: !proPickupOn && km == null,
-      deliveryCost, nightFee: nightFee2, discount, coupon: discount > 0 ? cp.code : null,
+      deliveryCost, expressFee, nightFee: nightFee2, discount, coupon: discount > 0 ? cp.code : null,
       grandTotal: Math.max(0, beforeDiscount - discount) };
   }
 
@@ -1236,7 +1243,7 @@ class App extends React.Component {
         line_uid: (s.user && s.user.line_uid) || null, // ไว้แจ้งเตือนลูกค้าทาง LINE (เฉพาะคนล็อกอินด้วย LINE)
         // นำหน้าที่อยู่ด้วยพาหนะที่ลูกค้าเลือก — ไรเดอร์/หลังบ้านเห็นทันทีว่าต้องใช้รถอะไร (ไม่ต้องเพิ่มคอลัมน์ใหม่)
         addr: (s.tier === 'pro' && s.proPickup) ? '🏪 มารับเองที่ร้านอุดมสุขปริ้นติ้ง' : (s.tier !== 'pro' && s.stdPickup) ? '🏪 รับหน้าร้าน MORE PRINT (หอพักบริบูรณ์เพลส)' : ((s.vehicle === 'car' || this.forceCar()) ? '🚗 ' : '🏍️ ') + s.addr, // งานบังคับรถยนต์ป้ายต้องตรง
-        phone: s.phone, time: '', express: s.express, night: this.isNight(),
+        phone: s.phone, time: '', express: (c.expressFee || 0) > 0, night: this.isNight(), // express ตามที่คิดเงินจริงตอนกดจ่าย (เฉพาะ Standard แบบจัดส่ง)
         print_cost: c.printCost, bind_cost: c.bindCost, delivery_cost: c.deliveryCost,
         night_fee: c.nightFee || 0, // ตามสูตรจริง — งาน Pro/มารับเอง = 0
         total: c.grandTotal, status: 1, times: [t0, '', '', ''],
@@ -1448,7 +1455,7 @@ class App extends React.Component {
     try { localStorage.setItem('mp_order', JSON.stringify(o)); } catch (e) {}
     clearInterval(this.trackTimer);
     this.setState({
-      order: { id: o.id, total: o.total || 0, times: o.times || ['', '', '', ''], plabel: o.plabel || '', eta: o.eta || null, pickup: !!o.pickup, ts: o.ts || null, addr: o.addr || '', phone: o.phone || '', veh: o.veh || '', copies: o.copies || 0, pages: o.pages || 0, fails: o.fails || [], dist: o.dist ?? null, rc: o.rc || null, cp: o.cp || null },
+      order: { id: o.id, total: o.total || 0, times: o.times || ['', '', '', ''], plabel: o.plabel || '', eta: o.eta || null, pickup: !!o.pickup, ts: o.ts || null, express: !!o.express, addr: o.addr || '', phone: o.phone || '', veh: o.veh || '', copies: o.copies || 0, pages: o.pages || 0, fails: o.fails || [], dist: o.dist ?? null, rc: o.rc || null, cp: o.cp || null },
       trackStep: o.step == null ? 1 : o.step, cancelReason: o.cancelReason || '', chat: [], trackOpen: true, trackMin: false, selfCancelArm: false // ระวัง: step 0 (ยกเลิก) เป็น falsy ห้ามใช้ || 1 · trackOpen true = ใบที่เพิ่งแตะเลือกกางให้เห็นทันทีเสมอ
     }, () => {
       if (this.db && o.step !== 0 && (o.step || 1) < 4) this.startPolling(o.id);
@@ -1990,8 +1997,9 @@ class App extends React.Component {
       addr: s.addr, setAddr: (e) => set('addr')(e.target.value),
       phone: s.phone, setPhone: (e) => set('phone')(this.fmtPhone(e.target.value)),
       time: s.time, setTime: (e) => set('time')(e.target.value),
-      express: s.express, toggleExpress: () => this.setState(st => ({ express: !st.express })),
-      expressOn: CONFIG.expressEnabled !== false,
+      express: this.isExpress(), toggleExpress: () => this.setState(st => ({ express: !st.express })),
+      // การ์ดส่งด่วน = ขั้นสุดท้ายของหน้าจุดส่ง: โผล่เฉพาะงาน Standard แบบจัดส่ง หลังลูกค้าบอกจุดส่ง (ล็อกหมุด) เสร็จแล้วเท่านั้น
+      expressOn: CONFIG.expressEnabled !== false && s.tier !== 'pro' && !s.stdPickup && s.recvSel && s.vehSel && !!s.mapLocked,
       expressTrack: { width: '46px', height: '27px', borderRadius: '99px', background: s.express ? 'var(--acc)' : 'var(--line)', position: 'relative', transition: 'background .2s', flex: 'none' },
       expressKnob: { width: '21px', height: '21px', borderRadius: '50%', background: '#fff', position: 'absolute', top: '3px', left: s.express ? '22px' : '3px', transition: 'left .2s', boxShadow: '0 1px 3px rgba(0,0,0,.3)' },
       deliveryWarn: '',
@@ -2076,8 +2084,8 @@ class App extends React.Component {
       bindLabel: s.tier === 'pro' ? (s.proType === 'foldbook' ? s.proBind : '—') : s.bind === 'corner' ? 'เย็บมุม' : s.bind === 'book' ? 'เข้าเล่ม' : s.bind === 'landscape' ? 'เล่มแนวนอน' : 'ไม่เย็บมุม',
       isColorType: s.ptype === 'color',
       destLabel: s.addr,
-      timeLabel: (s.express ? 'ด่วน ~45 นาที' : s.time + ' น.'),
-      deliveryLabel: s.express ? '(ด่วน)' : '',
+      timeLabel: (this.isExpress() ? 'ด่วน 20-30 นาที' : s.time + ' น.'),
+      deliveryLabel: this.isExpress() ? '(ด่วน)' : '',
       slipName: s.slip ? s.slip.name : '',
       pickSlip: () => this.slipRef.current && this.slipRef.current.click(),
       onSlip: async (e) => {
@@ -2116,6 +2124,8 @@ class App extends React.Component {
         const plabel = s.tier === 'pro' ? 'PRO ' + this.proLabel() : ((PRINT_TYPES.find(t => t.k === s.ptype) || {}).label || '');
         // เวลาคาดว่าจะได้รับ: เวลาฐานตามประเภทงาน (คิวจริงจะบวกเพิ่มตามหลังเมื่อระบบตอบ)
         const etaBaseMin = this.etaMinutes();
+        // ส่งด่วน (Standard): สัญญาได้รับงานภายใน 20-30 นาทีนับจากชำระเงิน — ใช้ค่าเดียวกับที่คิดเงินจริง (c.expressFee)
+        const isExp = (c.expressFee || 0) > 0;
         // งาน Pro ที่สั่งช่วงหลัง 17:00 (ถึงก่อน 08:30) — เวลาคาดว่าได้รับเริ่มนับจาก 08:30 ของวันทำงานถัดไป
         let etaStart = Date.now();
         if (s.tier === 'pro') {
@@ -2126,7 +2136,7 @@ class App extends React.Component {
             st0.setHours(8, 30, 0, 0); etaStart = st0.getTime();
           }
         }
-        const eta = etaStart + etaBaseMin * 60000;
+        const eta = isExp ? Date.now() + 30 * 60000 : etaStart + etaBaseMin * 60000; // ส่งด่วน = ถึงมือภายใน 30 นาที
         // ยืนยันแล้วล้างรายการงานทิ้ง — เข้ามาสั่งรอบหน้าต้องเป็นหน้าว่างพร้อมดรอปไฟล์ใหม่ ไม่มีไฟล์เก่าค้าง
         const pickup = s.tier === 'pro' ? s.proPickup : s.stdPickup;
         const ts = Date.now(); // เวลาชำระ — ใช้นับถอยหลังช่วงที่ลูกค้ายกเลิกเองได้
@@ -2143,11 +2153,11 @@ class App extends React.Component {
           localStorage.setItem('mp_rc', rcSave);
           document.cookie = 'mp_rc_bk=' + encodeURIComponent(rcSave) + ';max-age=31536000;path=/;SameSite=Lax'; // สำรองคุกกี้ 1 ปี
         } catch (e) {}
-        this.setState({ order: { id, total: c.grandTotal, times: [t0, '', '', ''], plabel, eta, pickup, ts, addr: oaddr, phone: s.phone, veh: oveh, copies: s.copies, pages: c.totalPages, dist: s.distKm, rc: rcReq, cp: cpUsed }, trackStep: 1, cancelReason: '', screen: 'track',
+        this.setState({ order: { id, total: c.grandTotal, times: [t0, '', '', ''], plabel, eta, pickup, ts, express: isExp, addr: oaddr, phone: s.phone, veh: oveh, copies: s.copies, pages: c.totalPages, dist: s.distKm, rc: rcReq, cp: cpUsed }, trackStep: 1, cancelReason: '', screen: 'track',
           files: [], slip: null, copies: 1, bind: 'none', express: false, tier: 'standard', ptype: 'bw', paper: 'A4', sides: 1, orient: 'portrait', nup: 1, note: '', proPickup: false, stdPickup: false, recvSel: false, vehSel: false, proLam: 'none', proSpecial: false, proStaple: false, proStand: false, vehicle: 'bike', trackOpen: false, trackMin: false, histOpen: null, chatFor: null, chatFrom: 'track', selfCancelArm: false, couponCode: '', couponOk: null });
         // จำออเดอร์ไว้ในเครื่อง — ปิดเว็บแล้วกลับมา การติดตามยังอยู่
         try {
-          const nod = { id, total: c.grandTotal, times: [t0, '', '', ''], step: 1, plabel, eta, pickup, ts, addr: oaddr, phone: s.phone, veh: oveh, copies: s.copies, pages: c.totalPages, dist: s.distKm, rc: rcReq, cp: cpUsed };
+          const nod = { id, total: c.grandTotal, times: [t0, '', '', ''], step: 1, plabel, eta, pickup, ts, express: isExp, addr: oaddr, phone: s.phone, veh: oveh, copies: s.copies, pages: c.totalPages, dist: s.distKm, rc: rcReq, cp: cpUsed };
           localStorage.setItem('mp_order', JSON.stringify(nod));
           this.upsertOrderList(nod); // สั่งหลายใบไล่เลี่ยกัน — ทุกใบอยู่ในลิสต์ติดตาม
         } catch (e) {}
@@ -2155,7 +2165,8 @@ class App extends React.Component {
         if (rcReq && this.db) setTimeout(() => { const od = this.state.order; if (od && od.id === id) this.issueReceipt(od); }, 8000);
         if (rcReq && !this.db) setTimeout(() => { const od = this.state.order; if (od && od.id === id) this.issueReceipt(od); }, 1500);
         // บวกเวลาตามคิวที่ค้างจริง (ออเดอร์ที่ยังไม่ออกส่ง) — รอ insert ลงฐานก่อนแล้วค่อยนับ
-        if (this.db) setTimeout(async () => {
+        // ส่งด่วนไม่บวกคิว — สัญญา 20-30 นาทีตายตัว ร้านลัดคิวให้
+        if (this.db && !isExp) setTimeout(async () => {
           try {
             let eta2 = null;
             if (s.tier !== 'pro') {
@@ -2226,6 +2237,15 @@ class App extends React.Component {
         const pk = !!(s.order && s.order.pickup);
         if (step >= 4) return pk ? '✅ รับสินค้าเรียบร้อยแล้ว ✓' : '🛵 ส่งแล้ว เรียบร้อย ✓';
         if (pk && step === 3) return '📦 สินค้าเสร็จแล้ว — มารับที่ร้านอุดมสุขปริ้นติ้ง (กังสดาล) ได้เลยครับ';
+        // ส่งด่วน (Standard): สัญญาได้รับงาน 20-30 นาทีนับจากเวลาชำระเงิน — ช่วงเวลาคำนวณสดทุกครั้งที่นาฬิกา s.now เดิน (ทุก 30 วิ)
+        if (s.order && s.order.express && !pk) {
+          const bx = step === 3 ? '🛵 ไรเดอร์กำลังไปหาคุณ' : step === 2 ? '🖨️ กำลังปริ้นเอกสารของคุณ' : '✅ ร้านรับออเดอร์แล้ว';
+          const tx = s.order.ts;
+          if (!tx) return bx + ' · 🚀 ส่งด่วน — ได้รับงานภายใน 20-30 นาทีครับ';
+          const hiX = tx + 30 * 60000;
+          if (Date.now() > hiX) return bx + ' · 🚀 ส่งด่วน — ใกล้ถึงมือคุณแล้ว อีกไม่กี่นาทีครับ 🙏';
+          return bx + ' · 🚀 ส่งด่วน คาดว่าได้รับ ~' + this.fmtTime(new Date(tx + 20 * 60000)) + '–' + this.fmtTime(new Date(hiX)) + ' น.';
+        }
         const isPro = !!stepsFor(s.order);
         // งาน Pro แบบส่ง ช่วงกำลังจัดส่ง (ในรอบ มข. ≤4 กม.จากร้าน): เวลาถึงโดยประมาณตามพาหนะ — มอไซค์ 10-25 นาที · รถยนต์ 25-45 นาที
         if (isPro && step === 3 && !pk && (s.order.dist == null || s.order.dist <= 4)) {
@@ -3106,10 +3126,12 @@ class App extends React.Component {
             </div>
             {v.expressOn && (
               <div style={css("background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px;box-shadow:var(--shadow)")}>
+                <div style={css("font-size:12.5px;font-weight:700;margin-bottom:9px")}><span style={css("color:var(--acc)")}>ขั้นสุดท้าย</span> · อยากได้งานด่วนไหมครับ? <span style={css("font-weight:400;color:var(--sub)")}>(ไม่บังคับ)</span></div>
                 <div onClick={v.toggleExpress} style={css("display:flex;align-items:center;gap:12px;cursor:pointer")}>
                   <div style={v.expressTrack}><div style={v.expressKnob}></div></div>
-                  <div style={css("flex:1")}><div style={css("font-size:13px;font-weight:600")}>🛵 ส่งด่วน (Express)</div><div style={css("font-size:11px;color:var(--sub)")}>ถึงภายใน ~45 นาที · +฿{v.expressFee}</div></div>
+                  <div style={css("flex:1")}><div style={css("font-size:13px;font-weight:700")}>🚀 ส่งด่วน (Express) +฿{v.expressFee}</div><div style={css("margin-top:1px;font-size:11px;color:var(--sub);line-height:1.5")}>ได้รับงานถึงมือภายใน 20-30 นาที (รวมเวลาจัดส่งแล้ว)</div></div>
                 </div>
+                {v.express && <div style={css("margin-top:9px;background:var(--accSoft);border:1px solid var(--acc);border-radius:10px;padding:8px 11px;font-size:11.5px;color:var(--acc);font-weight:600;line-height:1.5")}>🚀 เปิดส่งด่วนแล้ว — คุณจะได้รับงานภายใน 20-30 นาทีหลังชำระเงินครับ</div>}
               </div>
             )}
             <div style={css("background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px")}>

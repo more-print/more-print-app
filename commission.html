@@ -275,10 +275,11 @@ function Chat({ o }){
           );
         })}
       </div>
-      <input ref={camRef} type="file" accept="image/*" capture="environment" onChange={e => { const f = e.target.files && e.target.files[0]; e.target.value = ''; sendPhoto(f); }} style={css("display:none")}/>
+      {/* ไม่ใส่ capture — มือถือจะเด้งเมนูให้เลือกเองว่า ถ่ายรูปใหม่ หรือ เลือกรูปจากคลังภาพในเครื่อง */}
+      <input ref={camRef} type="file" accept="image/*" onChange={e => { const f = e.target.files && e.target.files[0]; e.target.value = ''; sendPhoto(f); }} style={css("display:none")}/>
       <button onClick={() => camRef.current && camRef.current.click()} disabled={upBusy}
         style={css("margin-top:8px;width:100%;height:36px;border:1.5px solid var(--acc);border-radius:10px;background:var(--accSoft);color:var(--acc);font-size:11.5px;font-weight:700;cursor:pointer;font-family:inherit" + (upBusy ? ";opacity:.6" : ""))}>
-        {upBusy ? 'กำลังส่งรูป…' : 'ถ่ายรูป/แนบรูปหลักฐานการจัดส่ง'}
+        {upBusy ? 'กำลังส่งรูป…' : 'แนบรูปจากเครื่อง / ถ่ายรูปส่งให้ลูกค้า'}
       </button>
       <div style={css("margin-top:7px;display:flex;gap:6px")}>
         <input value={text} onChange={e => setText(e.target.value)} onKeyDown={e => e.key === 'Enter' && send()} maxLength={500} placeholder="พิมพ์ข้อความถึงลูกค้า…"
