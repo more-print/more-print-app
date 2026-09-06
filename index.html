@@ -620,7 +620,12 @@ class App extends React.Component {
     if (!res) return this.showToast('เช็คโค้ดไม่สำเร็จ ลองอีกครั้งครับ 🙏');
     if (res.error) return this.showToast('ระบบคูปองยังไม่เปิดใช้งานครับ');
     const c = Array.isArray(res.data) ? res.data[0] : res.data;
-    if (!c || !c.code) { this.setState({ couponOk: null }); return this.showToast('โค้ดไม่ถูกต้อง หมดอายุ หรือถูกใช้ครบแล้ว ❌'); }
+    if (!c || !c.code) {
+      this.setState({ couponOk: null });
+      // MP1111 (ส่งฟรี 10 คนแรก) ถูกยกเลิกก่อนครบสิทธิ์ — เจ้าของให้แจ้งว่า "ใช้สิทธิ์ครบแล้ว" แทนโค้ดผิด (นโยบาย 2026-09-06)
+      if (code === 'MP1111') return this.showToast('โค้ดนี้ถูกใช้สิทธิ์ครบแล้วครับ ❌');
+      return this.showToast('โค้ดไม่ถูกต้อง หมดอายุ หรือถูกใช้ครบแล้ว ❌');
+    }
     if (c.kind === 'used') { this.setState({ couponOk: null }); return this.showToast(usedMsg); }
     this.setState({ couponOk: { code: c.code, kind: c.kind, value: Number(c.value), min_total: Number(c.min_total || 0) } });
     this.showToast('ใช้โค้ดสำเร็จ! 🎉 ' + (c.kind === 'percent' ? 'ลด ' + c.value + '%' : c.kind === 'freeship' ? 'ส่งฟรีออเดอร์นี้เลย' : 'ลด ฿' + c.value));
