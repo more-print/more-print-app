@@ -311,6 +311,7 @@ function ProOrder({ o, idx, isOwner, payoutReady, onPrice, onPayout, onAdvance, 
             {o.pickup
               ? <b>ลูกค้ามารับเองที่ร้าน — ไม่ต้องจัดส่ง</b>
               : <span><b>ทีมงาน MORE PRINT ไปรับที่ร้าน แล้วจัดส่งให้ลูกค้าเอง</b>
+                  {/🤝 รับกับมือ|📦 วางไว้จุดวางของ/.test(o.addr || '') && <span style={css("display:block;margin-top:2px;font-weight:700;color:" + ((o.addr || '').includes('📦') ? "#b8860b" : "var(--acc)"))}>{(o.addr || '').includes('📦') ? '📦 ลูกค้าให้วางไว้จุดวางของ' : '🤝 ลูกค้าขอรับกับมือ'}</span>}
                   {(o.addr || o.point) && <span style={css("display:block;color:var(--sub)")}>{FI.pin(11)} {(o.addr || o.point || '').replace(/^(🚗|🏍️)\s*/, '')}
                     <a href={o.lat != null && o.lng != null
                         ? 'https://www.google.com/maps?q=' + o.lat + ',' + o.lng

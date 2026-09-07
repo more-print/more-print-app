@@ -244,6 +244,13 @@ const PRO_TYPES = [
   { k: 'blueprint', icon: '📐', label: 'ปริ้นขาวดำขนาดใหญ่ (แบบแปลน)', sizes: ['A3', 'A2', 'A1'] }
 ];
 const PRO_BINDS = ['ไสกาว', 'ปกแข็ง', 'สันห่วงพลาสติก', 'ขาตะเกียบ', 'เย็บมุงหลังคา', 'ห่วงเกลียว', 'ห่วงคู่', 'เย็บเล่ม', 'เทปปิด', 'สันกาวปกแข็ง'];
+// เข้าเล่มงาน Standard 3 แบบ +฿20/ชุด (นโยบาย 2026-09-08): เลือกได้เฉพาะ 09:00-21:59 (svcHoursOpen) นอกช่วง = ซ่อนตัวเลือก
+// key บันทึกลงคอลัมน์ orders.bind ตรง ๆ — เพิ่ม/แก้ต้องแก้ป้ายใน admin.html (optionsLabel + CSV) คู่กันเสมอ
+const STD_BINDS = [
+  { k: 'coil', icon: '📘', name: 'เข้าเล่มสันห่วงกระดูกงู / สันเกลียว', sub: 'เจาะรูใส่สันห่วงพลาสติก เปิดกางได้สุด', price: 20 },
+  { k: 'tape', icon: '📗', name: 'เข้าเล่มเทปผ้า (แลคซีน)', sub: 'เย็บแล้วปิดสันด้วยเทปผ้า เรียบร้อยทนทาน', price: 20 },
+  { k: 'glue', icon: '📕', name: 'เข้าเล่มสันกาว', sub: 'ไสสันทากาว เรียบเนียนเหมือนหนังสือ', price: 20 },
+];
 // ── ราคางาน Pro (เจ้าของกำหนด 2026-08-20) — ต่อแผ่น ──
 const POSTER_SHEET = { A0: 400, A1: 200, A2: 100, A3: 50, A4: 25 };   // โปสเตอร์ /แผ่น (ด้านหน้าเดียว) — หน้า-หลัง ×2 · ไม่มีติดบอร์ด
 const PLATE_SHEET  = { A0: 600, A1: 300, A2: 150, A3: 75, A4: 38 };   // เพลท /แผ่น — รวมติดบอร์ดแล้วเสมอ · พิมพ์ด้านหน้าอย่างเดียว
@@ -369,7 +376,7 @@ class App extends React.Component {
       histOpen: null, chatFor: null, chatFrom: 'track', chatBots: [],
       chAdOpen: false, chAdMode: '', chAdLink: '', chAdText: '', chAdPt: null, chAdBusy: false,
       orderList: (() => { try { return JSON.parse(localStorage.getItem('mp_orders') || '[]'); } catch (e) { return []; } })(),
-      point: '', addr: '', phone: '', time: '', express: false, slip: null, slipChecking: false,
+      point: '', addr: '', phone: '', time: '', express: false, handoff: '', slip: null, slipChecking: false,
       lat: null, lng: null, geoLabel: '', searchQ: '', searchResults: [], searching: false, locating: false,
       gmapLink: '', gmapBusy: false, pinSrc: '', pinMode: '', mapLocked: false, gpsAcc: null, gpsConfirm: false, geoHelp: '', // '' ยังไม่เลือก · 'link' วางลิงก์ · 'map' ปักหมุดเอง · mapLocked = ล็อกหมุดหลังวางลิงก์
       banners: [],
@@ -997,11 +1004,11 @@ class App extends React.Component {
   // ต้องเช็คครบทุกเงื่อนไขที่นี่ที่เดียว — ถ้าการ์ดส่งด่วนถูกซ่อน (เช่น สลับไปรับหน้าร้าน) ค่าธรรมเนียมต้องหายตามทันที ห้ามคิดเงินเงียบๆ
   isExpress(){
     const s = this.state;
-    return CONFIG.expressEnabled !== false && !!s.express && s.tier !== 'pro' && !s.stdPickup && !!s.mapLocked && this.expressHoursOpen();
+    return CONFIG.expressEnabled !== false && !!s.express && s.tier !== 'pro' && !s.stdPickup && !!s.mapLocked && this.svcHoursOpen();
   }
 
-  // งานด่วนเปิดรับเฉพาะ 09:00–21:59 (นโยบาย 2026-09-08) — นอกช่วงนี้การ์ดถูกซ่อนและไม่คิดค่าธรรมเนียม
-  expressHoursOpen(){
+  // ช่วงเวลาเปิดรับบริการเสริม 09:00–21:59 (นโยบาย 2026-09-08) — ใช้ร่วมทั้งงานด่วน (Express) และเข้าเล่มแบบเสียเงิน: นอกช่วงนี้ซ่อน UI และไม่คิดค่าธรรมเนียม
+  svcHoursOpen(){
     const h = new Date().getHours();
     return h >= 9 && h < 22;
   }
@@ -1011,6 +1018,14 @@ class App extends React.Component {
     const s = this.state;
     const tp = (s.files || []).reduce((a, f) => a + (f.pages || 1), 0) * Math.max(1, s.copies || 1);
     return Math.min(3, Math.max(1, Math.ceil(tp / 150))) * 15;
+  }
+
+  // วิธีรับของตอนไรเดอร์ไปถึง (ตัวเลือกเสริม ไม่บังคับ — 2026-09-08 ทั้ง Standard+Pro แบบจัดส่ง): 'hand' = รับกับมือ · 'drop' = วางไว้จุดวางของ · '' = ไม่ได้ระบุ
+  // ป้ายถูกต่อท้ายคอลัมน์ addr ตอนบันทึก (แพทเทิร์นเดียวกับอิโมจิพาหนะ — ไม่ต้องเพิ่มคอลัมน์ใหม่) หลังบ้านตรวจเจอด้วยข้อความนี้เป๊ะ ๆ ห้ามแก้ป้ายฝั่งเดียว
+  handoffLabel(){
+    const s = this.state;
+    if (s.tier === 'pro' ? s.proPickup : s.stdPickup) return '';
+    return s.handoff === 'hand' ? '🤝 รับกับมือ' : s.handoff === 'drop' ? '📦 วางไว้จุดวางของ' : '';
   }
 
   calc(){
@@ -1089,7 +1104,7 @@ class App extends React.Component {
     const proPickupOn = s.tier === 'pro' ? s.proPickup : s.stdPickup; // รับเองที่ร้าน: Pro = อุดมสุข · Standard = หน้าร้าน MORE PRINT
     if (proPickupOn) { deliveryFee = 0; farNote = false; outOfArea = false; }
     // 'landscape' (เล่มแนวนอน) ถูกตัดออกจากตัวเลือกแล้ว — เก็บสูตรราคาไว้ให้ออเดอร์เก่าที่เคยเลือกยังแสดงถูก
-    const bindCost = s.tier === 'pro' ? 0 : (s.bind === 'corner' ? 0 : s.bind === 'book' ? 40 : s.bind === 'landscape' ? 60 : 0) * s.copies; // เย็บมุมฟรี (2026-08-24)
+    const bindCost = s.tier === 'pro' ? 0 : (s.bind === 'corner' ? 0 : s.bind === 'book' ? 40 : s.bind === 'landscape' ? 60 : ((STD_BINDS.find(b => b.k === s.bind) || {}).price || 0)) * s.copies; // เย็บมุมฟรี (2026-08-24) · เข้าเล่ม 3 แบบใหม่ ฿20/ชุด (2026-09-08) · book/landscape = dead branch ออเดอร์เก่า
     const deliveryCost = proPickupOn ? 0 : deliveryFee + expressFee;
     const nightFee2 = (s.tier === 'pro' || proPickupOn) ? 0 : nightFee; // งาน Pro ทุกแบบ + มารับเอง = ไม่มีค่าบริการกลางคืน (นโยบาย 2026-08-27)
     // ── โค้ดส่วนลด: หักจากยอดรวมท้ายสุด (ไม่ติดลบ) ──
@@ -1259,7 +1274,7 @@ class App extends React.Component {
         pickup: s.tier === 'pro' ? s.proPickup : s.stdPickup,
         line_uid: (s.user && s.user.line_uid) || null, // ไว้แจ้งเตือนลูกค้าทาง LINE (เฉพาะคนล็อกอินด้วย LINE)
         // นำหน้าที่อยู่ด้วยพาหนะที่ลูกค้าเลือก — ไรเดอร์/หลังบ้านเห็นทันทีว่าต้องใช้รถอะไร (ไม่ต้องเพิ่มคอลัมน์ใหม่)
-        addr: (s.tier === 'pro' && s.proPickup) ? '🏪 มารับเองที่ร้านอุดมสุขปริ้นติ้ง' : (s.tier !== 'pro' && s.stdPickup) ? '🏪 รับหน้าร้าน MORE PRINT (หอพักบริบูรณ์เพลส)' : ((s.vehicle === 'car' || this.forceCar()) ? '🚗 ' : '🏍️ ') + s.addr, // งานบังคับรถยนต์ป้ายต้องตรง
+        addr: (s.tier === 'pro' && s.proPickup) ? '🏪 มารับเองที่ร้านอุดมสุขปริ้นติ้ง' : (s.tier !== 'pro' && s.stdPickup) ? '🏪 รับหน้าร้าน MORE PRINT (หอพักบริบูรณ์เพลส)' : ((s.vehicle === 'car' || this.forceCar()) ? '🚗 ' : '🏍️ ') + s.addr + (this.handoffLabel() ? ' · ' + this.handoffLabel() : ''), // งานบังคับรถยนต์ป้ายต้องตรง · วิธีรับของต่อท้าย (หลังบ้านแกะจากข้อความนี้)
         phone: s.phone, time: '', express: (c.expressFee || 0) > 0, night: this.isNight(), // express ตามที่คิดเงินจริงตอนกดจ่าย (เฉพาะ Standard แบบจัดส่ง)
         print_cost: c.printCost, bind_cost: c.bindCost, delivery_cost: c.deliveryCost,
         night_fee: c.nightFee || 0, // ตามสูตรจริง — งาน Pro/มารับเอง = 0
@@ -1906,12 +1921,13 @@ class App extends React.Component {
       showBind: s.tier !== 'pro' && s.ptype !== 'poster',
       // เข้าเล่มทำได้เฉพาะช่วงเช้า — งดรับ 22:00-08:00 (นโยบายเจ้าของ 2026-08-24)
       noBindNow: (() => { const h = s.now.getHours(); return h >= 22 || h < 8; })(),
-      bindOpts: [this.seg('ไม่เย็บมุม', s.bind === 'none', () => this.setState({ bind: 'none' })), this.seg('เย็บมุม (ฟรี)', s.bind === 'corner', () => this.setState({ bind: 'corner' })),
-        ...(!CONFIG.bindBookOn ? [] : [(() => { const h = s.now.getHours(); const closed = h >= 22 || h < 8; // ปุ่มเข้าเล่มซ่อนอยู่ตอน bindBookOn = false
-          if (!closed) return this.seg('เข้าเล่ม +฿40', s.bind === 'book', () => this.setState({ bind: 'book' }));
-          return { label: 'เข้าเล่ม +฿40 · งดรับ 22:00-08:00', pick: () => this.showToast('บริการเข้าเล่มรับเฉพาะ 08:00–22:00 น. ครับ 🙏 เลือกเย็บมุม (ฟรี) หรือไม่เข้าเล่มแทนได้เลย'),
-            st: { flex: 'none', padding: '9px 14px', borderRadius: '10px', fontSize: '12.5px', fontWeight: 600, cursor: 'not-allowed', border: '1px dashed var(--line)', background: 'var(--soft)', color: 'var(--sub)', opacity: .65 } };
-        })()])],
+      // กล่องเข้าเล่มแบบเรียงลงมา (2026-09-08): ฟรี 2 แบบตลอดเวลา + เข้าเล่ม 3 แบบ ฿20/ชุด (STD_BINDS) เฉพาะ 09:00-22:00 นอกช่วงซ่อน (ค้างเลือกไว้ toPay บล็อกเอง) — ปุ่มเข้าเล่ม ฿40 เดิม (bindBookOn) ถูกแทนที่แล้ว
+      bindOpen: this.svcHoursOpen(),
+      bindOpts: [
+        { k: 'none', icon: '🚫', name: 'ไม่เข้าเล่ม', sub: 'รับงานเป็นแผ่น ไม่เย็บ · ฟรี', price: 0 },
+        { k: 'corner', icon: '📎', name: 'เย็บมุม', sub: 'เย็บลวดที่มุมซ้ายบน · ฟรี', price: 0 },
+        ...(this.svcHoursOpen() ? STD_BINDS : [])
+      ].map(o => ({ ...o, on: s.bind === o.k, pick: () => this.setState({ bind: o.k }) })),
       copies: s.copies,
       copyInc: () => this.setState(st => ({ copies: st.copies + 1 })),
       copyDec: () => this.setState(st => ({ copies: Math.max(1, st.copies - 1) })),
@@ -2016,13 +2032,19 @@ class App extends React.Component {
       time: s.time, setTime: (e) => set('time')(e.target.value),
       express: this.isExpress(), toggleExpress: () => this.setState(st => ({ express: !st.express })),
       // การ์ดส่งด่วน = ขั้นสุดท้ายของหน้าจุดส่ง: โผล่เฉพาะงาน Standard แบบจัดส่ง หลังลูกค้าบอกจุดส่ง (ล็อกหมุด) เสร็จแล้วเท่านั้น
-      expressOn: CONFIG.expressEnabled !== false && s.tier !== 'pro' && !s.stdPickup && s.recvSel && s.vehSel && !!s.mapLocked && this.expressHoursOpen(),
+      expressOn: CONFIG.expressEnabled !== false && s.tier !== 'pro' && !s.stdPickup && s.recvSel && s.vehSel && !!s.mapLocked && this.svcHoursOpen(),
       expressSaveMin: this.expressSaveMin(),
+      // วิธีรับของตอนไรเดอร์ไปถึง — ตัวเลือกเสริมทั้ง Standard+Pro แบบจัดส่ง (กดซ้ำเพื่อยกเลิกที่เลือกได้)
+      handoff: s.handoff,
+      setHandoff: (k) => this.setState(st => ({ handoff: st.handoff === k ? '' : k })),
+      handoffOn: !(s.tier === 'pro' ? s.proPickup : s.stdPickup) && s.vehSel && !!s.mapLocked,
       expressTrack: { width: '46px', height: '27px', borderRadius: '99px', background: s.express ? 'var(--acc)' : 'var(--line)', position: 'relative', transition: 'background .2s', flex: 'none' },
       expressKnob: { width: '21px', height: '21px', borderRadius: '50%', background: '#fff', position: 'absolute', top: '3px', left: s.express ? '22px' : '3px', transition: 'left .2s', boxShadow: '0 1px 3px rgba(0,0,0,.3)' },
       deliveryWarn: '',
       toPay: () => {
         if (s.tier !== 'pro' && s.bind === 'book') { const h = s.now.getHours(); if (h >= 22 || h < 8) return this.showToast('บริการเข้าเล่มรับเฉพาะ 08:00–22:00 น. ครับ 🙏 กลับไปเปลี่ยนเป็นเย็บมุม (ฟรี) หรือไม่เข้าเล่มก่อนนะครับ'); }
+        // เข้าเล่ม 3 แบบใหม่: ลูกค้าเลือกค้างไว้ก่อน 22:00 แล้วมากดจ่ายทีหลัง — บล็อกให้กลับไปเปลี่ยน (ตัวเลือกฟรียังโชว์อยู่เสมอ)
+        if (s.tier !== 'pro' && STD_BINDS.some(b => b.k === s.bind) && !this.svcHoursOpen()) return this.showToast('บริการเข้าเล่มรับเฉพาะ 09:00–22:00 น. ครับ 🙏 กลับไปเปลี่ยนเป็นเย็บมุม (ฟรี) หรือไม่เข้าเล่มก่อนนะครับ');
         if (!c.proPickupOn) { // มารับเองไม่ต้องปักหมุด/กรอกที่อยู่
           if (s.lat == null) return this.showToast('ปักหมุดตำแหน่งส่งบนแผนที่ก่อนนะครับ 📍');
           if (c.deliveryPending) return this.showToast('กำลังวัดระยะทางจากร้าน รอสักครู่นะครับ ⏳ (ค่าส่งจะอัปเดตเอง)');
@@ -2099,9 +2121,9 @@ class App extends React.Component {
       sidesLabel: s.sides === 2 ? 'หน้า-หลัง' : s.tier === 'pro' && s.proType === 'poster' ? 'ด้านหน้าอย่างเดียว' : 'หน้าเดียว',
       orientLabel: s.orient === 'landscape' ? 'ปริ้นแนวนอน' : 'ปริ้นแนวตั้ง',
       nupLabel: (s.nup || 1) + ' หน้า/แผ่น',
-      bindLabel: s.tier === 'pro' ? (s.proType === 'foldbook' ? s.proBind : '—') : s.bind === 'corner' ? 'เย็บมุม' : s.bind === 'book' ? 'เข้าเล่ม' : s.bind === 'landscape' ? 'เล่มแนวนอน' : 'ไม่เย็บมุม',
+      bindLabel: s.tier === 'pro' ? (s.proType === 'foldbook' ? s.proBind : '—') : s.bind === 'corner' ? 'เย็บมุม' : s.bind === 'book' ? 'เข้าเล่ม' : s.bind === 'landscape' ? 'เล่มแนวนอน' : ((STD_BINDS.find(b => b.k === s.bind) || {}).name || 'ไม่เย็บมุม'),
       isColorType: s.ptype === 'color',
-      destLabel: s.addr,
+      destLabel: s.addr + (this.handoffLabel() ? ' · ' + this.handoffLabel() : ''),
       timeLabel: (this.isExpress() ? 'งานด่วน (เร่งผลิต)' : s.time + ' น.'),
       deliveryLabel: this.isExpress() ? '(ด่วน)' : '',
       slipName: s.slip ? s.slip.name : '',
@@ -2158,7 +2180,7 @@ class App extends React.Component {
         // ยืนยันแล้วล้างรายการงานทิ้ง — เข้ามาสั่งรอบหน้าต้องเป็นหน้าว่างพร้อมดรอปไฟล์ใหม่ ไม่มีไฟล์เก่าค้าง
         const pickup = s.tier === 'pro' ? s.proPickup : s.stdPickup;
         const ts = Date.now(); // เวลาชำระ — ใช้นับถอยหลังช่วงที่ลูกค้ายกเลิกเองได้
-        const oaddr = pickup ? (s.tier === 'pro' ? '🏪 มารับเองที่ร้านอุดมสุขปริ้นติ้ง' : '🏪 รับหน้าร้าน MORE PRINT (หอพักบริบูรณ์เพลส)') : s.addr;
+        const oaddr = pickup ? (s.tier === 'pro' ? '🏪 มารับเองที่ร้านอุดมสุขปริ้นติ้ง' : '🏪 รับหน้าร้าน MORE PRINT (หอพักบริบูรณ์เพลส)') : s.addr + (this.handoffLabel() ? ' · ' + this.handoffLabel() : '');
         const oveh = pickup ? '' : ((s.vehicle === 'car' || this.forceCar()) ? '🚗 รถยนต์' : '🏍️ มอเตอร์ไซค์');
         // จำเป็นที่อยู่จัดส่งประจำ ไว้เลือกซ้ำรอบหน้า
         if (!pickup && s.addr.trim() && s.lat != null) this.saveAddr({ addr: s.addr.trim(), lat: s.lat, lng: s.lng, veh: s.vehicle, ts: Date.now() });
@@ -2172,7 +2194,7 @@ class App extends React.Component {
           document.cookie = 'mp_rc_bk=' + encodeURIComponent(rcSave) + ';max-age=31536000;path=/;SameSite=Lax'; // สำรองคุกกี้ 1 ปี
         } catch (e) {}
         this.setState({ order: { id, total: c.grandTotal, times: [t0, '', '', ''], plabel, eta, pickup, ts, express: isExp, addr: oaddr, phone: s.phone, veh: oveh, copies: s.copies, pages: c.totalPages, dist: s.distKm, rc: rcReq, cp: cpUsed }, trackStep: 1, cancelReason: '', screen: 'track',
-          files: [], slip: null, copies: 1, bind: 'none', express: false, tier: 'standard', ptype: 'bw', paper: 'A4', sides: 1, orient: 'portrait', nup: 1, note: '', proPickup: false, stdPickup: false, recvSel: false, vehSel: false, proLam: 'none', proSpecial: false, proStaple: false, proStand: false, vehicle: 'bike', trackOpen: false, trackMin: false, histOpen: null, chatFor: null, chatFrom: 'track', selfCancelArm: false, couponCode: '', couponOk: null });
+          files: [], slip: null, copies: 1, bind: 'none', express: false, handoff: '', tier: 'standard', ptype: 'bw', paper: 'A4', sides: 1, orient: 'portrait', nup: 1, note: '', proPickup: false, stdPickup: false, recvSel: false, vehSel: false, proLam: 'none', proSpecial: false, proStaple: false, proStand: false, vehicle: 'bike', trackOpen: false, trackMin: false, histOpen: null, chatFor: null, chatFrom: 'track', selfCancelArm: false, couponCode: '', couponOk: null });
         // จำออเดอร์ไว้ในเครื่อง — ปิดเว็บแล้วกลับมา การติดตามยังอยู่
         try {
           const nod = { id, total: c.grandTotal, times: [t0, '', '', ''], step: 1, plabel, eta, pickup, ts, express: isExp, addr: oaddr, phone: s.phone, veh: oveh, copies: s.copies, pages: c.totalPages, dist: s.distKm, rc: rcReq, cp: cpUsed };
@@ -2914,7 +2936,22 @@ class App extends React.Component {
               {v.showSides && <div style={css("display:flex;flex-direction:column;gap:6px")}><div style={css("font-size:12px;font-weight:600;color:var(--sub)")}>ด้านที่พิมพ์</div><div style={css("display:flex;gap:8px")}>{v.sidesOpts.map((o, i) => <button key={i} onClick={o.pick} style={o.st}>{o.label}</button>)}</div></div>}
               {v.showSides && <div style={css("display:flex;flex-direction:column;gap:6px")}><div style={css("font-size:12px;font-weight:600;color:var(--sub)")}>ทิศทางกระดาษ</div><div style={css("display:flex;gap:8px")}>{v.orientOpts.map((o, i) => <button key={i} onClick={o.pick} style={o.st}>{o.label}</button>)}</div></div>}
               {v.showSides && <div style={css("display:flex;flex-direction:column;gap:6px")}><div style={css("font-size:12px;font-weight:600;color:var(--sub)")}>การกำหนดหน้า</div><div style={css("display:flex;gap:8px;flex-wrap:wrap")}>{v.nupOpts.map((o, i) => <button key={i} onClick={o.pick} style={{...o.st, flex:'1 1 40%'}}>{o.label}</button>)}</div></div>}
-              {v.showBind && <div style={css("display:flex;flex-direction:column;gap:6px")}><div style={css("font-size:12px;font-weight:600;color:var(--sub)")}>การเย็บมุม</div><div style={css("display:flex;gap:8px;flex-wrap:wrap")}>{v.bindOpts.map((o, i) => <button key={i} onClick={o.pick} style={o.st}>{o.label}</button>)}</div></div>}
+              {v.showBind && <div style={css("display:flex;flex-direction:column;gap:6px")}>
+                <div style={css("font-size:12px;font-weight:600;color:var(--sub)")}>การเย็บมุม / เข้าเล่ม</div>
+                <div style={css("display:flex;flex-direction:column;gap:8px")}>
+                  {v.bindOpts.map((o) => (
+                    <div key={o.k} onClick={o.pick} style={css("border:" + (o.on ? "1.5px solid var(--acc)" : "1px solid var(--line)") + ";border-radius:12px;padding:11px 14px;background:" + (o.on ? "var(--accSoft)" : "var(--card)") + ";display:flex;align-items:center;gap:11px;cursor:pointer")}>
+                      <div style={css("font-size:20px;flex:none")}>{o.icon}</div>
+                      <div style={css("flex:1;min-width:0")}>
+                        <div style={css("font-size:13px;font-weight:700;color:" + (o.on ? "var(--acc)" : "var(--ink)"))}>{o.name}{o.price > 0 && <span style={css("margin-left:6px;font-family:'IBM Plex Mono',monospace;font-size:12px;font-weight:600")}>+฿{o.price}/ชุด</span>}</div>
+                        <div style={css("margin-top:1px;font-size:11px;color:var(--sub);line-height:1.5")}>{o.sub}</div>
+                      </div>
+                      <div style={css("width:20px;height:20px;border-radius:50%;flex:none;border:2px solid " + (o.on ? "var(--acc)" : "var(--line)") + ";display:flex;align-items:center;justify-content:center")}>{o.on && <div style={css("width:10px;height:10px;border-radius:50%;background:var(--acc)")}></div>}</div>
+                    </div>
+                  ))}
+                </div>
+                {!v.bindOpen && <div style={css("font-size:11px;color:var(--sub);line-height:1.5")}>📚 บริการเข้าเล่ม (+฿20/ชุด) เปิดรับเฉพาะ 09:00–22:00 น. ครับ</div>}
+              </div>}
               <div style={css("display:flex;justify-content:space-between;align-items:center")}><div style={css("font-size:12px;font-weight:600;color:var(--sub)")}>จำนวนชุด (สำเนา)</div>
                 <div style={css("display:flex;align-items:center;gap:10px")}>
                   <button onClick={v.copyDec} style={css("width:30px;height:30px;border:1px solid var(--line);background:var(--soft);color:var(--ink);border-radius:9px;font-size:15px;cursor:pointer")}>−</button>
@@ -3145,6 +3182,23 @@ class App extends React.Component {
               <div style={css("margin-top:10px;font-size:12px;font-weight:600;color:var(--sub)")}>เบอร์โทรผู้รับ <span style={css("color:#d9480f")}>*</span></div>
               <input value={v.phone} onChange={v.setPhone} placeholder="08x-xxx-xxxx" inputMode="tel" maxLength={12} style={css("margin-top:6px;width:100%;box-sizing:border-box;height:42px;border:1px solid var(--line);border-radius:10px;background:var(--soft);color:var(--ink);padding:0 12px;font-size:13px;outline:none")}/>
             </div>
+            {v.handoffOn && (
+              <div style={css("background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px;box-shadow:var(--shadow)")}>
+                <div style={css("font-size:12.5px;font-weight:700;margin-bottom:9px")}>ตอนของไปถึง อยากให้ไรเดอร์ส่งแบบไหนครับ? <span style={css("font-weight:400;color:var(--sub)")}>(ไม่บังคับ — ไม่เลือกก็ได้)</span></div>
+                <div style={css("display:flex;flex-direction:column;gap:8px")}>
+                  {[{ k: 'hand', icon: '🤝', name: 'รับกับมือ', sub: 'ไรเดอร์โทรหา แล้วส่งถึงมือคุณเลย' }, { k: 'drop', icon: '📦', name: 'วางไว้จุดวางของ', sub: 'วางไว้จุดวางของ/หน้าห้อง แล้วแจ้งทางแชท — ระบุจุดวางในช่องที่อยู่ได้เลยครับ' }].map(o => (
+                    <div key={o.k} onClick={() => v.setHandoff(o.k)} style={css("border:" + (v.handoff === o.k ? "1.5px solid var(--acc)" : "1px solid var(--line)") + ";border-radius:12px;padding:11px 14px;background:" + (v.handoff === o.k ? "var(--accSoft)" : "var(--card)") + ";display:flex;align-items:center;gap:11px;cursor:pointer")}>
+                      <div style={css("font-size:22px;flex:none")}>{o.icon}</div>
+                      <div style={css("flex:1;min-width:0")}>
+                        <div style={css("font-size:13.5px;font-weight:700;color:" + (v.handoff === o.k ? "var(--acc)" : "var(--ink)"))}>{o.name}</div>
+                        <div style={css("margin-top:1px;font-size:11px;color:var(--sub);line-height:1.5")}>{o.sub}</div>
+                      </div>
+                      <div style={css("width:20px;height:20px;border-radius:50%;flex:none;border:2px solid " + (v.handoff === o.k ? "var(--acc)" : "var(--line)") + ";display:flex;align-items:center;justify-content:center")}>{v.handoff === o.k && <div style={css("width:10px;height:10px;border-radius:50%;background:var(--acc)")}></div>}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
             {v.expressOn && (
               <div style={css("background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px;box-shadow:var(--shadow)")}>
                 <div style={css("font-size:12.5px;font-weight:700;margin-bottom:9px")}><span style={css("color:var(--acc)")}>ขั้นสุดท้าย</span> · อยากได้งานด่วนไหมครับ? <span style={css("font-weight:400;color:var(--sub)")}>(ไม่บังคับ)</span></div>
@@ -3193,7 +3247,7 @@ class App extends React.Component {
             <div style={css("background:var(--accSoft);border:1.5px solid var(--acc);border-radius:14px;padding:14px 16px;box-shadow:var(--shadow)")}>
               <div style={css("font-size:11px;font-weight:700;color:var(--acc);letter-spacing:.5px")}>🖨️ สเปกงานปริ้นที่คุณเลือก</div>
               <div style={css("margin-top:10px;display:flex;flex-direction:column;gap:9px")}>
-                {[['ประเภทงาน', v.typeLabel], ['ขนาดกระดาษ', v.paperLabel], ['ด้านที่พิมพ์', v.sidesLabel], ...(v.isPro ? [] : [['ทิศทางกระดาษ', v.orientLabel], ['การกำหนดหน้า', v.nupLabel]]), [v.isPro ? 'การเข้าเล่ม' : 'การเย็บมุม', v.bindLabel], ['จำนวน', v.copies + ' ชุด']].map((p, i) => (
+                {[['ประเภทงาน', v.typeLabel], ['ขนาดกระดาษ', v.paperLabel], ['ด้านที่พิมพ์', v.sidesLabel], ...(v.isPro ? [] : [['ทิศทางกระดาษ', v.orientLabel], ['การกำหนดหน้า', v.nupLabel]]), [v.isPro ? 'การเข้าเล่ม' : 'การเย็บมุม / เข้าเล่ม', v.bindLabel], ['จำนวน', v.copies + ' ชุด']].map((p, i) => (
                   <div key={i} style={css("display:flex;align-items:center;gap:10px")}>
                     <div style={css("width:20px;height:20px;border-radius:50%;background:var(--acc);color:#fff;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex:none")}>✓</div>
                     <span style={css("font-size:12.5px;color:var(--sub);min-width:88px")}>{p[0]}</span>

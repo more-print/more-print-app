@@ -147,13 +147,15 @@ function zoneOf(lat, lng){
 }
 const ZONE_NAMES = ['ในมอ', 'กังสดาล', 'หลังมอ', 'โคลัมโบ', 'นอกเขต'];
 const zoneStyleByName = (n) => n === 'ในมอ' ? ZONE_IN_CAMPUS : n === 'นอกเขต' ? ZONE_OUT : (ZONES.find(z => z.name === n) || ZONE_OUT);
+// ป้ายการเข้าเล่ม — key ตรงกับ orders.bind ที่ index.html บันทึก (coil/tape/glue เพิ่ม 2026-09-08 ฿20/ชุด · book/landscape = ออเดอร์เก่า)
+const BIND_LABELS = { book: 'เข้าเล่ม', corner: 'เย็บมุม', landscape: 'เล่มแนวนอน', coil: 'เข้าเล่มสันห่วง/สันเกลียว', tape: 'เข้าเล่มเทปผ้า (แลคซีน)', glue: 'เข้าเล่มสันกาว' };
 const optionsLabel = (o) => [
   o.ptype ? (PTYPE_LABELS[o.ptype] || o.ptype) : (o.color ? 'ปริ้นสี' : 'ปริ้นขาวดำ'),
   o.paper,
   o.ptype === 'poster' ? null : (o.sides === 2 ? 'หน้า-หลัง' : 'หน้าเดียว'),
   o.orient ? (o.orient === 'landscape' ? 'แนวนอน' : 'แนวตั้ง') : null,
   o.nup ? o.nup + ' หน้า/แผ่น' : null,
-  o.bind === 'book' ? 'เข้าเล่ม' : o.bind === 'corner' ? 'เย็บมุม' : o.bind === 'landscape' ? 'เล่มแนวนอน' : 'ไม่เข้าเล่ม',
+  BIND_LABELS[o.bind] || 'ไม่เข้าเล่ม',
   o.copies + ' ชุด'
 ].filter(Boolean).join(' · ');
 
@@ -438,6 +440,7 @@ function OrderCard({ o, onAdvance, onCancel, onRemove, busy, unread, onSeen }){
             )}
             <div style={css("margin-top:2px;font-size:12px;color:var(--sub)")}>ค่าปริ้น ฿{o.print_cost} · เข้าเล่ม ฿{o.bind_cost} · ค่าส่ง ฿{o.delivery_cost}{o.night_fee ? ' · กลางคืน ฿' + o.night_fee : ''}</div>
             {(o.discount || 0) > 0 && <div style={css("margin-top:4px;display:inline-block;font-size:11px;font-weight:700;background:#fff0f6;color:#c2255c;border:1px solid #faa2c1;padding:3px 10px;border-radius:8px")}>🎟️ ใช้โค้ดส่วนลด {o.coupon || ''} −฿{o.discount} (ยอดชำระหักส่วนลดแล้ว)</div>}
+            {['coil', 'tape', 'glue', 'book'].includes(o.bind) && <div style={css("margin-top:4px;display:inline-block;font-size:11px;font-weight:700;background:#f3f0ff;color:#5f3dc4;border:1px solid #b197fc;padding:3px 10px;border-radius:8px")}>📚 งานเข้าเล่ม: {BIND_LABELS[o.bind]} × {o.copies || 1} ชุด — อย่าลืมเข้าเล่มก่อนส่งนะ</div>}
           </div>
           <div style={css("background:var(--soft);border:1px solid var(--line);border-radius:12px;padding:10px 12px")}>
             <div style={css("font-size:11px;font-weight:700;color:var(--sub);letter-spacing:.5px")}>{FI.pin(12)} จัดส่ง</div>
@@ -445,7 +448,10 @@ function OrderCard({ o, onAdvance, onCancel, onRemove, busy, unread, onSeen }){
               const a = o.addr || '';
               const car = a.indexOf('🚗') === 0, bike = a.indexOf('🏍️') === 0;
               const pickup = !!o.pickup;
+              // วิธีรับของที่ลูกค้าเลือก (ตัวเลือกเสริม) — ฝังมาท้ายคอลัมน์ addr ข้อความต้องตรงกับ handoffLabel() ใน index.html เป๊ะ
+              const hHand = a.includes('🤝 รับกับมือ'), hDrop = a.includes('📦 วางไว้จุดวางของ');
               return (
+                <React.Fragment>
                 <div style={css("margin-top:6px;display:inline-flex;align-items:center;gap:7px;background:var(--card);border:1.5px solid " + (pickup ? "var(--acc)" : car ? "#7048e8" : "#1971c2") + ";border-radius:10px;padding:5px 10px")}>
                   <span style={css("font-size:15px")}>{pickup ? FI.bag(15) : FI.truck(15)}</span>
                   <span style={css("font-size:12px;font-weight:700;color:" + (pickup ? "var(--acc)" : car ? "#7048e8" : "#1971c2"))}>
@@ -455,6 +461,12 @@ function OrderCard({ o, onAdvance, onCancel, onRemove, busy, unread, onSeen }){
                     · ค่าส่ง ฿{o.delivery_cost || 0} {pickup ? '(ไม่มีค่าส่ง)' : car ? '(เหมาตามระยะ 69/89/129)' : '(ไม่เกิน 2 กม. ฿19 แล้ว +6/กม.)'}
                   </span>
                 </div>
+                {(hHand || hDrop) && (
+                  <div style={css("margin-top:6px;margin-left:6px;display:inline-flex;align-items:center;gap:6px;background:" + (hDrop ? "#fff7e0" : "var(--accSoft)") + ";border:1.5px solid " + (hDrop ? "#f0c36d" : "var(--acc)") + ";border-radius:10px;padding:5px 10px;font-size:12px;font-weight:700;color:" + (hDrop ? "#8a6d1a" : "var(--acc)"))}>
+                    {hDrop ? '📦 ลูกค้าให้วางไว้จุดวางของ — ดูจุดวางในที่อยู่' : '🤝 ลูกค้าขอรับกับมือ — โทรหาก่อนถึง'}
+                  </div>
+                )}
+                </React.Fragment>
               );
             })()}
             {o.note && <div style={css("margin-top:6px;background:#fff7e0;border:1px solid #f0c36d;border-radius:10px;padding:8px 11px;font-size:12.5px;color:#8a6d1a;line-height:1.6")}><b>📝 หมายเหตุจากลูกค้า:</b> {o.note}</div>}
@@ -897,7 +909,7 @@ function AdminApp(){
       o.sides === 2 ? 'หน้า-หลัง' : 'หน้าเดียว',
       o.orient ? (o.orient === 'landscape' ? 'แนวนอน' : 'แนวตั้ง') : '',
       o.nup ? o.nup + ' หน้า/แผ่น' : '',
-      o.bind === 'book' ? 'เข้าเล่ม' : o.bind === 'corner' ? 'เย็บมุม' : o.bind === 'landscape' ? 'เล่มแนวนอน' : 'ไม่เข้าเล่ม',
+      BIND_LABELS[o.bind] || 'ไม่เข้าเล่ม',
       o.copies || 1, (o.files || []).reduce((a, f) => a + (f.pages || 0), 0),
       (o.files || []).map(f => f.name).join(' | '), o.point || '', o.addr || '', o.phone || '', o.time || '',
       o.express ? 'ใช่' : '', o.night ? 'ใช่' : '',
