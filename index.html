@@ -1921,13 +1921,17 @@ class App extends React.Component {
       showBind: s.tier !== 'pro' && s.ptype !== 'poster',
       // เข้าเล่มทำได้เฉพาะช่วงเช้า — งดรับ 22:00-08:00 (นโยบายเจ้าของ 2026-08-24)
       noBindNow: (() => { const h = s.now.getHours(); return h >= 22 || h < 8; })(),
-      // กล่องเข้าเล่มแบบเรียงลงมา (2026-09-08): ฟรี 2 แบบตลอดเวลา + เข้าเล่ม 3 แบบ ฿20/ชุด (STD_BINDS) เฉพาะ 09:00-22:00 นอกช่วงซ่อน (ค้างเลือกไว้ toPay บล็อกเอง) — ปุ่มเข้าเล่ม ฿40 เดิม (bindBookOn) ถูกแทนที่แล้ว
+      // เย็บมุมกับเข้าเล่มแยกคนละช่อง (2026-09-08 เจ้าของสั่ง — รวมช่องเดียวลูกค้างง) แต่ยังเป็นค่าเดียวในคอลัมน์ bind: เลือกอย่างใดอย่างหนึ่ง เลือกเข้าเล่มแล้วเย็บมุมดับเอง (และกลับกัน)
+      // ช่องเข้าเล่ม (STD_BINDS ฿20/ชุด) โชว์เฉพาะ 09:00-22:00 นอกช่วงซ่อนทั้งช่อง (ค้างเลือกไว้ toPay บล็อก + เลือกเย็บมุม/ไม่เย็บมุมทับได้เสมอ ไม่มีทางค้าง) — ปุ่มเข้าเล่ม ฿40 เดิม (bindBookOn) ถูกแทนที่แล้ว
       bindOpen: this.svcHoursOpen(),
-      bindOpts: [
-        { k: 'none', icon: '🚫', name: 'ไม่เข้าเล่ม', sub: 'รับงานเป็นแผ่น ไม่เย็บ · ฟรี', price: 0 },
-        { k: 'corner', icon: '📎', name: 'เย็บมุม', sub: 'เย็บลวดที่มุมซ้ายบน · ฟรี', price: 0 },
-        ...(this.svcHoursOpen() ? STD_BINDS : [])
-      ].map(o => ({ ...o, on: s.bind === o.k, pick: () => this.setState({ bind: o.k }) })),
+      cornerOpts: [
+        { k: 'none', icon: '🚫', name: 'ไม่เย็บมุม', sub: 'รับงานเป็นแผ่น ไม่เย็บ · ฟรี', price: 0, on: s.bind !== 'corner' && !STD_BINDS.some(b => b.k === s.bind), pick: () => this.setState({ bind: 'none' }) },
+        { k: 'corner', icon: '📎', name: 'เย็บมุม', sub: 'เย็บลวดที่มุมซ้ายบน · ฟรี', price: 0, on: s.bind === 'corner', pick: () => this.setState({ bind: 'corner' }) }
+      ],
+      bookOpts: [
+        { k: 'nobook', icon: '🚫', name: 'ไม่เข้าเล่ม', sub: 'ไม่ต้องเข้าเล่ม · ฟรี', price: 0, on: !STD_BINDS.some(b => b.k === s.bind), pick: () => this.setState(st => ({ bind: STD_BINDS.some(b => b.k === st.bind) ? 'none' : st.bind })) },
+        ...STD_BINDS.map(b => ({ ...b, on: s.bind === b.k, pick: () => this.setState({ bind: b.k }) }))
+      ],
       copies: s.copies,
       copyInc: () => this.setState(st => ({ copies: st.copies + 1 })),
       copyDec: () => this.setState(st => ({ copies: Math.max(1, st.copies - 1) })),
@@ -2043,8 +2047,8 @@ class App extends React.Component {
       deliveryWarn: '',
       toPay: () => {
         if (s.tier !== 'pro' && s.bind === 'book') { const h = s.now.getHours(); if (h >= 22 || h < 8) return this.showToast('บริการเข้าเล่มรับเฉพาะ 08:00–22:00 น. ครับ 🙏 กลับไปเปลี่ยนเป็นเย็บมุม (ฟรี) หรือไม่เข้าเล่มก่อนนะครับ'); }
-        // เข้าเล่ม 3 แบบใหม่: ลูกค้าเลือกค้างไว้ก่อน 22:00 แล้วมากดจ่ายทีหลัง — บล็อกให้กลับไปเปลี่ยน (ตัวเลือกฟรียังโชว์อยู่เสมอ)
-        if (s.tier !== 'pro' && STD_BINDS.some(b => b.k === s.bind) && !this.svcHoursOpen()) return this.showToast('บริการเข้าเล่มรับเฉพาะ 09:00–22:00 น. ครับ 🙏 กลับไปเปลี่ยนเป็นเย็บมุม (ฟรี) หรือไม่เข้าเล่มก่อนนะครับ');
+        // เข้าเล่ม 3 แบบใหม่: ลูกค้าเลือกค้างไว้ก่อน 22:00 แล้วมากดจ่ายทีหลัง — บล็อกให้กลับไปเปลี่ยน (ช่องเย็บมุมยังโชว์อยู่เสมอ กดทับแล้วค่าเข้าเล่มหลุดเอง)
+        if (s.tier !== 'pro' && STD_BINDS.some(b => b.k === s.bind) && !this.svcHoursOpen()) return this.showToast('บริการเข้าเล่มรับเฉพาะ 09:00–22:00 น. ครับ 🙏 กลับไปเลือกเย็บมุมหรือไม่เย็บมุม (ฟรี) แทนก่อนนะครับ');
         if (!c.proPickupOn) { // มารับเองไม่ต้องปักหมุด/กรอกที่อยู่
           if (s.lat == null) return this.showToast('ปักหมุดตำแหน่งส่งบนแผนที่ก่อนนะครับ 📍');
           if (c.deliveryPending) return this.showToast('กำลังวัดระยะทางจากร้าน รอสักครู่นะครับ ⏳ (ค่าส่งจะอัปเดตเอง)');
@@ -2122,6 +2126,9 @@ class App extends React.Component {
       orientLabel: s.orient === 'landscape' ? 'ปริ้นแนวนอน' : 'ปริ้นแนวตั้ง',
       nupLabel: (s.nup || 1) + ' หน้า/แผ่น',
       bindLabel: s.tier === 'pro' ? (s.proType === 'foldbook' ? s.proBind : '—') : s.bind === 'corner' ? 'เย็บมุม' : s.bind === 'book' ? 'เข้าเล่ม' : s.bind === 'landscape' ? 'เล่มแนวนอน' : ((STD_BINDS.find(b => b.k === s.bind) || {}).name || 'ไม่เย็บมุม'),
+      // หน้ารีวิว Standard แยก 2 บรรทัดตามช่องเลือก (เย็บมุม/เข้าเล่มคนละเรื่อง)
+      cornerLabel: s.bind === 'corner' ? 'เย็บมุม' : 'ไม่เย็บมุม',
+      bookLabel: (STD_BINDS.find(b => b.k === s.bind) || {}).name || (s.bind === 'book' ? 'เข้าเล่ม' : s.bind === 'landscape' ? 'เล่มแนวนอน' : 'ไม่เข้าเล่ม'),
       isColorType: s.ptype === 'color',
       destLabel: s.addr + (this.handoffLabel() ? ' · ' + this.handoffLabel() : ''),
       timeLabel: (this.isExpress() ? 'งานด่วน (เร่งผลิต)' : s.time + ' น.'),
@@ -2936,22 +2943,24 @@ class App extends React.Component {
               {v.showSides && <div style={css("display:flex;flex-direction:column;gap:6px")}><div style={css("font-size:12px;font-weight:600;color:var(--sub)")}>ด้านที่พิมพ์</div><div style={css("display:flex;gap:8px")}>{v.sidesOpts.map((o, i) => <button key={i} onClick={o.pick} style={o.st}>{o.label}</button>)}</div></div>}
               {v.showSides && <div style={css("display:flex;flex-direction:column;gap:6px")}><div style={css("font-size:12px;font-weight:600;color:var(--sub)")}>ทิศทางกระดาษ</div><div style={css("display:flex;gap:8px")}>{v.orientOpts.map((o, i) => <button key={i} onClick={o.pick} style={o.st}>{o.label}</button>)}</div></div>}
               {v.showSides && <div style={css("display:flex;flex-direction:column;gap:6px")}><div style={css("font-size:12px;font-weight:600;color:var(--sub)")}>การกำหนดหน้า</div><div style={css("display:flex;gap:8px;flex-wrap:wrap")}>{v.nupOpts.map((o, i) => <button key={i} onClick={o.pick} style={{...o.st, flex:'1 1 40%'}}>{o.label}</button>)}</div></div>}
-              {v.showBind && <div style={css("display:flex;flex-direction:column;gap:6px")}>
-                <div style={css("font-size:12px;font-weight:600;color:var(--sub)")}>การเย็บมุม / เข้าเล่ม</div>
-                <div style={css("display:flex;flex-direction:column;gap:8px")}>
-                  {v.bindOpts.map((o) => (
-                    <div key={o.k} onClick={o.pick} style={css("border:" + (o.on ? "1.5px solid var(--acc)" : "1px solid var(--line)") + ";border-radius:12px;padding:11px 14px;background:" + (o.on ? "var(--accSoft)" : "var(--card)") + ";display:flex;align-items:center;gap:11px;cursor:pointer")}>
-                      <div style={css("font-size:20px;flex:none")}>{o.icon}</div>
-                      <div style={css("flex:1;min-width:0")}>
-                        <div style={css("font-size:13px;font-weight:700;color:" + (o.on ? "var(--acc)" : "var(--ink)"))}>{o.name}{o.price > 0 && <span style={css("margin-left:6px;font-family:'IBM Plex Mono',monospace;font-size:12px;font-weight:600")}>+฿{o.price}/ชุด</span>}</div>
-                        <div style={css("margin-top:1px;font-size:11px;color:var(--sub);line-height:1.5")}>{o.sub}</div>
+              {v.showBind && [['การเย็บมุม', v.cornerOpts], ...(v.bindOpen ? [['การเข้าเล่ม (+฿20/ชุด · รับ 09:00–22:00 น.)', v.bookOpts]] : [])].map(([head, opts]) => (
+                <div key={head} style={css("display:flex;flex-direction:column;gap:6px")}>
+                  <div style={css("font-size:12px;font-weight:600;color:var(--sub)")}>{head}</div>
+                  <div style={css("display:flex;flex-direction:column;gap:8px")}>
+                    {opts.map((o) => (
+                      <div key={o.k} onClick={o.pick} style={css("border:" + (o.on ? "1.5px solid var(--acc)" : "1px solid var(--line)") + ";border-radius:12px;padding:11px 14px;background:" + (o.on ? "var(--accSoft)" : "var(--card)") + ";display:flex;align-items:center;gap:11px;cursor:pointer")}>
+                        <div style={css("font-size:20px;flex:none")}>{o.icon}</div>
+                        <div style={css("flex:1;min-width:0")}>
+                          <div style={css("font-size:13px;font-weight:700;color:" + (o.on ? "var(--acc)" : "var(--ink)"))}>{o.name}{o.price > 0 && <span style={css("margin-left:6px;font-family:'IBM Plex Mono',monospace;font-size:12px;font-weight:600")}>+฿{o.price}/ชุด</span>}</div>
+                          <div style={css("margin-top:1px;font-size:11px;color:var(--sub);line-height:1.5")}>{o.sub}</div>
+                        </div>
+                        <div style={css("width:20px;height:20px;border-radius:50%;flex:none;border:2px solid " + (o.on ? "var(--acc)" : "var(--line)") + ";display:flex;align-items:center;justify-content:center")}>{o.on && <div style={css("width:10px;height:10px;border-radius:50%;background:var(--acc)")}></div>}</div>
                       </div>
-                      <div style={css("width:20px;height:20px;border-radius:50%;flex:none;border:2px solid " + (o.on ? "var(--acc)" : "var(--line)") + ";display:flex;align-items:center;justify-content:center")}>{o.on && <div style={css("width:10px;height:10px;border-radius:50%;background:var(--acc)")}></div>}</div>
-                    </div>
-                  ))}
+                    ))}
+                  </div>
                 </div>
-                {!v.bindOpen && <div style={css("font-size:11px;color:var(--sub);line-height:1.5")}>📚 บริการเข้าเล่ม (+฿20/ชุด) เปิดรับเฉพาะ 09:00–22:00 น. ครับ</div>}
-              </div>}
+              ))}
+              {v.showBind && !v.bindOpen && <div style={css("font-size:11px;color:var(--sub);line-height:1.5")}>📚 บริการเข้าเล่ม (+฿20/ชุด) เปิดรับเฉพาะ 09:00–22:00 น. ครับ</div>}
               <div style={css("display:flex;justify-content:space-between;align-items:center")}><div style={css("font-size:12px;font-weight:600;color:var(--sub)")}>จำนวนชุด (สำเนา)</div>
                 <div style={css("display:flex;align-items:center;gap:10px")}>
                   <button onClick={v.copyDec} style={css("width:30px;height:30px;border:1px solid var(--line);background:var(--soft);color:var(--ink);border-radius:9px;font-size:15px;cursor:pointer")}>−</button>
@@ -3247,7 +3256,7 @@ class App extends React.Component {
             <div style={css("background:var(--accSoft);border:1.5px solid var(--acc);border-radius:14px;padding:14px 16px;box-shadow:var(--shadow)")}>
               <div style={css("font-size:11px;font-weight:700;color:var(--acc);letter-spacing:.5px")}>🖨️ สเปกงานปริ้นที่คุณเลือก</div>
               <div style={css("margin-top:10px;display:flex;flex-direction:column;gap:9px")}>
-                {[['ประเภทงาน', v.typeLabel], ['ขนาดกระดาษ', v.paperLabel], ['ด้านที่พิมพ์', v.sidesLabel], ...(v.isPro ? [] : [['ทิศทางกระดาษ', v.orientLabel], ['การกำหนดหน้า', v.nupLabel]]), [v.isPro ? 'การเข้าเล่ม' : 'การเย็บมุม / เข้าเล่ม', v.bindLabel], ['จำนวน', v.copies + ' ชุด']].map((p, i) => (
+                {[['ประเภทงาน', v.typeLabel], ['ขนาดกระดาษ', v.paperLabel], ['ด้านที่พิมพ์', v.sidesLabel], ...(v.isPro ? [] : [['ทิศทางกระดาษ', v.orientLabel], ['การกำหนดหน้า', v.nupLabel]]), ...(v.isPro ? [['การเข้าเล่ม', v.bindLabel]] : [['การเย็บมุม', v.cornerLabel], ['การเข้าเล่ม', v.bookLabel]]), ['จำนวน', v.copies + ' ชุด']].map((p, i) => (
                   <div key={i} style={css("display:flex;align-items:center;gap:10px")}>
                     <div style={css("width:20px;height:20px;border-radius:50%;background:var(--acc);color:#fff;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex:none")}>✓</div>
                     <span style={css("font-size:12.5px;color:var(--sub);min-width:88px")}>{p[0]}</span>
