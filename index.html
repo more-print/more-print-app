@@ -247,9 +247,9 @@ const PRO_BINDS = ['ไสกาว', 'ปกแข็ง', 'สันห่ว�
 // เข้าเล่มงาน Standard 3 แบบ +฿20/ชุด (นโยบาย 2026-09-08): เลือกได้เฉพาะ 09:00-21:59 (svcHoursOpen) นอกช่วง = ซ่อนตัวเลือก
 // key บันทึกลงคอลัมน์ orders.bind ตรง ๆ — เพิ่ม/แก้ต้องแก้ป้ายใน admin.html (optionsLabel + CSV) คู่กันเสมอ
 const STD_BINDS = [
-  { k: 'coil', icon: '📘', name: 'เข้าเล่มสันห่วงกระดูกงู / สันเกลียว', sub: 'เจาะรูใส่สันห่วงพลาสติก เปิดกางได้สุด', price: 20 },
-  { k: 'tape', icon: '📗', name: 'เข้าเล่มเทปผ้า (แลคซีน)', sub: 'เย็บแล้วปิดสันด้วยเทปผ้า เรียบร้อยทนทาน', price: 20 },
-  { k: 'glue', icon: '📕', name: 'เข้าเล่มสันกาว', sub: 'ไสสันทากาว เรียบเนียนเหมือนหนังสือ', price: 20 },
+  { k: 'coil', ic: 'bindCoil', name: 'เข้าเล่มสันห่วงกระดูกงู / สันเกลียว', sub: 'เจาะรูใส่สันห่วงพลาสติก เปิดกางได้สุด', price: 20 },
+  { k: 'tape', ic: 'bindTape', name: 'เข้าเล่มเทปผ้า (แลคซีน)', sub: 'เย็บแล้วปิดสันด้วยเทปผ้า เรียบร้อยทนทาน', price: 20 },
+  { k: 'glue', ic: 'bindGlue', name: 'เข้าเล่มสันกาว', sub: 'ไสสันทากาว เรียบเนียนเหมือนหนังสือ', price: 20 },
 ];
 // ── ราคางาน Pro (เจ้าของกำหนด 2026-08-20) — ต่อแผ่น ──
 const POSTER_SHEET = { A0: 400, A1: 200, A2: 100, A3: 50, A4: 25 };   // โปสเตอร์ /แผ่น (ด้านหน้าเดียว) — หน้า-หลัง ×2 · ไม่มีติดบอร์ด
@@ -341,7 +341,15 @@ const FI = {
   target: '<circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/>',
   upload: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>',
   receipt: '<path d="M14 2H6a2 2 0 0 0-2 2v16l3-2 3 2 3-2 3 2 3-2V8z"/><line x1="8" y1="9" x2="16" y2="9"/><line x1="8" y1="13" x2="14" y2="13"/>',
-  express: '<rect x="7" y="5" width="10" height="11" rx="1"/><path d="M17 9h2.5L22 12v4h-5"/><circle cx="10.5" cy="18" r="2"/><circle cx="19" cy="18" r="2"/><line x1="1" y1="7" x2="5" y2="7"/><line x1="2" y1="10.5" x2="5" y2="10.5"/><line x1="1" y1="14" x2="5" y2="14"/>' // รถส่งของ+เส้นสปีด — ใช้แทน 🚀 ทุกจุดของส่งด่วน (Express)
+  express: '<rect x="7" y="5" width="10" height="11" rx="1"/><path d="M17 9h2.5L22 12v4h-5"/><circle cx="10.5" cy="18" r="2"/><circle cx="19" cy="18" r="2"/><line x1="1" y1="7" x2="5" y2="7"/><line x1="2" y1="10.5" x2="5" y2="10.5"/><line x1="1" y1="14" x2="5" y2="14"/>', // รถส่งของ+เส้นสปีด — ใช้แทน 🚀 ทุกจุดของส่งด่วน (Express)
+  // ไอคอนช่องเย็บมุม/เข้าเล่ม + วิธีรับของ (2026-09-08 แทนอีโมจิ — เจ้าของอยากได้ดูเป็นทางการ): ลายเส้นชุด Feather (MIT) + วาดเองสไตล์เดียวกัน
+  slash: '<circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/>', // "ไม่เอา..." ทุกช่อง
+  paperclip: '<path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/>', // เย็บมุม
+  bindCoil: '<rect x="8" y="3" width="13" height="18" rx="2"/><line x1="8" y1="7" x2="4" y2="7"/><line x1="8" y1="12" x2="4" y2="12"/><line x1="8" y1="17" x2="4" y2="17"/>', // เล่มสันห่วง/สันเกลียว
+  bindTape: '<rect x="4" y="3" width="16" height="18" rx="2"/><line x1="9" y1="3" x2="9" y2="21"/><line x1="13" y1="9" x2="17" y2="9"/><line x1="13" y1="13" x2="17" y2="13"/>', // เล่มเทปผ้าปิดสัน
+  bindGlue: '<path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>', // เล่มสันกาว (หนังสือ)
+  handRecv: '<path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><polyline points="17 11 19 13 23 9"/>', // รับกับมือ (ส่งถึงคน)
+  box: '<line x1="16.5" y1="9.4" x2="7.5" y2="4.21"/><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/>' // กล่องพัสดุ — วางไว้จุดวางของ
 };
 function fi(name, size, color){
   return <svg width={size || 18} height={size || 18} viewBox="0 0 24 24" fill="none" stroke={color || 'currentColor'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flex: 'none', display: 'block' }} dangerouslySetInnerHTML={{ __html: FI[name] || '' }}/>;
@@ -1925,11 +1933,11 @@ class App extends React.Component {
       // ช่องเข้าเล่ม (STD_BINDS ฿20/ชุด) โชว์เฉพาะ 09:00-22:00 นอกช่วงซ่อนทั้งช่อง (ค้างเลือกไว้ toPay บล็อก + เลือกเย็บมุม/ไม่เย็บมุมทับได้เสมอ ไม่มีทางค้าง) — ปุ่มเข้าเล่ม ฿40 เดิม (bindBookOn) ถูกแทนที่แล้ว
       bindOpen: this.svcHoursOpen(),
       cornerOpts: [
-        { k: 'none', icon: '🚫', name: 'ไม่เย็บมุม', sub: 'รับงานเป็นแผ่น ไม่เย็บ · ฟรี', price: 0, on: s.bind !== 'corner' && !STD_BINDS.some(b => b.k === s.bind), pick: () => this.setState({ bind: 'none' }) },
-        { k: 'corner', icon: '📎', name: 'เย็บมุม', sub: 'เย็บลวดที่มุมซ้ายบน · ฟรี', price: 0, on: s.bind === 'corner', pick: () => this.setState({ bind: 'corner' }) }
+        { k: 'none', ic: 'slash', name: 'ไม่เย็บมุม', sub: 'รับงานเป็นแผ่น ไม่เย็บ · ฟรี', price: 0, on: s.bind !== 'corner' && !STD_BINDS.some(b => b.k === s.bind), pick: () => this.setState({ bind: 'none' }) },
+        { k: 'corner', ic: 'paperclip', name: 'เย็บมุม', sub: 'เย็บลวดที่มุมซ้ายบน · ฟรี', price: 0, on: s.bind === 'corner', pick: () => this.setState({ bind: 'corner' }) }
       ],
       bookOpts: [
-        { k: 'nobook', icon: '🚫', name: 'ไม่เข้าเล่ม', sub: 'ไม่ต้องเข้าเล่ม · ฟรี', price: 0, on: !STD_BINDS.some(b => b.k === s.bind), pick: () => this.setState(st => ({ bind: STD_BINDS.some(b => b.k === st.bind) ? 'none' : st.bind })) },
+        { k: 'nobook', ic: 'slash', name: 'ไม่เข้าเล่ม', sub: 'ไม่ต้องเข้าเล่ม · ฟรี', price: 0, on: !STD_BINDS.some(b => b.k === s.bind), pick: () => this.setState(st => ({ bind: STD_BINDS.some(b => b.k === st.bind) ? 'none' : st.bind })) },
         ...STD_BINDS.map(b => ({ ...b, on: s.bind === b.k, pick: () => this.setState({ bind: b.k }) }))
       ],
       copies: s.copies,
@@ -2949,7 +2957,7 @@ class App extends React.Component {
                   <div style={css("display:flex;flex-direction:column;gap:8px")}>
                     {opts.map((o) => (
                       <div key={o.k} onClick={o.pick} style={css("border:" + (o.on ? "1.5px solid var(--acc)" : "1px solid var(--line)") + ";border-radius:12px;padding:11px 14px;background:" + (o.on ? "var(--accSoft)" : "var(--card)") + ";display:flex;align-items:center;gap:11px;cursor:pointer")}>
-                        <div style={css("font-size:20px;flex:none")}>{o.icon}</div>
+                        <div style={css("flex:none;display:flex;color:" + (o.on ? "var(--acc)" : "var(--sub)"))}>{fi(o.ic, 20)}</div>
                         <div style={css("flex:1;min-width:0")}>
                           <div style={css("font-size:13px;font-weight:700;color:" + (o.on ? "var(--acc)" : "var(--ink)"))}>{o.name}{o.price > 0 && <span style={css("margin-left:6px;font-family:'IBM Plex Mono',monospace;font-size:12px;font-weight:600")}>+฿{o.price}/ชุด</span>}</div>
                           <div style={css("margin-top:1px;font-size:11px;color:var(--sub);line-height:1.5")}>{o.sub}</div>
@@ -2960,7 +2968,7 @@ class App extends React.Component {
                   </div>
                 </div>
               ))}
-              {v.showBind && !v.bindOpen && <div style={css("font-size:11px;color:var(--sub);line-height:1.5")}>📚 บริการเข้าเล่ม (+฿20/ชุด) เปิดรับเฉพาะ 09:00–22:00 น. ครับ</div>}
+              {v.showBind && !v.bindOpen && <div style={css("font-size:11px;color:var(--sub);line-height:1.5")}><span style={css("display:inline-flex;vertical-align:-2px;margin-right:5px")}>{fi('clock', 12)}</span>บริการเข้าเล่ม (+฿20/ชุด) เปิดรับเฉพาะ 09:00–22:00 น. ครับ</div>}
               <div style={css("display:flex;justify-content:space-between;align-items:center")}><div style={css("font-size:12px;font-weight:600;color:var(--sub)")}>จำนวนชุด (สำเนา)</div>
                 <div style={css("display:flex;align-items:center;gap:10px")}>
                   <button onClick={v.copyDec} style={css("width:30px;height:30px;border:1px solid var(--line);background:var(--soft);color:var(--ink);border-radius:9px;font-size:15px;cursor:pointer")}>−</button>
@@ -3195,9 +3203,9 @@ class App extends React.Component {
               <div style={css("background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px;box-shadow:var(--shadow)")}>
                 <div style={css("font-size:12.5px;font-weight:700;margin-bottom:9px")}>ตอนของไปถึง อยากให้ไรเดอร์ส่งแบบไหนครับ? <span style={css("font-weight:400;color:var(--sub)")}>(ไม่บังคับ — ไม่เลือกก็ได้)</span></div>
                 <div style={css("display:flex;flex-direction:column;gap:8px")}>
-                  {[{ k: 'hand', icon: '🤝', name: 'รับกับมือ', sub: 'ไรเดอร์โทรหา แล้วส่งถึงมือคุณเลย' }, { k: 'drop', icon: '📦', name: 'วางไว้จุดวางของ', sub: 'วางไว้จุดวางของ/หน้าห้อง แล้วแจ้งทางแชท — ระบุจุดวางในช่องที่อยู่ได้เลยครับ' }].map(o => (
+                  {[{ k: 'hand', ic: 'handRecv', name: 'รับกับมือ', sub: 'ไรเดอร์โทรหา แล้วส่งถึงมือคุณเลย' }, { k: 'drop', ic: 'box', name: 'วางไว้จุดวางของ', sub: 'วางไว้จุดวางของ/หน้าห้อง แล้วแจ้งทางแชท — ระบุจุดวางในช่องที่อยู่ได้เลยครับ' }].map(o => (
                     <div key={o.k} onClick={() => v.setHandoff(o.k)} style={css("border:" + (v.handoff === o.k ? "1.5px solid var(--acc)" : "1px solid var(--line)") + ";border-radius:12px;padding:11px 14px;background:" + (v.handoff === o.k ? "var(--accSoft)" : "var(--card)") + ";display:flex;align-items:center;gap:11px;cursor:pointer")}>
-                      <div style={css("font-size:22px;flex:none")}>{o.icon}</div>
+                      <div style={css("flex:none;display:flex;color:" + (v.handoff === o.k ? "var(--acc)" : "var(--sub)"))}>{fi(o.ic, 20)}</div>
                       <div style={css("flex:1;min-width:0")}>
                         <div style={css("font-size:13.5px;font-weight:700;color:" + (v.handoff === o.k ? "var(--acc)" : "var(--ink)"))}>{o.name}</div>
                         <div style={css("margin-top:1px;font-size:11px;color:var(--sub);line-height:1.5")}>{o.sub}</div>
