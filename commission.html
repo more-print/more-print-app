@@ -326,7 +326,7 @@ function Manage({ o, onPrice, onPayout, onAdvance, onCancel, onRemove }){
           {(o.files || []).map((f, i) => {
             const u = f.drive_url || fileUrl(f.path);
             return u
-              ? <a key={i} href={u} target="_blank" rel="noreferrer" style={css("font-size:12px;font-weight:700;color:#fff;background:var(--acc);padding:8px 14px;border-radius:9px;text-decoration:none;display:inline-flex;align-items:center;gap:6px")}>{FI.download(13)} {f.name} · {f.pages} หน้า</a>
+              ? <a key={i} href={u} target="_blank" rel="noreferrer" style={css("font-size:12px;font-weight:700;color:#fff;background:var(--acc);padding:8px 14px;border-radius:9px;text-decoration:none;display:inline-flex;align-items:center;gap:6px")}>{FI.download(13)} {f.name} · {f.qty ? 'ลายที่ ' + (i + 1) + ' — ' + f.qty + ' ชิ้น (' + Math.ceil(f.qty / 9) + ' แผ่น A3)' : f.pages + ' หน้า'}</a>
               : <span key={i} style={css("font-size:11px;font-weight:700;color:#c92a2a;background:#ffe3e3;padding:4px 10px;border-radius:8px")}>{FI.alert(11)} {f.name} — ไฟล์อัปไม่สำเร็จ ทักแชทขอจากลูกค้า</span>;
           })}
         </div>
