@@ -1953,11 +1953,15 @@ class App extends React.Component {
       stkOn: s.tier === 'pro' && s.proType === 'sticker',
       stkFiles: (s.tier === 'pro' && s.proType === 'sticker') ? s.files.map((f, i) => ({
         name: f.name,
+        multi: (f.pages || 1) > 1, // ไฟล์เกิน 1 หน้า = ผิดกติกาสติ๊กเกอร์ (ลายละ 1 รูป) — เตือนแดง + toDelivery บล็อก
+        pages: f.pages || 1,
         val: f.qty == null ? '' : String(f.qty), // ค่าว่างระหว่างพิมพ์ได้ — ราคาคิดจากค่า default 9 ไปก่อน แล้ว blur ค่อยเติม 9 คืน
         sheets: Math.ceil(Math.max(1, f.qty || 9) / 9),
+        del: () => this.setState(st => ({ files: st.files.filter((_, j) => j !== i) })),
         setQty: (e) => { const d = e.target.value.replace(/\D/g, '').slice(0, 3); this.setState(st => ({ files: st.files.map((x, j) => j === i ? { ...x, qty: d === '' ? null : Math.max(1, parseInt(d, 10)) } : x) })); },
         blurQty: () => this.setState(st => ({ files: st.files.map((x, j) => (j === i && x.qty == null) ? { ...x, qty: 9 } : x) }))
       })) : [],
+      stkMulti: s.tier === 'pro' && s.proType === 'sticker' && s.files.some(f => (f.pages || 1) > 1),
       stkSum: (() => {
         if (!(s.tier === 'pro' && s.proType === 'sticker') || !s.files.length) return null;
         const qs = s.files.map(f => Math.max(1, f.qty || 9));
@@ -2054,6 +2058,9 @@ class App extends React.Component {
         if (s.files.some(f => f.counting)) return this.showToast('รอระบบอ่านไฟล์แป๊บนึงครับ ⏳');
         const bigPending = s.files.find(f => f.big && !f.upDone);
         if (bigPending) return this.showToast(bigPending.upErr ? 'ไฟล์ใหญ่อัปโหลดไม่สำเร็จ — กดปุ่ม "ลองใหม่" ที่ไฟล์ก่อนนะครับ 🔁' : 'รอไฟล์ใหญ่อัปโหลดให้เสร็จก่อนนะครับ ⏳ (ดู % ที่รายการไฟล์)');
+        // งานสติ๊กเกอร์รับไฟล์ลายละ "1 หน้า (รูปเดียว)" เท่านั้น — ไฟล์หลายหน้าห้ามไปต่อ (นโยบาย 2026-09-09)
+        if (s.tier === 'pro' && s.proType === 'sticker' && s.files.some(f => (f.pages || 1) > 1))
+          return this.showToast('🏷️ ไฟล์สติ๊กเกอร์ต้องมีรูปเดียว (1 หน้า) ต่อ 1 ลายเท่านั้นครับ — ที่เหลือทางร้านจัดการให้เอง ลบไฟล์หลายหน้าแล้วส่งใหม่นะครับ 🙏');
         this.setState({ screen: 'delivery', vehicle: this.forceCar() ? 'car' : s.vehicle, vehSel: this.forceCar() ? true : s.vehSel }); // งานแข็ง/ฝนตกบังคับรถยนต์ = ข้ามขั้นเลือกพาหนะให้เลย
       },
       gmapLink: s.gmapLink, gmapBusy: s.gmapBusy,
@@ -3003,16 +3010,25 @@ class App extends React.Component {
                       ? <div style={css("margin-top:7px;font-size:11.5px;color:var(--sub);line-height:1.6")}>อัปโหลดไฟล์ลายสติ๊กเกอร์ที่ด้านบนก่อน (1 ไฟล์ = 1 ลาย) แล้วช่องกรอกจำนวนชิ้นของแต่ละไฟล์จะขึ้นตรงนี้ครับ</div>
                       : <React.Fragment>
                           {v.stkFiles.map((f, i) => (
-                            <div key={i} style={css("margin-top:9px;display:flex;align-items:center;gap:9px")}>
-                              <div style={css("flex:1;min-width:0")}>
-                                <div style={css("font-size:12px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap")}>ลายที่ {i + 1} · {f.name}</div>
-                                <div style={css("margin-top:1px;font-size:10.5px;color:var(--sub)")}>= {f.sheets} แผ่น A3 (แผ่นละ 9 ชิ้น)</div>
-                              </div>
-                              <input value={f.val} onChange={f.setQty} onBlur={f.blurQty} inputMode="numeric" placeholder="9" style={css("flex:none;width:64px;height:42px;border:1.5px solid var(--acc);border-radius:10px;background:var(--soft);color:var(--ink);font-size:15px;font-weight:700;text-align:center;outline:none")}/>
-                              <span style={css("flex:none;font-size:12px;font-weight:600;color:var(--sub)")}>ชิ้น</span>
-                            </div>
+                            f.multi
+                              ? <div key={i} style={css("margin-top:9px;background:#fff0f0;border:1.5px solid #ffa8a8;border-radius:10px;padding:9px 12px;display:flex;align-items:center;gap:9px")}>
+                                  <div style={css("flex:1;min-width:0")}>
+                                    <div style={css("font-size:12px;font-weight:700;color:#c92a2a;overflow:hidden;text-overflow:ellipsis;white-space:nowrap")}>⚠️ {f.name} มี {f.pages} หน้า</div>
+                                    <div style={css("margin-top:2px;font-size:10.5px;color:#c92a2a;line-height:1.5")}>ไฟล์สติ๊กเกอร์ต้องมีรูปเดียว (1 หน้า) ต่อ 1 ลายเท่านั้นครับ — ที่เหลือทางร้านจัดการให้เอง</div>
+                                  </div>
+                                  <button onClick={f.del} style={css("flex:none;height:34px;padding:0 12px;border:none;border-radius:9px;background:#c92a2a;color:#fff;font-size:11.5px;font-weight:700;cursor:pointer;font-family:inherit")}>ลบไฟล์นี้</button>
+                                </div>
+                              : <div key={i} style={css("margin-top:9px;display:flex;align-items:center;gap:9px")}>
+                                  <div style={css("flex:1;min-width:0")}>
+                                    <div style={css("font-size:12px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap")}>ลายที่ {i + 1} · {f.name}</div>
+                                    <div style={css("margin-top:1px;font-size:10.5px;color:var(--sub)")}>= {f.sheets} แผ่น A3 (แผ่นละ 9 ชิ้น)</div>
+                                  </div>
+                                  <input value={f.val} onChange={f.setQty} onBlur={f.blurQty} inputMode="numeric" placeholder="9" style={css("flex:none;width:64px;height:42px;border:1.5px solid var(--acc);border-radius:10px;background:var(--soft);color:var(--ink);font-size:15px;font-weight:700;text-align:center;outline:none")}/>
+                                  <span style={css("flex:none;font-size:12px;font-weight:600;color:var(--sub)")}>ชิ้น</span>
+                                </div>
                           ))}
-                          {v.stkSum && <div style={css("margin-top:10px;background:var(--accSoft);border:1px solid var(--acc);border-radius:10px;padding:8px 11px;display:flex;justify-content:space-between;font-size:12px;font-weight:700;color:var(--acc)")}><span>รวม {v.stkSum.pcs} ชิ้น = {v.stkSum.sheets} แผ่น A3</span><span>฿{v.stkSum.cost}</span></div>}
+                          {v.stkMulti && <div style={css("margin-top:10px;background:#fff0f0;border:1px solid #ffa8a8;border-radius:10px;padding:8px 11px;font-size:11.5px;font-weight:700;color:#c92a2a;line-height:1.5")}>⚠️ ลบไฟล์ที่เกิน 1 หน้าออกก่อน ถึงจะไปขั้นตอนถัดไปได้ครับ</div>}
+                          {v.stkSum && !v.stkMulti && <div style={css("margin-top:10px;background:var(--accSoft);border:1px solid var(--acc);border-radius:10px;padding:8px 11px;display:flex;justify-content:space-between;font-size:12px;font-weight:700;color:var(--acc)")}><span>รวม {v.stkSum.pcs} ชิ้น = {v.stkSum.sheets} แผ่น A3</span><span>฿{v.stkSum.cost}</span></div>}
                         </React.Fragment>}
                   </div>
                 )}
