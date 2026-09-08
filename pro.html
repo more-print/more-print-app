@@ -227,7 +227,18 @@ function MpChat({ o, me, title }){
   );
 }
 
-function ProOrder({ o, idx, isOwner, payoutReady, onPrice, onPayout, onAdvance, onRetreat, onCancel, onPartnerAdvance, onPartnerRetreat, onPartnerCancel, onPartnerRemove }){
+function ProOrder({ o, idx, isOwner, payoutReady, onPrice, onPayout, onAdvance, onRetreat, onAdjust, onCancel, onPartnerAdvance, onPartnerRetreat, onPartnerCancel, onPartnerRemove }){
+  // ── ปรับแต่งออเดอร์ (เฉพาะเจ้าของ MORE PRINT): แผงพับเก็บ ไม่บังปุ่มหลัก ──
+  const [adjOpen, setAdjOpen] = React.useState(false);
+  const [adjMode, setAdjMode] = React.useState('add');
+  const [adjLabel, setAdjLabel] = React.useState('');
+  const [adjAmt, setAdjAmt] = React.useState('');
+  const adjGo = () => {
+    const n = Math.round(Number(adjAmt));
+    if (!adjLabel.trim() || !n || n <= 0) return alert('กรอกชื่อรายการ และราคาเป็นตัวเลขมากกว่า 0 ก่อนครับ');
+    onAdjust(o, adjMode, adjLabel.trim(), n);
+    setAdjOpen(false); setAdjLabel(''); setAdjAmt('');
+  };
   const [open, setOpen] = React.useState(false);  // กางการ์ด (หุบ = โชว์แค่ เลข·เวลา·ชนิดงาน·สถานะ)
   const [full, setFull] = React.useState(false);  // ใบออเดอร์เต็ม (ที่อยู่·สลิป·ยอดเงิน)
   const [confirmDel, setConfirmDel] = React.useState(false);
@@ -421,6 +432,37 @@ function ProOrder({ o, idx, isOwner, payoutReady, onPrice, onPayout, onAdvance, 
           ↩ กดผิด? ย้อนสถานะกลับเป็น "{stepsOf(o)[o.status - 2]}"
         </button>
       )}
+      {/* ปรับแต่งออเดอร์ (เฉพาะเจ้าของ) — แถบพับเก็บ กางแล้วดันเนื้อหาลง ไม่ลอยทับ */}
+      {isOwner && o.status !== 0 && (
+        <div style={css("margin-top:9px;border:1px dashed var(--line);border-radius:10px;overflow:hidden")}>
+          <div onClick={() => setAdjOpen(v => !v)} style={css("padding:8px 12px;font-size:11.5px;font-weight:700;color:var(--sub);cursor:pointer;display:flex;align-items:center;gap:6px")}>
+            🛠️ ปรับแต่งออเดอร์{(o.adjustments || []).length > 0 ? ' · ปรับแล้ว ' + o.adjustments.length + ' รายการ' : ''}<span style={css("flex:1")}></span>{adjOpen ? '▲' : '▼'}
+          </div>
+          {(o.adjustments || []).length > 0 && (
+            <div style={css("padding:0 12px 8px;display:flex;flex-direction:column;gap:3px")}>
+              {o.adjustments.map((a, i) => (
+                <div key={i} style={css("display:flex;justify-content:space-between;font-size:11px")}><span style={css("color:var(--sub)")}>{a.amt > 0 ? '➕' : '➖'} {a.label}</span><span style={css("font-family:'IBM Plex Mono',monospace;font-weight:700;color:" + (a.amt > 0 ? "#e8590c" : "#22c55e"))}>{a.amt > 0 ? '+' : '−'}฿{Math.abs(a.amt)}</span></div>
+              ))}
+            </div>
+          )}
+          {adjOpen && (
+            <div style={css("padding:10px 12px;border-top:1px dashed var(--line);display:flex;flex-direction:column;gap:8px;background:var(--soft)")}>
+              <div style={css("display:flex;gap:7px")}>
+                <button onClick={() => setAdjMode('add')} style={css("flex:1;height:34px;border-radius:9px;font-size:11.5px;font-weight:700;cursor:pointer;font-family:inherit;" + (adjMode === 'add' ? "border:1.5px solid #e8590c;background:#fff4e6;color:#e8590c" : "border:1px solid var(--line);background:var(--card);color:var(--sub)"))}>➕ เพิ่มรายการ (เก็บเพิ่ม)</button>
+                <button onClick={() => setAdjMode('cut')} style={css("flex:1;height:34px;border-radius:9px;font-size:11.5px;font-weight:700;cursor:pointer;font-family:inherit;" + (adjMode === 'cut' ? "border:1.5px solid #22c55e;background:#e8f8f0;color:#15803d" : "border:1px solid var(--line);background:var(--card);color:var(--sub)"))}>➖ ลดรายการ (คืนเงิน)</button>
+              </div>
+              <input value={adjLabel} onChange={e => setAdjLabel(e.target.value)} maxLength={60} placeholder={adjMode === 'add' ? 'ชื่อรายการที่เพิ่ม เช่น เคลือบเงา' : 'ชื่อรายการที่ลด เช่น ยกเลิกเคลือบ'}
+                style={css("width:100%;box-sizing:border-box;height:38px;border:1px solid var(--line);border-radius:9px;background:var(--card);color:var(--ink);padding:0 11px;font-size:12.5px;outline:none;font-family:inherit")}/>
+              <div style={css("display:flex;gap:7px;align-items:center")}>
+                <input value={adjAmt} onChange={e => setAdjAmt(e.target.value.replace(/[^0-9]/g, '').slice(0, 5))} inputMode="numeric" placeholder="ราคา (บาท)"
+                  style={css("flex:1;min-width:0;box-sizing:border-box;height:38px;border:1px solid var(--line);border-radius:9px;background:var(--card);color:var(--ink);padding:0 11px;font-size:12.5px;outline:none;font-family:inherit")}/>
+                <button onClick={adjGo} style={css("flex:none;height:38px;padding:0 16px;border:none;border-radius:9px;color:#fff;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;background:" + (adjMode === 'add' ? "#e8590c" : "#22c55e"))}>{adjMode === 'add' ? 'ยืนยันเพิ่ม +฿' + (adjAmt || '?') : 'ยืนยันลด −฿' + (adjAmt || '?')}</button>
+              </div>
+              <div style={css("font-size:10.5px;color:var(--sub);line-height:1.6")}>{adjMode === 'add' ? 'ยืนยันแล้ว: ยอดออเดอร์เพิ่ม + แชทส่ง QR ร้านให้ลูกค้าอัตโนมัติ' : 'ยืนยันแล้ว: ยอดลด + แชทแจ้งยอดคืนเงินและขอบัญชีลูกค้าอัตโนมัติ'}</div>
+            </div>
+          )}
+        </div>
+      )}
       <MpChat o={o} me={isOwner ? 'moreprint' : 'partner'} title={isOwner ? 'ช่องแชทกับร้านอุดมสุขปริ้นติ้ง (แจ้งปัญหา)' : 'แชทกับ MOREPRINT (แจ้งปัญหา)'}/>
       </div>}
     </div>
@@ -470,7 +512,7 @@ function Dash({ role }){
     if (!DB) return;
     setLoading(true);
     const cols = 'id,created_at,status,times,cancel_reason,customer_fname,customer_lname,customer_phone,paper,sides,copies,print_cost,bind_cost,delivery_cost,night_fee,total,files,slip_path,addr,point,lat,lng';
-    let r = await DB.from('orders').select(cols + ',payout_at,pickup,cancelled_at,note,coupon,discount').eq('ptype', 'pro').order('created_at', { ascending: false }).limit(2000);
+    let r = await DB.from('orders').select(cols + ',payout_at,pickup,cancelled_at,note,coupon,discount,adjustments').eq('ptype', 'pro').order('created_at', { ascending: false }).limit(2000);
     if (r.error) r = await DB.from('orders').select(cols + ',payout_at,pickup').eq('ptype', 'pro').order('created_at', { ascending: false }).limit(2000); // ยังไม่รัน SQL ลบอัตโนมัติ
     if (r.error) {
       // ยังไม่มีคอลัมน์ payout_at — โหลดแบบไม่มีไปก่อน (ตั้งราคายังใช้ได้ แต่บันทึกการโอนยังไม่ได้)
@@ -531,6 +573,21 @@ function Dash({ role }){
     times[o.status - 1] = '';
     if (DB) { await DB.from('orders').update({ status: prev, times }).eq('id', o.id); await load(); }
     else setOrders(l => l.map(x => x.id === o.id ? { ...x, status: prev, times } : x));
+  };
+  // ปรับแต่งออเดอร์ (เฉพาะเจ้าของ): บวก/ลบยอด + แจ้งลูกค้าใน Live Chat อัตโนมัติ
+  const adjustOrder = async (o, mode, label, n) => {
+    const signed = mode === 'add' ? n : -n;
+    const adjs = [...(o.adjustments || []), { label, amt: signed, at: new Date().toISOString() }];
+    const newTotal = Math.max(0, Math.round((Number(o.total) || 0) + signed));
+    if (!DB) { setOrders(l => l.map(x => x.id === o.id ? { ...x, total: newTotal, adjustments: adjs } : x)); return; }
+    const { error } = await DB.from('orders').update({ total: newTotal, adjustments: adjs }).eq('id', o.id);
+    if (error) return alert(/adjustments/.test(String(error.message || '')) ? 'ยังไม่ได้รัน SQL เพิ่มคอลัมน์ adjustments ครับ' : 'บันทึกไม่สำเร็จ: ' + error.message);
+    const text = signed > 0
+      ? '🛠️ ร้านปรับออเดอร์ตามที่คุยกัน: เพิ่ม "' + label + '" +฿' + n + '\nยอดรวมใหม่ ฿' + newTotal + '\nรบกวนสแกน QR นี้ชำระเพิ่ม ฿' + n + ' แล้วแนบสลิปในแชทนี้ได้เลยครับ 🙏'
+      : '🛠️ ร้านปรับออเดอร์ตามที่คุยกัน: ลด "' + label + '" −฿' + n + '\nยอดรวมใหม่ ฿' + newTotal + ' — ร้านจะโอนคืน ฿' + n + ' ครับ\nรบกวนพิมพ์เลขพร้อมเพย์/เลขบัญชี หรือส่งรูป QR ธนาคารของคุณในแชทนี้ เดี๋ยวร้านโอนคืนให้เร็วที่สุดครับ 🙏';
+    await DB.from('messages').insert({ order_id: o.id, sender: 'shop', body: text, seen_by_shop: true, ...(signed > 0 ? { img: 'chat/shop/promptpay-qr.jpg' } : {}) });
+    try { fetch(CFG.SUPABASE_URL + '/functions/v1/notify-order?action=msg', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: o.id, text }) }); } catch (e) {}
+    await load();
   };
   // ร้านพาร์ทเนอร์ย้อนสถานะ — ผ่านฟังก์ชันปลอดภัยฝั่งฐานข้อมูล (partner_retreat ตรวจสิทธิ์+เงื่อนไขอีกชั้น)
   const partnerRetreat = async (o) => {
@@ -878,7 +935,7 @@ function Dash({ role }){
               </div>
               {loading && <div style={css("text-align:center;color:var(--sub);font-size:13px;padding:16px 0")}>กำลังโหลด…</div>}
               {!loading && cur[2].length === 0 && <div style={css("text-align:center;color:var(--sub);font-size:13px;padding:28px 0")}>ไม่มีออเดอร์ในหมวดนี้</div>}
-              {cur[2].map((o, i) => <ProOrder key={o.id} o={o} idx={dayNum[o.id] || (i + 1)} isOwner={isOwner} payoutReady={payoutReady} onPrice={setPrice} onPayout={markPayout} onAdvance={advance} onRetreat={retreat} onCancel={cancelOrder} onPartnerAdvance={partnerAdvance} onPartnerRetreat={partnerRetreat} onPartnerCancel={partnerCancel} onPartnerRemove={partnerRemove}/>)}
+              {cur[2].map((o, i) => <ProOrder key={o.id} o={o} idx={dayNum[o.id] || (i + 1)} isOwner={isOwner} payoutReady={payoutReady} onPrice={setPrice} onPayout={markPayout} onAdvance={advance} onRetreat={retreat} onAdjust={adjustOrder} onCancel={cancelOrder} onPartnerAdvance={partnerAdvance} onPartnerRetreat={partnerRetreat} onPartnerCancel={partnerCancel} onPartnerRemove={partnerRemove}/>)}
             </React.Fragment>
           );
         })()}

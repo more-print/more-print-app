@@ -347,12 +347,23 @@ const DEMO_MSGS = [
   { id: 2, sender: 'shop', body: 'รับทราบครับ กำลังจัดให้เลย', created_at: new Date(Date.now() - 7*60000).toISOString() }
 ];
 
-function OrderCard({ o, onAdvance, onRetreat, onCancel, onRemove, busy, unread, onSeen }){
+function OrderCard({ o, onAdvance, onRetreat, onAdjust, onCancel, onRemove, busy, unread, onSeen }){
   const cancelled = o.status === 0;
   const [open, setOpen] = React.useState(!cancelled && o.status < 4);
   const [cancelOpen, setCancelOpen] = React.useState(false);
   const [reason, setReason] = React.useState('');
   const [confirmDel, setConfirmDel] = React.useState(false);
+  // ── ปรับแต่งออเดอร์ (ฟังก์ชันเสริมของแอดมิน): แผงพับเก็บอยู่ล่างการ์ด ไม่บังข้อมูล/ปุ่มหลัก ──
+  const [adjOpen, setAdjOpen] = React.useState(false);
+  const [adjMode, setAdjMode] = React.useState('add'); // 'add' เพิ่มรายการ · 'cut' ลดรายการ
+  const [adjLabel, setAdjLabel] = React.useState('');
+  const [adjAmt, setAdjAmt] = React.useState('');
+  const adjGo = () => {
+    const n = Math.round(Number(adjAmt));
+    if (!adjLabel.trim() || !n || n <= 0) return alert('กรอกชื่อรายการ และราคาเป็นตัวเลขมากกว่า 0 ก่อนครับ');
+    onAdjust(o, adjMode, adjLabel.trim(), n);
+    setAdjOpen(false); setAdjLabel(''); setAdjAmt('');
+  };
   const askDelete = () => {
     if (!confirmDel) {
       setConfirmDel(true);
@@ -504,6 +515,37 @@ function OrderCard({ o, onAdvance, onRetreat, onCancel, onRemove, busy, unread, 
               style={css("height:36px;border:1px solid var(--line);border-radius:10px;background:var(--soft);color:var(--sub);font-size:12px;font-weight:700;cursor:pointer" + (busy ? ";opacity:.6" : ""))}>
               ↩ กดผิด? ย้อนกลับเป็น "{STEPS[o.status - 2]}"
             </button>
+          )}
+          {/* ปรับแต่งออเดอร์ (เพิ่ม/ลดรายการ + ราคา) — แถบเล็กพับเก็บ ไม่บังปุ่มหลัก · กางเป็นแผงดันเนื้อหาลง ไม่ลอยทับ */}
+          {!cancelled && (
+            <div style={css("border:1px dashed var(--line);border-radius:10px;overflow:hidden")}>
+              <div onClick={() => setAdjOpen(v => !v)} style={css("padding:8px 12px;font-size:11.5px;font-weight:700;color:var(--sub);cursor:pointer;display:flex;align-items:center;gap:6px")}>
+                🛠️ ปรับแต่งออเดอร์ (เพิ่ม/ลดรายการ){(o.adjustments || []).length > 0 ? ' · ปรับแล้ว ' + o.adjustments.length + ' รายการ' : ''}<span style={css("flex:1")}></span>{adjOpen ? '▲' : '▼'}
+              </div>
+              {(o.adjustments || []).length > 0 && (
+                <div style={css("padding:0 12px 8px;display:flex;flex-direction:column;gap:3px")}>
+                  {o.adjustments.map((a, i) => (
+                    <div key={i} style={css("display:flex;justify-content:space-between;font-size:11px")}><span style={css("color:var(--sub)")}>{a.amt > 0 ? '➕' : '➖'} {a.label}</span><span style={css("font-family:'IBM Plex Mono',monospace;font-weight:700;color:" + (a.amt > 0 ? "#e8590c" : "#22c55e"))}>{a.amt > 0 ? '+' : '−'}฿{Math.abs(a.amt)}</span></div>
+                  ))}
+                </div>
+              )}
+              {adjOpen && (
+                <div style={css("padding:10px 12px;border-top:1px dashed var(--line);display:flex;flex-direction:column;gap:8px;background:var(--soft)")}>
+                  <div style={css("display:flex;gap:7px")}>
+                    <button onClick={() => setAdjMode('add')} style={css("flex:1;height:34px;border-radius:9px;font-size:11.5px;font-weight:700;cursor:pointer;font-family:inherit;" + (adjMode === 'add' ? "border:1.5px solid #e8590c;background:#fff4e6;color:#e8590c" : "border:1px solid var(--line);background:var(--card);color:var(--sub)"))}>➕ เพิ่มรายการ (เก็บเงินเพิ่ม)</button>
+                    <button onClick={() => setAdjMode('cut')} style={css("flex:1;height:34px;border-radius:9px;font-size:11.5px;font-weight:700;cursor:pointer;font-family:inherit;" + (adjMode === 'cut' ? "border:1.5px solid #22c55e;background:#e8f8f0;color:#15803d" : "border:1px solid var(--line);background:var(--card);color:var(--sub)"))}>➖ ลดรายการ (คืนเงิน)</button>
+                  </div>
+                  <input value={adjLabel} onChange={e => setAdjLabel(e.target.value)} maxLength={60} placeholder={adjMode === 'add' ? 'ชื่อรายการที่เพิ่ม เช่น เคลือบเงา' : 'ชื่อรายการที่ลด เช่น ยกเลิกเคลือบ'}
+                    style={css("width:100%;box-sizing:border-box;height:38px;border:1px solid var(--line);border-radius:9px;background:var(--card);color:var(--ink);padding:0 11px;font-size:12.5px;outline:none;font-family:inherit")}/>
+                  <div style={css("display:flex;gap:7px;align-items:center")}>
+                    <input value={adjAmt} onChange={e => setAdjAmt(e.target.value.replace(/[^0-9]/g, '').slice(0, 5))} inputMode="numeric" placeholder="ราคา (บาท)"
+                      style={css("flex:1;min-width:0;box-sizing:border-box;height:38px;border:1px solid var(--line);border-radius:9px;background:var(--card);color:var(--ink);padding:0 11px;font-size:12.5px;outline:none;font-family:inherit")}/>
+                    <button disabled={busy} onClick={adjGo} style={css("flex:none;height:38px;padding:0 16px;border:none;border-radius:9px;color:#fff;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;background:" + (adjMode === 'add' ? "#e8590c" : "#22c55e") + (busy ? ";opacity:.6" : ""))}>{adjMode === 'add' ? 'ยืนยันเพิ่ม +฿' + (adjAmt || '?') : 'ยืนยันลด −฿' + (adjAmt || '?')}</button>
+                  </div>
+                  <div style={css("font-size:10.5px;color:var(--sub);line-height:1.6")}>{adjMode === 'add' ? 'ยืนยันแล้ว: ยอดออเดอร์เพิ่มขึ้น + ส่งข้อความพร้อม QR ร้านเข้า Live Chat ลูกค้าให้อัตโนมัติ' : 'ยืนยันแล้ว: ยอดออเดอร์ลดลง + แชทแจ้งยอดคืนเงินและขอเลขบัญชี/QR ลูกค้าให้อัตโนมัติ'}</div>
+                </div>
+              )}
+            </div>
           )}
           {cancelled && (
             <div style={css("background:#fff0f0;border:1px solid #ffc9c9;border-radius:12px;padding:10px 14px;display:flex;flex-direction:column;gap:8px")}>
@@ -901,6 +943,28 @@ function AdminApp(){
       catch (e) { console.error(e); }
       setBusyId(null);
     } else setOrders(list => list.map(x => x.id === o.id ? { ...x, status: prev, times } : x));
+  };
+
+  // ปรับแต่งออเดอร์ (ฟังก์ชันเสริมแอดมิน): บวก/ลบยอด + จดรายการ + แจ้งลูกค้าใน Live Chat อัตโนมัติ (เพิ่ม = แนบ QR ร้าน · ลด = ขอบัญชีคืนเงิน)
+  const adjustOrder = async (o, mode, label, n) => {
+    const signed = mode === 'add' ? n : -n;
+    const adjs = [...(o.adjustments || []), { label, amt: signed, at: new Date().toISOString() }];
+    const newTotal = Math.max(0, Math.round((Number(o.total) || 0) + signed));
+    if (!DB) { setOrders(list => list.map(x => x.id === o.id ? { ...x, total: newTotal, adjustments: adjs } : x)); return; }
+    setBusyId(o.id);
+    try {
+      const { error } = await DB.from('orders').update({ total: newTotal, adjustments: adjs }).eq('id', o.id);
+      if (error) { alert(/adjustments/.test(String(error.message || '')) ? 'ยังไม่ได้รัน SQL เพิ่มคอลัมน์ adjustments ครับ (ดูก้อน SQL ที่ Claude ส่งให้)' : 'บันทึกไม่สำเร็จ: ' + error.message); setBusyId(null); return; }
+      const text = signed > 0
+        ? '🛠️ ร้านปรับออเดอร์ตามที่คุยกัน: เพิ่ม "' + label + '" +฿' + n + '\nยอดรวมใหม่ ฿' + newTotal + '\nรบกวนสแกน QR นี้ชำระเพิ่ม ฿' + n + ' แล้วแนบสลิปในแชทนี้ได้เลยครับ 🙏'
+        : '🛠️ ร้านปรับออเดอร์ตามที่คุยกัน: ลด "' + label + '" −฿' + n + '\nยอดรวมใหม่ ฿' + newTotal + ' — ร้านจะโอนคืน ฿' + n + ' ครับ\nรบกวนพิมพ์เลขพร้อมเพย์/เลขบัญชี หรือส่งรูป QR ธนาคารของคุณในแชทนี้ เดี๋ยวร้านโอนคืนให้เร็วที่สุดครับ 🙏';
+      // เพิ่มรายการ = แนบ QR พร้อมเพย์ของร้าน (อัปไว้ในคลังที่ chat/shop/promptpay-qr.jpg แล้ว)
+      await DB.from('messages').insert({ order_id: o.id, sender: 'shop', body: text, seen_by_shop: true, ...(signed > 0 ? { img: 'chat/shop/promptpay-qr.jpg' } : {}) });
+      // เด้ง LINE ลูกค้าด้วย (เฉพาะคนล็อกอิน LINE) — เรื่องเงินสำคัญ ยอมใช้โควตา 1 ข้อความ
+      try { fetch(CFG.SUPABASE_URL + '/functions/v1/notify-order?action=msg', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: o.id, text }) }); } catch (e) {}
+      await refresh();
+    } catch (e) { console.error(e); alert('บันทึกไม่สำเร็จ ลองใหม่ครับ'); }
+    setBusyId(null);
   };
 
   const cancel = async (o, reason) => {
@@ -1340,7 +1404,7 @@ function AdminApp(){
               <div style={css("margin-top:10px;font-size:14px")}>ยังไม่มีออเดอร์เข้ามา</div>
             </div>
           )}
-          {shown.map(o => <OrderCard key={o.id} o={o} onAdvance={advance} onRetreat={retreat} onCancel={cancel} onRemove={removeOrder} busy={busyId === o.id} unread={unreadMap[o.id] || 0} onSeen={clearUnread}/>)}
+          {shown.map(o => <OrderCard key={o.id} o={o} onAdvance={advance} onRetreat={retreat} onAdjust={adjustOrder} onCancel={cancel} onRemove={removeOrder} busy={busyId === o.id} unread={unreadMap[o.id] || 0} onSeen={clearUnread}/>)}
         </div>
       )}
 
