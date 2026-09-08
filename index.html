@@ -375,7 +375,7 @@ class App extends React.Component {
       recvSel: false, vehSel: false, // หน้าจุดส่งแบบทีละขั้น: เลือกการรับงานก่อน → เลือกพาหนะ → ค่อยบอกจุดส่ง
       rcOn: false, rcName: (rc0 && rc0.name) || '', rcAddr: (rc0 && rc0.addr) || '', rcTax: (rc0 && rc0.tax) || '', rcPhone: (rc0 && rc0.phone) || '', rcView: null, logoutArm: false, // ใบเสร็จรับเงิน + ยืนยันออกจากระบบ
       vehicle: 'bike', // พาหนะส่งที่ลูกค้าเลือกเอง: 'bike' มอเตอร์ไซค์ · 'car' รถยนต์ (ใช้ทั้ง Standard และ Pro)
-      reviews: [], reviewsReady: false, revAll: false, revStars: 5, revText: '', trackStars: 5, trackText: '',
+      reviews: [], reviewsReady: false, revAll: false, revTab: '', revStars: 5, revText: '', trackStars: 5, trackText: '', // revTab: '' = อัตโนมัติ (มีรีวิวงานจริง = เปิดแท็บงานจริงก่อน)
       alertPrompt: false, alertAck: false,
       proType: 'plate', proSize: 'A4', proBind: 'ไสกาว', proQty: 100, proPickup: false, stdPickup: false, // stdPickup = งาน Standard รับหน้าร้าน MORE PRINT
       proLam: 'none', proSpecial: false, proStaple: false, proStand: false, // ตัวเลือกเสริมงาน Pro (เคลือบ/กระดาษพิเศษ/เย็บ/ขาตั้ง)
@@ -445,9 +445,9 @@ class App extends React.Component {
     }
     // โหมดตัวอย่าง (ยังไม่เชื่อมฐานข้อมูล): โชว์รีวิวตัวอย่างไว้ดูหน้าตา
     if (!this.db) this.setState({ reviewsReady: true, reviews: [
-      { id: 3, name: 'มินตรา', stars: 5, comment: 'ส่งไวมาก งานคมชัด แนะนำเลยค่ะ', ptype: 'ปริ้นสี', auto: false, created_at: new Date().toISOString() },
-      { id: 2, name: 'ก้อง', stars: 5, comment: null, ptype: 'ปริ้นขาวดำ', auto: true, created_at: new Date().toISOString() },
-      { id: 1, name: 'boat', stars: 4, comment: 'ดีครับ ราคาโอเค ส่งตรงเวลา', ptype: null, auto: false, created_at: new Date().toISOString() }
+      { id: 3, order_id: '#MP-DEMO0003', name: 'มินตรา', stars: 5, comment: 'ส่งไวมาก งานคมชัด แนะนำเลยค่ะ', ptype: 'ปริ้นสี', auto: false, created_at: new Date().toISOString() },
+      { id: 2, order_id: '#MP-DEMO0002', name: 'ก้อง', stars: 5, comment: null, ptype: 'ปริ้นขาวดำ', auto: true, created_at: new Date().toISOString() },
+      { id: 1, order_id: null, name: 'boat', stars: 4, comment: 'ดีครับ ราคาโอเค ส่งตรงเวลา', ptype: null, auto: false, created_at: new Date().toISOString() }
     ] });
     // เช็คเงียบ ๆ ว่าประเภทงาน Pro ไหนมีรูปตัวอย่าง (assets/pro/<ประเภท>.jpg) — มีถึงโชว์ป้าย "กดดูตัวอย่างงาน"
     PRO_TYPES.forEach(t => { try { const im = new Image(); im.onload = () => this.setState(st => ({ prevOk: { ...st.prevOk, [t.k]: true } })); im.src = 'assets/pro/' + t.k + '.jpg'; } catch (e) {} });
@@ -2464,16 +2464,24 @@ class App extends React.Component {
       alertPrompt: s.alertPrompt,
       alertGo: () => this.setState({ alertAck: true, alertPrompt: false, screen: 'order' }),
       alertStay: () => this.setState({ alertPrompt: false }),
-      // ── รีวิวจากลูกค้า ──
+      // ── รีวิวจากลูกค้า: แยก 2 หมวด — "รีวิวจากงานจริง" (มี order_id = สั่งจริง โชว์ประเภทงาน) กับ "รีวิวทั่วไป" (ฟอร์มหน้าแรก ไม่ได้สั่ง) ──
       revAll: s.revAll,
       toggleRevAll: () => this.setState({ revAll: !s.revAll }),
-      reviews: s.reviews.slice(0, 30).map(r => ({
-        stars: Math.max(1, Math.min(5, r.stars || 5)),
-        comment: r.comment || '',
-        name: r.name || 'ลูกค้า',
-        ptype: r.ptype || '',
-        date: r.created_at ? new Date(r.created_at).toLocaleDateString('th-TH', { day: 'numeric', month: 'short' }) : ''
-      })),
+      ...(() => {
+        const mapped = s.reviews.slice(0, 30).map(r => ({
+          stars: Math.max(1, Math.min(5, r.stars || 5)),
+          comment: r.comment || '',
+          name: r.name || 'ลูกค้า',
+          ptype: r.ptype || '',
+          real: !!r.order_id, // รีวิวที่ผูกกับออเดอร์จริงเท่านั้น
+          date: r.created_at ? new Date(r.created_at).toLocaleDateString('th-TH', { day: 'numeric', month: 'short' }) : ''
+        }));
+        const revReal = mapped.filter(r => r.real), revGen = mapped.filter(r => !r.real);
+        const revTab = s.revTab || (revReal.length ? 'real' : 'gen'); // ยังไม่เคยกด = เปิดหมวดงานจริงก่อน (ถ้ามี)
+        return { reviews: mapped, revReal, revGen, revTab,
+          revShown: revTab === 'real' ? revReal : revGen,
+          setRevTab: (k) => () => this.setState({ revTab: k, revAll: false }) };
+      })(),
       revCount: s.reviews.length,
       revAvg: s.reviews.length ? (s.reviews.reduce((a, r) => a + Math.max(1, Math.min(5, r.stars || 5)), 0) / s.reviews.length).toFixed(1) : '5.0',
       revStars: s.revStars, setRevStars: (n) => () => this.setState({ revStars: n }),
@@ -2803,19 +2811,28 @@ class App extends React.Component {
               )}
               {v.reviews.length > 0 && (
                 <div style={css("display:flex;flex-direction:column;gap:8px")}>
-                  {(v.revAll ? v.reviews : v.reviews.slice(0, 3)).map((r, i) => (
+                  {/* แท็บแยกหมวด: งานจริง (สั่งออเดอร์แล้วรีวิว — โชว์ประเภทงาน) vs ทั่วไป (ฟอร์มหน้าแรก) */}
+                  <div style={css("display:flex;gap:7px")}>
+                    <span onClick={v.setRevTab('real')} style={css("flex:1;text-align:center;padding:9px 8px;border-radius:99px;font-size:11.5px;font-weight:700;cursor:pointer;" + (v.revTab === 'real' ? "border:1.5px solid var(--acc);background:var(--accSoft);color:var(--acc)" : "border:1px solid var(--line);background:var(--card);color:var(--sub)"))}>✓ ออเดอร์รีวิว ({v.revReal.length})</span>
+                    <span onClick={v.setRevTab('gen')} style={css("flex:1;text-align:center;padding:9px 8px;border-radius:99px;font-size:11.5px;font-weight:700;cursor:pointer;" + (v.revTab === 'gen' ? "border:1.5px solid var(--acc);background:var(--accSoft);color:var(--acc)" : "border:1px solid var(--line);background:var(--card);color:var(--sub)"))}>รีวิว ({v.revGen.length})</span>
+                  </div>
+                  {v.revShown.length === 0 && (
+                    <div style={css("background:var(--soft);border:1px dashed var(--line);border-radius:12px;padding:14px;text-align:center;font-size:12px;color:var(--sub)")}>ยังไม่มีรีวิวในหมวดนี้ครับ</div>
+                  )}
+                  {(v.revAll ? v.revShown : v.revShown.slice(0, 3)).map((r, i) => (
                     <div key={i} style={css("background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px 14px")}>
                       <div style={css("display:flex;align-items:center;gap:8px")}>
                         <div style={css("color:#f5a623;font-size:13px;letter-spacing:1px")}>{'★'.repeat(r.stars)}<span style={css("color:var(--line)")}>{'★'.repeat(5 - r.stars)}</span></div>
+                        {r.real && <span style={css("font-size:9.5px;font-weight:700;color:var(--acc);background:var(--accSoft);border:1px solid var(--acc);padding:2px 8px;border-radius:99px;flex:none")}>✓ ออเดอร์จริง</span>}
                         <div style={css("flex:1")}></div>
                         <div style={css("font-size:10.5px;color:var(--sub)")}>{r.date}</div>
                       </div>
                       {r.comment && <div style={css("margin-top:5px;font-size:12.5px;line-height:1.55")}>{r.comment}</div>}
-                      <div style={css("margin-top:5px;font-size:11px;color:var(--sub)")}>คุณ{r.name}{r.ptype ? ' · งาน' + r.ptype : ''}</div>
+                      <div style={css("margin-top:5px;font-size:11px;color:var(--sub)")}>คุณ{r.name}{r.real && r.ptype ? <span> · สั่ง<span style={css("color:var(--acc);font-weight:700")}>งาน{r.ptype}</span></span> : null}</div>
                     </div>
                   ))}
-                  {v.reviews.length > 3 && (
-                    <button onClick={v.toggleRevAll} style={css("width:100%;height:40px;border:1px solid var(--line);border-radius:12px;background:var(--card);color:var(--acc);font-size:12.5px;font-weight:700;cursor:pointer")}>{v.revAll ? 'ย่อรีวิว ▲' : 'ดูรีวิวทั้งหมด (' + v.revCount + ') ▾'}</button>
+                  {v.revShown.length > 3 && (
+                    <button onClick={v.toggleRevAll} style={css("width:100%;height:40px;border:1px solid var(--line);border-radius:12px;background:var(--card);color:var(--acc);font-size:12.5px;font-weight:700;cursor:pointer")}>{v.revAll ? 'ย่อรีวิว ▲' : 'ดูรีวิวทั้งหมด (' + v.revShown.length + ') ▾'}</button>
                   )}
                 </div>
               )}
