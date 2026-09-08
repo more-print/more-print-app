@@ -407,9 +407,17 @@ function OrderCard({ o, idx, onAdvance, onRetreat, onAdjust, onCancel, onRemove,
               <span style={css("font-size:11px;font-weight:700;padding:3px 10px;border-radius:8px;" + (o.pickup ? "background:#fff3bf;color:#a16207" : "background:var(--accSoft);color:var(--acc)"))}>{o.pickup ? <React.Fragment>{FI.bag ? FI.bag(11) : null} ลูกค้ามารับเอง</React.Fragment> : <React.Fragment>{FI.truck(11)} MORE PRINT ส่ง</React.Fragment>}</span>
             </div>
           </div>
-          {/* แถวข้อมูลสไตล์ pro: หัวข้อซ้าย · เนื้อหาขวา */}
+          {/* แถวข้อมูลสไตล์ pro — ลำดับตามเจ้าของ: ประเภทงาน → ไฟล์งาน → ราคา → สลิป → จุดส่ง */}
           <div style={css("border-top:1px solid var(--line);padding-top:10px;display:flex;gap:10px;font-size:12px")}>
-            <span style={css("flex:none;width:64px;color:var(--sub);font-weight:600;padding-top:4px")}>{FI.file(12)} ไฟล์ ({(o.files || []).length})</span>
+            <span style={css("flex:none;width:64px;color:var(--sub);font-weight:600;padding-top:2px")}>{FI.printer(12)} ประเภทงาน</span>
+            <div style={css("flex:1;min-width:0")}>
+              <div style={css("font-size:12.5px;font-weight:600;line-height:1.6")}>{optionsLabel(o)}</div>
+              {o.ptype === 'pro' && <div style={css("margin-top:4px;font-size:11px;font-weight:700;color:#c92a2a;line-height:1.5")}>งาน PRO ยังไม่มีเรทราคา — ตกลง/ยืนยันราคาปริ้นกับลูกค้าก่อนเริ่มงาน (ยอดที่ลูกค้าชำระแล้วคือค่าส่งเท่านั้น)</div>}
+              {['coil', 'tape', 'glue', 'book'].includes(o.bind) && <div style={css("margin-top:4px;display:inline-block;font-size:11px;font-weight:700;background:#f3f0ff;color:#5f3dc4;border:1px solid #b197fc;padding:3px 10px;border-radius:8px")}>📚 งานเข้าเล่ม: {BIND_LABELS[o.bind]} × {o.copies || 1} ชุด — อย่าลืมเข้าเล่มก่อนส่งนะ</div>}
+            </div>
+          </div>
+          <div style={css("display:flex;gap:10px;font-size:12px")}>
+            <span style={css("flex:none;width:64px;color:var(--sub);font-weight:600;padding-top:4px")}>{FI.file(12)} ไฟล์งาน ({(o.files || []).length})</span>
             <div style={css("flex:1;min-width:0;display:flex;flex-direction:column;gap:6px")}>
               {(o.files || []).map((f, i) => (
                 <div key={i} style={css("background:var(--soft);border-radius:10px;padding:8px 12px" + (f.drive_url ? ";border:1px solid #f0b429" : ""))}>
@@ -442,6 +450,17 @@ function OrderCard({ o, idx, onAdvance, onRetreat, onAdjust, onCancel, onRemove,
             </div>
           </div>
           <div style={css("display:flex;gap:10px;font-size:12px")}>
+            <span style={css("flex:none;width:64px;color:var(--sub);font-weight:600;padding-top:2px")}>{FI.baht ? FI.baht(12) : FI.printer(12)} ราคา</span>
+            <div style={css("flex:1;min-width:0")}>
+            <div style={css("font-size:12px;color:var(--sub)")}>ค่าปริ้น ฿{o.print_cost} · เข้าเล่ม ฿{o.bind_cost} · ค่าส่ง ฿{o.delivery_cost}{o.night_fee ? ' · กลางคืน ฿' + o.night_fee : ''}</div>
+            {(o.discount || 0) > 0 && <div style={css("margin-top:4px;display:inline-block;font-size:11px;font-weight:700;background:#fff0f6;color:#c2255c;border:1px solid #faa2c1;padding:3px 10px;border-radius:8px")}>🎟️ ใช้โค้ดส่วนลด {o.coupon || ''} −฿{o.discount} (ยอดชำระหักส่วนลดแล้ว)</div>}
+            {(o.adjustments || []).map((a, i) => (
+              <div key={i} style={css("margin-top:2px;font-size:11.5px;color:var(--sub)")}>🛠️ {a.amt > 0 ? 'เพิ่ม' : 'ลด'} {a.label} <span style={css("font-family:'IBM Plex Mono',monospace;font-weight:700;color:" + (a.amt > 0 ? "#e8590c" : "#22c55e"))}>{a.amt > 0 ? '+' : '−'}฿{Math.abs(a.amt)}</span></div>
+            ))}
+            <div style={css("margin-top:4px;font-size:13.5px;font-weight:800;color:var(--acc)")}>ราคาสุทธิ {o.total} บาท</div>
+            </div>
+          </div>
+          <div style={css("display:flex;gap:10px;font-size:12px")}>
             <span style={css("flex:none;width:64px;color:var(--sub);font-weight:600;padding-top:2px")}>{FI.receipt(12)} สลิป</span>
             <div style={css("flex:1;min-width:0")}>
             {fileUrl(o.slip_path)
@@ -455,19 +474,7 @@ function OrderCard({ o, idx, onAdvance, onRetreat, onAdjust, onCancel, onRemove,
             </div>
           </div>
           <div style={css("display:flex;gap:10px;font-size:12px")}>
-            <span style={css("flex:none;width:64px;color:var(--sub);font-weight:600;padding-top:2px")}>{FI.printer(12)} ราคา</span>
-            <div style={css("flex:1;min-width:0")}>
-            <div style={css("font-size:12.5px;font-weight:600")}>{optionsLabel(o)}</div>
-            {o.ptype === 'pro' && (
-              <div style={css("margin-top:6px;font-size:11px;font-weight:700;color:#c92a2a;line-height:1.5")}>งาน PRO ยังไม่มีเรทราคา — ตกลง/ยืนยันราคาปริ้นกับลูกค้าก่อนเริ่มงาน (ยอดที่ลูกค้าชำระแล้วคือค่าส่งเท่านั้น)</div>
-            )}
-            <div style={css("margin-top:2px;font-size:12px;color:var(--sub)")}>ค่าปริ้น ฿{o.print_cost} · เข้าเล่ม ฿{o.bind_cost} · ค่าส่ง ฿{o.delivery_cost}{o.night_fee ? ' · กลางคืน ฿' + o.night_fee : ''}</div>
-            {(o.discount || 0) > 0 && <div style={css("margin-top:4px;display:inline-block;font-size:11px;font-weight:700;background:#fff0f6;color:#c2255c;border:1px solid #faa2c1;padding:3px 10px;border-radius:8px")}>🎟️ ใช้โค้ดส่วนลด {o.coupon || ''} −฿{o.discount} (ยอดชำระหักส่วนลดแล้ว)</div>}
-            {['coil', 'tape', 'glue', 'book'].includes(o.bind) && <div style={css("margin-top:4px;display:inline-block;font-size:11px;font-weight:700;background:#f3f0ff;color:#5f3dc4;border:1px solid #b197fc;padding:3px 10px;border-radius:8px")}>📚 งานเข้าเล่ม: {BIND_LABELS[o.bind]} × {o.copies || 1} ชุด — อย่าลืมเข้าเล่มก่อนส่งนะ</div>}
-            </div>
-          </div>
-          <div style={css("display:flex;gap:10px;font-size:12px")}>
-            <span style={css("flex:none;width:64px;color:var(--sub);font-weight:600;padding-top:2px")}>{FI.pin(12)} ส่งที่</span>
+            <span style={css("flex:none;width:64px;color:var(--sub);font-weight:600;padding-top:2px")}>{FI.pin(12)} จุดส่ง</span>
             <div style={css("flex:1;min-width:0")}>
             {(() => {
               const a = o.addr || '';
