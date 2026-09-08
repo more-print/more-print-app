@@ -40,7 +40,8 @@
 // 🚗 รถยนต์ (งานใหญ่: Standy / เพลท A3 ขึ้นไป): ≤2กม. ฿69 · ≤4กม. ฿89 · ≤6กม. ฿129 · เกิน 6 กม. สั่งทาง LINE
 const CONFIG = { nightOverride: 'auto', nightFee: 10, expressFee: 20, expressEnabled: true, // งานด่วน (Express) +20 เฉพาะงาน Standard แบบจัดส่ง — ลัดคิว+เร่งผลิต เวลาคาดการณ์ = 45 นาที/150 หน้า (เปลี่ยนเป็น false เพื่อปิด)
   bindBookOn: false, // บริการเข้าเล่ม +฿40 งาน Standard: ปิดชั่วคราว (2026-08-27 ยังทำไม่ได้) — เปลี่ยนเป็น true เพื่อเปิดคืน
-  shopLat: 16.4633326, shopLng: 102.8241938, // จุดร้าน: โรงพิมพ์อุดมสุขปริ้นติ้ง (กังสดาล) — แก้ที่นี่ถ้าย้าย
+  shopLat: 16.4633326, shopLng: 102.8241938, // จุดร้านงาน Pro: โรงพิมพ์อุดมสุขปริ้นติ้ง (กังสดาล) — แก้ที่นี่ถ้าย้าย
+  stdShopLat: 16.4850584, stdShopLng: 102.8165144, // จุดร้านงาน Standard: หน้าร้าน MORE PRINT (หอพักบริบูรณ์เพลส) — ค่าส่งแยกต้นทางตามประเภทงาน (นโยบาย 2026-09-08)
   deliveryBase: 19, bikePerKm: 6,
   carTiers: [[2, 69], [4, 89], [6, 129]],
   // ปริ้นสี: คิดตามปริมาณสีที่สแกนจากไฟล์ (สัดส่วนพื้นที่สีเกิน colorHeavyPct% = หน้าสีเยอะ)
@@ -563,15 +564,28 @@ class App extends React.Component {
     this._revTimer = setTimeout(() => this.reverseGeocode(lat, lng), 600);
     this.updateDistance(lat, lng);
   }
+  // จุดร้านต้นทางคิดค่าส่ง (นโยบาย 2026-09-08): งาน Standard = หน้าร้าน MORE PRINT (บริบูรณ์เพลส) · งาน Pro = โรงพิมพ์อุดมสุข (กังสดาล)
+  // isPro ไม่ส่งมา = ใช้ประเภทงานที่เลือกอยู่ในหน้าสั่ง
+  shopOrigin(isPro){
+    const pro = isPro != null ? isPro : this.state.tier === 'pro';
+    return pro ? { lat: CONFIG.shopLat, lng: CONFIG.shopLng }
+      : { lat: CONFIG.stdShopLat ?? CONFIG.shopLat, lng: CONFIG.stdShopLng ?? CONFIG.shopLng };
+  }
+  // ลูกค้าสลับประเภทงานกลางคัน = ต้นทางเปลี่ยน — ปักหมุดไว้แล้วต้องวัดระยะ/ค่าส่งใหม่ทันที ไม่งั้นค่าส่งเป็นของต้นทางเก่า
+  remeasureOrigin(){
+    const s = this.state;
+    if (s.lat != null && s.lng != null) this.updateDistance(s.lat, s.lng);
+  }
   // วัดระยะทางถนนจริงจากร้าน → จุดส่ง (OSRM ฟรี) — ถ้าเซิร์ฟเวอร์ล่มใช้เส้นตรง ×1.3 ประมาณแทน
   updateDistance(lat, lng){
     clearTimeout(this._distTimer);
     this.setState({ distKm: null, distSrc: '' });
     this._distTimer = setTimeout(async () => {
       const seq = (this._distSeq = (this._distSeq || 0) + 1);
-      const est = Math.hypot((lat - CONFIG.shopLat) * 111, (lng - CONFIG.shopLng) * 105) * 1.3;
+      const org = this.shopOrigin(); // ต้นทางตามประเภทงานที่เลือกอยู่
+      const est = Math.hypot((lat - org.lat) * 111, (lng - org.lng) * 105) * 1.3;
       try {
-        const r = await fetch('https://router.project-osrm.org/route/v1/driving/' + CONFIG.shopLng + ',' + CONFIG.shopLat + ';' + lng + ',' + lat + '?overview=false');
+        const r = await fetch('https://router.project-osrm.org/route/v1/driving/' + org.lng + ',' + org.lat + ';' + lng + ',' + lat + '?overview=false');
         const j = await r.json();
         const m = j && j.routes && j.routes[0] && j.routes[0].distance;
         if (seq !== this._distSeq) return;
@@ -1575,15 +1589,17 @@ class App extends React.Component {
     return pt;
   }
   async chAdFee(lat, lng){ // ระยะถนนจริงจากร้าน + ค่าส่งตามพาหนะเดิมของออเดอร์ (สูตรเดียวกับหน้าจัดส่ง)
+    // ต้นทางตามประเภทของออเดอร์ที่กำลังดู — งาน Pro (plabel ขึ้นต้น "PRO") วัดจากอุดมสุข ที่เหลือวัดจากหน้าร้าน MORE PRINT
+    const org = this.shopOrigin(((this.state.order || {}).plabel || '').startsWith('PRO'));
     let km = null;
     try {
-      const r = await fetch('https://router.project-osrm.org/route/v1/driving/' + CONFIG.shopLng + ',' + CONFIG.shopLat + ';' + lng + ',' + lat + '?overview=false');
+      const r = await fetch('https://router.project-osrm.org/route/v1/driving/' + org.lng + ',' + org.lat + ';' + lng + ',' + lat + '?overview=false');
       const j = await r.json();
       if (j.routes && j.routes[0]) km = j.routes[0].distance / 1000;
     } catch (e) {}
     if (km == null) { // OSRM ล่ม → เส้นตรง ×1.3
-      const R = 6371, dLa = (lat - CONFIG.shopLat) * Math.PI / 180, dLo = (lng - CONFIG.shopLng) * Math.PI / 180;
-      const a = Math.sin(dLa / 2) ** 2 + Math.cos(CONFIG.shopLat * Math.PI / 180) * Math.cos(lat * Math.PI / 180) * Math.sin(dLo / 2) ** 2;
+      const R = 6371, dLa = (lat - org.lat) * Math.PI / 180, dLo = (lng - org.lng) * Math.PI / 180;
+      const a = Math.sin(dLa / 2) ** 2 + Math.cos(org.lat * Math.PI / 180) * Math.cos(lat * Math.PI / 180) * Math.sin(dLo / 2) ** 2;
       km = 2 * R * Math.asin(Math.sqrt(a)) * 1.3;
     }
     const o = this.state.order || {};
@@ -1860,8 +1876,8 @@ class App extends React.Component {
       shopClosed: s.shopOpen === false, // ร้านกดปิดรับออเดอร์จากหลังบ้าน
       rainMode: s.shopRain === true, // โหมดฝนตก — ทุกงานแบบจัดส่งบังคับรถยนต์
       proAfter17: s.now.getHours() >= 17, // แยกข้อความ: หลัง 17:00 = ผลิตพรุ่งนี้ · ก่อน 08:30 = ผลิตเช้านี้
-      pickStandard: () => this.setState({ tier: 'standard', paper: SIZE_BY_TYPE[s.ptype][0] }),
-      pickPro: () => this.setState({ tier: 'pro', sides: (s.proType === 'poster' || s.proType === 'portfolio' || s.proType === 'namecard' || s.proType === 'foldbook') ? s.sides : 1 }), // ประเภทที่พิมพ์หน้าเดียว ห้ามติดค่าหน้า-หลังค้างจาก Standard
+      pickStandard: () => this.setState({ tier: 'standard', paper: SIZE_BY_TYPE[s.ptype][0] }, () => this.remeasureOrigin()), // สลับประเภทงาน = ต้นทางค่าส่งเปลี่ยน — วัดระยะใหม่ถ้าปักหมุดค้างไว้
+      pickPro: () => this.setState({ tier: 'pro', sides: (s.proType === 'poster' || s.proType === 'portfolio' || s.proType === 'namecard' || s.proType === 'foldbook') ? s.sides : 1 }, () => this.remeasureOrigin()), // ประเภทที่พิมพ์หน้าเดียว ห้ามติดค่าหน้า-หลังค้างจาก Standard
       proTypeOpts: PRO_TYPES.map(t => ({
         k: t.k,
         ...this.seg(t.label, s.proType === t.k,
