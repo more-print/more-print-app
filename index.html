@@ -1863,14 +1863,12 @@ class App extends React.Component {
         thumb: f.thumb || null, heavy: f.heavy || 0, scanned: !!f.scanned,
         up: f.up || 0, upDone: !!f.upDone, upErr: !!f.upErr,
         retryUp: () => { const it = s.files[i]; if (it && it.big && it.file) this.uploadBig(it); },
-        // งานสติ๊กเกอร์: ลูกค้ากรอก "จำนวนชิ้น" ต่อไฟล์ (1 ไฟล์ = 1 ลาย) — 9 ชิ้น = 1 แผ่น A3 เศษปัดขึ้นรายไฟล์
+        // งานสติ๊กเกอร์: จำนวนชิ้นกรอกที่ช่องพิมพ์ใต้ตัวเลือกงาน (stkFiles) — แถวไฟล์บนนี้แค่โชว์สรุป
         stMode: s.tier === 'pro' && s.proType === 'sticker',
         qty: Math.max(1, f.qty || 9),
         stSheets: Math.ceil(Math.max(1, f.qty || 9) / 9),
-        qInc: () => this.setState(st => ({ files: st.files.map((x, j) => j === i ? { ...x, qty: Math.min(999, Math.max(1, x.qty || 9) + 1) } : x) })),
-        qDec: () => this.setState(st => ({ files: st.files.map((x, j) => j === i ? { ...x, qty: Math.max(1, Math.max(1, x.qty || 9) - 1) } : x) })),
         sub: (s.tier === 'pro' && s.proType === 'sticker')
-          ? '🏷️ ลายนี้ ' + Math.max(1, f.qty || 9) + ' ชิ้น = ' + Math.ceil(Math.max(1, f.qty || 9) / 9) + ' แผ่น A3 (แผ่นละ 9 ชิ้น) — ปรับจำนวนชิ้นด้วยปุ่ม + / −'
+          ? '🏷️ ลายนี้ ' + Math.max(1, f.qty || 9) + ' ชิ้น = ' + Math.ceil(Math.max(1, f.qty || 9) / 9) + ' แผ่น A3 — พิมพ์จำนวนชิ้นได้ที่ช่องกรอกด้านล่าง'
           : f.counting ? '⏳ กำลังอ่านไฟล์ (นับหน้า + สแกนปริมาณสี)…' : ((f.auto ? '🔒 นับหน้าจากไฟล์จริงแล้ว — ล็อกจำนวน' : '✏️ ระบุจำนวนหน้าเองด้วยปุ่ม + / − (ร้านเปิดไฟล์เช็คก่อนปริ้นเสมอ)') + (s.ptype === 'color' && f.scanned ? ' · 🎨 สีเยอะ ' + (f.heavy || 0) + ' หน้า' : '')),
         // ไฟล์ที่ระบบอ่านนับหน้าได้เอง = ล็อกจำนวนตามไฟล์จริง แก้ไม่ได้ (กันกดลดหน้าให้ราคาถูกกว่าความจริง) — แก้ได้เฉพาะไฟล์ที่เว็บนับไม่ได้ (เช่น DOCX)
         inc: () => { if (f.auto) return this.showToast('ไฟล์นี้ระบบนับหน้าจากตัวไฟล์จริงแล้ว ล็อกจำนวนไว้ครับ 🔒'); this.setState(st => ({ files: st.files.map((x, j) => j === i ? { ...x, pages: x.pages + 1 } : x) })); },
@@ -1951,6 +1949,21 @@ class App extends React.Component {
         : s.proType === 'standee' ? '🧍 ขนาดกว้าง 60 × สูง 120 ซม.'
         : '',
       proNote: '', // ทุกประเภทงาน Pro มีราคาจริงแล้ว (foldbook เป็นตัวสุดท้าย 2026-08-24)
+      // ── งานสติ๊กเกอร์: ช่องพิมพ์จำนวนชิ้นรายไฟล์ อยู่ใต้ตัวเลือกงานเลย (ลูกค้าไม่ต้องเลื่อนขึ้นไปหาไฟล์) ──
+      stkOn: s.tier === 'pro' && s.proType === 'sticker',
+      stkFiles: (s.tier === 'pro' && s.proType === 'sticker') ? s.files.map((f, i) => ({
+        name: f.name,
+        val: f.qty == null ? '' : String(f.qty), // ค่าว่างระหว่างพิมพ์ได้ — ราคาคิดจากค่า default 9 ไปก่อน แล้ว blur ค่อยเติม 9 คืน
+        sheets: Math.ceil(Math.max(1, f.qty || 9) / 9),
+        setQty: (e) => { const d = e.target.value.replace(/\D/g, '').slice(0, 3); this.setState(st => ({ files: st.files.map((x, j) => j === i ? { ...x, qty: d === '' ? null : Math.max(1, parseInt(d, 10)) } : x) })); },
+        blurQty: () => this.setState(st => ({ files: st.files.map((x, j) => (j === i && x.qty == null) ? { ...x, qty: 9 } : x) }))
+      })) : [],
+      stkSum: (() => {
+        if (!(s.tier === 'pro' && s.proType === 'sticker') || !s.files.length) return null;
+        const qs = s.files.map(f => Math.max(1, f.qty || 9));
+        const sh = qs.reduce((a, q) => a + Math.ceil(q / 9), 0);
+        return { pcs: qs.reduce((a, b) => a + b, 0), sheets: sh, cost: sh * PRO_STICKER_SHEET * Math.max(1, s.copies || 1) };
+      })(),
       showSize: s.tier !== 'pro' && SIZE_BY_TYPE[s.ptype].length > 1,
       sizeOpts: SIZE_BY_TYPE[s.ptype].map(sz => {
         const label = s.ptype === 'portfolio' ? sz + ' ฿' + (sz === 'A5' ? 8 : 12)
@@ -2891,11 +2904,7 @@ class App extends React.Component {
                     : <div style={css("font-size:18px")}>{f.big ? '🗂️' : '📄'}</div>}
                   <div style={css("flex:1;min-width:0")}><div style={css("font-size:12.5px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap")}>{f.name}{f.sizeMB ? ' · ' + f.sizeMB + 'MB' : ''}</div><div style={css("font-size:10.5px;color:var(--sub)")}>{f.sub}</div></div>
                   {f.stMode
-                    ? <div style={css("display:flex;align-items:center;gap:8px")}>
-                        <button onClick={f.qDec} style={css("width:26px;height:26px;border:1px solid var(--line);background:var(--soft);color:var(--ink);border-radius:8px;cursor:pointer")}>−</button>
-                        <div style={css("font-family:'IBM Plex Mono',monospace;font-size:13px;font-weight:700;color:var(--acc);min-width:44px;text-align:center")}>{f.qty} ชิ้น</div>
-                        <button onClick={f.qInc} style={css("width:26px;height:26px;border:1px solid var(--line);background:var(--soft);color:var(--ink);border-radius:8px;cursor:pointer")}>+</button>
-                      </div>
+                    ? <div style={css("flex:none;display:flex;align-items:center;gap:5px;background:var(--accSoft);border:1px solid var(--acc);border-radius:9px;padding:5px 10px")}><span style={css("font-family:'IBM Plex Mono',monospace;font-size:13px;font-weight:700;color:var(--acc)")}>{f.qty} ชิ้น</span></div>
                     : f.auto && !f.counting
                     ? <div style={css("flex:none;display:flex;align-items:center;gap:5px;background:var(--accSoft);border:1px solid var(--acc);border-radius:9px;padding:5px 10px")}><span style={css("font-size:11px")}>🔒</span><span style={css("font-family:'IBM Plex Mono',monospace;font-size:13px;font-weight:700;color:var(--acc)")}>{f.pages} หน้า</span></div>
                     : <div style={css("display:flex;align-items:center;gap:8px")}>
@@ -2987,6 +2996,26 @@ class App extends React.Component {
                 {v.isPro && v.proExtraOpts.length > 0 && <div style={css("display:flex;flex-direction:column;gap:6px")}><div style={css("font-size:12px;font-weight:600;color:var(--sub)")}>ตัวเลือกเสริม</div><div style={css("display:flex;gap:8px;flex-wrap:wrap")}>{v.proExtraOpts.map((o, i) => <button key={i} onClick={o.pick} style={{...o.st, flex:'1 1 45%'}}>{o.label}</button>)}</div></div>}
                 {v.isPro && v.proLamOpts.length > 0 && <div style={css("display:flex;flex-direction:column;gap:6px")}><div style={css("font-size:12px;font-weight:600;color:var(--sub)")}>การเคลือบ</div><div style={css("display:flex;gap:8px;flex-wrap:wrap")}>{v.proLamOpts.map((o, i) => <button key={i} onClick={o.pick} style={{...o.st, flex:'1 1 30%'}}>{o.label}</button>)}</div></div>}
                 {v.isPro && v.proHint && <div style={css("font-size:11.5px;color:var(--acc);font-weight:600")}>{v.proHint}</div>}
+                {v.stkOn && (
+                  <div style={css("background:var(--card);border:1.5px solid var(--acc);border-radius:12px;padding:12px 14px")}>
+                    <div style={css("font-size:12.5px;font-weight:700;color:var(--acc)")}>🏷️ พิมพ์จำนวนชิ้นของแต่ละลายตรงนี้เลย</div>
+                    {v.stkFiles.length === 0
+                      ? <div style={css("margin-top:7px;font-size:11.5px;color:var(--sub);line-height:1.6")}>อัปโหลดไฟล์ลายสติ๊กเกอร์ที่ด้านบนก่อน (1 ไฟล์ = 1 ลาย) แล้วช่องกรอกจำนวนชิ้นของแต่ละไฟล์จะขึ้นตรงนี้ครับ</div>
+                      : <React.Fragment>
+                          {v.stkFiles.map((f, i) => (
+                            <div key={i} style={css("margin-top:9px;display:flex;align-items:center;gap:9px")}>
+                              <div style={css("flex:1;min-width:0")}>
+                                <div style={css("font-size:12px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap")}>ลายที่ {i + 1} · {f.name}</div>
+                                <div style={css("margin-top:1px;font-size:10.5px;color:var(--sub)")}>= {f.sheets} แผ่น A3 (แผ่นละ 9 ชิ้น)</div>
+                              </div>
+                              <input value={f.val} onChange={f.setQty} onBlur={f.blurQty} inputMode="numeric" placeholder="9" style={css("flex:none;width:64px;height:42px;border:1.5px solid var(--acc);border-radius:10px;background:var(--soft);color:var(--ink);font-size:15px;font-weight:700;text-align:center;outline:none")}/>
+                              <span style={css("flex:none;font-size:12px;font-weight:600;color:var(--sub)")}>ชิ้น</span>
+                            </div>
+                          ))}
+                          {v.stkSum && <div style={css("margin-top:10px;background:var(--accSoft);border:1px solid var(--acc);border-radius:10px;padding:8px 11px;display:flex;justify-content:space-between;font-size:12px;font-weight:700;color:var(--acc)")}><span>รวม {v.stkSum.pcs} ชิ้น = {v.stkSum.sheets} แผ่น A3</span><span>฿{v.stkSum.cost}</span></div>}
+                        </React.Fragment>}
+                  </div>
+                )}
                 {v.isPro && v.proShowBind && <div style={css("display:flex;flex-direction:column;gap:6px")}><div style={css("font-size:12px;font-weight:600;color:var(--sub)")}>ตัวเลือกเข้าเล่ม</div><div style={css("display:flex;flex-direction:column;gap:8px")}>{v.proBindOpts.map((o, i) => <button key={i} onClick={o.pick} style={{ ...o.st, width: '100%', boxSizing: 'border-box', minHeight: '44px', display: 'flex', alignItems: 'center', textAlign: 'left', fontSize: '13px' }}>{o.label}</button>)}</div></div>}
                 {v.isPro && v.proShowQty && <div style={css("display:flex;flex-direction:column;gap:6px")}><div style={css("font-size:12px;font-weight:600;color:var(--sub)")}>จำนวน</div><div style={css("display:flex;flex-direction:column;gap:8px")}>{v.proQtyOpts.map((o, i) => <button key={i} onClick={o.pick} style={{ ...o.st, width: '100%', boxSizing: 'border-box', minHeight: '44px', display: 'flex', alignItems: 'center', textAlign: 'left', fontSize: '13px' }}>{o.label}</button>)}</div></div>}
                 {v.isPro && <div style={css("display:flex;flex-direction:column;gap:6px")}><div style={css("font-size:12px;font-weight:600;color:var(--sub)")}>การรับงาน</div><div style={css("display:flex;flex-direction:column;gap:8px")}>
