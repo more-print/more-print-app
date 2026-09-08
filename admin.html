@@ -392,6 +392,9 @@ function OrderCard({ o, idx, onAdvance, onRetreat, onAdjust, onCancel, onRemove,
       </div>
       {open && (
         <div style={css("border-top:1px dashed var(--line);padding:14px 16px;display:flex;flex-direction:column;gap:12px")}>
+          {/* เรียงแบบ pro.html: ป้ายรอทำ → ลูกค้า → สเปกใหญ่+ชิป → แถวข้อมูล → ปุ่ม → แชทท้ายสุด */}
+          {o.status === 1 && (() => { const m = Math.max(0, Math.round((Date.now() - new Date(o.created_at).getTime()) / 60000)); const tt = m < 60 ? m + ' นาที' : (m / 60).toFixed(m < 600 ? 1 : 0).replace(/\.0$/, '') + ' ชม.'; return <div><span style={css("font-size:10.5px;font-weight:700;color:#a16207;background:#fff3bf;padding:3px 10px;border-radius:99px")}>{FI.clock(11)} รอเริ่มงาน · ผ่านมา {tt}</span></div>; })()}
+          <div style={css("font-size:12px;color:var(--sub)")}>คุณ{o.customer_fname} {o.customer_lname} · <a href={'tel:' + (o.customer_phone || '').replace(/[^0-9+]/g,'')} style={css("font-family:'IBM Plex Mono',monospace;font-size:12.5px")}>{o.customer_phone}</a>{o.customer_email ? <span> · {o.customer_email}</span> : null}</div>
           {/* สเปกตัวใหญ่ + แถวชิป (โครงหน้าตาแบบ pro.html) */}
           <div>
             <div style={css("font-size:17px;font-weight:800;line-height:1.3")}>{FI.file(16)} {o.ptype ? (PTYPE_LABELS[o.ptype] || o.ptype) : (o.color ? 'ปริ้นสี' : 'ปริ้นขาวดำ')} {o.paper} <span style={css("color:#b8860b")}>× {o.copies || 1} ชุด</span></div>
@@ -404,13 +407,10 @@ function OrderCard({ o, idx, onAdvance, onRetreat, onAdjust, onCancel, onRemove,
               <span style={css("font-size:11px;font-weight:700;padding:3px 10px;border-radius:8px;" + (o.pickup ? "background:#fff3bf;color:#a16207" : "background:var(--accSoft);color:var(--acc)"))}>{o.pickup ? <React.Fragment>{FI.bag ? FI.bag(11) : null} ลูกค้ามารับเอง</React.Fragment> : <React.Fragment>{FI.truck(11)} MORE PRINT ส่ง</React.Fragment>}</span>
             </div>
           </div>
-          <div style={css("background:var(--soft);border:1px solid var(--line);border-radius:12px;padding:10px 12px")}>
-            <div style={css("font-size:11px;font-weight:700;color:var(--sub);letter-spacing:.5px")}>{FI.user(12)} ลูกค้า</div>
-            <div style={css("margin-top:4px;font-size:13px")}>คุณ{o.customer_fname} {o.customer_lname} · <a href={'tel:' + (o.customer_phone || '').replace(/[^0-9+]/g,'')} style={css("font-family:'IBM Plex Mono',monospace;font-size:12.5px")}>{o.customer_phone}</a>{o.customer_email ? <span style={css("color:var(--sub)")}> · {o.customer_email}</span> : null}</div>
-          </div>
-          <div style={css("background:var(--soft);border:1px solid var(--line);border-radius:12px;padding:10px 12px")}>
-            <div style={css("font-size:11px;font-weight:700;color:var(--sub);letter-spacing:.5px")}>{FI.file(12)} ไฟล์เอกสาร ({(o.files || []).length})</div>
-            <div style={css("margin-top:6px;display:flex;flex-direction:column;gap:6px")}>
+          {/* แถวข้อมูลสไตล์ pro: หัวข้อซ้าย · เนื้อหาขวา */}
+          <div style={css("border-top:1px solid var(--line);padding-top:10px;display:flex;gap:10px;font-size:12px")}>
+            <span style={css("flex:none;width:64px;color:var(--sub);font-weight:600;padding-top:4px")}>{FI.file(12)} ไฟล์ ({(o.files || []).length})</span>
+            <div style={css("flex:1;min-width:0;display:flex;flex-direction:column;gap:6px")}>
               {(o.files || []).map((f, i) => (
                 <div key={i} style={css("background:var(--soft);border-radius:10px;padding:8px 12px" + (f.drive_url ? ";border:1px solid #f0b429" : ""))}>
                   <div style={css("display:flex;align-items:center;gap:8px")}>
@@ -441,8 +441,9 @@ function OrderCard({ o, idx, onAdvance, onRetreat, onAdjust, onCancel, onRemove,
               ))}
             </div>
           </div>
-          <div style={css("background:var(--soft);border:1px solid var(--line);border-radius:12px;padding:10px 12px")}>
-            <div style={css("font-size:11px;font-weight:700;color:var(--sub);letter-spacing:.5px")}>{FI.receipt(12)} สลิปโอนเงิน · ฿{o.total}</div>
+          <div style={css("display:flex;gap:10px;font-size:12px")}>
+            <span style={css("flex:none;width:64px;color:var(--sub);font-weight:600;padding-top:2px")}>{FI.receipt(12)} สลิป</span>
+            <div style={css("flex:1;min-width:0")}>
             {fileUrl(o.slip_path)
               ? <a href={fileUrl(o.slip_path)} target="_blank" rel="noreferrer" style={css("display:inline-block;margin-top:6px;text-decoration:none")}>
                   <img src={fileUrl(o.slip_path)} alt="สลิปโอนเงิน" style={css("max-width:170px;max-height:220px;border-radius:10px;border:1px solid var(--line);display:block;background:var(--soft)")}/>
@@ -451,19 +452,23 @@ function OrderCard({ o, idx, onAdvance, onRetreat, onAdjust, onCancel, onRemove,
               : (o.status >= 1 && o.status < 4
                 ? <div style={css("margin-top:4px;font-size:12.5px;color:#c92a2a;font-weight:700")}>⚠️ ไม่มีสลิปแนบมา — โทรเช็คก่อนปริ้น</div>
                 : <div style={css("margin-top:4px;font-size:11.5px;color:var(--sub)")}>— ไม่มีไฟล์ (อาจถูกล้างเพื่อคืนพื้นที่แล้ว)</div>)}
+            </div>
           </div>
-          <div style={css("background:var(--soft);border:1px solid var(--line);border-radius:12px;padding:10px 12px")}>
-            <div style={css("font-size:11px;font-weight:700;color:var(--sub);letter-spacing:.5px")}>{FI.printer(12)} คำสั่งปริ้น</div>
-            <div style={css("margin-top:4px;font-size:13px;font-weight:600")}>{optionsLabel(o)}</div>
+          <div style={css("display:flex;gap:10px;font-size:12px")}>
+            <span style={css("flex:none;width:64px;color:var(--sub);font-weight:600;padding-top:2px")}>{FI.printer(12)} ราคา</span>
+            <div style={css("flex:1;min-width:0")}>
+            <div style={css("font-size:12.5px;font-weight:600")}>{optionsLabel(o)}</div>
             {o.ptype === 'pro' && (
               <div style={css("margin-top:6px;font-size:11px;font-weight:700;color:#c92a2a;line-height:1.5")}>งาน PRO ยังไม่มีเรทราคา — ตกลง/ยืนยันราคาปริ้นกับลูกค้าก่อนเริ่มงาน (ยอดที่ลูกค้าชำระแล้วคือค่าส่งเท่านั้น)</div>
             )}
             <div style={css("margin-top:2px;font-size:12px;color:var(--sub)")}>ค่าปริ้น ฿{o.print_cost} · เข้าเล่ม ฿{o.bind_cost} · ค่าส่ง ฿{o.delivery_cost}{o.night_fee ? ' · กลางคืน ฿' + o.night_fee : ''}</div>
             {(o.discount || 0) > 0 && <div style={css("margin-top:4px;display:inline-block;font-size:11px;font-weight:700;background:#fff0f6;color:#c2255c;border:1px solid #faa2c1;padding:3px 10px;border-radius:8px")}>🎟️ ใช้โค้ดส่วนลด {o.coupon || ''} −฿{o.discount} (ยอดชำระหักส่วนลดแล้ว)</div>}
             {['coil', 'tape', 'glue', 'book'].includes(o.bind) && <div style={css("margin-top:4px;display:inline-block;font-size:11px;font-weight:700;background:#f3f0ff;color:#5f3dc4;border:1px solid #b197fc;padding:3px 10px;border-radius:8px")}>📚 งานเข้าเล่ม: {BIND_LABELS[o.bind]} × {o.copies || 1} ชุด — อย่าลืมเข้าเล่มก่อนส่งนะ</div>}
+            </div>
           </div>
-          <div style={css("background:var(--soft);border:1px solid var(--line);border-radius:12px;padding:10px 12px")}>
-            <div style={css("font-size:11px;font-weight:700;color:var(--sub);letter-spacing:.5px")}>{FI.pin(12)} จัดส่ง</div>
+          <div style={css("display:flex;gap:10px;font-size:12px")}>
+            <span style={css("flex:none;width:64px;color:var(--sub);font-weight:600;padding-top:2px")}>{FI.pin(12)} ส่งที่</span>
+            <div style={css("flex:1;min-width:0")}>
             {(() => {
               const a = o.addr || '';
               const car = a.indexOf('🚗') === 0, bike = a.indexOf('🏍️') === 0;
@@ -499,8 +504,8 @@ function OrderCard({ o, idx, onAdvance, onRetreat, onAdjust, onCancel, onRemove,
                 target="_blank" rel="noreferrer"
                 style={css("display:inline-block;margin-top:8px;padding:8px 14px;background:var(--accSoft);color:var(--acc);border:1.5px solid var(--acc);border-radius:10px;font-size:12.5px;font-weight:700;text-decoration:none")}>{FI.nav(12)} เปิดแผนที่นำทางไปหาลูกค้า{o.lat == null ? ' (ค้นจากที่อยู่)' : ''}</a>
             ) : null}
+            </div>
           </div>
-          <Chat o={o} onSeen={onSeen}/>
           <div style={css("display:flex;gap:6px;flex-wrap:wrap")}>
             {STEPS.map((sName, i) => {
               const done = o.status > i, cur = o.status === i + 1;
@@ -591,6 +596,8 @@ function OrderCard({ o, idx, onAdvance, onRetreat, onAdjust, onCancel, onRemove,
               </div>
             </div>
           )}
+          {/* แชทกับลูกค้า — ท้ายการ์ดแบบ pro.html */}
+          <Chat o={o} onSeen={onSeen}/>
         </div>
       )}
     </div>
@@ -605,7 +612,8 @@ function AdminApp(){
   const [loading, setLoading] = React.useState(!!DB);
   const [busyId, setBusyId] = React.useState(null);
   const [lastSync, setLastSync] = React.useState(null);
-  const [filter, setFilter] = React.useState('all');
+  const [filter, setFilter] = React.useState('pending'); // แถบสถานะแบบ pro.html: กำลังทำ/เสร็จแล้ว/ยกเลิก
+  const [period, setPeriod] = React.useState('day'); // ช่วงเวลาแบบ pro.html: วันนี้/สัปดาห์/เดือน/ปี
   const [zoneFilter, setZoneFilter] = React.useState('all');
   const [banners, setBanners] = React.useState(DB ? [] : [{ id: 1, title: 'ตัวอย่างแบนเนอร์ — เปิด 24 ชม.', subtitle: 'สั่งได้ทุกเวลา ส่งทั่ว มข.', emoji: '🌙', color: 'dark', active: true }]);
   const [bnTitle, setBnTitle] = React.useState('');
@@ -1157,10 +1165,16 @@ function AdminApp(){
   const repeatCust = Object.values(custMap).filter(c => c.count >= 2).length;
   const monthLabel = THAI_MONTHS[now.getMonth()];
 
-  const statusShown = filter === 'all' ? orders
-    : filter === 'pending' ? orders.filter(o => o.status >= 1 && o.status < 4)
-    : filter === 'cancelled' ? orders.filter(o => o.status === 0)
-    : orders.filter(o => o.status === 4);
+  // โครงแบบ pro.html: เสร็จแล้ว/ยกเลิกกรองตามช่วงเวลาที่เลือก · "กำลังทำ" โชว์ทุกใบเสมอ (งานค้างต้องไม่ตกหล่น)
+  const pToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const pWeek = new Date(pToday); pWeek.setDate(pToday.getDate() - ((pToday.getDay() + 6) % 7)); // จันทร์ต้นสัปดาห์นี้
+  const PERIODS = [['day', 'วันนี้', pToday], ['week', 'สัปดาห์นี้', pWeek], ['month', 'เดือนนี้', new Date(now.getFullYear(), now.getMonth(), 1)], ['year', 'ปีนี้', new Date(now.getFullYear(), 0, 1)]];
+  const curP = PERIODS.find(x => x[0] === period) || PERIODS[0];
+  const inPeriod = (o) => new Date(o.created_at) >= curP[2];
+  const ordActive = orders.filter(o => o.status >= 1 && o.status < 4);
+  const ordDone = orders.filter(o => o.status === 4 && inPeriod(o));
+  const ordCancel = orders.filter(o => o.status === 0 && inPeriod(o));
+  const statusShown = filter === 'done' ? ordDone : filter === 'cancelled' ? ordCancel : ordActive;
   // กรองตามโซนไรเดอร์
   const zoneCounts = {};
   statusShown.forEach(o => { const z = zoneOf(o.lat, o.lng); if (z) zoneCounts[z.name] = (zoneCounts[z.name] || 0) + 1; });
@@ -1379,12 +1393,26 @@ function AdminApp(){
           ) : (
             <button onClick={() => setAlOpen(true)} style={css("align-self:flex-start;padding:7px 14px;border-radius:99px;font-size:11.5px;font-weight:700;cursor:pointer;border:1px solid #e03131;background:none;color:#c92a2a")}>{FI.volume(12)} แจ้งลูกค้า: งานล่าช้า/มีปัญหา</button>
           )}
-          <div style={css("display:flex;gap:6px;align-items:center;flex-wrap:wrap")}>
-            <button onClick={exportCsv} style={css("order:9;margin-left:auto;padding:6px 12px;border-radius:99px;font-size:11.5px;font-weight:700;cursor:pointer;border:1px solid var(--acc);background:var(--accSoft);color:var(--acc)")}>⬇ สำรองข้อมูล CSV</button>
-            {[['all', 'ทั้งหมด'], ['pending', 'กำลังทำ'], ['done', 'ส่งแล้ว'], ['cancelled', 'ยกเลิก']].map(([k, label]) => (
-              <button key={k} onClick={() => setFilter(k)} style={{ padding: '6px 14px', borderRadius: '99px', fontSize: '12px', fontWeight: 600, cursor: 'pointer',
+          {/* ── หัวหมวดออเดอร์โครงแบบ pro.html: ชื่อหมวด · ช่วงเวลา · แถบสถานะ ── */}
+          <div style={css("display:flex;align-items:center;gap:8px")}>
+            <div style={css("font-size:17px;font-weight:800;flex:1")}>ออเดอร์</div>
+            <button onClick={exportCsv} style={css("padding:6px 12px;border-radius:99px;font-size:11.5px;font-weight:700;cursor:pointer;border:1px solid var(--acc);background:var(--accSoft);color:var(--acc)")}>⬇ สำรองข้อมูล CSV</button>
+          </div>
+          <div style={css("display:flex;gap:6px")}>
+            {PERIODS.map(([k, label]) => (
+              <button key={k} onClick={() => setPeriod(k)} style={{ flex: 1, height: '34px', borderRadius: '99px', cursor: 'pointer', fontSize: '11px', fontWeight: 700, fontFamily: 'inherit',
+                border: period === k ? '1.5px solid var(--acc)' : '1px solid var(--line)',
+                background: period === k ? 'var(--accSoft)' : 'var(--card)', color: period === k ? 'var(--acc)' : 'var(--sub)' }}>{label}</button>
+            ))}
+          </div>
+          <div style={css("font-size:10.5px;color:var(--sub)")}>รายการเสร็จแล้ว/ยกเลิกกรองตามช่วงที่เลือก · งานที่ยังไม่เสร็จแสดงทุกช่วงเสมอ</div>
+          <div style={css("display:flex;gap:7px")}>
+            {[['pending', <React.Fragment>{FI.printer(13)} กำลังทำ</React.Fragment>, ordActive], ['done', <React.Fragment>{FI.check(13)} เสร็จแล้ว</React.Fragment>, ordDone], ['cancelled', <React.Fragment>{FI.x(13)} ยกเลิก</React.Fragment>, ordCancel]].map(([k, label, list]) => (
+              <button key={k} onClick={() => setFilter(k)} style={{ flex: 1, height: '42px', borderRadius: '12px', cursor: 'pointer', fontSize: '11.5px', fontWeight: 700, fontFamily: 'inherit',
                 border: filter === k ? '1.5px solid var(--acc)' : '1px solid var(--line)',
-                background: filter === k ? 'var(--accSoft)' : 'var(--soft)', color: filter === k ? 'var(--acc)' : 'var(--ink)' }}>{label}</button>
+                background: filter === k ? 'var(--accSoft)' : 'var(--card)', color: filter === k ? 'var(--acc)' : 'var(--sub)' }}>
+                {label} ({list.length})
+              </button>
             ))}
           </div>
           <div style={css("display:flex;gap:6px;flex-wrap:wrap;align-items:center")}>
