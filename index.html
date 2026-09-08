@@ -3082,8 +3082,8 @@ class App extends React.Component {
               </div>
             </div>
             <div style={css("background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px;display:flex;flex-direction:column;gap:8px")}>
-              <div style={css("font-size:12px;font-weight:600;color:var(--sub)")}>หมายเหตุ (รายละเอียดงาน)</div>
-              <textarea value={v.noteText} onChange={v.setNote} rows={2} maxLength={300} placeholder="บอกรายละเอียดเพิ่มได้ เช่น ปริ้นเฉพาะหน้า 1-10 · เน้นสีสด (ไม่บังคับ)"
+              <div style={css("font-size:12px;font-weight:600;color:var(--sub)")}>หมายเหตุ (รายละเอียดงาน) <span style={css("font-weight:400")}>— กรอกหรือไม่กรอกก็ได้</span></div>
+              <textarea value={v.noteText} onChange={v.setNote} rows={2} maxLength={300}
                 style={css("width:100%;box-sizing:border-box;border:1px solid var(--line);border-radius:10px;background:var(--soft);color:var(--ink);padding:10px 12px;font-size:13px;outline:none;resize:none;font-family:inherit;line-height:1.5")}></textarea>
             </div>
             <div style={css("background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px")}>
