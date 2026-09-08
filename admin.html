@@ -1637,6 +1637,9 @@ function AdminApp(){
               <div style={css("display:flex;align-items:center;gap:8px")}>
                 <span style={css("color:#f5a623;font-size:13px;letter-spacing:1px")}>{'★'.repeat(Math.max(1, Math.min(5, r.stars || 5)))}</span>
                 {r.auto && <span style={css("font-size:10px;font-weight:700;background:var(--soft);color:var(--sub);padding:2px 8px;border-radius:99px")}>5 ดาวอัตโนมัติ</span>}
+                {r.order_id
+                  ? <span style={css("font-size:10px;font-weight:700;background:var(--accSoft);color:var(--acc);padding:2px 8px;border-radius:99px")}>✓ ออเดอร์จริง</span>
+                  : <span style={css("font-size:10px;font-weight:700;background:#fff4e6;color:#d9480f;padding:2px 8px;border-radius:99px")}>รีวิวทั่วไป (ไม่ได้สั่ง)</span>}
                 <span style={css("flex:1")}></span>
                 <button onClick={() => delReview(r)} style={css("height:28px;padding:0 10px;border:1px solid #ffa8a8;border-radius:8px;background:" + (revDelId === r.id ? "#c92a2a" : "none") + ";color:" + (revDelId === r.id ? "#fff" : "#c92a2a") + ";font-size:11px;font-weight:700;cursor:pointer")}>{revDelId === r.id ? 'ยืนยันลบ?' : 'ลบ'}</button>
               </div>
