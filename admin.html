@@ -347,7 +347,7 @@ const DEMO_MSGS = [
   { id: 2, sender: 'shop', body: 'รับทราบครับ กำลังจัดให้เลย', created_at: new Date(Date.now() - 7*60000).toISOString() }
 ];
 
-function OrderCard({ o, onAdvance, onCancel, onRemove, busy, unread, onSeen }){
+function OrderCard({ o, onAdvance, onRetreat, onCancel, onRemove, busy, unread, onSeen }){
   const cancelled = o.status === 0;
   const [open, setOpen] = React.useState(!cancelled && o.status < 4);
   const [cancelOpen, setCancelOpen] = React.useState(false);
@@ -497,6 +497,12 @@ function OrderCard({ o, onAdvance, onCancel, onRemove, busy, unread, onSeen }){
             <button disabled={busy} onClick={() => onAdvance(o)}
               style={css("height:44px;border:none;border-radius:12px;background:var(--acc);color:#fff;font-size:14px;font-weight:700;cursor:pointer" + (busy ? ";opacity:.6" : ""))}>
               {busy ? 'กำลังบันทึก…' : '→ อัปเดตเป็น "' + STEPS[o.status] + '"'}
+            </button>
+          )}
+          {!cancelled && o.status >= 2 && o.status <= 4 && (
+            <button disabled={busy} onClick={() => onRetreat(o)}
+              style={css("height:36px;border:1px solid var(--line);border-radius:10px;background:var(--soft);color:var(--sub);font-size:12px;font-weight:700;cursor:pointer" + (busy ? ";opacity:.6" : ""))}>
+              ↩ กดผิด? ย้อนกลับเป็น "{STEPS[o.status - 2]}"
             </button>
           )}
           {cancelled && (
@@ -881,6 +887,20 @@ function AdminApp(){
     } else {
       setOrders(list => list.map(x => x.id === o.id ? { ...x, status: next, times } : x));
     }
+  };
+
+  // ย้อนสถานะกลับ 1 ขั้น (เผื่อกดผิด) — ล้างเวลาของขั้นที่ถอยออกด้วย หน้าติดตามลูกค้าจะกลับไปตรงตามจริง
+  const retreat = async (o) => {
+    if (!o.status || o.status < 2 || o.status > 4) return; // ต่ำสุดคือ "รับออเดอร์" · ใบยกเลิกห้ามแตะ
+    const prev = o.status - 1;
+    const times = (o.times || ['', '', '', '']).slice();
+    times[o.status - 1] = '';
+    if (DB) {
+      setBusyId(o.id);
+      try { await DB.from('orders').update({ status: prev, times }).eq('id', o.id); await refresh(); }
+      catch (e) { console.error(e); }
+      setBusyId(null);
+    } else setOrders(list => list.map(x => x.id === o.id ? { ...x, status: prev, times } : x));
   };
 
   const cancel = async (o, reason) => {
@@ -1320,7 +1340,7 @@ function AdminApp(){
               <div style={css("margin-top:10px;font-size:14px")}>ยังไม่มีออเดอร์เข้ามา</div>
             </div>
           )}
-          {shown.map(o => <OrderCard key={o.id} o={o} onAdvance={advance} onCancel={cancel} onRemove={removeOrder} busy={busyId === o.id} unread={unreadMap[o.id] || 0} onSeen={clearUnread}/>)}
+          {shown.map(o => <OrderCard key={o.id} o={o} onAdvance={advance} onRetreat={retreat} onCancel={cancel} onRemove={removeOrder} busy={busyId === o.id} unread={unreadMap[o.id] || 0} onSeen={clearUnread}/>)}
         </div>
       )}
 

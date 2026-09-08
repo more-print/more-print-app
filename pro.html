@@ -227,7 +227,7 @@ function MpChat({ o, me, title }){
   );
 }
 
-function ProOrder({ o, idx, isOwner, payoutReady, onPrice, onPayout, onAdvance, onCancel, onPartnerAdvance, onPartnerCancel, onPartnerRemove }){
+function ProOrder({ o, idx, isOwner, payoutReady, onPrice, onPayout, onAdvance, onRetreat, onCancel, onPartnerAdvance, onPartnerRetreat, onPartnerCancel, onPartnerRemove }){
   const [open, setOpen] = React.useState(false);  // กางการ์ด (หุบ = โชว์แค่ เลข·เวลา·ชนิดงาน·สถานะ)
   const [full, setFull] = React.useState(false);  // ใบออเดอร์เต็ม (ที่อยู่·สลิป·ยอดเงิน)
   const [confirmDel, setConfirmDel] = React.useState(false);
@@ -414,6 +414,13 @@ function ProOrder({ o, idx, isOwner, payoutReady, onPrice, onPayout, onAdvance, 
           )}
         </div>
       )}
+      {/* กดสถานะผิด → ย้อนกลับได้ 1 ขั้น (เจ้าของอัปเดตตรง · พาร์ทเนอร์ผ่าน partner_retreat) */}
+      {o.status >= 2 && o.status <= 4 && (
+        <button onClick={() => (isOwner ? onRetreat(o) : onPartnerRetreat(o))}
+          style={css("margin-top:9px;width:100%;height:36px;border:1px solid var(--line);border-radius:10px;background:var(--soft);color:var(--sub);font-size:12px;font-weight:700;cursor:pointer")}>
+          ↩ กดผิด? ย้อนสถานะกลับเป็น "{stepsOf(o)[o.status - 2]}"
+        </button>
+      )}
       <MpChat o={o} me={isOwner ? 'moreprint' : 'partner'} title={isOwner ? 'ช่องแชทกับร้านอุดมสุขปริ้นติ้ง (แจ้งปัญหา)' : 'แชทกับ MOREPRINT (แจ้งปัญหา)'}/>
       </div>}
     </div>
@@ -515,6 +522,22 @@ function Dash({ role }){
       await load();
     }
     else setOrders(l => l.map(x => x.id === o.id ? { ...x, status: next, times } : x));
+  };
+  // ย้อนสถานะกลับ 1 ขั้น (เจ้าของ — เผื่อกดผิด): ล้างเวลาของขั้นที่ถอยออกด้วย หน้าติดตามลูกค้ากลับไปตรงตามจริง
+  const retreat = async (o) => {
+    if (!o.status || o.status < 2 || o.status > 4) return;
+    const prev = o.status - 1;
+    const times = (o.times || ['', '', '', '']).slice();
+    times[o.status - 1] = '';
+    if (DB) { await DB.from('orders').update({ status: prev, times }).eq('id', o.id); await load(); }
+    else setOrders(l => l.map(x => x.id === o.id ? { ...x, status: prev, times } : x));
+  };
+  // ร้านพาร์ทเนอร์ย้อนสถานะ — ผ่านฟังก์ชันปลอดภัยฝั่งฐานข้อมูล (partner_retreat ตรวจสิทธิ์+เงื่อนไขอีกชั้น)
+  const partnerRetreat = async (o) => {
+    if (!DB) { setOrders(l => l.map(x => x.id === o.id ? { ...x, status: Math.max(1, (x.status || 1) - 1) } : x)); return; }
+    const { data, error } = await DB.rpc('partner_retreat', { oid: o.id });
+    if (error || data !== 'ok') { alert('ย้อนสถานะไม่สำเร็จ — เจ้าของ MORE PRINT อาจยังไม่ได้เปิดระบบ (รัน SQL partner_retreat) หรือออเดอร์อยู่ขั้นแรกแล้ว'); return; }
+    await load();
   };
   const cancelOrder = async (o, reason) => {
     if (DB) { await DB.from('orders').update({ status: 0, cancel_reason: reason }).eq('id', o.id); await load(); }
@@ -855,7 +878,7 @@ function Dash({ role }){
               </div>
               {loading && <div style={css("text-align:center;color:var(--sub);font-size:13px;padding:16px 0")}>กำลังโหลด…</div>}
               {!loading && cur[2].length === 0 && <div style={css("text-align:center;color:var(--sub);font-size:13px;padding:28px 0")}>ไม่มีออเดอร์ในหมวดนี้</div>}
-              {cur[2].map((o, i) => <ProOrder key={o.id} o={o} idx={dayNum[o.id] || (i + 1)} isOwner={isOwner} payoutReady={payoutReady} onPrice={setPrice} onPayout={markPayout} onAdvance={advance} onCancel={cancelOrder} onPartnerAdvance={partnerAdvance} onPartnerCancel={partnerCancel} onPartnerRemove={partnerRemove}/>)}
+              {cur[2].map((o, i) => <ProOrder key={o.id} o={o} idx={dayNum[o.id] || (i + 1)} isOwner={isOwner} payoutReady={payoutReady} onPrice={setPrice} onPayout={markPayout} onAdvance={advance} onRetreat={retreat} onCancel={cancelOrder} onPartnerAdvance={partnerAdvance} onPartnerRetreat={partnerRetreat} onPartnerCancel={partnerCancel} onPartnerRemove={partnerRemove}/>)}
             </React.Fragment>
           );
         })()}

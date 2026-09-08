@@ -309,7 +309,7 @@ function Pipeline({ o }){
 }
 
 // แผงจัดการต่อออเดอร์ (เจ้าของ): ไฟล์ / ตั้งราคา / บันทึกโอน / อัปเดตสถานะ / ยกเลิก
-function Manage({ o, onPrice, onPayout, onAdvance, onCancel, onRemove }){
+function Manage({ o, onPrice, onPayout, onAdvance, onRetreat, onCancel, onRemove }){
   const [confirmDel, setConfirmDel] = React.useState(false);
   const [edit, setEdit] = React.useState(false);
   const [price, setPriceV] = React.useState('');
@@ -375,8 +375,12 @@ function Manage({ o, onPrice, onPayout, onAdvance, onCancel, onRemove }){
       {o.status > 0 && o.status < 4 && (
         <div style={css("display:flex;gap:8px")}>
           <button onClick={() => onAdvance(o)} style={css("flex:1;height:38px;border:none;border-radius:10px;background:var(--purple);color:#fff;font-size:12px;font-weight:700;cursor:pointer")}>→ อัปเดตเป็น "{stepsOf(o)[Math.min(o.status, 3)]}"</button>
+          {o.status >= 2 && <button onClick={() => onRetreat(o)} style={css("flex:none;height:38px;padding:0 12px;border:1px solid var(--line);border-radius:10px;background:var(--soft);color:var(--sub);font-size:11.5px;font-weight:700;cursor:pointer")}>↩ ย้อนกลับ</button>}
           <button onClick={() => setCancelOpen(v => !v)} style={css("height:38px;padding:0 12px;border:1px solid #ffa8a8;border-radius:10px;background:none;color:#c92a2a;font-size:11.5px;font-weight:600;cursor:pointer")}>✕ ยกเลิก</button>
         </div>
+      )}
+      {o.status === 4 && (
+        <button onClick={() => onRetreat(o)} style={css("height:36px;border:1px solid var(--line);border-radius:10px;background:var(--soft);color:var(--sub);font-size:11.5px;font-weight:700;cursor:pointer")}>↩ กดผิด? ย้อนสถานะกลับเป็น "{stepsOf(o)[2]}"</button>
       )}
       {o.status === 0 && (
         <button onClick={() => { if (!confirmDel) { setConfirmDel(true); setTimeout(() => setConfirmDel(false), 4000); return; } setConfirmDel(false); onRemove(o); }}
@@ -475,6 +479,15 @@ function Dash(){
       await load();
     }
     else setOrders(l => l.map(x => x.id === o.id ? { ...x, status: next, times } : x));
+  };
+  // ย้อนสถานะกลับ 1 ขั้น (เผื่อกดผิด) — ล้างเวลาของขั้นที่ถอยออกด้วย
+  const retreat = async (o) => {
+    if (!o.status || o.status < 2 || o.status > 4) return;
+    const prev = o.status - 1;
+    const times = (o.times || ['', '', '', '']).slice();
+    times[o.status - 1] = '';
+    if (DB) { await DB.from('orders').update({ status: prev, times }).eq('id', o.id); await load(); }
+    else setOrders(l => l.map(x => x.id === o.id ? { ...x, status: prev, times } : x));
   };
   const cancelOrder = async (o, reason) => {
     if (DB) {
@@ -961,7 +974,7 @@ function Dash(){
               </React.Fragment>}
               {shipOf(o) > 0 && <span style={css(jobValue(o) > 0 ? "border-left:1.5px solid var(--line);padding:0 12px" : "padding-right:12px")}>ค่าส่ง <b style={css("font-family:'IBM Plex Mono',monospace;color:var(--green)")}>{baht(shipOf(o))}</b></span>}
             </div>
-            <Manage o={o} onPrice={setPrice} onPayout={markPayout} onAdvance={advance} onCancel={cancelOrder} onRemove={removeOrder}/>
+            <Manage o={o} onPrice={setPrice} onPayout={markPayout} onAdvance={advance} onRetreat={retreat} onCancel={cancelOrder} onRemove={removeOrder}/>
             <Chat o={o}/>
             <MpChat o={o} me="moreprint" title="ช่องแชทกับร้านอุดมสุขปริ้นติ้ง (แจ้งปัญหา)"/>
           </div>
