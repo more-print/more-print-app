@@ -3221,6 +3221,7 @@ class App extends React.Component {
                 {v.isPro && v.proGramOpts.length > 0 && <div style={css("display:flex;flex-direction:column;gap:6px")}><div style={css("font-size:12px;font-weight:600;color:var(--sub)")}>ความหนากระดาษ (ไม่บวกราคาเพิ่ม)</div><div style={css("display:flex;gap:8px;flex-wrap:wrap")}>{v.proGramOpts.map((o, i) => <button key={i} onClick={o.pick} style={{...o.st, flex:'1 1 30%'}}>{o.label}</button>)}</div></div>}
                 {v.isPro && v.proLamOpts.length > 0 && <div style={css("display:flex;flex-direction:column;gap:6px")}><div style={css("font-size:12px;font-weight:600;color:var(--sub)")}>การเคลือบ</div><div style={css("display:flex;gap:8px;flex-wrap:wrap")}>{v.proLamOpts.map((o, i) => <button key={i} onClick={o.pick} style={{...o.st, flex:'1 1 30%'}}>{o.label}</button>)}</div></div>}
                 {v.isPro && v.proHint && <div style={css("font-size:11.5px;color:var(--acc);font-weight:600")}>{v.proHint}</div>}
+                {v.stkOn && <div style={css("font-size:11px;font-weight:700;color:var(--acc);line-height:1.6")}>💡 ถ้าสะดวกรบกวนคุณลูกค้าปรับขนาดสติ๊กเกอร์เป็น<b>ขนาดจริง</b>ลงในไฟล์มาเลยนะครับ จะช่วยให้ปริ้นและส่งมอบงานได้เร็วขึ้นมาก ๆ</div>}
                 {v.stkOn && <div style={css("display:flex;flex-direction:column;gap:6px")}>
                   <div style={css("font-size:12px;font-weight:600;color:var(--sub)")}>สติ๊กเกอร์มี 2 แบบ — อ่านรายละเอียดตรงนี้ แล้วกดเลือกในกล่องของแต่ละลายด้านล่างครับ</div>
                   <div style={css("display:flex;flex-direction:column;gap:8px")}>
@@ -3284,7 +3285,6 @@ class App extends React.Component {
                                   </div>
                                 </div>
                           ))}
-                          <div style={css("margin-top:9px;font-size:11px;font-weight:700;color:var(--acc);line-height:1.6")}>💡 ถ้าสะดวกรบกวนคุณลูกค้าปรับขนาดสติ๊กเกอร์เป็น<b>ขนาดจริง</b>ลงในไฟล์มาเลยนะครับ จะช่วยให้ปริ้นและส่งมอบงานได้เร็วขึ้นมาก ๆ</div>
                           {v.stkMulti && <div style={css("margin-top:10px;background:#fff0f0;border:1px solid #ffa8a8;border-radius:10px;padding:8px 11px;font-size:11.5px;font-weight:700;color:#c92a2a;line-height:1.5")}>⚠️ ลบไฟล์ที่เกิน 1 หน้าออกก่อน ถึงจะไปขั้นตอนถัดไปได้ครับ</div>}
                           {v.stkSum && !v.stkMulti && (v.stkSum.ready
                             ? <div style={css("margin-top:10px;background:var(--accSoft);border:1px solid var(--acc);border-radius:10px;padding:8px 11px;font-size:12px;font-weight:700;color:var(--acc)")}>
