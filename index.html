@@ -2036,7 +2036,7 @@ class App extends React.Component {
           prices: ['แผ่น A3 ละ ฿' + STK_PP_SHEET, 'ครบ 50 แผ่น เหลือแผ่นละ ฿35 · ครบ 100 แผ่น เหลือแผ่นละ ฿33'] },
         { name: 'PVC (คุณภาพสูง)',
           lines: ['คุณภาพสูง · กันน้ำ · เนื้อยืดหยุ่นสูง', 'ติดได้กับทุกพื้นผิวสัมผัส'],
-          prices: ['ตารางเมตรละ ฿' + STK_PVC_SQM + ' (A3 8 แผ่น = 1 ตร.ม.)', 'สั่งไม่เต็ม 1 ตร.ม. คิดขั้นต่ำ ฿' + STK_PVC_SQM] }
+          prices: ['สั่งขั้นต่ำ ฿' + STK_PVC_SQM + '/ตารางเมตร (A3 8 แผ่น = 1 ตร.ม.)'] }
       ] : [],
       stkFiles: (s.tier === 'pro' && s.proType === 'sticker') ? (() => {
         const si = this.stickerInfo();
