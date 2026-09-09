@@ -419,6 +419,16 @@ function OrderCard({ o, idx, onAdvance, onRetreat, onAdjust, onCancel, onRemove,
           <div style={css("display:flex;gap:10px;font-size:12px")}>
             <span style={css("flex:none;width:64px;color:var(--sub);font-weight:600;padding-top:4px")}>{FI.file(12)} ไฟล์งาน ({(o.files || []).length})</span>
             <div style={css("flex:1;min-width:0;display:flex;flex-direction:column;gap:6px")}>
+              {/* ออเดอร์สติ๊กเกอร์: กล่องสรุปการผลิตรายไฟล์ (เนื้อ · ขนาด · ชิ้น · แผ่น A3) — 2026-09-09 */}
+              {(o.files || []).some(f => f.qty) && (() => { const sf = (o.files || []).filter(f => f.qty); const cp = o.copies || 1; const sh1 = sf.reduce((a, f) => a + (f.sh || Math.ceil(f.qty / 9)), 0); return (
+                <div style={css("background:var(--accSoft);border:1.5px solid var(--acc);border-radius:10px;padding:8px 11px")}>
+                  <div style={css("font-size:11.5px;font-weight:800;color:var(--acc)")}>🏷️ สรุปงานสติ๊กเกอร์ · {sf.length} ไฟล์{cp > 1 ? ' · สั่ง ' + cp + ' ชุด' : ''}</div>
+                  {sf.map((f, i) => (
+                    <div key={i} style={css("margin-top:4px;font-size:11px;font-weight:600;line-height:1.55")}>ไฟล์ที่ {i + 1} — เนื้อ <b>{f.stk ? f.stk.toUpperCase() : 'ไม่ระบุ'}</b> · ขนาด <b>{f.w && f.h ? f.w + '×' + f.h + ' ซม.' : 'ไม่ระบุ'}</b> · <b>{f.qty} ชิ้น</b> → <b>{f.sh || Math.ceil(f.qty / 9)} แผ่น A3</b></div>
+                  ))}
+                  <div style={css("margin-top:5px;border-top:1px dashed var(--acc);padding-top:4px;font-size:11px;font-weight:800;color:var(--acc)")}>รวมทั้งออเดอร์ {sf.reduce((a, f) => a + f.qty, 0) * cp} ชิ้น = กระดาษ A3 {sh1 * cp} แผ่น{cp > 1 ? ' (' + sh1 + ' แผ่น × ' + cp + ' ชุด)' : ''}</div>
+                </div>
+              ); })()}
               {(o.files || []).map((f, i) => (
                 <div key={i} style={css("background:var(--soft);border-radius:10px;padding:8px 12px" + (f.drive_url ? ";border:1px solid #f0b429" : ""))}>
                   <div style={css("display:flex;align-items:center;gap:8px")}>

@@ -370,6 +370,32 @@ function fi(name, size, color){
 }
 
 
+// แถวค่าปริ้นในบิลราคาโดยประมาณ — แตกราคารายไฟล์เมื่อ v.billLines มีค่า (ใช้ซ้ำ 3 จุด: หน้าสั่ง/ตรวจสอบ/ชำระเงิน)
+// ยอดทุกบรรทัด + บรรทัดปรับ = ฿printCost ของ calc() เสมอ (การันตีใน billLines ด้วยการปัดแบบสะสม)
+function BillPrint({ v }){
+  if (!v.billLines) return (
+    <div style={css("display:flex;justify-content:space-between")}><span style={css("color:var(--sub)")}>ค่าปริ้น {v.pageSummary}</span><span style={css("font-family:'IBM Plex Mono',monospace")}>฿{v.printCost}</span></div>
+  );
+  return (
+    <React.Fragment>
+      <div style={css("color:var(--sub);font-weight:700")}>ค่าปริ้น — แยกราคาตามไฟล์</div>
+      {v.billLines.lines.map((l, i) => (
+        <div key={i} style={css("display:flex;justify-content:space-between;gap:10px")}>
+          <span style={css("flex:1;min-width:0;color:var(--sub)")}>
+            <span style={css("display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap")}>{l.name}</span>
+            <span style={css("display:block;font-size:10.5px;opacity:.85")}>{l.desc}</span>
+          </span>
+          <span style={css("font-family:'IBM Plex Mono',monospace;flex:none")}>฿{l.amt}</span>
+        </div>
+      ))}
+      {v.billLines.adjust.map((a, i) => (
+        <div key={'a' + i} style={css("display:flex;justify-content:space-between;gap:10px")}><span style={css("color:var(--sub)")}>{a.label}</span><span style={css("font-family:'IBM Plex Mono',monospace;flex:none")}>+฿{a.amt}</span></div>
+      ))}
+      <div style={css("display:flex;justify-content:space-between")}><span style={css("color:var(--sub);font-weight:700")}>ค่าปริ้นรวมทุกไฟล์</span><span style={css("font-family:'IBM Plex Mono',monospace")}>฿{v.printCost}</span></div>
+    </React.Fragment>
+  );
+}
+
 class App extends React.Component {
   constructor(props){
     super(props);
@@ -1242,6 +1268,52 @@ class App extends React.Component {
       pp: { sheets: ppSheets, rate: ppRate, cost: ppSheets * ppRate },
       pvc: { sheets: pvcSheets, cost: pvcCost, minApplied },
       cost: ppSheets * ppRate + pvcCost };
+  }
+
+  // ── บิลราคาโดยประมาณ: แตกค่าปริ้นรายไฟล์เมื่อสั่งหลายไฟล์ (เจ้าของสั่ง 2026-09-09 — ทุกประเภทงาน) ──
+  // ผลรวมทุกบรรทัดต้องเท่ากับ printCost ของ calc() เป๊ะ: ใช้การปัดแบบสะสม (ceil ยอดสะสม − ceil ยอดสะสมก่อนหน้า)
+  // คืน null = ไม่ต้องแตก (ไฟล์เดียว / งานคิดต่อออเดอร์เช่นนามบัตร-Standy / สติ๊กเกอร์ยังกรอกไม่ครบ)
+  billLines(c){
+    const s = this.state, cp = Math.max(1, s.copies || 1);
+    if (!s.files || s.files.length < 2) return null;
+    if (s.tier === 'pro' && (s.proType === 'namecard' || s.proType === 'standee')) return null;
+    const lines = [], adjust = [];
+    const alloc = (raws) => { let cum = 0, prev = 0; return raws.map(r => { cum += r; const v = Math.ceil(cum - 1e-9) - Math.ceil(prev - 1e-9); prev = cum; return v; }); };
+    if (s.tier === 'pro' && s.proType === 'sticker') {
+      const si = this.stickerInfo();
+      if (!si.ready) return null;
+      const raws = si.list.map(x => x.sheets * cp * (x.t === 'pvc' ? STK_PVC_SQM / 8 : si.pp.rate));
+      const amts = alloc(raws);
+      si.list.forEach((x, i) => lines.push({ name: 'ไฟล์ที่ ' + (i + 1) + ' · ' + ((s.files[i] || {}).name || ''),
+        desc: x.t.toUpperCase() + ' · ' + x.w + '×' + x.h + ' ซม. × ' + (x.q * cp) + ' ชิ้น = ' + (x.sheets * cp) + ' แผ่น A3', amt: amts[i] }));
+      if (si.pvc.minApplied) adjust.push({ label: 'ปรับเป็นขั้นต่ำ PVC ฿' + STK_PVC_SQM + '/ตารางเมตร', amt: si.cost - amts.reduce((a, b) => a + b, 0) });
+    } else if (s.tier === 'pro') {
+      if (!(c.rate > 0)) return null; // ประเภทที่ไม่ได้คิดต่อแผ่น
+      s.files.forEach((f, i) => lines.push({ name: 'ไฟล์ที่ ' + (i + 1) + ' · ' + f.name,
+        desc: (f.pages * cp) + ' แผ่น × ฿' + c.rate, amt: f.pages * cp * c.rate }));
+      if (s.proType === 'foldbook') adjust.push({ label: 'เข้าเล่ม ฿' + PRO_FOLDBOOK_BIND + ' × ' + cp + ' ชุด', amt: PRO_FOLDBOOK_BIND * cp });
+      if (s.proType === 'portfolio' && s.proStaple) adjust.push({ label: 'เย็บ ฿' + PRO_PORTFOLIO.staple + ' × ' + cp + ' ชุด', amt: PRO_PORTFOLIO.staple * cp });
+    } else if (s.ptype === 'bw') {
+      const nupC = (s.nup || 1) > 1 ? s.nup : 1;
+      const pgs = s.files.map(f => (nupC > 1 ? Math.ceil(f.pages / nupC) : f.pages) * cp);
+      const amts = alloc(pgs.map(p => p * c.rate));
+      s.files.forEach((f, i) => lines.push({ name: 'ไฟล์ที่ ' + (i + 1) + ' · ' + f.name,
+        desc: pgs[i] + ' หน้าพิมพ์ × ฿' + c.rate, amt: amts[i] }));
+    } else if (s.ptype === 'color') {
+      const nupC = (s.nup || 1) > 1 ? s.nup : 1;
+      const lpC = s.sides === 2 ? (CONFIG.colorLightDuplex ?? 3.5) : (CONFIG.colorLightPrice ?? 5);
+      const hpC = s.sides === 2 ? (CONFIG.colorHeavyDuplex ?? 5) : (CONFIG.colorHeavyPrice ?? 7);
+      const hvs = s.files.map(f => Math.min(f.heavy || 0, f.pages));
+      const amts = alloc(s.files.map((f, i) => ((f.pages - hvs[i]) * lpC + hvs[i] * hpC) * cp / nupC));
+      s.files.forEach((f, i) => lines.push({ name: 'ไฟล์ที่ ' + (i + 1) + ' · ' + f.name,
+        desc: (f.pages * cp) + ' หน้า' + (hvs[i] > 0 ? ' (สีเยอะ ' + (hvs[i] * cp) + ' หน้า)' : ''), amt: amts[i] }));
+    } else {
+      // ประเภทเก่าเรทคงที่ต่อหน้า (laser/portfolio/poster ออเดอร์เก่า)
+      if (!(c.rate > 0)) return null;
+      const amts = alloc(s.files.map(f => f.pages * cp * c.rate));
+      s.files.forEach((f, i) => lines.push({ name: 'ไฟล์ที่ ' + (i + 1) + ' · ' + f.name, desc: (f.pages * cp) + ' หน้า × ฿' + c.rate, amt: amts[i] }));
+    }
+    return { lines, adjust };
   }
 
   // ป้ายสรุปงาน Pro เช่น "เพลท A2" / "พับครึ่ง A3" — ใช้แสดงผลและบันทึกลงช่อง paper
@@ -2130,7 +2202,15 @@ class App extends React.Component {
           })()
         : s.ptype === 'bw' && (s.sides === 2 || (s.nup || 1) > 1) && c.sheets > 0 ? '📄 คิดตามหน้าที่พิมพ์จริง ' + c.sheets + ' หน้า × ฿' + (Math.round(c.rate * 1000) / 1000) + '/หน้า' + (s.sides === 2 ? ' (หน้า-หลังคิดทั้ง 2 ด้าน)' : '') : '',
       typeLabel: s.tier === 'pro' ? '✨ PRO พรีเมียม' : ((PRINT_TYPES.find(t => t.k === s.ptype) || {}).label || ''),
-      pageSummary: c.pages + ' หน้า × ' + s.copies + ' ชุด (' + (s.tier === 'pro' ? 'PRO ' + this.proLabel() : ((PRINT_TYPES.find(t => t.k === s.ptype) || {}).label || '') + ' ' + s.paper + ((s.nup || 1) > 1 ? ' · ' + s.nup + ' หน้า/แผ่น' : '')) + ')',
+      billLines: this.billLines(c), // แตกค่าปริ้นรายไฟล์ในบิล (null = โชว์บรรทัดเดียวแบบเดิม)
+      // สติ๊กเกอร์ไม่นับเป็น "หน้า" — บิลสรุปเป็นชิ้น/แผ่น A3 แทน กันลูกค้างง (เจ้าของสั่ง 2026-09-09)
+      pageSummary: (s.tier === 'pro' && s.proType === 'sticker') ? (() => {
+          const si = this.stickerInfo();
+          if (!si.ready) return 'สติ๊กเกอร์ — กรอกประเภท/ขนาด/จำนวนชิ้นให้ครบ แล้วยอดขึ้นตรงนี้ครับ';
+          const ts = [...new Set(si.list.map(x => x.t))].map(x => x.toUpperCase()).join('+');
+          return 'สติ๊กเกอร์ ' + ts + ' รวม ' + si.pcs + ' ชิ้น (กระดาษ A3 ' + si.sheets + ' แผ่น' + (s.copies > 1 ? ' · ' + s.copies + ' ชุด' : '') + ')';
+        })()
+        : c.pages + ' หน้า × ' + s.copies + ' ชุด (' + (s.tier === 'pro' ? 'PRO ' + this.proLabel() : ((PRINT_TYPES.find(t => t.k === s.ptype) || {}).label || '') + ' ' + s.paper + ((s.nup || 1) > 1 ? ' · ' + s.nup + ' หน้า/แผ่น' : '')) + ')',
       printCost: c.printCost, bindCost: c.bindCost, printTotal: c.printTotal,
       deliveryCost: c.deliveryCost, grandTotal: c.grandTotal,
       noteText: s.note, setNote: (e) => this.setState({ note: e.target.value }),
@@ -3255,7 +3335,7 @@ class App extends React.Component {
             <div style={css("background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px")}>
               <div style={css("font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:var(--sub);letter-spacing:1px")}>ราคาโดยประมาณ</div>
               <div style={css("margin-top:8px;display:flex;flex-direction:column;gap:5px;font-size:12.5px")}>
-                <div style={css("display:flex;justify-content:space-between")}><span style={css("color:var(--sub)")}>ค่าปริ้น {v.pageSummary}</span><span style={css("font-family:'IBM Plex Mono',monospace")}>฿{v.printCost}</span></div>
+                <BillPrint v={v}/>
                 {v.colorBreak && <div style={css("font-size:10.5px;color:var(--sub);margin-top:-4px")}>{v.colorBreak}</div>}
                 {v.proNote && <div style={css("font-size:11px;color:#a16207;font-weight:700;line-height:1.5;margin-top:-2px")}>{v.proNote}</div>}
                 <div style={css("display:flex;justify-content:space-between")}><span style={css("color:var(--sub)")}>เข้าเล่ม</span><span style={css("font-family:'IBM Plex Mono',monospace")}>฿{v.bindCost}</span></div>
@@ -3556,7 +3636,7 @@ class App extends React.Component {
 
             <div style={css("background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px;box-shadow:var(--shadow)")}>
               <div style={css("display:flex;flex-direction:column;gap:6px;font-size:12.5px")}>
-                <div style={css("display:flex;justify-content:space-between")}><span style={css("color:var(--sub)")}>ค่าปริ้น {v.pageSummary}</span><span style={css("font-family:'IBM Plex Mono',monospace")}>฿{v.printCost}</span></div>
+                <BillPrint v={v}/>
                 {v.colorBreak && <div style={css("font-size:10.5px;color:var(--sub);margin-top:-4px")}>{v.colorBreak}</div>}
                 {v.proNote && <div style={css("font-size:11px;color:#a16207;font-weight:700;line-height:1.5;margin-top:-2px")}>{v.proNote}</div>}
                 <div style={css("display:flex;justify-content:space-between")}><span style={css("color:var(--sub)")}>เข้าเล่ม</span><span style={css("font-family:'IBM Plex Mono',monospace")}>฿{v.bindCost}</span></div>
@@ -3581,7 +3661,7 @@ class App extends React.Component {
             <div style={css("background:var(--card);border-radius:4px;box-shadow:var(--shadow);padding:16px;position:relative")}>
               <div style={css("font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--sub);text-align:center;letter-spacing:2px")}>*** MORE PRINT — ORDER SUMMARY ***</div>
               <div style={css("margin-top:12px;display:flex;flex-direction:column;gap:6px;font-size:12.5px")}>
-                <div style={css("display:flex;justify-content:space-between")}><span style={css("color:var(--sub)")}>ค่าปริ้น {v.pageSummary}</span><span style={css("font-family:'IBM Plex Mono',monospace")}>฿{v.printCost}</span></div>
+                <BillPrint v={v}/>
                 {v.colorBreak && <div style={css("font-size:10.5px;color:var(--sub);margin-top:-4px")}>{v.colorBreak}</div>}
                 {v.proNote && <div style={css("font-size:11px;color:#a16207;font-weight:700;line-height:1.5;margin-top:-2px")}>{v.proNote}</div>}
                 <div style={css("display:flex;justify-content:space-between")}><span style={css("color:var(--sub)")}>เข้าเล่ม</span><span style={css("font-family:'IBM Plex Mono',monospace")}>฿{v.bindCost}</span></div>
