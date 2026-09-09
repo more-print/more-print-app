@@ -2123,6 +2123,16 @@ class App extends React.Component {
           t: f.stk || '', // เนื้อของลายนี้ (เลือกที่ปุ่ม PP/PVC ในกล่องลายเท่านั้น)
           setStk: (k) => set(i, 'stk', k),
           info: si.list[i], // {ok, over, cap, sheets, t}
+          // ปริ้นเต็มจำนวน (เจ้าของสั่ง 2026-09-09): ไฟล์ PVC ที่ฝั่ง PVC รวมยังไม่เต็ม 1 ตร.ม. (8 แผ่น A3 — โดนขั้นต่ำ ฿550 อยู่แล้ว)
+          // เสนอเพิ่มจำนวนชิ้นให้ฟรีจนกลุ่ม PVC เต็ม 8 แผ่นพอดี: เติมเศษแผ่นเดิมให้เต็ม + แบ่งแผ่นว่างที่เหลือ (หารจำนวนชุดปัดลง — ราคาไม่ขยับแน่นอน)
+          // เงื่อนไข ≤ 8 แผ่น: ครบ 8 พอดีแต่แผ่นสุดท้ายยังมีที่ว่าง ก็เติมชิ้นฟรีได้เหมือนกัน (แผ่นไม่เพิ่ม ราคาไม่ขยับ)
+          fillQty: (() => {
+            const x = si.list[i], cp = Math.max(1, s.copies || 1);
+            if (!x || x.t !== 'pvc' || !x.ok || x.over || si.pvc.sheets > 8) return null;
+            const nq = (x.sheets + Math.floor((8 - si.pvc.sheets) / cp)) * x.cap;
+            return nq > x.q ? nq : null;
+          })(),
+          fill: () => { const x = this.stickerInfo().list[i], cp = Math.max(1, this.state.copies || 1); if (!x || x.t !== 'pvc' || !x.ok || x.over) return; const pv = this.stickerInfo().pvc; if (pv.sheets > 8) return; const nq = (x.sheets + Math.floor((8 - pv.sheets) / cp)) * x.cap; if (nq > x.q) { set(i, 'qty', nq); this.showToast('🎁 เพิ่มเป็น ' + nq + ' ชิ้นให้แล้ว — ใช้พื้นที่ 1 ตร.ม. คุ้มสุด ราคาเท่าเดิมครับ'); } },
           del: () => this.setState(st => ({ files: st.files.filter((_, j) => j !== i) })),
           setW: (e) => { const d = num(e); set(i, 'w', d === '' ? null : d); },
           setH: (e) => { const d = num(e); set(i, 'h', d === '' ? null : d); },
@@ -3258,6 +3268,13 @@ class App extends React.Component {
                                     <input value={f.valQ} onChange={f.setQty} inputMode="numeric" placeholder="เช่น 40" style={css("flex:1;min-width:0;height:40px;border:1.5px solid var(--acc);border-radius:10px;background:var(--card);color:var(--ink);font-size:14px;font-weight:700;text-align:center;outline:none")}/>
                                     <span style={css("flex:none;font-size:11px;font-weight:600;color:var(--sub)")}>ชิ้น</span>
                                   </div>
+                                  {f.fillQty && (
+                                    <div style={css("margin-top:7px;background:var(--accSoft);border:1.5px dashed var(--acc);border-radius:9px;padding:8px 10px")}>
+                                      <div style={css("font-size:10.5px;font-weight:600;color:var(--acc);line-height:1.55")}>งาน PVC คิดขั้นต่ำ ฿{STK_PVC_SQM} (1 ตร.ม.) อยู่แล้ว — ตอนนี้ยังใช้พื้นที่ไม่เต็มครับ</div>
+                                      <button onClick={f.fill} style={css("margin-top:6px;width:100%;height:38px;border:none;border-radius:9px;background:var(--acc);color:#fff;font-size:12.5px;font-weight:700;cursor:pointer;font-family:inherit")}>🎁 ปริ้นเต็มจำนวน — เพิ่มเป็น {f.fillQty} ชิ้น ราคาเท่าเดิม</button>
+                                      <div style={css("margin-top:4px;font-size:10px;color:var(--sub);line-height:1.5")}>กดหรือไม่กดก็ได้ครับ — กดแล้วระบบเพิ่มจำนวนชิ้นให้เต็ม 1 ตารางเมตรอัตโนมัติ คุ้มสุด</div>
+                                    </div>
+                                  )}
                                   <div style={css("margin-top:7px;font-size:10.5px;line-height:1.5;" + (f.info && f.info.over ? "font-weight:700;color:#c92a2a" : "color:var(--sub)"))}>
                                     {f.info && f.info.over
                                       ? '⚠️ ขนาดใหญ่เกินแผ่น A3 (พิมพ์ได้ไม่เกิน 28.7×41 ซม.) — ลดขนาดลงหรือทักไลน์ร้านครับ'
