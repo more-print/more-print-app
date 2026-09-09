@@ -234,8 +234,9 @@ const POP_SPOTS = [
 ];
 
 const PRO_TYPES = [
-  { k: 'plate', icon: '🪧', label: 'เพลท', sizes: ['A4', 'A3', 'A2', 'A1', 'A0'] },
+  // โปสเตอร์ขึ้นอันแรก (เจ้าของสั่ง 2026-09-09)
   { k: 'poster', icon: '🖼️', label: 'โปสเตอร์', sizes: ['A4', 'A3', 'A2', 'A1', 'A0'], sidesOpt: true },
+  { k: 'plate', icon: '🪧', label: 'เพลท', sizes: ['A4', 'A3', 'A2', 'A1', 'A0'] },
   { k: 'postcard', icon: '💌', label: 'Postcard' },
   { k: 'foldbook', icon: '📖', label: 'พับครึ่ง (เข้าเล่ม/เมนู)', sizes: ['A4', 'A3', 'A2'], bindOpt: true },
   { k: 'portfolio', icon: '📁', label: 'Portfolio' },
@@ -259,7 +260,19 @@ const PRO_SPECIAL_PAPER = 5;   // กระดาษพิเศษ /แผ่�
 const PRO_LAM_ONE = 5;         // เคลือบหน้าเดียว /แผ่น
 const PRO_LAM_TWO = 10;        // เคลือบหน้า-หลัง /แผ่น
 const PRO_POSTCARD_SHEET = 50; // Postcard A3 (9 ใบ/แผ่น)
-const PRO_STICKER_SHEET = 70;  // สติ๊กเกอร์ A3 (รวมตัด/วัสดุ/layout)
+// ── สติ๊กเกอร์ v2 (เจ้าของกำหนด 2026-09-09): เลือกเนื้อ PP/PVC + กรอกขนาดชิ้น (ซม.) + จำนวนชิ้นรายลาย ──
+// ระบบจัดวางลงแผ่น A3 (29.7×42 ซม.) อัตโนมัติ: เว้นขอบแผ่นข้างละ 0.5 ซม. + ช่องไฟระหว่างชิ้น 1 ซม. ลองทั้งแนวตั้ง/แนวนอน เอาแบบที่วางได้เยอะสุด
+const STK_W = 29.7, STK_H = 42, STK_MARGIN = 0.5, STK_GAP = 1;
+const STK_PP_SHEET = 50;   // PP ฿/แผ่น A3
+const STK_PP_TIER = [[100, 33], [50, 35]]; // PP ลดอัตโนมัติตามแผ่นรวม: ≥100 แผ่น ฿33 (100 แผ่น = ฿3,300) · ≥50 แผ่น ฿35 (50 แผ่น = ฿1,750)
+const STK_PVC_SQM = 550;   // PVC ฿/ตร.ม. — A3 8 แผ่น = 1 ตร.ม. → ฿68.75/แผ่น
+// วางชิ้น w×h ซม. ได้กี่ชิ้นต่อแผ่น A3 — 0 = ชิ้นใหญ่เกินแผ่น (ทั้งสองแนว)
+function stickerPerSheet(w, h){
+  const uw = STK_W - STK_MARGIN * 2, uh = STK_H - STK_MARGIN * 2;
+  const fit = (a, b) => (!(a > 0) || !(b > 0) || a > uw + 1e-9 || b > uh + 1e-9) ? 0
+    : Math.floor((uw + STK_GAP) / (a + STK_GAP) + 1e-9) * Math.floor((uh + STK_GAP) / (b + STK_GAP) + 1e-9);
+  return Math.max(fit(w, h), fit(h, w));
+}
 const PRO_PORTFOLIO = { one: 50, two: 100, staple: 20 };  // A3 พับครึ่ง พิมพ์+เคลือบ /แผ่น · เย็บ +20/ชุด
 const PRO_FOLDBOOK_BIND = 20; // พับครึ่ง (เข้าเล่ม/เมนู): เข้าเล่ม +20/ชุด ทุกแบบ · ค่าแผ่นใช้ตาราง POSTER_SHEET (A2 100/A3 50/A4 25) หน้า-หลัง ×2
 const PRO_NAMECARD = { one: 250, two: 450 };              // ต่อ 100 ใบ (A3 4 แผ่น)
@@ -377,7 +390,8 @@ class App extends React.Component {
       vehicle: 'bike', // พาหนะส่งที่ลูกค้าเลือกเอง: 'bike' มอเตอร์ไซค์ · 'car' รถยนต์ (ใช้ทั้ง Standard และ Pro)
       reviews: [], reviewsReady: false, revAll: false, revTab: '', revStars: 5, revText: '', trackStars: 5, trackText: '', // revTab: '' = อัตโนมัติ (มีรีวิวงานจริง = เปิดแท็บงานจริงก่อน)
       alertPrompt: false, alertAck: false,
-      proType: 'plate', proSize: 'A4', proBind: 'ไสกาว', proQty: 100, proPickup: false, stdPickup: false, // stdPickup = งาน Standard รับหน้าร้าน MORE PRINT
+      proType: 'poster', proSize: 'A4', proBind: 'ไสกาว', proQty: 100, proPickup: false, stdPickup: false, // stdPickup = งาน Standard รับหน้าร้าน MORE PRINT
+      proBoard: '', proGram: 80, stkType: '', // เพลท: ประเภทบอร์ด (บังคับเลือก ไม่บวกราคา) · แบบแปลน: ความหนากระดาษ (แกรม) · สติ๊กเกอร์: เนื้อ pp/pvc (บังคับเลือก)
       proLam: 'none', proSpecial: false, proStaple: false, proStand: false, // ตัวเลือกเสริมงาน Pro (เคลือบ/กระดาษพิเศษ/เย็บ/ขาตั้ง)
       distKm: null, distSrc: '', trackOpen: false, trackMin: false,
       // ประวัติการสั่ง (เก็บในเครื่อง): ออเดอร์ที่ผลิต/ส่งสำเร็จแล้ว ทั้ง standard และ pro
@@ -1113,10 +1127,10 @@ class App extends React.Component {
         pc = rate * shPro;
       } else if (s.proType === 'postcard') { rate = PRO_POSTCARD_SHEET; pc = rate * shPro; }
       else if (s.proType === 'sticker') {
-        // สติ๊กเกอร์คิดตาม "จำนวนชิ้น" ที่ลูกค้ากรอกต่อไฟล์ (ไม่ใช่จำนวนหน้าไฟล์): 1 แผ่น A3 = 9 ชิ้น เศษปัดขึ้นรายลาย × จำนวนชุด
-        rate = PRO_STICKER_SHEET;
-        const shSt = s.files.reduce((a, f) => a + Math.ceil(Math.max(1, f.qty || 9) / 9), 0) * s.copies;
-        pc = rate * shSt;
+        // สติ๊กเกอร์ v2: แผ่น A3 ที่ใช้จริงจากการจัดวางอัตโนมัติ (ขนาดชิ้น×จำนวนชิ้นรายลาย) × เรทตามเนื้อ PP/PVC — ดู stickerInfo()
+        const si = this.stickerInfo();
+        rate = 0; // เรทมีได้ 2 กลุ่ม (PP/PVC) — บรรทัดอธิบายใช้ rateHint สาขาสติ๊กเกอร์แทน
+        pc = si.cost; // ข้อมูลยังไม่ครบ = 0 ไปก่อน (toDelivery บังคับกรอกครบก่อนไปต่ออยู่แล้ว)
       }
       else if (s.proType === 'blueprint') { rate = BLUEPRINT_PRICE[s.proSize] ?? 0; pc = rate * shPro; }
       else if (s.proType === 'foldbook') {
@@ -1202,6 +1216,34 @@ class App extends React.Component {
     return s.proType === 'plate' && ['A0', 'A1', 'A2', 'A3'].includes(s.proSize);
   }
 
+  // ── สติ๊กเกอร์ v2: คำนวณจัดวาง+ราคาจากขนาด/จำนวนชิ้น/เนื้อ (PP·PVC) รายไฟล์ (จุดเดียว — calc/ป้าย/ช่องกรอก/บันทึก ใช้ร่วมกันหมด) ──
+  // เนื้อเลือกได้รายลาย (เจ้าของสั่ง 2026-09-09): f.stk รายไฟล์ ไม่เลือก = ตามค่าหลัก s.stkType — ราคาคิดแยกกลุ่ม:
+  //   PP ลดขั้นตามแผ่นรวมเฉพาะฝั่ง PP · PVC ขั้นต่ำ ฿550 คิดเฉพาะฝั่ง PVC
+  // คืน { list:[{ok,over,w,h,q,cap,sheets,t}], ready, sheets, pcs, pp:{sheets,rate,cost}, pvc:{sheets,cost,minApplied}, cost }
+  stickerInfo(){
+    const s = this.state, copies = Math.max(1, s.copies || 1);
+    const list = (s.files || []).map(f => {
+      const w = parseFloat(f.w), h = parseFloat(f.h), q = f.qty || 0;
+      const ok = w > 0 && h > 0 && q > 0;
+      const cap = ok ? stickerPerSheet(w, h) : 0;
+      return { ok, over: ok && cap === 0, w: ok ? w : null, h: ok ? h : null, q, cap,
+        sheets: cap > 0 ? Math.ceil(q / cap) : 0, t: f.stk || s.stkType || '' };
+    });
+    const ready = list.length > 0 && list.every(x => x.ok && !x.over && !!x.t) && !(s.files || []).some(f => (f.pages || 1) > 1);
+    const sheets = list.reduce((a, x) => a + x.sheets, 0) * copies;
+    const pcs = list.reduce((a, x) => a + x.q, 0) * copies;
+    const ppSheets = list.filter(x => x.t === 'pp').reduce((a, x) => a + x.sheets, 0) * copies;
+    const pvcSheets = list.filter(x => x.t === 'pvc').reduce((a, x) => a + x.sheets, 0) * copies;
+    const ppRate = (STK_PP_TIER.find(t => ppSheets >= t[0]) || [0, STK_PP_SHEET])[1];
+    const pvcRaw = Math.ceil(pvcSheets * STK_PVC_SQM / 8);
+    const minApplied = pvcSheets > 0 && pvcRaw < STK_PVC_SQM; // PVC ขั้นต่ำ ฿550 แม้ไม่เต็ม 1 ตร.ม. (A3 8 แผ่น)
+    const pvcCost = pvcSheets > 0 ? Math.max(STK_PVC_SQM, pvcRaw) : 0;
+    return { list, ready, sheets, pcs,
+      pp: { sheets: ppSheets, rate: ppRate, cost: ppSheets * ppRate },
+      pvc: { sheets: pvcSheets, cost: pvcCost, minApplied },
+      cost: ppSheets * ppRate + pvcCost };
+  }
+
   // ป้ายสรุปงาน Pro เช่น "เพลท A2" / "พับครึ่ง A3" — ใช้แสดงผลและบันทึกลงช่อง paper
   proLabel(){
     const s = this.state;
@@ -1212,10 +1254,15 @@ class App extends React.Component {
       : t.k === 'foldbook' ? 'พับครึ่ง ' + s.proSize
       : t.k === 'namecard' ? 'นามบัตร ' + s.proQty + ' ใบ' + (s.sides === 2 ? ' หน้า-หลัง' : ' หน้าเดียว')
       : t.k === 'blueprint' ? 'ปริ้นขาวดำขนาดใหญ่ (แบบแปลน) ' + s.proSize
-      : t.k === 'sticker' ? (() => { // พ่วงจำนวนชิ้น/แผ่นเข้าไปในป้าย — หลังบ้าน/ร้านพาร์ทเนอร์เห็นทันทีว่าต้องปริ้นลายละกี่ชิ้น
-          const qs = (s.files || []).map(f => Math.max(1, f.qty || 9));
-          const sh = qs.reduce((a, q) => a + Math.ceil(q / 9), 0);
-          return 'สติ๊กเกอร์ A3' + (qs.length ? ' ' + qs.join('+') + ' ชิ้น (' + sh + ' แผ่น)' : '');
+      : t.k === 'sticker' ? (() => { // พ่วงเนื้อ (รายลาย/ผสม)+ขนาด+จำนวนชิ้น/แผ่นเข้าไปในป้าย — หลังบ้าน/ร้านพาร์ทเนอร์เห็นทันทีว่าต้องปริ้นอะไร
+          const si = this.stickerInfo();
+          const ts = [...new Set(si.list.map(x => x.t).filter(Boolean))];
+          const tp = ts.length ? ' ' + ts.map(x => x.toUpperCase()).join('+') : '';
+          if (!si.list.length) return 'สติ๊กเกอร์' + tp + ' A3';
+          const one = si.list.length === 1 ? si.list[0] : null;
+          return 'สติ๊กเกอร์' + tp + ' A3 · ' + (one && one.ok
+            ? one.w + '×' + one.h + ' ซม. × ' + one.q + ' ชิ้น (' + one.sheets + ' แผ่น)'
+            : si.list.length + ' ลาย รวม ' + si.list.reduce((a, x) => a + x.q, 0) + ' ชิ้น (' + si.list.reduce((a, x) => a + x.sheets, 0) + ' แผ่น)');
         })()
       : t.label;
     // ตัวเลือกเสริมพ่วงเข้าไปในป้าย — หลังบ้านทุกที่จะเห็นครบว่าลูกค้าเลือกอะไร (บันทึกลงช่อง paper)
@@ -1226,8 +1273,10 @@ class App extends React.Component {
       if (s.proLam === 'one') ex.push('เคลือบหน้าเดียว');
       if (s.proLam === 'two') ex.push('เคลือบหน้า-หลัง');
     }
+    if (s.proType === 'blueprint') ex.push('กระดาษ ' + (s.proGram || 80) + ' แกรม'); // ความหนากระดาษขาวดำใหญ่ (2026-09-09)
     if ((s.proType === 'plate' || s.proType === 'poster')) {
-      if (s.proType === 'plate') ex.push('ติดบอร์ด');
+      // เพลทบอกประเภทบอร์ดที่ลูกค้าเลือก (บังคับเลือก ไม่บวกราคา — 2026-09-09)
+      if (s.proType === 'plate') ex.push(s.proBoard === 'foam' ? 'ติดโฟมบอร์ด' : s.proBoard === 'future' ? 'ติดฟิวเจอร์บอร์ด' : 'ติดบอร์ด');
       if (s.proSpecial) ex.push('กระดาษพิเศษ');
       if (s.proType === 'poster' && s.sides === 2) ex.push('หน้า-หลัง');
       if (s.proLam === 'one') ex.push('เคลือบหน้าเดียว');
@@ -1277,9 +1326,11 @@ class App extends React.Component {
           const error = await uploadRetry(path, f.file);
           if (error) { console.error('upload:', error); path = null; upFail++; failIdx.push({ i, name: f.name }); }
         }
-        // qty = จำนวนชิ้นสติ๊กเกอร์ต่อลาย — บันทึกเฉพาะออเดอร์สติ๊กเกอร์เท่านั้น (กันค่าค้างติดไปงานประเภทอื่นตอนลูกค้าสลับประเภท)
-        const stQty = (s.tier === 'pro' && s.proType === 'sticker') ? Math.max(1, f.qty || 9) : null;
-        files.push({ name: f.name, pages: f.pages, path, drive_url: f.big ? (f.b2Url || null) : null, auto: !!f.auto, heavy: f.heavy || 0, scanned: !!f.scanned, qty: stQty });
+        // qty/w/h/sh = จำนวนชิ้น·ขนาด (ซม.)·แผ่น A3 ของสติ๊กเกอร์ต่อลาย — บันทึกเฉพาะออเดอร์สติ๊กเกอร์เท่านั้น (กันค่าค้างติดไปงานประเภทอื่นตอนลูกค้าสลับประเภท)
+        const sti = (s.tier === 'pro' && s.proType === 'sticker') ? this.stickerInfo().list[i] : null;
+        const row = { name: f.name, pages: f.pages, path, drive_url: f.big ? (f.b2Url || null) : null, auto: !!f.auto, heavy: f.heavy || 0, scanned: !!f.scanned, qty: sti ? Math.max(1, f.qty || 1) : null };
+        if (sti && sti.ok) { row.w = sti.w; row.h = sti.h; row.sh = sti.sheets; row.stk = sti.t || null; } // stk = เนื้อของลายนี้ (pp/pvc)
+        files.push(row);
       }
       if (upFail) {
         setTimeout(() => this.showToast('⚠️ ไฟล์แนบอัปโหลดไม่สำเร็จ ' + upFail + ' ไฟล์ — กดส่งใหม่ได้ที่หน้าติดตามเลยครับ'), 1200);
@@ -1868,24 +1919,29 @@ class App extends React.Component {
           this.setState(st => ({ files: st.files.map(x => x.uid === it.uid ? { ...x, pages: r.pages, auto: r.auto, heavy: r.heavy || 0, scanned: !!r.scanned, thumb: r.thumb || null, counting: false } : x) }));
         });
       },
-      files: s.files.map((f, i) => ({
+      files: (() => { const stOn = s.tier === 'pro' && s.proType === 'sticker'; const si = stOn ? this.stickerInfo() : null; return s.files.map((f, i) => ({
         name: f.name, pages: f.pages, big: !!f.big, sizeMB: f.sizeMB || 0,
         auto: !!f.auto, counting: !!f.counting, // ไว้ล็อกปุ่มแก้จำนวนหน้าของไฟล์ที่นับอัตโนมัติแล้ว
         thumb: f.thumb || null, heavy: f.heavy || 0, scanned: !!f.scanned,
         up: f.up || 0, upDone: !!f.upDone, upErr: !!f.upErr,
         retryUp: () => { const it = s.files[i]; if (it && it.big && it.file) this.uploadBig(it); },
-        // งานสติ๊กเกอร์: จำนวนชิ้นกรอกที่ช่องพิมพ์ใต้ตัวเลือกงาน (stkFiles) — แถวไฟล์บนนี้แค่โชว์สรุป
-        stMode: s.tier === 'pro' && s.proType === 'sticker',
-        qty: Math.max(1, f.qty || 9),
-        stSheets: Math.ceil(Math.max(1, f.qty || 9) / 9),
-        sub: (s.tier === 'pro' && s.proType === 'sticker')
-          ? '🏷️ ลายนี้ ' + Math.max(1, f.qty || 9) + ' ชิ้น = ' + Math.ceil(Math.max(1, f.qty || 9) / 9) + ' แผ่น A3 — พิมพ์จำนวนชิ้นได้ที่ช่องกรอกด้านล่าง'
+        // งานสติ๊กเกอร์: ขนาด/จำนวนชิ้นกรอกที่ช่องใต้ตัวเลือกงาน (stkFiles) — แถวไฟล์บนนี้แค่โชว์สรุป
+        stMode: stOn,
+        qty: f.qty || 0,
+        stSheets: si && si.list[i] ? si.list[i].sheets : 0,
+        stDone: !!(si && si.list[i] && si.list[i].ok && !si.list[i].over),
+        stText: si && si.list[i] && si.list[i].ok && !si.list[i].over
+          ? si.list[i].w + '×' + si.list[i].h + ' ซม. × ' + si.list[i].q + ' ชิ้น (' + si.list[i].sheets + ' แผ่น A3)' : '',
+        sub: stOn
+          ? (si.list[i] && si.list[i].ok && !si.list[i].over
+              ? '🏷️ ลายนี้ ' + si.list[i].w + '×' + si.list[i].h + ' ซม. × ' + si.list[i].q + ' ชิ้น = ' + si.list[i].sheets + ' แผ่น A3 (วางได้ ' + si.list[i].cap + ' ชิ้น/แผ่น)'
+              : '🏷️ กรอกขนาด (กว้าง×ยาว ซม.) และจำนวนชิ้นของลายนี้ที่ช่องด้านล่าง')
           : f.counting ? '⏳ กำลังอ่านไฟล์ (นับหน้า + สแกนปริมาณสี)…' : ((f.auto ? '🔒 นับหน้าจากไฟล์จริงแล้ว — ล็อกจำนวน' : '✏️ ระบุจำนวนหน้าเองด้วยปุ่ม + / − (ร้านเปิดไฟล์เช็คก่อนปริ้นเสมอ)') + (s.ptype === 'color' && f.scanned ? ' · 🎨 สีเยอะ ' + (f.heavy || 0) + ' หน้า' : '')),
         // ไฟล์ที่ระบบอ่านนับหน้าได้เอง = ล็อกจำนวนตามไฟล์จริง แก้ไม่ได้ (กันกดลดหน้าให้ราคาถูกกว่าความจริง) — แก้ได้เฉพาะไฟล์ที่เว็บนับไม่ได้ (เช่น DOCX)
         inc: () => { if (f.auto) return this.showToast('ไฟล์นี้ระบบนับหน้าจากตัวไฟล์จริงแล้ว ล็อกจำนวนไว้ครับ 🔒'); this.setState(st => ({ files: st.files.map((x, j) => j === i ? { ...x, pages: x.pages + 1 } : x) })); },
         dec: () => { if (f.auto) return this.showToast('ไฟล์นี้ระบบนับหน้าจากตัวไฟล์จริงแล้ว ล็อกจำนวนไว้ครับ 🔒'); this.setState(st => ({ files: st.files.map((x, j) => j === i ? { ...x, pages: Math.max(1, x.pages - 1) } : x) })); },
         del: () => this.setState(st => ({ files: st.files.filter((_, j) => j !== i) }))
-      })),
+      })); })(),
       typeOpts: PRINT_TYPES.map(t => ({
         icon: t.icon, label: t.label, desc: t.desc, on: s.ptype === t.k,
         pick: () => this.setState({ ptype: t.k, paper: SIZE_BY_TYPE[t.k][0] })
@@ -1910,7 +1966,7 @@ class App extends React.Component {
         k: t.k,
         ...this.seg(t.label, s.proType === t.k,
           () => this.setState({ proType: t.k, proSize: (t.sizes || [''])[0], proQty: (t.qty || [100])[0], sides: t.k === 'foldbook' ? 2 : 1,
-            proLam: 'none', proSpecial: false, proStaple: false, proStand: false })),
+            proLam: 'none', proSpecial: false, proStaple: false, proStand: false, proBoard: '', proGram: 80, stkType: '' })),
         svg: ICON_PRO[t.k]
       })),
       proPickupOn: c.proPickupOn,
@@ -1946,6 +2002,15 @@ class App extends React.Component {
         this.seg('ไม่ใส่ขาตั้ง ฿' + PRO_STANDEE.base, !s.proStand, () => this.setState({ proStand: false }), true),
         this.seg('ใส่ขาตั้ง ฿' + PRO_STANDEE.stand, s.proStand, () => this.setState({ proStand: true }), true)
       ] : [],
+      // เพลท: บังคับเลือกประเภทบอร์ด (ไม่บวกราคา) — อยู่ต่อจากตัวเลือกกระดาษ (2026-09-09)
+      proBoardOpts: s.proType === 'plate' ? [
+        this.seg('ฟิวเจอร์บอร์ด', s.proBoard === 'future', () => this.setState({ proBoard: 'future' }), true),
+        this.seg('โฟมบอร์ด', s.proBoard === 'foam', () => this.setState({ proBoard: 'foam' }), true)
+      ] : [],
+      proBoardPicked: !!s.proBoard,
+      // ปริ้นขาวดำขนาดใหญ่: ความหนากระดาษ 80/100/120 แกรม (ไม่บวกราคา — 2026-09-09)
+      proGramOpts: s.proType === 'blueprint' ? [80, 100, 120].map(g =>
+        this.seg(g + ' แกรม', (s.proGram || 80) === g, () => this.setState({ proGram: g }), true)) : [],
       proLamOpts: (s.proType === 'plate' || s.proType === 'poster' || s.proType === 'foldbook') ? [
         this.seg('ไม่เคลือบ', s.proLam === 'none', () => this.setState({ proLam: 'none' }), true),
         this.seg('เคลือบหน้าเดียว +฿' + PRO_LAM_ONE, s.proLam === 'one', () => this.setState({ proLam: 'one' }), true),
@@ -1955,29 +2020,55 @@ class App extends React.Component {
         : s.proType === 'plate' ? '🪧 เพลทรวมติดบอร์ดแล้ว · พิมพ์ด้านหน้าอย่างเดียว'
         : s.proType === 'poster' ? '🖼️ โปสเตอร์ไม่ติดบอร์ด · เลือกหน้า-หลังได้ (ราคา ×2)'
         : s.proType === 'postcard' ? '💌 1 แผ่น A3 = 9 ใบ · ฿' + PRO_POSTCARD_SHEET + '/แผ่น · ผลิตไม่เกิน 1 ชม.'
-        : s.proType === 'sticker' ? '🏷️ ส่งไฟล์ลายสติ๊กเกอร์แบบ "1 ไฟล์ = 1 ลาย (รูปเดียว)" แล้วเลือกจำนวนชิ้นที่ต้องการได้เลย — ที่เหลือร้านจัดเรียงลงแผ่น A3 ให้เอง (9 ชิ้น/แผ่น · ฿' + PRO_STICKER_SHEET + '/แผ่น รวมตัด·วัสดุ)'
+        : s.proType === 'sticker' ? '🏷️ ส่งไฟล์แบบ "1 ไฟล์ = 1 ลาย (รูปเดียว)" — เลือกเนื้อสติ๊กเกอร์ แล้วกรอกขนาดชิ้น (กว้าง×ยาว ซม.) กับจำนวนชิ้นของแต่ละลายด้านล่าง ระบบจัดวางลงแผ่น A3 และคิดราคาให้อัตโนมัติเลยครับ'
         : s.proType === 'namecard' ? '💳 ราคาต่อ 100 ใบ (A3 4 แผ่น)'
         : s.proType === 'standee' ? '🧍 ขนาดกว้าง 60 × สูง 120 ซม.'
         : '',
       proNote: '', // ทุกประเภทงาน Pro มีราคาจริงแล้ว (foldbook เป็นตัวสุดท้าย 2026-08-24)
-      // ── งานสติ๊กเกอร์: ช่องพิมพ์จำนวนชิ้นรายไฟล์ อยู่ใต้ตัวเลือกงานเลย (ลูกค้าไม่ต้องเลื่อนขึ้นไปหาไฟล์) ──
+      // ── งานสติ๊กเกอร์ v2: เลือกเนื้อ PP/PVC + กรอกขนาด (ซม.) และจำนวนชิ้นรายไฟล์ อยู่ใต้ตัวเลือกงานเลย ──
       stkOn: s.tier === 'pro' && s.proType === 'sticker',
-      stkFiles: (s.tier === 'pro' && s.proType === 'sticker') ? s.files.map((f, i) => ({
-        name: f.name,
-        multi: (f.pages || 1) > 1, // ไฟล์เกิน 1 หน้า = ผิดกติกาสติ๊กเกอร์ (ลายละ 1 รูป) — เตือนแดง + toDelivery บล็อก
-        pages: f.pages || 1,
-        val: f.qty == null ? '' : String(f.qty), // ค่าว่างระหว่างพิมพ์ได้ — ราคาคิดจากค่า default 9 ไปก่อน แล้ว blur ค่อยเติม 9 คืน
-        sheets: Math.ceil(Math.max(1, f.qty || 9) / 9),
-        del: () => this.setState(st => ({ files: st.files.filter((_, j) => j !== i) })),
-        setQty: (e) => { const d = e.target.value.replace(/\D/g, '').slice(0, 3); this.setState(st => ({ files: st.files.map((x, j) => j === i ? { ...x, qty: d === '' ? null : Math.max(1, parseInt(d, 10)) } : x) })); },
-        blurQty: () => this.setState(st => ({ files: st.files.map((x, j) => (j === i && x.qty == null) ? { ...x, qty: 9 } : x) }))
+      stkType: s.stkType,
+      stkTypeMissing: (s.tier === 'pro' && s.proType === 'sticker') && (s.files.length === 0 ? !s.stkType : s.files.some(f => !(f.stk || s.stkType))), // ยังมีลายที่ไม่รู้เนื้อ
+      // การ์ดเนื้อบนสุด = เลือกทีเดียวใช้กับทุกลาย (ล้างตัวเลือกรายลายทิ้ง) · แต่ละลายสลับเองได้ที่ปุ่ม PP/PVC ในการ์ดลาย (2026-09-09)
+      stkTypeOpts: (s.tier === 'pro' && s.proType === 'sticker') ? [
+        { k: 'pp', name: 'PP (ติดฉลากสินค้า)', sub: 'ราคาถูกกว่า กันน้ำ เหมาะกับงานติดบนพื้นผิวเรียบ เช่น ฉลากสินค้า (เนื้อสติ๊กเกอร์มีความยืดหยุ่นต่ำ)',
+          price: '฿' + STK_PP_SHEET + '/แผ่น A3 · สั่ง 50 แผ่นขึ้นไปเหลือ ฿35 · 100 แผ่นขึ้นไปเหลือ ฿33' },
+        { k: 'pvc', name: 'PVC (คุณภาพสูง)', sub: 'เนื้อสติ๊กเกอร์คุณภาพสูง กันน้ำ ยืดหยุ่นสูง ใช้ได้กับทุกพื้นผิวสัมผัส',
+          price: '฿' + STK_PVC_SQM + '/ตารางเมตร (A3 8 แผ่น = 1 ตร.ม.) · สั่งน้อยกว่านั้นคิดขั้นต่ำ ฿' + STK_PVC_SQM }
+      ].map(o => ({ ...o,
+        on: s.files.length ? s.files.every(f => (f.stk || s.stkType) === o.k) : s.stkType === o.k,
+        pick: () => this.setState(st => ({ stkType: o.k, files: st.files.map(f => ({ ...f, stk: null })) }))
       })) : [],
+      stkFiles: (s.tier === 'pro' && s.proType === 'sticker') ? (() => {
+        const si = this.stickerInfo();
+        const set = (i, k, val) => this.setState(st => ({ files: st.files.map((x, j) => j === i ? { ...x, [k]: val } : x) }));
+        const num = (e) => e.target.value.replace(/[^\d.]/g, '').replace(/(\..*)\./g, '$1').slice(0, 5); // เลข+จุดทศนิยมจุดเดียว เช่น 6.5
+        return s.files.map((f, i) => ({
+          name: f.name,
+          multi: (f.pages || 1) > 1, // ไฟล์เกิน 1 หน้า = ผิดกติกาสติ๊กเกอร์ (ลายละ 1 รูป) — เตือนแดง + toDelivery บล็อก
+          pages: f.pages || 1,
+          valW: f.w == null ? '' : String(f.w), valH: f.h == null ? '' : String(f.h),
+          valQ: f.qty == null ? '' : String(f.qty),
+          t: f.stk || s.stkType || '', // เนื้อของลายนี้ (รายไฟล์ > ค่าหลัก)
+          setStk: (k) => set(i, 'stk', k),
+          info: si.list[i], // {ok, over, cap, sheets, t}
+          del: () => this.setState(st => ({ files: st.files.filter((_, j) => j !== i) })),
+          setW: (e) => { const d = num(e); set(i, 'w', d === '' ? null : d); },
+          setH: (e) => { const d = num(e); set(i, 'h', d === '' ? null : d); },
+          setQty: (e) => { const d = e.target.value.replace(/\D/g, '').slice(0, 4); set(i, 'qty', d === '' ? null : Math.max(1, parseInt(d, 10))); }
+        }));
+      })() : [],
       stkMulti: s.tier === 'pro' && s.proType === 'sticker' && s.files.some(f => (f.pages || 1) > 1),
       stkSum: (() => {
         if (!(s.tier === 'pro' && s.proType === 'sticker') || !s.files.length) return null;
-        const qs = s.files.map(f => Math.max(1, f.qty || 9));
-        const sh = qs.reduce((a, q) => a + Math.ceil(q / 9), 0);
-        return { pcs: qs.reduce((a, b) => a + b, 0), sheets: sh, cost: sh * PRO_STICKER_SHEET * Math.max(1, s.copies || 1) };
+        const si = this.stickerInfo();
+        const notes = [];
+        if (si.pp.sheets > 0 && si.pp.rate < STK_PP_SHEET) notes.push('🎉 PP ลดอัตโนมัติเหลือ ฿' + si.pp.rate + '/แผ่น');
+        if (si.pvc.minApplied) notes.push('PVC คิดขั้นต่ำ 1 ตารางเมตร (A3 8 แผ่น) = ฿' + STK_PVC_SQM);
+        // แยกยอดสองเนื้อเมื่อสั่งผสมในออเดอร์เดียว — ลูกค้าเห็นชัดว่าเงินมาจากส่วนไหน
+        const brk = (si.pp.sheets > 0 && si.pvc.sheets > 0)
+          ? 'PP ' + si.pp.sheets + ' แผ่น ฿' + si.pp.cost + ' + PVC ' + si.pvc.sheets + ' แผ่น ฿' + si.pvc.cost : '';
+        return { ready: si.ready, pcs: si.pcs, sheets: si.sheets, cost: si.cost, brk, tierNote: notes.join(' · ') };
       })(),
       showSize: s.tier !== 'pro' && SIZE_BY_TYPE[s.ptype].length > 1,
       sizeOpts: SIZE_BY_TYPE[s.ptype].map(sz => {
@@ -2010,6 +2101,12 @@ class App extends React.Component {
         ? (s.proType === 'foldbook'
             ? '✨ ' + this.proLabel() + ' ฿' + c.rate + '/แผ่น' + (c.pages > 0 ? ' × ' + (c.pages * s.copies) + ' แผ่น + เข้าเล่ม ฿' + PRO_FOLDBOOK_BIND + ' × ' + s.copies + ' ชุด = ฿' + c.printCost : ' + เข้าเล่ม ฿' + PRO_FOLDBOOK_BIND + '/ชุด — อัปโหลดไฟล์แล้วคำนวณให้ทันที')
             : s.proType === 'namecard' ? '✨ ' + this.proLabel() + ' = ฿' + c.printCost
+            : s.proType === 'sticker' ? (() => { const si = this.stickerInfo(); if (!si.ready)
+                  return '✨ สติ๊กเกอร์คิดราคาตามแผ่น A3 ที่ใช้จริง — เลือกเนื้อ + กรอกขนาดและจำนวนชิ้นครบทุกลาย แล้วระบบคำนวณให้ทันที';
+                const parts = [];
+                if (si.pp.sheets > 0) parts.push('PP ฿' + si.pp.rate + '/แผ่น × ' + si.pp.sheets + ' แผ่น');
+                if (si.pvc.sheets > 0) parts.push(si.pvc.minApplied ? 'PVC ขั้นต่ำ 1 ตร.ม. ฿' + STK_PVC_SQM : 'PVC ฿' + (STK_PVC_SQM / 8) + '/แผ่น × ' + si.pvc.sheets + ' แผ่น');
+                return '✨ ' + this.proLabel() + (s.copies > 1 ? ' × ' + s.copies + ' ชุด' : '') + ' — ' + parts.join(' + ') + ' = ฿' + c.printCost; })()
             : s.proType === 'standee' ? '✨ Standy ฿' + (s.proStand ? PRO_STANDEE.stand : PRO_STANDEE.base) + '/ชิ้น × ' + s.copies + ' = ฿' + c.printCost
             : '✨ ' + this.proLabel() + ' ฿' + c.rate + '/แผ่น' + (c.pages > 0 ? ' × ' + (c.pages * s.copies) + ' แผ่น = ฿' + c.printCost : ' — อัปโหลดไฟล์แล้วระบบคำนวณให้ทันที'))
         : s.ptype === 'bw'
@@ -2069,9 +2166,22 @@ class App extends React.Component {
         if (s.files.some(f => f.counting)) return this.showToast('รอระบบอ่านไฟล์แป๊บนึงครับ ⏳');
         const bigPending = s.files.find(f => f.big && !f.upDone);
         if (bigPending) return this.showToast(bigPending.upErr ? 'ไฟล์ใหญ่อัปโหลดไม่สำเร็จ — กดปุ่ม "ลองใหม่" ที่ไฟล์ก่อนนะครับ 🔁' : 'รอไฟล์ใหญ่อัปโหลดให้เสร็จก่อนนะครับ ⏳ (ดู % ที่รายการไฟล์)');
+        // เพลทต้องเลือกประเภทบอร์ดก่อน (นโยบาย 2026-09-09)
+        if (s.tier === 'pro' && s.proType === 'plate' && !s.proBoard)
+          return this.showToast('🪧 เลือกประเภทบอร์ดก่อนนะครับ — ฟิวเจอร์บอร์ด หรือ โฟมบอร์ด (ไม่บวกราคาเพิ่ม)');
         // งานสติ๊กเกอร์รับไฟล์ลายละ "1 หน้า (รูปเดียว)" เท่านั้น — ไฟล์หลายหน้าห้ามไปต่อ (นโยบาย 2026-09-09)
         if (s.tier === 'pro' && s.proType === 'sticker' && s.files.some(f => (f.pages || 1) > 1))
           return this.showToast('🏷️ ไฟล์สติ๊กเกอร์ต้องมีรูปเดียว (1 หน้า) ต่อ 1 ลายเท่านั้นครับ — ที่เหลือทางร้านจัดการให้เอง ลบไฟล์หลายหน้าแล้วส่งใหม่นะครับ 🙏');
+        // สติ๊กเกอร์ v2: ต้องเลือกเนื้อ (PP/PVC เลือกได้รายลาย) + กรอกขนาด/จำนวนชิ้นครบทุกลาย + ชิ้นไม่ใหญ่เกินแผ่น A3 (นโยบาย 2026-09-09)
+        if (s.tier === 'pro' && s.proType === 'sticker') {
+          const si = this.stickerInfo();
+          const noT = si.list.findIndex(x => !x.t);
+          if (noT >= 0) return this.showToast('🏷️ เลือกประเภทสติ๊กเกอร์ (PP หรือ PVC) ของ "ลายที่ ' + (noT + 1) + '" ก่อนนะครับ');
+          const bad = si.list.findIndex(x => !x.ok);
+          if (bad >= 0) return this.showToast('🏷️ กรอกขนาด (กว้าง×ยาว ซม.) และจำนวนชิ้นของ "ลายที่ ' + (bad + 1) + '" ให้ครบก่อนนะครับ');
+          const over = si.list.findIndex(x => x.over);
+          if (over >= 0) return this.showToast('🏷️ ลายที่ ' + (over + 1) + ' ขนาดใหญ่เกินแผ่น A3 ครับ (พิมพ์ได้ไม่เกิน ' + (STK_W - STK_MARGIN * 2) + '×' + (STK_H - STK_MARGIN * 2) + ' ซม.) — ลดขนาดลงหรือทักไลน์ร้านได้เลย');
+        }
         this.setState({ screen: 'delivery', vehicle: this.forceCar() ? 'car' : s.vehicle, vehSel: this.forceCar() ? true : s.vehSel }); // งานแข็ง/ฝนตกบังคับรถยนต์ = ข้ามขั้นเลือกพาหนะให้เลย
       },
       gmapLink: s.gmapLink, gmapBusy: s.gmapBusy,
@@ -2924,7 +3034,7 @@ class App extends React.Component {
                     : <div style={css("font-size:18px")}>{f.big ? '🗂️' : '📄'}</div>}
                   <div style={css("flex:1;min-width:0")}><div style={css("font-size:12.5px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap")}>{f.name}{f.sizeMB ? ' · ' + f.sizeMB + 'MB' : ''}</div><div style={css("font-size:10.5px;color:var(--sub)")}>{f.sub}</div></div>
                   {f.stMode
-                    ? <div style={css("flex:none;display:flex;align-items:center;gap:5px;background:var(--accSoft);border:1px solid var(--acc);border-radius:9px;padding:5px 10px")}><span style={css("font-family:'IBM Plex Mono',monospace;font-size:13px;font-weight:700;color:var(--acc)")}>{f.qty} ชิ้น</span></div>
+                    ? <div style={css("flex:none;display:flex;align-items:center;gap:5px;background:var(--accSoft);border:1px solid var(--acc);border-radius:9px;padding:5px 10px")}><span style={css("font-family:'IBM Plex Mono',monospace;font-size:13px;font-weight:700;color:var(--acc)")}>{f.qty || '–'} ชิ้น</span></div>
                     : f.auto && !f.counting
                     ? <div style={css("flex:none;display:flex;align-items:center;gap:5px;background:var(--accSoft);border:1px solid var(--acc);border-radius:9px;padding:5px 10px")}><span style={css("font-size:11px")}>🔒</span><span style={css("font-family:'IBM Plex Mono',monospace;font-size:13px;font-weight:700;color:var(--acc)")}>{f.pages} หน้า</span></div>
                     : <div style={css("display:flex;align-items:center;gap:8px")}>
@@ -3014,13 +3124,33 @@ class App extends React.Component {
                 {v.isPro && v.proSizeOpts.length > 0 && <div style={css("display:flex;flex-direction:column;gap:6px")}><div style={css("font-size:12px;font-weight:600;color:var(--sub)")}>ขนาด</div><div style={css("display:flex;gap:8px;flex-wrap:wrap")}>{v.proSizeOpts.map((o, i) => <button key={i} onClick={o.pick} style={o.st}>{o.label}</button>)}</div></div>}
                 {v.isPro && v.proShowSides && <div style={css("display:flex;flex-direction:column;gap:6px")}><div style={css("font-size:12px;font-weight:600;color:var(--sub)")}>ด้านที่พิมพ์</div><div style={css("display:flex;gap:8px;flex-wrap:wrap")}>{v.proSidesOpts.map((o, i) => <button key={i} onClick={o.pick} style={{...o.st, flex:'1 1 45%'}}>{o.label}</button>)}</div></div>}
                 {v.isPro && v.proExtraOpts.length > 0 && <div style={css("display:flex;flex-direction:column;gap:6px")}><div style={css("font-size:12px;font-weight:600;color:var(--sub)")}>ตัวเลือกเสริม</div><div style={css("display:flex;gap:8px;flex-wrap:wrap")}>{v.proExtraOpts.map((o, i) => <button key={i} onClick={o.pick} style={{...o.st, flex:'1 1 45%'}}>{o.label}</button>)}</div></div>}
+                {v.isPro && v.proBoardOpts.length > 0 && <div style={css("display:flex;flex-direction:column;gap:6px")}>
+                  <div style={css("font-size:12px;font-weight:600;color:var(--sub)")}>ประเภทบอร์ด (ไม่บวกราคาเพิ่ม)</div>
+                  <div style={css("display:flex;gap:8px;flex-wrap:wrap")}>{v.proBoardOpts.map((o, i) => <button key={i} onClick={o.pick} style={{...o.st, flex:'1 1 45%'}}>{o.label}</button>)}</div>
+                  {!v.proBoardPicked && <div style={css("font-size:11px;font-weight:700;color:#c92a2a")}>⚠️ เลือกประเภทบอร์ด 1 อย่างก่อนไปขั้นตอนถัดไปครับ</div>}
+                </div>}
+                {v.isPro && v.proGramOpts.length > 0 && <div style={css("display:flex;flex-direction:column;gap:6px")}><div style={css("font-size:12px;font-weight:600;color:var(--sub)")}>ความหนากระดาษ (ไม่บวกราคาเพิ่ม)</div><div style={css("display:flex;gap:8px;flex-wrap:wrap")}>{v.proGramOpts.map((o, i) => <button key={i} onClick={o.pick} style={{...o.st, flex:'1 1 30%'}}>{o.label}</button>)}</div></div>}
                 {v.isPro && v.proLamOpts.length > 0 && <div style={css("display:flex;flex-direction:column;gap:6px")}><div style={css("font-size:12px;font-weight:600;color:var(--sub)")}>การเคลือบ</div><div style={css("display:flex;gap:8px;flex-wrap:wrap")}>{v.proLamOpts.map((o, i) => <button key={i} onClick={o.pick} style={{...o.st, flex:'1 1 30%'}}>{o.label}</button>)}</div></div>}
                 {v.isPro && v.proHint && <div style={css("font-size:11.5px;color:var(--acc);font-weight:600")}>{v.proHint}</div>}
-                {v.stkOn && (
-                  <div style={css("background:var(--card);border:1.5px solid var(--acc);border-radius:12px;padding:12px 14px")}>
-                    <div style={css("font-size:12.5px;font-weight:700;color:var(--acc)")}>🏷️ พิมพ์จำนวนชิ้นของแต่ละลายตรงนี้เลย</div>
+                {v.stkOn && <div style={css("display:flex;flex-direction:column;gap:6px")}>
+                  <div style={css("font-size:12px;font-weight:600;color:var(--sub)")}>ประเภทสติ๊กเกอร์ — เลือกตรงนี้ = ใช้กับทุกลาย (แต่ละลายสลับเองได้ที่ปุ่ม PP/PVC ด้านล่าง)</div>
+                  <div style={css("display:flex;flex-direction:column;gap:8px")}>
+                    {v.stkTypeOpts.map((o, i) => (
+                      <div key={i} onClick={o.pick} style={css("border:" + (o.on ? "1.5px solid var(--acc)" : "1px solid var(--line)") + ";border-radius:12px;padding:11px 14px;background:" + (o.on ? "var(--accSoft)" : "var(--card)") + ";display:flex;align-items:flex-start;gap:11px;cursor:pointer")}>
+                        <div style={css("flex:1;min-width:0")}>
+                          <div style={css("font-size:13.5px;font-weight:700;color:" + (o.on ? "var(--acc)" : "var(--ink)"))}>{o.name}</div>
+                          <div style={css("margin-top:2px;font-size:11px;color:var(--sub);line-height:1.55")}>{o.sub}</div>
+                          <div style={css("margin-top:3px;font-size:11px;font-weight:700;color:var(--acc)")}>{o.price}</div>
+                        </div>
+                        <div style={css("margin-top:2px;width:20px;height:20px;border-radius:50%;flex:none;border:2px solid " + (o.on ? "var(--acc)" : "var(--line)") + ";display:flex;align-items:center;justify-content:center")}>{o.on && <div style={css("width:10px;height:10px;border-radius:50%;background:var(--acc)")}></div>}</div>
+                      </div>
+                    ))}
+                  </div>
+                  {v.stkTypeMissing && <div style={css("font-size:11px;font-weight:700;color:#c92a2a")}>⚠️ เลือกประเภทสติ๊กเกอร์ (PP หรือ PVC) ให้ครบทุกลายก่อนไปขั้นตอนถัดไปครับ</div>}
+                  <div style={css("margin-top:2px;background:var(--card);border:1.5px solid var(--acc);border-radius:12px;padding:12px 14px")}>
+                    <div style={css("font-size:12.5px;font-weight:700;color:var(--acc)")}>🏷️ กรอกขนาดชิ้น + จำนวนชิ้นของแต่ละลายตรงนี้เลย</div>
                     {v.stkFiles.length === 0
-                      ? <div style={css("margin-top:7px;font-size:11.5px;color:var(--sub);line-height:1.6")}>อัปโหลดไฟล์ลายสติ๊กเกอร์ที่ด้านบนก่อน (1 ไฟล์ = 1 ลาย) แล้วช่องกรอกจำนวนชิ้นของแต่ละไฟล์จะขึ้นตรงนี้ครับ</div>
+                      ? <div style={css("margin-top:7px;font-size:11.5px;color:var(--sub);line-height:1.6")}>อัปโหลดไฟล์ลายสติ๊กเกอร์ที่ด้านบนก่อน (1 ไฟล์ = 1 ลาย) แล้วช่องกรอกขนาดกับจำนวนชิ้นของแต่ละไฟล์จะขึ้นตรงนี้ครับ</div>
                       : <React.Fragment>
                           {v.stkFiles.map((f, i) => (
                             f.multi
@@ -3031,20 +3161,43 @@ class App extends React.Component {
                                   </div>
                                   <button onClick={f.del} style={css("flex:none;height:34px;padding:0 12px;border:none;border-radius:9px;background:#c92a2a;color:#fff;font-size:11.5px;font-weight:700;cursor:pointer;font-family:inherit")}>ลบไฟล์นี้</button>
                                 </div>
-                              : <div key={i} style={css("margin-top:9px;display:flex;align-items:center;gap:9px")}>
-                                  <div style={css("flex:1;min-width:0")}>
-                                    <div style={css("font-size:12px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap")}>ลายที่ {i + 1} · {f.name}</div>
-                                    <div style={css("margin-top:1px;font-size:10.5px;color:var(--sub)")}>= {f.sheets} แผ่น A3 (แผ่นละ 9 ชิ้น)</div>
+                              : <div key={i} style={css("margin-top:9px;border:1px solid var(--line);border-radius:10px;padding:9px 11px;background:var(--soft)")}>
+                                  <div style={css("display:flex;align-items:center;gap:8px")}>
+                                    <div style={css("flex:1;min-width:0;font-size:12px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap")}>ลายที่ {i + 1} · {f.name}</div>
+                                    {['pp', 'pvc'].map(k => (
+                                      <button key={k} onClick={() => f.setStk(k)} style={css("flex:none;height:30px;padding:0 12px;border-radius:8px;font-size:11.5px;font-weight:700;cursor:pointer;font-family:inherit;border:" + (f.t === k ? "1.5px solid var(--acc)" : "1px solid var(--line)") + ";background:" + (f.t === k ? "var(--accSoft)" : "var(--card)") + ";color:" + (f.t === k ? "var(--acc)" : "var(--ink)"))}>{k.toUpperCase()}</button>
+                                    ))}
                                   </div>
-                                  <input value={f.val} onChange={f.setQty} onBlur={f.blurQty} inputMode="numeric" placeholder="9" style={css("flex:none;width:64px;height:42px;border:1.5px solid var(--acc);border-radius:10px;background:var(--soft);color:var(--ink);font-size:15px;font-weight:700;text-align:center;outline:none")}/>
-                                  <span style={css("flex:none;font-size:12px;font-weight:600;color:var(--sub)")}>ชิ้น</span>
+                                  {!f.t && <div style={css("margin-top:4px;font-size:10.5px;font-weight:700;color:#c92a2a")}>⚠️ เลือกเนื้อของลายนี้ — PP หรือ PVC</div>}
+                                  <div style={css("margin-top:7px;display:flex;align-items:center;gap:7px;flex-wrap:wrap")}>
+                                    <input value={f.valW} onChange={f.setW} inputMode="decimal" placeholder="กว้าง" style={css("flex:none;width:62px;height:40px;border:1.5px solid var(--acc);border-radius:10px;background:var(--card);color:var(--ink);font-size:14px;font-weight:700;text-align:center;outline:none")}/>
+                                    <span style={css("flex:none;font-size:13px;font-weight:700;color:var(--sub)")}>×</span>
+                                    <input value={f.valH} onChange={f.setH} inputMode="decimal" placeholder="ยาว" style={css("flex:none;width:62px;height:40px;border:1.5px solid var(--acc);border-radius:10px;background:var(--card);color:var(--ink);font-size:14px;font-weight:700;text-align:center;outline:none")}/>
+                                    <span style={css("flex:none;font-size:11px;font-weight:600;color:var(--sub)")}>ซม.</span>
+                                    <input value={f.valQ} onChange={f.setQty} inputMode="numeric" placeholder="จำนวน" style={css("flex:none;width:66px;height:40px;border:1.5px solid var(--acc);border-radius:10px;background:var(--card);color:var(--ink);font-size:14px;font-weight:700;text-align:center;outline:none")}/>
+                                    <span style={css("flex:none;font-size:11px;font-weight:600;color:var(--sub)")}>ชิ้น</span>
+                                  </div>
+                                  <div style={css("margin-top:5px;font-size:10.5px;line-height:1.5;" + (f.info && f.info.over ? "font-weight:700;color:#c92a2a" : "color:var(--sub)"))}>
+                                    {f.info && f.info.over
+                                      ? '⚠️ ขนาดใหญ่เกินแผ่น A3 (พิมพ์ได้ไม่เกิน 28.7×41 ซม.) — ลดขนาดลงหรือทักไลน์ร้านครับ'
+                                      : f.info && f.info.ok
+                                      ? 'วางลงแผ่น A3 ได้ ' + f.info.cap + ' ชิ้น/แผ่น → ลายนี้ใช้ ' + f.info.sheets + ' แผ่น'
+                                      : 'กรอกขนาด กว้าง × ยาว (ซม.) และจำนวนชิ้นที่ต้องการให้ครบครับ'}
+                                  </div>
                                 </div>
                           ))}
+                          <div style={css("margin-top:9px;font-size:10.5px;color:var(--sub);line-height:1.6")}>💡 ถ้าสะดวก ทำลายสติ๊กเกอร์เป็น<b>ขนาดจริง</b>ลงในไฟล์มาเลยนะครับ จะช่วยให้ปริ้นและส่งมอบงานได้เร็วขึ้นมาก ๆ</div>
                           {v.stkMulti && <div style={css("margin-top:10px;background:#fff0f0;border:1px solid #ffa8a8;border-radius:10px;padding:8px 11px;font-size:11.5px;font-weight:700;color:#c92a2a;line-height:1.5")}>⚠️ ลบไฟล์ที่เกิน 1 หน้าออกก่อน ถึงจะไปขั้นตอนถัดไปได้ครับ</div>}
-                          {v.stkSum && !v.stkMulti && <div style={css("margin-top:10px;background:var(--accSoft);border:1px solid var(--acc);border-radius:10px;padding:8px 11px;display:flex;justify-content:space-between;font-size:12px;font-weight:700;color:var(--acc)")}><span>รวม {v.stkSum.pcs} ชิ้น = {v.stkSum.sheets} แผ่น A3</span><span>฿{v.stkSum.cost}</span></div>}
+                          {v.stkSum && !v.stkMulti && (v.stkSum.ready
+                            ? <div style={css("margin-top:10px;background:var(--accSoft);border:1px solid var(--acc);border-radius:10px;padding:8px 11px;font-size:12px;font-weight:700;color:var(--acc)")}>
+                                <div style={css("display:flex;justify-content:space-between")}><span>รวม {v.stkSum.pcs} ชิ้น = {v.stkSum.sheets} แผ่น A3</span><span>฿{v.stkSum.cost}</span></div>
+                                {v.stkSum.brk && <div style={css("margin-top:2px;font-size:11px")}>{v.stkSum.brk}</div>}
+                                {v.stkSum.tierNote && <div style={css("margin-top:2px;font-size:11px")}>{v.stkSum.tierNote}</div>}
+                              </div>
+                            : <div style={css("margin-top:10px;background:#fff7e0;border:1px solid #f0c36d;border-radius:10px;padding:8px 11px;font-size:11.5px;font-weight:700;color:#8a6d1a;line-height:1.5")}>กรอกประเภทสติ๊กเกอร์ + ขนาด + จำนวนชิ้นให้ครบทุกลาย แล้วระบบจะสรุปจำนวนแผ่นและราคาให้ตรงนี้ครับ</div>)}
                         </React.Fragment>}
                   </div>
-                )}
+                </div>}
                 {v.isPro && v.proShowBind && <div style={css("display:flex;flex-direction:column;gap:6px")}><div style={css("font-size:12px;font-weight:600;color:var(--sub)")}>ตัวเลือกเข้าเล่ม</div><div style={css("display:flex;flex-direction:column;gap:8px")}>{v.proBindOpts.map((o, i) => <button key={i} onClick={o.pick} style={{ ...o.st, width: '100%', boxSizing: 'border-box', minHeight: '44px', display: 'flex', alignItems: 'center', textAlign: 'left', fontSize: '13px' }}>{o.label}</button>)}</div></div>}
                 {v.isPro && v.proShowQty && <div style={css("display:flex;flex-direction:column;gap:6px")}><div style={css("font-size:12px;font-weight:600;color:var(--sub)")}>จำนวน</div><div style={css("display:flex;flex-direction:column;gap:8px")}>{v.proQtyOpts.map((o, i) => <button key={i} onClick={o.pick} style={{ ...o.st, width: '100%', boxSizing: 'border-box', minHeight: '44px', display: 'flex', alignItems: 'center', textAlign: 'left', fontSize: '13px' }}>{o.label}</button>)}</div></div>}
                 {v.isPro && <div style={css("display:flex;flex-direction:column;gap:6px")}><div style={css("font-size:12px;font-weight:600;color:var(--sub)")}>การรับงาน</div><div style={css("display:flex;flex-direction:column;gap:8px")}>
@@ -3370,7 +3523,7 @@ class App extends React.Component {
                     : <div style={css("width:46px;height:62px;border:1px solid var(--line);border-radius:6px;background:var(--soft);display:flex;align-items:center;justify-content:center;font-size:22px;flex:none")}>{f.big ? '🗂️' : '📄'}</div>}
                   <div style={css("flex:1;min-width:0")}>
                     <div style={css("font-size:13px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap")}>{f.name}</div>
-                    <div style={css("font-size:11px;color:var(--sub);margin-top:2px")}>{f.stMode ? '🏷️ ' + f.qty + ' ชิ้น (' + f.stSheets + ' แผ่น A3)' : f.pages + ' หน้า'}{v.isColorType && f.scanned ? ' · 🎨 สีเยอะ ' + f.heavy + ' หน้า' : ''}{f.big ? ' · ส่งผ่าน Google Drive' : ''}</div>
+                    <div style={css("font-size:11px;color:var(--sub);margin-top:2px")}>{f.stMode ? '🏷️ ' + (f.stText || f.qty + ' ชิ้น') : f.pages + ' หน้า'}{v.isColorType && f.scanned ? ' · 🎨 สีเยอะ ' + f.heavy + ' หน้า' : ''}{f.big ? ' · ส่งผ่าน Google Drive' : ''}</div>
                     {f.thumb && <div style={css("font-size:10px;color:var(--sub)")}>↑ รูปตัวอย่างหน้าแรกจากไฟล์จริง</div>}
                   </div>
                 </div>
