@@ -3275,7 +3275,10 @@ class App extends React.Component {
                                   {f.fillQty && (
                                     <div style={css("margin-top:7px;background:var(--accSoft);border:1.5px dashed var(--acc);border-radius:9px;padding:8px 10px")}>
                                       <div style={css("font-size:10.5px;font-weight:600;color:var(--acc);line-height:1.55")}>งาน PVC คิดเป็นช่วงละ 1 ตร.ม. (฿{STK_PVC_SQM}/ตร.ม.) — ตอนนี้จ่ายพื้นที่ {f.fillBlocks} ตร.ม. แต่ยังใช้ไม่เต็มครับ</div>
-                                      <button onClick={f.fill} style={css("margin-top:6px;width:100%;box-sizing:border-box;min-height:38px;padding:9px 12px;border:none;border-radius:9px;background:var(--acc);color:#fff;font-size:12.5px;font-weight:700;line-height:1.5;white-space:normal;cursor:pointer;font-family:inherit")}>🎁 ปริ้นเต็มจำนวน — เพิ่มเป็น {f.fillQty} ชิ้น ราคาเท่าเดิม</button>
+                                      <button onClick={f.fill} style={css("margin-top:6px;width:100%;box-sizing:border-box;padding:8px 12px;border:none;border-radius:9px;background:var(--acc);color:#fff;line-height:1.5;cursor:pointer;font-family:inherit;text-align:center")}>
+                                        <span style={css("display:block;font-size:13px;font-weight:700")}>🎁 ปริ้นเต็มจำนวน</span>
+                                        <span style={css("display:block;margin-top:1px;font-size:11px;font-weight:600;opacity:.95")}>เพิ่มเป็น {f.fillQty} ชิ้น ราคาเท่าเดิม</span>
+                                      </button>
                                       <div style={css("margin-top:4px;font-size:10px;color:var(--sub);line-height:1.5")}>กดหรือไม่กดก็ได้ครับ — กดแล้วระบบเพิ่มจำนวนชิ้นให้เต็มพื้นที่ {f.fillBlocks} ตารางเมตรที่จ่ายแล้วอัตโนมัติ คุ้มสุด</div>
                                     </div>
                                   )}
