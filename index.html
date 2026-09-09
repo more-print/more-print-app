@@ -1217,7 +1217,7 @@ class App extends React.Component {
   }
 
   // ── สติ๊กเกอร์ v2: คำนวณจัดวาง+ราคาจากขนาด/จำนวนชิ้น/เนื้อ (PP·PVC) รายไฟล์ (จุดเดียว — calc/ป้าย/ช่องกรอก/บันทึก ใช้ร่วมกันหมด) ──
-  // เนื้อเลือกได้รายลาย (เจ้าของสั่ง 2026-09-09): f.stk รายไฟล์ ไม่เลือก = ตามค่าหลัก s.stkType — ราคาคิดแยกกลุ่ม:
+  // เนื้อเลือกได้รายลาย (เจ้าของสั่ง 2026-09-09): f.stk รายไฟล์ (บังคับเลือกทุกลาย — การ์ดอธิบายด้านบนกดไม่ได้) — ราคาคิดแยกกลุ่ม:
   //   PP ลดขั้นตามแผ่นรวมเฉพาะฝั่ง PP · PVC ขั้นต่ำ ฿550 คิดเฉพาะฝั่ง PVC
   // คืน { list:[{ok,over,w,h,q,cap,sheets,t}], ready, sheets, pcs, pp:{sheets,rate,cost}, pvc:{sheets,cost,minApplied}, cost }
   stickerInfo(){
@@ -1227,7 +1227,7 @@ class App extends React.Component {
       const ok = w > 0 && h > 0 && q > 0;
       const cap = ok ? stickerPerSheet(w, h) : 0;
       return { ok, over: ok && cap === 0, w: ok ? w : null, h: ok ? h : null, q, cap,
-        sheets: cap > 0 ? Math.ceil(q / cap) : 0, t: f.stk || s.stkType || '' };
+        sheets: cap > 0 ? Math.ceil(q / cap) : 0, t: f.stk || '' }; // เนื้อเลือกที่กล่องรายลายเท่านั้น (การ์ดบนเป็นป้ายอธิบาย ไม่ใช่ปุ่ม — เจ้าของสั่ง 2026-09-09)
     });
     const ready = list.length > 0 && list.every(x => x.ok && !x.over && !!x.t) && !(s.files || []).some(f => (f.pages || 1) > 1);
     const sheets = list.reduce((a, x) => a + x.sheets, 0) * copies;
@@ -2027,18 +2027,17 @@ class App extends React.Component {
       proNote: '', // ทุกประเภทงาน Pro มีราคาจริงแล้ว (foldbook เป็นตัวสุดท้าย 2026-08-24)
       // ── งานสติ๊กเกอร์ v2: เลือกเนื้อ PP/PVC + กรอกขนาด (ซม.) และจำนวนชิ้นรายไฟล์ อยู่ใต้ตัวเลือกงานเลย ──
       stkOn: s.tier === 'pro' && s.proType === 'sticker',
-      stkType: s.stkType,
-      stkTypeMissing: (s.tier === 'pro' && s.proType === 'sticker') && (s.files.length === 0 ? !s.stkType : s.files.some(f => !(f.stk || s.stkType))), // ยังมีลายที่ไม่รู้เนื้อ
-      // การ์ดเนื้อบนสุด = เลือกทีเดียวใช้กับทุกลาย (ล้างตัวเลือกรายลายทิ้ง) · แต่ละลายสลับเองได้ที่ปุ่ม PP/PVC ในการ์ดลาย (2026-09-09)
+      stkTypeMissing: (s.tier === 'pro' && s.proType === 'sticker') && s.files.length > 0 && s.files.some(f => !f.stk), // ยังมีลายที่ไม่ได้เลือกเนื้อ
+      // การ์ดเนื้อบนสุด = ป้ายอธิบายอย่างเดียว กดไม่ได้ (เจ้าของสั่ง 2026-09-09) — ลูกค้ากดเลือกจริงที่ปุ่ม PP/PVC ในกล่องของแต่ละลาย
+      // ข้อความแบ่งเป็นบรรทัดสั้น ๆ จบประโยคในบรรทัดเดียว กันคำโดนตัดกลางประโยค
       stkTypeOpts: (s.tier === 'pro' && s.proType === 'sticker') ? [
-        { k: 'pp', name: 'PP (ติดฉลากสินค้า)', sub: 'ราคาถูกกว่า กันน้ำ เหมาะกับงานติดบนพื้นผิวเรียบ เช่น ฉลากสินค้า (เนื้อสติ๊กเกอร์มีความยืดหยุ่นต่ำ)',
-          price: '฿' + STK_PP_SHEET + '/แผ่น A3 · สั่ง 50 แผ่นขึ้นไปเหลือ ฿35 · 100 แผ่นขึ้นไปเหลือ ฿33' },
-        { k: 'pvc', name: 'PVC (คุณภาพสูง)', sub: 'เนื้อสติ๊กเกอร์คุณภาพสูง กันน้ำ ยืดหยุ่นสูง ใช้ได้กับทุกพื้นผิวสัมผัส',
-          price: '฿' + STK_PVC_SQM + '/ตารางเมตร (A3 8 แผ่น = 1 ตร.ม.) · สั่งน้อยกว่านั้นคิดขั้นต่ำ ฿' + STK_PVC_SQM }
-      ].map(o => ({ ...o,
-        on: s.files.length ? s.files.every(f => (f.stk || s.stkType) === o.k) : s.stkType === o.k,
-        pick: () => this.setState(st => ({ stkType: o.k, files: st.files.map(f => ({ ...f, stk: null })) }))
-      })) : [],
+        { name: 'PP (ติดฉลากสินค้า)',
+          lines: ['ราคาถูกกว่า · กันน้ำ · เนื้อยืดหยุ่นต่ำ', 'เหมาะกับงานติดบนพื้นผิวเรียบ เช่น ฉลากสินค้า'],
+          prices: ['แผ่น A3 ละ ฿' + STK_PP_SHEET, 'ครบ 50 แผ่น เหลือแผ่นละ ฿35 · ครบ 100 แผ่น เหลือแผ่นละ ฿33'] },
+        { name: 'PVC (คุณภาพสูง)',
+          lines: ['คุณภาพสูง · กันน้ำ · เนื้อยืดหยุ่นสูง', 'ติดได้กับทุกพื้นผิวสัมผัส'],
+          prices: ['ตารางเมตรละ ฿' + STK_PVC_SQM + ' (A3 8 แผ่น = 1 ตร.ม.)', 'สั่งไม่เต็ม 1 ตร.ม. คิดขั้นต่ำ ฿' + STK_PVC_SQM] }
+      ] : [],
       stkFiles: (s.tier === 'pro' && s.proType === 'sticker') ? (() => {
         const si = this.stickerInfo();
         const set = (i, k, val) => this.setState(st => ({ files: st.files.map((x, j) => j === i ? { ...x, [k]: val } : x) }));
@@ -2049,7 +2048,7 @@ class App extends React.Component {
           pages: f.pages || 1,
           valW: f.w == null ? '' : String(f.w), valH: f.h == null ? '' : String(f.h),
           valQ: f.qty == null ? '' : String(f.qty),
-          t: f.stk || s.stkType || '', // เนื้อของลายนี้ (รายไฟล์ > ค่าหลัก)
+          t: f.stk || '', // เนื้อของลายนี้ (เลือกที่ปุ่ม PP/PVC ในกล่องลายเท่านั้น)
           setStk: (k) => set(i, 'stk', k),
           info: si.list[i], // {ok, over, cap, sheets, t}
           del: () => this.setState(st => ({ files: st.files.filter((_, j) => j !== i) })),
@@ -3133,20 +3132,17 @@ class App extends React.Component {
                 {v.isPro && v.proLamOpts.length > 0 && <div style={css("display:flex;flex-direction:column;gap:6px")}><div style={css("font-size:12px;font-weight:600;color:var(--sub)")}>การเคลือบ</div><div style={css("display:flex;gap:8px;flex-wrap:wrap")}>{v.proLamOpts.map((o, i) => <button key={i} onClick={o.pick} style={{...o.st, flex:'1 1 30%'}}>{o.label}</button>)}</div></div>}
                 {v.isPro && v.proHint && <div style={css("font-size:11.5px;color:var(--acc);font-weight:600")}>{v.proHint}</div>}
                 {v.stkOn && <div style={css("display:flex;flex-direction:column;gap:6px")}>
-                  <div style={css("font-size:12px;font-weight:600;color:var(--sub)")}>ประเภทสติ๊กเกอร์ — เลือกตรงนี้ = ใช้กับทุกลาย (แต่ละลายสลับเองได้ที่ปุ่ม PP/PVC ด้านล่าง)</div>
+                  <div style={css("font-size:12px;font-weight:600;color:var(--sub)")}>สติ๊กเกอร์มี 2 แบบ — อ่านรายละเอียดตรงนี้ แล้วกดเลือกในกล่องของแต่ละลายด้านล่างครับ</div>
                   <div style={css("display:flex;flex-direction:column;gap:8px")}>
                     {v.stkTypeOpts.map((o, i) => (
-                      <div key={i} onClick={o.pick} style={css("border:" + (o.on ? "1.5px solid var(--acc)" : "1px solid var(--line)") + ";border-radius:12px;padding:11px 14px;background:" + (o.on ? "var(--accSoft)" : "var(--card)") + ";display:flex;align-items:flex-start;gap:11px;cursor:pointer")}>
-                        <div style={css("flex:1;min-width:0")}>
-                          <div style={css("font-size:13.5px;font-weight:700;color:" + (o.on ? "var(--acc)" : "var(--ink)"))}>{o.name}</div>
-                          <div style={css("margin-top:2px;font-size:11px;color:var(--sub);line-height:1.55")}>{o.sub}</div>
-                          <div style={css("margin-top:3px;font-size:11px;font-weight:700;color:var(--acc)")}>{o.price}</div>
-                        </div>
-                        <div style={css("margin-top:2px;width:20px;height:20px;border-radius:50%;flex:none;border:2px solid " + (o.on ? "var(--acc)" : "var(--line)") + ";display:flex;align-items:center;justify-content:center")}>{o.on && <div style={css("width:10px;height:10px;border-radius:50%;background:var(--acc)")}></div>}</div>
+                      <div key={i} style={css("border:1px solid var(--line);border-radius:12px;padding:11px 14px;background:var(--soft)")}>
+                        <div style={css("font-size:13.5px;font-weight:700")}>{o.name}</div>
+                        {o.lines.map((ln, j) => <div key={j} style={css("margin-top:" + (j === 0 ? 3 : 1) + "px;font-size:11px;color:var(--sub);line-height:1.55")}>{ln}</div>)}
+                        {o.prices.map((ln, j) => <div key={j} style={css("margin-top:" + (j === 0 ? 4 : 1) + "px;font-size:11px;font-weight:700;color:var(--acc);line-height:1.55")}>{ln}</div>)}
                       </div>
                     ))}
                   </div>
-                  {v.stkTypeMissing && <div style={css("font-size:11px;font-weight:700;color:#c92a2a")}>⚠️ เลือกประเภทสติ๊กเกอร์ (PP หรือ PVC) ให้ครบทุกลายก่อนไปขั้นตอนถัดไปครับ</div>}
+                  {v.stkTypeMissing && <div style={css("font-size:11px;font-weight:700;color:#c92a2a")}>⚠️ กดเลือกแบบ PP หรือ PVC ในกล่องของแต่ละลายด้านล่างให้ครบก่อนไปขั้นตอนถัดไปครับ</div>}
                   <div style={css("margin-top:2px;background:var(--card);border:1.5px solid var(--acc);border-radius:12px;padding:12px 14px")}>
                     <div style={css("font-size:12.5px;font-weight:700;color:var(--acc)")}>🏷️ กรอกขนาดชิ้น + จำนวนชิ้นของแต่ละลายตรงนี้เลย</div>
                     {v.stkFiles.length === 0
@@ -3161,23 +3157,28 @@ class App extends React.Component {
                                   </div>
                                   <button onClick={f.del} style={css("flex:none;height:34px;padding:0 12px;border:none;border-radius:9px;background:#c92a2a;color:#fff;font-size:11.5px;font-weight:700;cursor:pointer;font-family:inherit")}>ลบไฟล์นี้</button>
                                 </div>
-                              : <div key={i} style={css("margin-top:9px;border:1px solid var(--line);border-radius:10px;padding:9px 11px;background:var(--soft)")}>
-                                  <div style={css("display:flex;align-items:center;gap:8px")}>
-                                    <div style={css("flex:1;min-width:0;font-size:12px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap")}>ลายที่ {i + 1} · {f.name}</div>
+                              : <div key={i} style={css("margin-top:9px;border:1px solid var(--line);border-radius:10px;padding:10px 12px;background:var(--soft)")}>
+                                  <div style={css("font-size:12px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap")}>ลายที่ {i + 1} · {f.name}</div>
+                                  <div style={css("margin-top:8px;font-size:10.5px;font-weight:600;color:var(--sub)")}>1. เลือกประเภทสติ๊กเกอร์</div>
+                                  <div style={css("margin-top:4px;display:flex;gap:7px")}>
                                     {['pp', 'pvc'].map(k => (
-                                      <button key={k} onClick={() => f.setStk(k)} style={css("flex:none;height:30px;padding:0 12px;border-radius:8px;font-size:11.5px;font-weight:700;cursor:pointer;font-family:inherit;border:" + (f.t === k ? "1.5px solid var(--acc)" : "1px solid var(--line)") + ";background:" + (f.t === k ? "var(--accSoft)" : "var(--card)") + ";color:" + (f.t === k ? "var(--acc)" : "var(--ink)"))}>{k.toUpperCase()}</button>
+                                      <button key={k} onClick={() => f.setStk(k)} style={css("flex:1;height:38px;border-radius:9px;font-size:12.5px;font-weight:700;cursor:pointer;font-family:inherit;border:" + (f.t === k ? "1.5px solid var(--acc)" : "1px solid var(--line)") + ";background:" + (f.t === k ? "var(--accSoft)" : "var(--card)") + ";color:" + (f.t === k ? "var(--acc)" : "var(--ink)"))}>{k.toUpperCase()}{k === 'pp' ? ' (ติดฉลากสินค้า)' : ' (คุณภาพสูง)'}</button>
                                     ))}
                                   </div>
-                                  {!f.t && <div style={css("margin-top:4px;font-size:10.5px;font-weight:700;color:#c92a2a")}>⚠️ เลือกเนื้อของลายนี้ — PP หรือ PVC</div>}
-                                  <div style={css("margin-top:7px;display:flex;align-items:center;gap:7px;flex-wrap:wrap")}>
-                                    <input value={f.valW} onChange={f.setW} inputMode="decimal" placeholder="กว้าง" style={css("flex:none;width:62px;height:40px;border:1.5px solid var(--acc);border-radius:10px;background:var(--card);color:var(--ink);font-size:14px;font-weight:700;text-align:center;outline:none")}/>
+                                  {!f.t && <div style={css("margin-top:4px;font-size:10.5px;font-weight:700;color:#c92a2a")}>⚠️ กดเลือกแบบของลายนี้ก่อนครับ — PP หรือ PVC</div>}
+                                  <div style={css("margin-top:8px;font-size:10.5px;font-weight:600;color:var(--sub)")}>2. ขนาดชิ้นสติ๊กเกอร์ (เซนติเมตร)</div>
+                                  <div style={css("margin-top:4px;display:flex;align-items:center;gap:7px")}>
+                                    <input value={f.valW} onChange={f.setW} inputMode="decimal" placeholder="กว้าง" style={css("flex:1;min-width:0;height:40px;border:1.5px solid var(--acc);border-radius:10px;background:var(--card);color:var(--ink);font-size:14px;font-weight:700;text-align:center;outline:none")}/>
                                     <span style={css("flex:none;font-size:13px;font-weight:700;color:var(--sub)")}>×</span>
-                                    <input value={f.valH} onChange={f.setH} inputMode="decimal" placeholder="ยาว" style={css("flex:none;width:62px;height:40px;border:1.5px solid var(--acc);border-radius:10px;background:var(--card);color:var(--ink);font-size:14px;font-weight:700;text-align:center;outline:none")}/>
+                                    <input value={f.valH} onChange={f.setH} inputMode="decimal" placeholder="ยาว" style={css("flex:1;min-width:0;height:40px;border:1.5px solid var(--acc);border-radius:10px;background:var(--card);color:var(--ink);font-size:14px;font-weight:700;text-align:center;outline:none")}/>
                                     <span style={css("flex:none;font-size:11px;font-weight:600;color:var(--sub)")}>ซม.</span>
-                                    <input value={f.valQ} onChange={f.setQty} inputMode="numeric" placeholder="จำนวน" style={css("flex:none;width:66px;height:40px;border:1.5px solid var(--acc);border-radius:10px;background:var(--card);color:var(--ink);font-size:14px;font-weight:700;text-align:center;outline:none")}/>
+                                  </div>
+                                  <div style={css("margin-top:8px;font-size:10.5px;font-weight:600;color:var(--sub)")}>3. จำนวนชิ้นที่ต้องการ</div>
+                                  <div style={css("margin-top:4px;display:flex;align-items:center;gap:7px")}>
+                                    <input value={f.valQ} onChange={f.setQty} inputMode="numeric" placeholder="เช่น 40" style={css("flex:1;min-width:0;height:40px;border:1.5px solid var(--acc);border-radius:10px;background:var(--card);color:var(--ink);font-size:14px;font-weight:700;text-align:center;outline:none")}/>
                                     <span style={css("flex:none;font-size:11px;font-weight:600;color:var(--sub)")}>ชิ้น</span>
                                   </div>
-                                  <div style={css("margin-top:5px;font-size:10.5px;line-height:1.5;" + (f.info && f.info.over ? "font-weight:700;color:#c92a2a" : "color:var(--sub)"))}>
+                                  <div style={css("margin-top:7px;font-size:10.5px;line-height:1.5;" + (f.info && f.info.over ? "font-weight:700;color:#c92a2a" : "color:var(--sub)"))}>
                                     {f.info && f.info.over
                                       ? '⚠️ ขนาดใหญ่เกินแผ่น A3 (พิมพ์ได้ไม่เกิน 28.7×41 ซม.) — ลดขนาดลงหรือทักไลน์ร้านครับ'
                                       : f.info && f.info.ok
@@ -3186,7 +3187,7 @@ class App extends React.Component {
                                   </div>
                                 </div>
                           ))}
-                          <div style={css("margin-top:9px;font-size:10.5px;color:var(--sub);line-height:1.6")}>💡 ถ้าสะดวก ทำลายสติ๊กเกอร์เป็น<b>ขนาดจริง</b>ลงในไฟล์มาเลยนะครับ จะช่วยให้ปริ้นและส่งมอบงานได้เร็วขึ้นมาก ๆ</div>
+                          <div style={css("margin-top:9px;font-size:11px;font-weight:700;color:var(--acc);line-height:1.6")}>💡 ถ้าสะดวกรบกวนคุณลูกค้าปรับขนาดสติ๊กเกอร์เป็น<b>ขนาดจริง</b>ลงในไฟล์มาเลยนะครับ จะช่วยให้ปริ้นและส่งมอบงานได้เร็วขึ้นมาก ๆ</div>
                           {v.stkMulti && <div style={css("margin-top:10px;background:#fff0f0;border:1px solid #ffa8a8;border-radius:10px;padding:8px 11px;font-size:11.5px;font-weight:700;color:#c92a2a;line-height:1.5")}>⚠️ ลบไฟล์ที่เกิน 1 หน้าออกก่อน ถึงจะไปขั้นตอนถัดไปได้ครับ</div>}
                           {v.stkSum && !v.stkMulti && (v.stkSum.ready
                             ? <div style={css("margin-top:10px;background:var(--accSoft);border:1px solid var(--acc);border-radius:10px;padding:8px 11px;font-size:12px;font-weight:700;color:var(--acc)")}>
