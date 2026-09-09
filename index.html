@@ -812,13 +812,17 @@ class App extends React.Component {
       const cfg = window.MP_CONFIG || {};
       // fetch พร้อมเวลาหมดอายุ — เน็ตช้า/ตัวกลางล่มต้องไม่ค้างนาฬิกาทรายไม่จบ
       const tfetch = (u, ms) => { const c = new AbortController(); const t = setTimeout(() => c.abort(), ms); return fetch(u, { signal: c.signal }).finally(() => clearTimeout(t)); };
-      try {
-        const r = await tfetch(cfg.SUPABASE_URL + '/functions/v1/smart-handler?u=' + encodeURIComponent(url), 10000);
-        if (r.ok) {
-          const j = await r.json();
-          if (j.final) { finalUrl = j.final; pt = this.extractLatLng(j.final); }
-        }
-      } catch (e) {}
+      // เน็ตมือถือสะดุด/ตัวแกะลิงก์เพิ่งตื่น (cold start) อาจทำครั้งแรกพลาด — ลองซ้ำอัตโนมัติอีกรอบก่อนยอมแพ้ (แก้เคส "บางทีอ่านพิกัดไม่สำเร็จ")
+      for (let att = 0; att < 2 && !pt; att++) {
+        try {
+          const r = await tfetch(cfg.SUPABASE_URL + '/functions/v1/smart-handler?u=' + encodeURIComponent(url), att === 0 ? 10000 : 8000);
+          if (r.ok) {
+            const j = await r.json();
+            if (j.final) { finalUrl = j.final; pt = this.extractLatLng(j.final); }
+          }
+          if (finalUrl !== url) break; // ตัวแกะตอบแล้ว (แม้ลิงก์ไม่มีพิกัด เช่น ลิงก์แชร์ร้าน) — ไม่ต้องลองซ้ำ
+        } catch (e) {}
+      }
       if (!pt && finalUrl === url) {
         // ตัวกลางสำรอง (เฉพาะกรณีตัวแกะลิงก์หลักไม่ตอบ)
         try {
@@ -845,7 +849,7 @@ class App extends React.Component {
         return this.showToast('ลิงก์แบบใหม่ของ Google ไม่บอกพิกัด 🙏 ค้นหา "' + short + '" ให้แล้ว — แตะผลที่ตรง หรือเลื่อนแผนที่ปักหมุดเองครับ');
       }
       if (/share\.google/i.test(url)) return this.showToast('ลิงก์จากแอป Google อ่านพิกัดไม่ได้ 🙏 เปิดแอป Google Maps กดค้างปักหมุดจุดส่ง แล้วแชร์ลิงก์มาวางใหม่ หรือปักหมุดเองครับ');
-      return this.showToast('อ่านพิกัดจากลิงก์ไม่สำเร็จ 🙏 ลองค้นหาชื่อสถานที่หรือปักหมุดเองแทนครับ');
+      return this.showToast('อ่านพิกัดจากลิงก์ไม่สำเร็จ 🙏 ลองวางลิงก์เดิมซ้ำอีกครั้ง (เน็ตอาจสะดุด) หรือค้นหาชื่อสถานที่/ปักหมุดเองแทนครับ');
     }
     // ระหว่างรอแกะลิงก์ ถ้าลูกค้าขยับหมุดเอง = ถือว่าอันหลังสุดคือสิ่งที่ลูกค้าต้องการ ไม่ทับทิ้ง
     if ((this._pinSeq || 0) !== pinAtStart) {
@@ -1598,8 +1602,11 @@ class App extends React.Component {
     if (!pt) {
       const cfg = window.MP_CONFIG || {};
       const tf = (u, ms) => { const c = new AbortController(); const t = setTimeout(() => c.abort(), ms); return fetch(u, { signal: c.signal }).finally(() => clearTimeout(t)); };
-      try { const r = await tf(cfg.SUPABASE_URL + '/functions/v1/smart-handler?u=' + encodeURIComponent(url), 10000);
-        if (r.ok) { const j = await r.json(); if (j.final) pt = this.extractLatLng(j.final); } } catch (e) {}
+      // ลองซ้ำอีกรอบถ้าเน็ตสะดุด/ตัวแกะลิงก์เพิ่งตื่น — แบบเดียวกับหน้าจัดส่ง
+      for (let att = 0; att < 2 && !pt; att++) {
+        try { const r = await tf(cfg.SUPABASE_URL + '/functions/v1/smart-handler?u=' + encodeURIComponent(url), att === 0 ? 10000 : 8000);
+          if (r.ok) { const j = await r.json(); if (j.final) { pt = this.extractLatLng(j.final); break; } } } catch (e) {}
+      }
     }
     return pt;
   }
