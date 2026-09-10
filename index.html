@@ -2127,16 +2127,7 @@ class App extends React.Component {
       // ── งานสติ๊กเกอร์ v2: เลือกเนื้อ PP/PVC + กรอกขนาด (ซม.) และจำนวนชิ้นรายไฟล์ อยู่ใต้ตัวเลือกงานเลย ──
       stkOn: s.tier === 'pro' && s.proType === 'sticker',
       stkTypeMissing: (s.tier === 'pro' && s.proType === 'sticker') && s.files.length > 0 && s.files.some(f => !f.stk), // ยังมีลายที่ไม่ได้เลือกเนื้อ
-      // การ์ดเนื้อบนสุด = ป้ายอธิบายอย่างเดียว กดไม่ได้ (เจ้าของสั่ง 2026-09-09) — ลูกค้ากดเลือกจริงที่ปุ่ม PP/PVC ในกล่องของแต่ละลาย
-      // ข้อความแบ่งเป็นบรรทัดสั้น ๆ จบประโยคในบรรทัดเดียว กันคำโดนตัดกลางประโยค
-      stkTypeOpts: (s.tier === 'pro' && s.proType === 'sticker') ? [
-        { name: 'PP (ติดฉลากสินค้า)',
-          lines: ['ราคาถูกกว่า · กันน้ำ · เนื้อยืดหยุ่นต่ำ', 'เหมาะกับงานติดบนพื้นผิวเรียบ เช่น ฉลากสินค้า'],
-          prices: ['แผ่น A3 ละ ฿' + STK_PP_SHEET, 'ครบ 50 แผ่น เหลือแผ่นละ ฿35 · ครบ 100 แผ่น เหลือแผ่นละ ฿33'] },
-        { name: 'PVC (คุณภาพสูง)',
-          lines: ['คุณภาพสูง · กันน้ำ · เนื้อยืดหยุ่นสูง', 'ติดได้กับทุกพื้นผิวสัมผัส'],
-          prices: ['สั่งขั้นต่ำ ฿' + STK_PVC_SQM + '/ตารางเมตร (A3 8 แผ่น = 1 ตร.ม.)', 'คิดเป็นช่วง ตร.ม.: ไม่เกิน 1 ตร.ม. ฿550 · 1–2 ตร.ม. ฿1,100 · 2–3 ตร.ม. ฿1,650 เพิ่มช่วงละ ฿550'] }
-      ] : [],
+      // การ์ดอธิบายเนื้อ PP/PVC + ราคา (stkTypeOpts) ถูกถอดออกแล้ว (เจ้าของสั่ง 2026-09-10 ไม่ต้องโชว์รายละเอียด/ราคา) — ลูกค้ากดเลือกเนื้อที่ปุ่ม PP/PVC ในกล่องของแต่ละลายเหมือนเดิม
       stkFiles: (s.tier === 'pro' && s.proType === 'sticker') ? (() => {
         const si = this.stickerInfo();
         const set = (i, k, val) => this.setState(st => ({ files: st.files.map((x, j) => j === i ? { ...x, [k]: val } : x) }));
@@ -3242,16 +3233,6 @@ class App extends React.Component {
                 {v.isPro && v.proHint && <div style={css("font-size:11.5px;color:var(--acc);font-weight:600")}>{v.proHint}</div>}
                 {v.stkOn && <div style={css("font-size:11px;font-weight:700;color:var(--acc);line-height:1.6")}>💡 ถ้าสะดวกรบกวนคุณลูกค้าปรับขนาดสติ๊กเกอร์เป็น<b>ขนาดจริง</b>ลงในไฟล์มาเลยนะครับ จะช่วยให้ปริ้นและส่งมอบงานได้เร็วขึ้นมาก ๆ</div>}
                 {v.stkOn && <div style={css("display:flex;flex-direction:column;gap:6px")}>
-                  <div style={css("font-size:12px;font-weight:600;color:var(--sub)")}>สติ๊กเกอร์มี 2 แบบ — อ่านรายละเอียดตรงนี้ แล้วกดเลือกในกล่องของแต่ละลายด้านล่างครับ</div>
-                  <div style={css("display:flex;flex-direction:column;gap:8px")}>
-                    {v.stkTypeOpts.map((o, i) => (
-                      <div key={i} style={css("border:1px solid var(--line);border-radius:12px;padding:11px 14px;background:var(--soft)")}>
-                        <div style={css("font-size:13.5px;font-weight:700")}>{o.name}</div>
-                        {o.lines.map((ln, j) => <div key={j} style={css("margin-top:" + (j === 0 ? 3 : 1) + "px;font-size:11px;color:var(--sub);line-height:1.55")}>{ln}</div>)}
-                        {o.prices.map((ln, j) => <div key={j} style={css("margin-top:" + (j === 0 ? 4 : 1) + "px;font-size:11px;font-weight:700;color:var(--acc);line-height:1.55")}>{ln}</div>)}
-                      </div>
-                    ))}
-                  </div>
                   {v.stkTypeMissing && <div style={css("font-size:11px;font-weight:700;color:#c92a2a")}>⚠️ กดเลือกแบบ PP หรือ PVC ในกล่องของแต่ละลายด้านล่างให้ครบก่อนไปขั้นตอนถัดไปครับ</div>}
                   <div style={css("margin-top:2px;background:var(--card);border:1.5px solid var(--acc);border-radius:12px;padding:12px 14px")}>
                     <div style={css("font-size:12.5px;font-weight:700;color:var(--acc)")}>🏷️ กรอกขนาดชิ้น + จำนวนชิ้นของแต่ละลายตรงนี้เลย</div>
