@@ -1372,7 +1372,7 @@ class App extends React.Component {
       if (s.proLam === 'one') ex.push('เคลือบหน้าเดียว');
       if (s.proLam === 'two') ex.push('เคลือบหน้า-หลัง');
     }
-    if (s.proType === 'blueprint') ex.push('กระดาษ ' + (s.proGram || 80) + ' แกรม'); // ความหนากระดาษขาวดำใหญ่ (2026-09-09)
+    // if (s.proType === 'blueprint') ex.push('กระดาษ ' + (s.proGram || 80) + ' แกรม'); // ความหนากระดาษขาวดำใหญ่ — ปิดชั่วคราวพร้อมตัวเลือก (2026-09-12 ยังไม่รู้ราคา) เปิดคืนพร้อม proGramOpts
     if ((s.proType === 'plate' || s.proType === 'poster')) {
       // เพลทบอกประเภทบอร์ดที่ลูกค้าเลือก (บังคับเลือก ไม่บวกราคา — 2026-09-09)
       if (s.proType === 'plate') ex.push(s.proBoard === 'foam' ? 'ติดโฟมบอร์ด' : s.proBoard === 'future' ? 'ติดฟิวเจอร์บอร์ด' : 'ติดบอร์ด');
@@ -2108,7 +2108,8 @@ class App extends React.Component {
       ] : [],
       proBoardPicked: !!s.proBoard,
       // ปริ้นขาวดำขนาดใหญ่: ความหนากระดาษ 80/100/120 แกรม (ไม่บวกราคา — 2026-09-09)
-      proGramOpts: s.proType === 'blueprint' ? [80, 100, 120].map(g =>
+      // ความหนากระดาษแบบแปลน (80/100/120 แกรม) ซ่อนชั่วคราว — ยังไม่รู้ราคา (เจ้าของสั่ง 2026-09-12); เปิดคืน: เอา `false &&` ออก
+      proGramOpts: (false && s.proType === 'blueprint') ? [80, 100, 120].map(g =>
         this.seg(g + ' แกรม', (s.proGram || 80) === g, () => this.setState({ proGram: g }), true)) : [],
       proLamOpts: (s.proType === 'plate' || s.proType === 'poster' || s.proType === 'foldbook') ? [
         this.seg('ไม่เคลือบ', s.proLam === 'none', () => this.setState({ proLam: 'none' }), true),
