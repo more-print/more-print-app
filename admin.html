@@ -798,9 +798,10 @@ function AdminApp(){
     if (!DB) { setShopOpen(true); return; }
     const stamp = shopStamp.current; // ผลที่มาช้ากว่าการกดสวิตช์ล่าสุด = ทิ้ง (กันสวิตช์เด้งกลับหลอกตา)
     try {
-      let { data, error } = await DB.from('shop_status').select('open,rain').eq('id', 1).single();
-      if (error) { const r2 = await DB.from('shop_status').select('open').eq('id', 1).single(); data = r2.data; error = r2.error; if (data) data.rain = null; } // ยังไม่รัน SQL เพิ่มคอลัมน์ rain
-      if (!error && data && stamp === shopStamp.current) { setShopOpen(!!data.open); setShopRain(data.rain == null ? null : !!data.rain); }
+      let { data, error } = await DB.from('shop_status').select('open,rain,night_off').eq('id', 1).single();
+      if (error) { const r1 = await DB.from('shop_status').select('open,rain').eq('id', 1).single(); data = r1.data; error = r1.error; if (data) data.night_off = null; } // ยังไม่รัน SQL เพิ่มคอลัมน์ night_off
+      if (error) { const r2 = await DB.from('shop_status').select('open').eq('id', 1).single(); data = r2.data; error = r2.error; if (data) { data.rain = null; data.night_off = null; } } // ยังไม่รัน SQL เพิ่มคอลัมน์ rain
+      if (!error && data && stamp === shopStamp.current) { setShopOpen(!!data.open); setShopRain(data.rain == null ? null : !!data.rain); setShopNightOff(data.night_off == null ? null : !!data.night_off); }
     } catch (e) {}
   }, []);
   React.useEffect(() => { if (authed) { loadShopStatus(); const t = setInterval(loadShopStatus, 30000); return () => clearInterval(t); } }, [authed, loadShopStatus]);
@@ -817,6 +818,20 @@ function AdminApp(){
     setRainBusy(false);
     if (error) return alert('ยังใช้โหมดฝนตกไม่ได้ — ต้องรัน SQL เพิ่มคอลัมน์ rain ก่อนครับ');
     setShopRain(next);
+  };
+  // บังคับปิดโหมดกลางคืนหน้าเว็บชั่วคราว (shop_status.night_off) — เว็บลูกค้าเป็นกลางวันปกติ ไว้แคปจอทำสื่อตอนกลางดึก (2026-09-12); null = ยังไม่รัน SQL เพิ่มคอลัมน์
+  const [shopNightOff, setShopNightOff] = React.useState(false);
+  const [nightBusy, setNightBusy] = React.useState(false);
+  const toggleNightOff = async () => {
+    if (nightBusy) return;
+    const next = !shopNightOff;
+    shopStamp.current++;
+    if (!DB) { setShopNightOff(next); return; }
+    setNightBusy(true);
+    const { error } = await DB.from('shop_status').update({ night_off: next, updated_at: new Date().toISOString() }).eq('id', 1);
+    setNightBusy(false);
+    if (error) return alert('ยังใช้สวิตช์นี้ไม่ได้ — ต้องรัน SQL เพิ่มคอลัมน์ night_off ก่อนครับ');
+    setShopNightOff(next);
   };
   const toggleShop = async () => {
     if (shopBusy) return;
@@ -1283,6 +1298,18 @@ function AdminApp(){
             <button onClick={toggleRain} disabled={rainBusy}
               style={css("flex:none;height:40px;padding:0 18px;border:none;border-radius:10px;font-size:13px;font-weight:800;cursor:pointer;font-family:inherit;color:#fff;background:" + (shopRain ? "#868e96" : "#1971c2") + (rainBusy ? ";opacity:.5" : ""))}>
               {rainBusy ? '⏳' : shopRain ? 'ปิดโหมดฝนตก' : 'เปิดโหมดฝนตก'}</button>
+          </div>
+
+          {/* บังคับปิดโหมดกลางคืนหน้าเว็บ — ไว้แคปหน้าจอทำสื่อตอนกลางดึก (2026-09-12): ธีมมืด/ป้าย/ค่าบริการกลางคืน +฿10 หายหมด เว็บเหมือนกลางวันปกติ */}
+          <div style={css("background:" + (shopNightOff ? "#fff7e0" : "var(--card)") + ";border:1.5px solid " + (shopNightOff ? "#f0c36d" : "var(--line)") + ";border-radius:14px;padding:13px 15px;box-shadow:var(--shadow);display:flex;align-items:center;gap:12px")}>
+            <div style={css("font-size:20px;flex:none")}>{shopNightOff ? '☀️' : '🌙'}</div>
+            <div style={css("flex:1;min-width:0")}>
+              <div style={css("font-size:13.5px;font-weight:800;" + (shopNightOff ? "color:#8a6d1a" : ""))}>โหมดกลางคืนหน้าเว็บ: {shopNightOff ? 'ถูกปิดชั่วคราว — เว็บเป็นกลางวันปกติ' : 'อัตโนมัติ (22:00–06:00 +฿10)'}</div>
+              <div style={css("margin-top:1px;font-size:10.5px;color:var(--sub)")}>{shopNightOff ? 'ตอนนี้ลูกค้าไม่โดนคิดค่าบริการกลางคืนด้วยนะ — แคปจอเสร็จแล้วอย่าลืมกดเปิดคืน' : 'กดปิดชั่วคราวตอนแคปหน้าเว็บทำสื่อกลางดึก — ธีมมืด ป้าย และค่าบริการกลางคืนจะหายหมด เว็บเหมือนช่วงกลางวันเป๊ะ'}</div>
+            </div>
+            <button onClick={toggleNightOff} disabled={nightBusy}
+              style={css("flex:none;height:40px;padding:0 18px;border:none;border-radius:10px;font-size:13px;font-weight:800;cursor:pointer;font-family:inherit;color:#fff;background:" + (shopNightOff ? "#f59f00" : "#495057") + (nightBusy ? ";opacity:.5" : ""))}>
+              {nightBusy ? '⏳' : shopNightOff ? 'เปิดคืน (อัตโนมัติ)' : 'ปิดโหมดกลางคืน'}</button>
           </div>
 
           {/* การ์ดสรุป 4 ช่อง (แบบเรฟ) */}

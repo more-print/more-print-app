@@ -409,6 +409,7 @@ class App extends React.Component {
       screen: 'home', files: [], tier: 'standard', ptype: 'bw', paper: 'A4', sides: 1, orient: 'portrait', nup: 1, bind: 'none', copies: 1, note: '',
       shopOpen: true, // สถานะรับออเดอร์จากหลังบ้าน (false = ร้านกดปิดรับชั่วคราว)
       shopRain: false, // โหมดฝนตก (ร้านกดจากหลังบ้าน) — ทุกงานแบบจัดส่ง (Pro+Standard) บังคับรถยนต์
+      shopNightOff: false, // หลังบ้านบังคับปิดโหมดกลางคืนชั่วคราว (shop_status.night_off) — เว็บเป็นกลางวันปกติ ไว้แคปจอทำสื่อ (2026-09-12)
       prevOk: {}, prevOpen: false, // ตัวอย่างงาน Pro: ประเภทที่มีรูปจริง (พรีโหลดเช็คตอนเปิดเว็บ) + สถานะขยายรูปเต็มจอ
       popSpots: POP_SPOTS, // จุดส่งยอดนิยม — โหลดของจริงจากฐานข้อมูล (pop_spots) ทับตอนเปิดเว็บ
       recvSel: false, vehSel: false, // หน้าจุดส่งแบบทีละขั้น: เลือกการรับงานก่อน → เลือกพาหนะ → ค่อยบอกจุดส่ง
@@ -456,10 +457,14 @@ class App extends React.Component {
       this.loadReviews();
       // สถานะเปิด/ปิดรับออเดอร์ (ร้านกดจากหลังบ้าน) — เช็คตอนเปิดเว็บ + ทุก 60 วิ
       const chkShop = () => { try {
-        this.db.from('shop_status').select('open,rain').eq('id', 1).single().then(({ data, error }) => {
-          if (!error && data) return this.setState({ shopOpen: !!data.open, shopRain: !!data.rain }, () => this.syncForcedVehicle());
-          // คอลัมน์ rain ยังไม่ถูกสร้าง — ถอยไปเช็คเฉพาะเปิด/ปิดร้าน เว็บห้ามพัง
-          this.db.from('shop_status').select('open').eq('id', 1).single().then(({ data: d2, error: e2 }) => { if (!e2 && d2) this.setState({ shopOpen: !!d2.open, shopRain: false }); }).catch(() => {});
+        this.db.from('shop_status').select('open,rain,night_off').eq('id', 1).single().then(({ data, error }) => {
+          if (!error && data) return this.setState({ shopOpen: !!data.open, shopRain: !!data.rain, shopNightOff: data.night_off === true }, () => this.syncForcedVehicle());
+          // คอลัมน์ night_off ยังไม่ถูกสร้าง — ถอยลงทีละขั้น เว็บห้ามพัง
+          this.db.from('shop_status').select('open,rain').eq('id', 1).single().then(({ data: d1, error: e1 }) => {
+            if (!e1 && d1) return this.setState({ shopOpen: !!d1.open, shopRain: !!d1.rain, shopNightOff: false }, () => this.syncForcedVehicle());
+            // คอลัมน์ rain ก็ยังไม่ถูกสร้าง — ถอยไปเช็คเฉพาะเปิด/ปิดร้าน
+            this.db.from('shop_status').select('open').eq('id', 1).single().then(({ data: d2, error: e2 }) => { if (!e2 && d2) this.setState({ shopOpen: !!d2.open, shopRain: false, shopNightOff: false }); }).catch(() => {});
+          }).catch(() => {});
         }).catch(() => {});
       } catch (e) {} };
       chkShop(); this._shopTimer = setInterval(chkShop, 20000); // poll สำรองทุก 20 วิ
@@ -477,7 +482,7 @@ class App extends React.Component {
         this.db.channel('shop-status-live')
           .on('postgres_changes', { event: '*', schema: 'public', table: 'shop_status' }, (payload) => {
             const r = payload && payload.new;
-            if (r && r.id === 1) this.setState({ shopOpen: r.open !== false, shopRain: r.rain === true }, () => this.syncForcedVehicle());
+            if (r && r.id === 1) this.setState({ shopOpen: r.open !== false, shopRain: r.rain === true, shopNightOff: r.night_off === true }, () => this.syncForcedVehicle());
           })
           .on('postgres_changes', { event: '*', schema: 'public', table: 'pop_spots' }, () => loadSpots()) // หลังบ้านเพิ่ม/ลบจุด — หน้าเว็บอัปเดตทันที
           .subscribe();
@@ -1053,6 +1058,7 @@ class App extends React.Component {
   syncNight(){ document.body.classList.toggle('night', this.isNight()); }
 
   isNight(){
+    if (this.state.shopNightOff) return false; // หลังบ้านบังคับปิดชั่วคราว (แคปจอทำสื่อ) — ธีม/ค่าบริการ/ธงกลางคืนหายหมดเหมือนกลางวัน
     const ov = CONFIG.nightOverride ?? 'auto';
     if (ov === 'day') return false;
     if (ov === 'night') return true;
