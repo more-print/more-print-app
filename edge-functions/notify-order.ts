@@ -146,7 +146,7 @@ Deno.serve(async (req) => {
       if (o.status === 4) {
         text = (o.pickup ? '✅ ออเดอร์ ' + o.id + ' ลูกค้ารับสินค้าแล้ว 🎉' : '✅ ออเดอร์ ' + o.id + ' จัดส่งสำเร็จแล้ว 🎉') + '\n' + who;
       } else if (o.status === 3 && o.pickup) {
-        text = '📦 ออเดอร์ ' + o.id + ' ผลิตเสร็จแล้ว — รอลูกค้ามารับที่ร้าน\n' + who;
+        text = '📦 ออเดอร์ ' + o.id + ' ผลิตเสร็จแล้ว — รอลูกค้ามารับที่' + (isPro ? 'ร้านอุดมสุข' : 'หน้าร้าน MORE PRINT') + '\n' + who;
       }
       if (!text) return json({ ok: false, reason: 'not-done-yet' });
       const r1 = await push(teamOf(isPro), text);
@@ -159,7 +159,8 @@ Deno.serve(async (req) => {
     const isPro = o.ptype === 'pro';
     const text = '🖨️ ออเดอร์ใหม่ ' + o.id + '\n'
       + 'คุณ' + (o.customer_fname || 'ลูกค้า') + ' · ' + (isPro ? '✨ PRO ' + (o.paper || '') : 'งานทั่วไป') + ' · ฿' + (o.total || 0) + '\n'
-      + (o.pickup ? '🏪 ลูกค้ามารับเองที่อุดมสุข' : '📍 ' + (o.addr || '-')) + '\n'
+      // จุดรับเองแยกตามประเภทงาน (แก้ 2026-09-10): Pro = ร้านอุดมสุขปริ้นติ้ง · Standard = หน้าร้าน MORE PRINT — ต้องตรงกับป้าย addr ใน index.html
+      + (o.pickup ? (isPro ? '🏪 ลูกค้ามารับเองที่อุดมสุข' : '🏪 ลูกค้ามารับหน้าร้าน MORE PRINT (หอพักบริบูรณ์เพลส)') : '📍 ' + (o.addr || '-')) + '\n'
       + (o.note ? '📝 หมายเหตุ: ' + String(o.note).slice(0, 200) + '\n' : '')
       + 'จัดการ: https://more-print.github.io/more-print-app/' + (isPro ? 'commission' : 'admin') + '.html';
     const r1 = await push(teamOf(isPro), text);
