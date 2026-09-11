@@ -235,7 +235,7 @@ const POP_SPOTS = [
 
 const PRO_TYPES = [
   // โปสเตอร์ขึ้นอันแรก (เจ้าของสั่ง 2026-09-09)
-  { k: 'poster', icon: '🖼️', label: 'โปสเตอร์', sizes: ['A4', 'A3', 'A2', 'A1', 'A0'], sidesOpt: true },
+  { k: 'poster', icon: '🖼️', label: 'โปสเตอร์ (กระดาษอาร์ตมัน 250 แกรม)', sizes: ['A4', 'A3', 'A2', 'A1', 'A0'], sidesOpt: true }, // คำกำกับกระดาษบนการ์ด (เจ้าของสั่ง 2026-09-11) — ป้ายออเดอร์ proLabel ยังเป็น 'โปสเตอร์ <ขนาด>'
   { k: 'plate', icon: '🪧', label: 'เพลท', sizes: ['A4', 'A3', 'A2', 'A1', 'A0'] },
   { k: 'postcard', icon: '💌', label: 'Postcard' },
   { k: 'foldbook', icon: '📖', label: 'พับครึ่ง (เข้าเล่ม/เมนู)', sizes: ['A4', 'A3', 'A2'], bindOpt: true },
@@ -243,7 +243,7 @@ const PRO_TYPES = [
   { k: 'sticker', icon: '🏷️', label: 'สติ๊กเกอร์' },
   { k: 'namecard', icon: '💳', label: 'นามบัตร', qty: [100, 200, 300] },
   { k: 'standee', icon: '🧍', label: 'Standy (สแตนดี้)' },
-  { k: 'blueprint', icon: '📐', label: 'ปริ้นขาวดำขนาดใหญ่ (แบบแปลน)', sizes: ['A3', 'A2', 'A1'] }
+  { k: 'blueprint', icon: '📐', label: 'ปริ้นสีขาวดำขนาดใหญ่ (แบบแปลน,เอกสาร)', sizes: ['A3', 'A2', 'A1'] } // ชื่อใหม่ตามเจ้าของ 2026-09-11 · กระดาษ 80 แกรมทุกขนาด (คำกำกับอยู่ที่ปุ่มขนาด)
 ];
 const PRO_BINDS = ['ไสกาว', 'ปกแข็ง', 'สันห่วงพลาสติก', 'ขาตะเกียบ', 'เย็บมุงหลังคา', 'ห่วงเกลียว', 'ห่วงคู่', 'เย็บเล่ม', 'เทปปิด', 'สันกาวปกแข็ง'];
 // เข้าเล่มงาน Standard 3 แบบ +฿20/ชุด (นโยบาย 2026-09-08): เลือกได้เฉพาะ 09:00-21:59 (svcHoursOpen) นอกช่วง = ซ่อนตัวเลือก
@@ -418,7 +418,7 @@ class App extends React.Component {
       reviews: [], reviewsReady: false, revAll: false, revTab: '', revStars: 5, revText: '', trackStars: 5, trackText: '', // revTab: '' = อัตโนมัติ (มีรีวิวงานจริง = เปิดแท็บงานจริงก่อน)
       alertPrompt: false, alertAck: false,
       proType: 'poster', proSize: 'A4', proBind: 'ไสกาว', proQty: 100, proPickup: false, stdPickup: false, // stdPickup = งาน Standard รับหน้าร้าน MORE PRINT
-      proBoard: '', proGram: 80, stkType: '', // เพลท: ประเภทบอร์ด (บังคับเลือก ไม่บวกราคา) · แบบแปลน: ความหนากระดาษ (แกรม) · สติ๊กเกอร์: เนื้อ pp/pvc (บังคับเลือก)
+      proBoard: '', proGram: 80, stkType: '', proFilm: 'lam', // เพลท: ประเภทบอร์ด (บังคับเลือก ไม่บวกราคา) · แบบแปลน: ความหนากระดาษ (แกรม) · สติ๊กเกอร์: เนื้อ pp/pvc (บังคับเลือก) · โปสเตอร์: ชนิดฟิล์มเคลือบ lam/hard
       proLam: 'none', proSpecial: false, proStaple: false, proStand: false, // ตัวเลือกเสริมงาน Pro (เคลือบ/กระดาษพิเศษ/เย็บ/ขาตั้ง)
       distKm: null, distSrc: '', trackOpen: false, trackMin: false,
       // ประวัติการสั่ง (เก็บในเครื่อง): ออเดอร์ที่ผลิต/ส่งสำเร็จแล้ว ทั้ง standard และ pro
@@ -1358,7 +1358,7 @@ class App extends React.Component {
       : t.k === 'postcard' ? 'Postcard A3 (9 ใบ/แผ่น)'
       : t.k === 'foldbook' ? 'พับครึ่ง ' + s.proSize
       : t.k === 'namecard' ? 'นามบัตร ' + s.proQty + ' ใบ' + (s.sides === 2 ? ' หน้า-หลัง' : ' หน้าเดียว')
-      : t.k === 'blueprint' ? 'ปริ้นขาวดำขนาดใหญ่ (แบบแปลน) ' + s.proSize
+      : t.k === 'blueprint' ? 'ปริ้นสีขาวดำขนาดใหญ่ (แบบแปลน,เอกสาร) ' + s.proSize
       : t.k === 'sticker' ? (() => { // พ่วงเนื้อ (รายลาย/ผสม)+ขนาด+จำนวนชิ้น/แผ่นเข้าไปในป้าย — หลังบ้าน/ร้านพาร์ทเนอร์เห็นทันทีว่าต้องปริ้นอะไร
           const si = this.stickerInfo();
           const ts = [...new Set(si.list.map(x => x.t).filter(Boolean))];
@@ -1384,8 +1384,14 @@ class App extends React.Component {
       if (s.proType === 'plate') ex.push(s.proBoard === 'foam' ? 'ติดโฟมบอร์ด' : s.proBoard === 'future' ? 'ติดฟิวเจอร์บอร์ด' : 'ติดบอร์ด');
       if (s.proSpecial) ex.push('กระดาษพิเศษ');
       if (s.proType === 'poster' && s.sides === 2) ex.push('หน้า-หลัง');
-      if (s.proLam === 'one') ex.push('เคลือบหน้าเดียว');
-      if (s.proLam === 'two') ex.push('เคลือบหน้า-หลัง');
+      if (s.proType === 'poster') {
+        // โปสเตอร์ระบุชนิดฟิล์ม (2026-09-11) — หลังบ้านเห็นชัดว่าเคลือบแบบไหน
+        if (s.proLam === 'one') ex.push('เคลือบฟิล์มลามิเนตด้านหน้า');
+        if (s.proLam === 'two') ex.push(s.proFilm === 'hard' ? 'เคลือบฟิล์มแข็ง' : 'เคลือบฟิล์มลามิเนตหน้า-หลัง');
+      } else {
+        if (s.proLam === 'one') ex.push('เคลือบหน้าเดียว');
+        if (s.proLam === 'two') ex.push('เคลือบหน้า-หลัง');
+      }
     }
     if (s.proType === 'portfolio' && s.proStaple) ex.push('เย็บ');
     if (s.proType === 'standee') ex.push(s.proStand ? 'มีขาตั้ง' : 'ไม่มีขาตั้ง');
@@ -2071,7 +2077,7 @@ class App extends React.Component {
         k: t.k, on: s.proType === t.k, // การ์ดกริด 2 คอลัมน์ใช้ on จัดสไตล์เอง (2026-09-11 เลิกใช้สไตล์ seg)
         ...this.seg(t.label, s.proType === t.k,
           () => this.setState(st => ({ proType: t.k, proSize: (t.sizes || [''])[0], proQty: (t.qty || [100])[0], sides: t.k === 'foldbook' ? 2 : 1,
-            proLam: 'none', proSpecial: false, proStaple: false, proStand: false, proBoard: '', proGram: 80, stkType: '',
+            proLam: 'none', proSpecial: false, proStaple: false, proStand: false, proBoard: '', proGram: 80, stkType: '', proFilm: 'lam',
             copies: t.k === 'sticker' ? 1 : st.copies }))), // สติ๊กเกอร์ไม่มีจำนวนชุด — ล็อก 1 (ช่องชุดถูกซ่อนด้วย)
         svg: ICON_PRO[t.k]
       })),
@@ -2087,7 +2093,8 @@ class App extends React.Component {
       proQtyOpts: (((PRO_TYPES.find(t => t.k === s.proType) || {}).qty) || []).map(n => this.seg(n + ' ใบ ฿' + Math.ceil((s.sides === 2 ? PRO_NAMECARD.two : PRO_NAMECARD.one) * n / 100), s.proQty === n, () => this.setState({ proQty: n }))),
       proSizeOpts: ((PRO_TYPES.find(t => t.k === s.proType) || {}).sizes || []).map(sz => {
         const p = s.proType === 'blueprint' ? BLUEPRINT_PRICE[sz] : s.proType === 'plate' ? PLATE_SHEET[sz] : (s.proType === 'poster' || s.proType === 'foldbook') ? POSTER_SHEET[sz] : null;
-        return this.seg(sz + (p ? ' ฿' + p : ''), s.proSize === sz, () => this.setState({ proSize: sz }), true);
+        // แบบแปลน/เอกสารขนาดใหญ่: กระดาษ 80 แกรมทุกขนาด (คำกำกับบนปุ่ม — เจ้าของสั่ง 2026-09-11)
+        return this.seg(sz + (p ? ' ฿' + p : '') + (s.proType === 'blueprint' ? ' · 80 แกรม' : ''), s.proSize === sz, () => this.setState({ proSize: sz }), true);
       }),
       proShowSides: s.proType === 'poster' || s.proType === 'portfolio' || s.proType === 'namecard' || s.proType === 'foldbook',
       proSidesOpts: [
@@ -2097,8 +2104,8 @@ class App extends React.Component {
       proShowBind: s.proType === 'foldbook',
       proBindOpts: PRO_BINDS.map(b => this.seg(b, s.proBind === b, () => this.setState({ proBind: b }))),
       proPicked: this.proLabel(),
-      // ตัวเลือกเสริมตามประเภทงาน — ราคาบวกเพิ่มโชว์ตรงปุ่มเลย
-      proExtraOpts: (s.proType === 'plate' || s.proType === 'poster' || s.proType === 'foldbook') ? [
+      // ตัวเลือกเสริมตามประเภทงาน — ราคาบวกเพิ่มโชว์ตรงปุ่มเลย (โปสเตอร์ถอดตัวเลือกกระดาษออก 2026-09-11: มีกระดาษอาร์ตมัน 250 แกรมแบบเดียว)
+      proExtraOpts: (s.proType === 'plate' || s.proType === 'foldbook') ? [
         this.seg('กระดาษธรรมดา (ฟรี)', !s.proSpecial, () => this.setState({ proSpecial: false }), true),
         this.seg('กระดาษพิเศษ +฿' + PRO_SPECIAL_PAPER + '/แผ่น', s.proSpecial, () => this.setState({ proSpecial: true }), true)
       ] : s.proType === 'portfolio' ? [
@@ -2118,11 +2125,20 @@ class App extends React.Component {
       // ความหนากระดาษแบบแปลน (80/100/120 แกรม) ซ่อนชั่วคราว — ยังไม่รู้ราคา (เจ้าของสั่ง 2026-09-12); เปิดคืน: เอา `false &&` ออก
       proGramOpts: (false && s.proType === 'blueprint') ? [80, 100, 120].map(g =>
         this.seg(g + ' แกรม', (s.proGram || 80) === g, () => this.setState({ proGram: g }), true)) : [],
+      proLamHead: s.proType === 'foldbook' ? 'การเคลือบ (ฟิล์มลามิเนต)' : 'การเคลือบ', // พับครึ่งระบุชนิดฟิล์มที่หัวข้อ (เจ้าของสั่ง 2026-09-11)
       proLamOpts: (s.proType === 'plate' || s.proType === 'poster' || s.proType === 'foldbook') ? [
-        this.seg('ไม่เคลือบ', s.proLam === 'none', () => this.setState({ proLam: 'none' }), true),
-        this.seg('เคลือบหน้าเดียว +฿' + PRO_LAM_ONE, s.proLam === 'one', () => this.setState({ proLam: 'one' }), true),
+        this.seg('ไม่เคลือบ', s.proLam === 'none', () => this.setState({ proLam: 'none', proFilm: 'lam' }), true),
+        this.seg('เคลือบหน้าเดียว +฿' + PRO_LAM_ONE, s.proLam === 'one', () => this.setState({ proLam: 'one', proFilm: 'lam' }), true), // ฟิล์มแข็งเคลือบทั้งแผ่นเท่านั้น — ออกจากหน้า-หลังต้องรีเซ็ตกลับลามิเนต
         this.seg('เคลือบหน้า-หลัง +฿' + PRO_LAM_TWO, s.proLam === 'two', () => this.setState({ proLam: 'two' }), true)
       ] : [],
+      // ตัวเลือกเคลือบของโปสเตอร์ (2026-09-11): โผล่ต่อท้ายเมื่อลูกค้ากดเคลือบ — เลือกชนิดฟิล์ม ราคาเท่าค่าเคลือบเดิม (+5/+10 ไม่บวกซ้ำ)
+      // ฟิล์มแข็งต้องเคลือบทั้งแผ่น จึงมีให้เลือกเฉพาะตอนเคลือบหน้า-หลัง
+      proFilmOpts: (s.proType === 'poster' && s.proLam !== 'none') ? (s.proLam === 'one' ? [
+        this.seg('เคลือบฟิล์มลามิเนตด้านหน้า +฿' + PRO_LAM_ONE, true, () => this.setState({ proFilm: 'lam' }), true)
+      ] : [
+        this.seg('เคลือบฟิล์มลามิเนตหน้า-หลัง +฿' + PRO_LAM_TWO, s.proFilm !== 'hard', () => this.setState({ proFilm: 'lam' }), true),
+        this.seg('เคลือบฟิล์มแข็ง +฿' + PRO_LAM_TWO, s.proFilm === 'hard', () => this.setState({ proFilm: 'hard' }), true)
+      ]) : [],
       proHint: s.proType === 'foldbook' ? '📖 เข้าเล่มทุกแบบ +฿' + PRO_FOLDBOOK_BIND + '/ชุด · หน้า-หลังราคา ×2'
         : s.proType === 'plate' ? '🪧 เพลทรวมติดบอร์ดแล้ว · พิมพ์ด้านหน้าอย่างเดียว'
         : s.proType === 'postcard' ? '💌 1 แผ่น A3 = 9 ใบ · ฿' + PRO_POSTCARD_SHEET + '/แผ่น · ผลิตไม่เกิน 1 ชม.'
@@ -3237,7 +3253,9 @@ class App extends React.Component {
                   {/* ข้อความเตือนแดง "เลือกบอร์ดก่อน" ถูกถอด (2026-09-11 เจ้าของบอกลูกค้ารำคาญ) — toDelivery ยังบล็อก+toast ถ้าไม่เลือกเหมือนเดิม */}
                 </div>}
                 {v.isPro && v.proGramOpts.length > 0 && <div style={css("display:flex;flex-direction:column;gap:6px")}><div style={css("font-size:12px;font-weight:600;color:var(--sub)")}>ความหนากระดาษ (ไม่บวกราคาเพิ่ม)</div><div style={css("display:flex;gap:8px;flex-wrap:wrap")}>{v.proGramOpts.map((o, i) => <button key={i} onClick={o.pick} style={{...o.st, flex:'1 1 30%'}}>{o.label}</button>)}</div></div>}
-                {v.isPro && v.proLamOpts.length > 0 && <div style={css("display:flex;flex-direction:column;gap:6px")}><div style={css("font-size:12px;font-weight:600;color:var(--sub)")}>การเคลือบ</div><div style={css("display:flex;gap:8px;flex-wrap:wrap")}>{v.proLamOpts.map((o, i) => <button key={i} onClick={o.pick} style={{...o.st, flex:'1 1 30%'}}>{o.label}</button>)}</div></div>}
+                {v.isPro && v.proLamOpts.length > 0 && <div style={css("display:flex;flex-direction:column;gap:6px")}><div style={css("font-size:12px;font-weight:600;color:var(--sub)")}>{v.proLamHead}</div><div style={css("display:flex;gap:8px;flex-wrap:wrap")}>{v.proLamOpts.map((o, i) => <button key={i} onClick={o.pick} style={{...o.st, flex:'1 1 30%'}}>{o.label}</button>)}</div></div>}
+                {/* ตัวเลือกเคลือบ (โปสเตอร์): เลือกชนิดฟิล์ม — โผล่เฉพาะตอนกดเคลือบ · ฟิล์มแข็งมีเฉพาะเคลือบหน้า-หลัง */}
+                {v.isPro && v.proFilmOpts.length > 0 && <div style={css("display:flex;flex-direction:column;gap:6px")}><div style={css("font-size:12px;font-weight:600;color:var(--sub)")}>ตัวเลือกเคลือบ</div><div style={css("display:flex;gap:8px;flex-wrap:wrap")}>{v.proFilmOpts.map((o, i) => <button key={i} onClick={o.pick} style={{...o.st, flex:'1 1 100%'}}>{o.label}</button>)}</div></div>}
                 {v.isPro && v.proHint && <div style={css("font-size:11.5px;color:var(--acc);font-weight:600")}>{v.proHint}</div>}
                 {v.stkOn && <div style={css("font-size:11px;font-weight:700;color:var(--acc);line-height:1.6")}>💡 ถ้าสะดวกรบกวนคุณลูกค้าปรับขนาดสติ๊กเกอร์เป็น<b>ขนาดจริง</b>ลงในไฟล์มาเลยนะครับ จะช่วยให้ปริ้นและส่งมอบงานได้เร็วขึ้นมาก ๆ</div>}
                 {v.stkOn && <div style={css("display:flex;flex-direction:column;gap:6px")}>
