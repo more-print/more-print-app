@@ -254,7 +254,8 @@ const STD_BINDS = [
   { k: 'glue', ic: 'bindGlue', name: 'เข้าเล่มสันกาว', sub: 'ไสสันทากาว เรียบเนียนเหมือนหนังสือ', price: 20 },
 ];
 // ── ราคางาน Pro (เจ้าของกำหนด 2026-08-20) — ต่อแผ่น ──
-const POSTER_SHEET = { A0: 400, A1: 200, A2: 100, A3: 50, A4: 25 };   // โปสเตอร์ /แผ่น (ด้านหน้าเดียว) — หน้า-หลัง ×2 · ไม่มีติดบอร์ด
+const POSTER_SHEET = { A0: 500, A1: 250, A2: 125, A3: 50, A4: 25 };   // โปสเตอร์ /แผ่น (ด้านหน้าเดียว) — หน้า-หลัง ×2 · ไม่มีติดบอร์ด (A2-A0 ปรับใหม่ 2026-09-11)
+const FOLDBOOK_SHEET = { A2: 100, A3: 50, A4: 25 };                   // พับครึ่ง (เข้าเล่ม/เมนู) /แผ่น — แยกจากโปสเตอร์ตอนโปสเตอร์ขึ้นราคา A2 (2026-09-11 ราคาพับครึ่งคงเดิม)
 const PLATE_SHEET  = { A0: 600, A1: 300, A2: 150, A3: 75, A4: 38 };   // เพลท /แผ่น — รวมติดบอร์ดแล้วเสมอ · พิมพ์ด้านหน้าอย่างเดียว
 const PRO_SPECIAL_PAPER = 5;   // กระดาษพิเศษ /แผ่น (โปสเตอร์+เพลท)
 const PRO_LAM_ONE = 5;         // เคลือบหน้าเดียว /แผ่น
@@ -274,7 +275,7 @@ function stickerPerSheet(w, h){
   return Math.max(fit(w, h), fit(h, w));
 }
 const PRO_PORTFOLIO = { one: 50, two: 100, staple: 20 };  // A3 พับครึ่ง พิมพ์+เคลือบ /แผ่น · เย็บ +20/ชุด
-const PRO_FOLDBOOK_BIND = 20; // พับครึ่ง (เข้าเล่ม/เมนู): เข้าเล่ม +20/ชุด ทุกแบบ · ค่าแผ่นใช้ตาราง POSTER_SHEET (A2 100/A3 50/A4 25) หน้า-หลัง ×2
+const PRO_FOLDBOOK_BIND = 20; // พับครึ่ง (เข้าเล่ม/เมนู): เข้าเล่ม +20/ชุด ทุกแบบ · ค่าแผ่นใช้ตาราง FOLDBOOK_SHEET (A2 100/A3 50/A4 25) หน้า-หลัง ×2
 const PRO_NAMECARD = { one: 250, two: 450 };              // ต่อ 100 ใบ (A3 4 แผ่น)
 const PRO_STANDEE = { base: 380, stand: 480 };            // 60×120 ซม. / ใส่ขาตั้ง
 const BLUEPRINT_PRICE = { A1: 40, A2: 20, A3: 5 };        // แบบแปลนขาวดำ /แผ่น
@@ -1167,7 +1168,7 @@ class App extends React.Component {
       else if (s.proType === 'blueprint') { rate = BLUEPRINT_PRICE[s.proSize] ?? 0; pc = rate * shPro; }
       else if (s.proType === 'foldbook') {
         // พับครึ่ง เข้าเล่ม/เมนู: แผ่นตามตารางโปสเตอร์ (หน้า-หลัง ×2) + เคลือบ/กระดาษพิเศษต่อแผ่น + เข้าเล่ม 20/ชุด ทุกแบบ
-        rate = (POSTER_SHEET[s.proSize] ?? 0) * (s.sides === 2 ? 2 : 1)
+        rate = (FOLDBOOK_SHEET[s.proSize] ?? 0) * (s.sides === 2 ? 2 : 1)
           + (s.proLam === 'two' ? PRO_LAM_TWO : s.proLam === 'one' ? PRO_LAM_ONE : 0)
           + (s.proSpecial ? PRO_SPECIAL_PAPER : 0);
         pc = rate * shPro + PRO_FOLDBOOK_BIND * s.copies;
@@ -2093,7 +2094,7 @@ class App extends React.Component {
       proShowQty: !!((PRO_TYPES.find(t => t.k === s.proType) || {}).qty),
       proQtyOpts: (((PRO_TYPES.find(t => t.k === s.proType) || {}).qty) || []).map(n => this.seg(n + ' ใบ ฿' + Math.ceil((s.sides === 2 ? PRO_NAMECARD.two : PRO_NAMECARD.one) * n / 100), s.proQty === n, () => this.setState({ proQty: n }))),
       proSizeOpts: ((PRO_TYPES.find(t => t.k === s.proType) || {}).sizes || []).map(sz => {
-        const p = s.proType === 'blueprint' ? BLUEPRINT_PRICE[sz] : s.proType === 'plate' ? PLATE_SHEET[sz] : (s.proType === 'poster' || s.proType === 'foldbook') ? POSTER_SHEET[sz] : null;
+        const p = s.proType === 'blueprint' ? BLUEPRINT_PRICE[sz] : s.proType === 'plate' ? PLATE_SHEET[sz] : s.proType === 'poster' ? POSTER_SHEET[sz] : s.proType === 'foldbook' ? FOLDBOOK_SHEET[sz] : null;
         // แบบแปลน/เอกสารขนาดใหญ่: กระดาษ 80 แกรมทุกขนาด — คำกำกับแยกบรรทัดล่างของปุ่ม (เจ้าของสั่ง 2026-09-11)
         const lbl = s.proType === 'blueprint'
           ? <span>{sz + (p ? ' ฿' + p : '')}<span style={{ display: 'block', fontSize: '10.5px', fontWeight: 600, opacity: .8, marginTop: '2px' }}>80 แกรม</span></span>
@@ -2102,8 +2103,8 @@ class App extends React.Component {
       }),
       proShowSides: s.proType === 'poster' || s.proType === 'portfolio' || s.proType === 'namecard' || s.proType === 'foldbook',
       proSidesOpts: [
-        this.seg('ด้านหน้าอย่างเดียว' + (s.proType === 'portfolio' ? ' ฿' + PRO_PORTFOLIO.one + '/แผ่น' : s.proType === 'namecard' ? ' ฿' + PRO_NAMECARD.one : (s.proType === 'poster' || s.proType === 'foldbook') ? ' ฿' + (POSTER_SHEET[s.proSize] ?? 0) + '/แผ่น' : ''), s.sides === 1, () => this.setState({ sides: 1 }), true),
-        this.seg('หน้า-หลัง' + (s.proType === 'portfolio' ? ' ฿' + PRO_PORTFOLIO.two + '/แผ่น' : s.proType === 'namecard' ? ' ฿' + PRO_NAMECARD.two : (s.proType === 'poster' || s.proType === 'foldbook') ? ' ฿' + (POSTER_SHEET[s.proSize] ?? 0) * 2 + '/แผ่น' : ''), s.sides === 2, () => this.setState({ sides: 2 }), true)
+        this.seg('ด้านหน้าอย่างเดียว' + (s.proType === 'portfolio' ? ' ฿' + PRO_PORTFOLIO.one + '/แผ่น' : s.proType === 'namecard' ? ' ฿' + PRO_NAMECARD.one : s.proType === 'poster' ? ' ฿' + (POSTER_SHEET[s.proSize] ?? 0) + '/แผ่น' : s.proType === 'foldbook' ? ' ฿' + (FOLDBOOK_SHEET[s.proSize] ?? 0) + '/แผ่น' : ''), s.sides === 1, () => this.setState({ sides: 1 }), true),
+        this.seg('หน้า-หลัง' + (s.proType === 'portfolio' ? ' ฿' + PRO_PORTFOLIO.two + '/แผ่น' : s.proType === 'namecard' ? ' ฿' + PRO_NAMECARD.two : s.proType === 'poster' ? ' ฿' + (POSTER_SHEET[s.proSize] ?? 0) * 2 + '/แผ่น' : s.proType === 'foldbook' ? ' ฿' + (FOLDBOOK_SHEET[s.proSize] ?? 0) * 2 + '/แผ่น' : ''), s.sides === 2, () => this.setState({ sides: 2 }), true)
       ],
       proShowBind: s.proType === 'foldbook',
       proBindOpts: PRO_BINDS.map(b => this.seg(b, s.proBind === b, () => this.setState({ proBind: b }))),
