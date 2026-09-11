@@ -2125,7 +2125,9 @@ class App extends React.Component {
       // ความหนากระดาษแบบแปลน (80/100/120 แกรม) ซ่อนชั่วคราว — ยังไม่รู้ราคา (เจ้าของสั่ง 2026-09-12); เปิดคืน: เอา `false &&` ออก
       proGramOpts: (false && s.proType === 'blueprint') ? [80, 100, 120].map(g =>
         this.seg(g + ' แกรม', (s.proGram || 80) === g, () => this.setState({ proGram: g }), true)) : [],
-      posterPaperNote: s.proType === 'poster', // ข้อความเขียว 'โปสเตอร์ (กระดาษอาร์ตมัน 250 แกรม)' ใต้กริดประเภท ก่อนตัวเลือกขนาด
+      // ข้อความเขียวกำกับกระดาษ ใต้กริดประเภท ก่อนตัวเลือกขนาด — โปสเตอร์+เพลท ใช้อาร์ตมัน 250 แกรม (เพลทเพิ่ม 2026-09-11)
+      proPaperNote: s.proType === 'poster' ? '🖼️ โปสเตอร์ (กระดาษอาร์ตมัน 250 แกรม)'
+        : s.proType === 'plate' ? '🪧 เพลท (กระดาษอาร์ตมัน 250 แกรม)' : '',
       proLamHead: s.proType === 'foldbook' ? 'การเคลือบ (ฟิล์มลามิเนต)' : 'การเคลือบ', // พับครึ่งระบุชนิดฟิล์มที่หัวข้อ (เจ้าของสั่ง 2026-09-11)
       proLamOpts: (s.proType === 'plate' || s.proType === 'poster' || s.proType === 'foldbook') ? [
         this.seg('ไม่เคลือบ', s.proLam === 'none', () => this.setState({ proLam: 'none', proFilm: 'lam' }), true),
@@ -3245,8 +3247,8 @@ class App extends React.Component {
                     )}
                   </button>
                 ))}</div></div>}
-                {/* คำกำกับกระดาษโปสเตอร์ — ข้อความเขียวสด หลังกดเลือกประเภท ก่อนตัวเลือกขนาด (เจ้าของสั่ง 2026-09-11) */}
-                {v.isPro && v.posterPaperNote && <div style={css("font-size:11.5px;font-weight:700;color:var(--acc);line-height:1.6")}>🖼️ โปสเตอร์ (กระดาษอาร์ตมัน 250 แกรม)</div>}
+                {/* คำกำกับกระดาษ (โปสเตอร์/เพลท) — ข้อความเขียวสด หลังกดเลือกประเภท ก่อนตัวเลือกขนาด (เจ้าของสั่ง 2026-09-11) */}
+                {v.isPro && v.proPaperNote && <div style={css("font-size:11.5px;font-weight:700;color:var(--acc);line-height:1.6")}>{v.proPaperNote}</div>}
                 {v.isPro && v.proSizeOpts.length > 0 && <div style={css("display:flex;flex-direction:column;gap:6px")}><div style={css("font-size:12px;font-weight:600;color:var(--sub)")}>ขนาด</div><div style={css("display:flex;gap:8px;flex-wrap:wrap")}>{v.proSizeOpts.map((o, i) => <button key={i} onClick={o.pick} style={o.st}>{o.label}</button>)}</div></div>}
                 {v.isPro && v.proShowSides && <div style={css("display:flex;flex-direction:column;gap:6px")}><div style={css("font-size:12px;font-weight:600;color:var(--sub)")}>ด้านที่พิมพ์</div><div style={css("display:flex;gap:8px;flex-wrap:wrap")}>{v.proSidesOpts.map((o, i) => <button key={i} onClick={o.pick} style={{...o.st, flex:'1 1 45%'}}>{o.label}</button>)}</div></div>}
                 {v.isPro && v.proExtraOpts.length > 0 && <div style={css("display:flex;flex-direction:column;gap:6px")}><div style={css("font-size:12px;font-weight:600;color:var(--sub)")}>ตัวเลือกเสริม</div><div style={css("display:flex;gap:8px;flex-wrap:wrap")}>{v.proExtraOpts.map((o, i) => <button key={i} onClick={o.pick} style={{...o.st, flex:'1 1 45%'}}>{o.label}</button>)}</div></div>}
