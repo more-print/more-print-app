@@ -3258,7 +3258,7 @@ class App extends React.Component {
                   </button>
                 ))}</div></div>}
                 {/* คำกำกับกระดาษ (โปสเตอร์/เพลท) — ข้อความเขียวสด หลังกดเลือกประเภท ก่อนตัวเลือกขนาด (เจ้าของสั่ง 2026-09-11) */}
-                {v.isPro && v.proPaperNote && <div style={css("font-size:11.5px;font-weight:700;color:var(--acc);line-height:1.6")}>{v.proPaperNote}</div>}
+                {v.isPro && v.proPaperNote && <div style={css("font-size:13.5px;font-weight:700;color:var(--acc);line-height:1.6")}>{v.proPaperNote}</div>}
                 {v.isPro && v.proSizeOpts.length > 0 && <div style={css("display:flex;flex-direction:column;gap:6px")}><div style={css("font-size:12px;font-weight:600;color:var(--sub)")}>ขนาด</div><div style={css("display:flex;gap:8px;flex-wrap:wrap")}>{v.proSizeOpts.map((o, i) => <button key={i} onClick={o.pick} style={o.st}>{o.label}</button>)}</div></div>}
                 {/* แนวกระดาษ (ปริ้นสีขาวดำขนาดใหญ่ — 2026-09-11) */}
                 {v.isPro && v.proOrientOpts.length > 0 && <div style={css("display:flex;flex-direction:column;gap:6px")}><div style={css("font-size:12px;font-weight:600;color:var(--sub)")}>แนวของกระดาษ</div><div style={css("display:flex;gap:8px;flex-wrap:wrap")}>{v.proOrientOpts.map((o, i) => <button key={i} onClick={o.pick} style={{...o.st, flex:'1 1 45%'}}>{o.label}</button>)}</div></div>}
