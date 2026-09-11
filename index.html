@@ -2136,7 +2136,8 @@ class App extends React.Component {
       ] : [],
       // ข้อความเขียวกำกับกระดาษ ใต้กริดประเภท ก่อนตัวเลือกขนาด — โปสเตอร์+เพลท ใช้อาร์ตมัน 250 แกรม (เพลทเพิ่ม 2026-09-11)
       proPaperNote: s.proType === 'poster' ? '🖼️ โปสเตอร์ (กระดาษอาร์ตมัน 250 แกรม)'
-        : s.proType === 'plate' ? '🪧 เพลท (กระดาษอาร์ตมัน 250 แกรม)' : '',
+        : s.proType === 'plate' ? '🪧 เพลท (กระดาษอาร์ตมัน 250 แกรม)'
+        : s.proType === 'blueprint' ? '📐 กระดาษขนาด 80 แกรม' : '',
       proLamHead: s.proType === 'foldbook' ? 'การเคลือบ (ฟิล์มลามิเนต)' : 'การเคลือบ', // พับครึ่งระบุชนิดฟิล์มที่หัวข้อ (เจ้าของสั่ง 2026-09-11)
       proLamOpts: (s.proType === 'plate' || s.proType === 'poster' || s.proType === 'foldbook') ? [
         this.seg('ไม่เคลือบ', s.proLam === 'none', () => this.setState({ proLam: 'none', proFilm: 'lam' }), true),
