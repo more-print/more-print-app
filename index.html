@@ -1379,6 +1379,7 @@ class App extends React.Component {
       if (s.proLam === 'two') ex.push('เคลือบหน้า-หลัง');
     }
     // if (s.proType === 'blueprint') ex.push('กระดาษ ' + (s.proGram || 80) + ' แกรม'); // ความหนากระดาษขาวดำใหญ่ — ปิดชั่วคราวพร้อมตัวเลือก (2026-09-12 ยังไม่รู้ราคา) เปิดคืนพร้อม proGramOpts
+    if (s.proType === 'blueprint') ex.push(s.orient === 'landscape' ? 'แนวนอน' : 'แนวตั้ง'); // แนวกระดาษ (2026-09-11) — หลังบ้านเห็นในป้าย
     if ((s.proType === 'plate' || s.proType === 'poster')) {
       // เพลทบอกประเภทบอร์ดที่ลูกค้าเลือก (บังคับเลือก ไม่บวกราคา — 2026-09-09)
       if (s.proType === 'plate') ex.push(s.proBoard === 'foam' ? 'ติดโฟมบอร์ด' : s.proBoard === 'future' ? 'ติดฟิวเจอร์บอร์ด' : 'ติดบอร์ด');
@@ -2077,8 +2078,8 @@ class App extends React.Component {
         k: t.k, on: s.proType === t.k, // การ์ดกริด 2 คอลัมน์ใช้ on จัดสไตล์เอง (2026-09-11 เลิกใช้สไตล์ seg)
         ...this.seg(t.label, s.proType === t.k,
           () => this.setState(st => ({ proType: t.k, proSize: (t.sizes || [''])[0], proQty: (t.qty || [100])[0], sides: t.k === 'foldbook' ? 2 : 1,
-            proLam: 'none', proSpecial: false, proStaple: false, proStand: false, proBoard: '', proGram: 80, stkType: '', proFilm: 'lam',
-            copies: t.k === 'sticker' ? 1 : st.copies }))), // สติ๊กเกอร์ไม่มีจำนวนชุด — ล็อก 1 (ช่องชุดถูกซ่อนด้วย)
+            proLam: 'none', proSpecial: false, proStaple: false, proStand: false, proBoard: '', proGram: 80, stkType: '', proFilm: 'lam', orient: 'portrait',
+            copies: t.k === 'sticker' ? 1 : st.copies }))), // สติ๊กเกอร์ไม่มีจำนวนชุด — ล็อก 1 (ช่องชุดถูกซ่อนด้วย) · orient รีเซ็ตแนวตั้ง (แบบแปลนใช้เลือกแนวกระดาษ)
         svg: ICON_PRO[t.k]
       })),
       proPickupOn: c.proPickupOn,
@@ -2093,8 +2094,11 @@ class App extends React.Component {
       proQtyOpts: (((PRO_TYPES.find(t => t.k === s.proType) || {}).qty) || []).map(n => this.seg(n + ' ใบ ฿' + Math.ceil((s.sides === 2 ? PRO_NAMECARD.two : PRO_NAMECARD.one) * n / 100), s.proQty === n, () => this.setState({ proQty: n }))),
       proSizeOpts: ((PRO_TYPES.find(t => t.k === s.proType) || {}).sizes || []).map(sz => {
         const p = s.proType === 'blueprint' ? BLUEPRINT_PRICE[sz] : s.proType === 'plate' ? PLATE_SHEET[sz] : (s.proType === 'poster' || s.proType === 'foldbook') ? POSTER_SHEET[sz] : null;
-        // แบบแปลน/เอกสารขนาดใหญ่: กระดาษ 80 แกรมทุกขนาด (คำกำกับบนปุ่ม — เจ้าของสั่ง 2026-09-11)
-        return this.seg(sz + (p ? ' ฿' + p : '') + (s.proType === 'blueprint' ? ' · 80 แกรม' : ''), s.proSize === sz, () => this.setState({ proSize: sz }), true);
+        // แบบแปลน/เอกสารขนาดใหญ่: กระดาษ 80 แกรมทุกขนาด — คำกำกับแยกบรรทัดล่างของปุ่ม (เจ้าของสั่ง 2026-09-11)
+        const lbl = s.proType === 'blueprint'
+          ? <span>{sz + (p ? ' ฿' + p : '')}<span style={{ display: 'block', fontSize: '10.5px', fontWeight: 600, opacity: .8, marginTop: '2px' }}>80 แกรม</span></span>
+          : sz + (p ? ' ฿' + p : '');
+        return this.seg(lbl, s.proSize === sz, () => this.setState({ proSize: sz }), true);
       }),
       proShowSides: s.proType === 'poster' || s.proType === 'portfolio' || s.proType === 'namecard' || s.proType === 'foldbook',
       proSidesOpts: [
@@ -2125,6 +2129,11 @@ class App extends React.Component {
       // ความหนากระดาษแบบแปลน (80/100/120 แกรม) ซ่อนชั่วคราว — ยังไม่รู้ราคา (เจ้าของสั่ง 2026-09-12); เปิดคืน: เอา `false &&` ออก
       proGramOpts: (false && s.proType === 'blueprint') ? [80, 100, 120].map(g =>
         this.seg(g + ' แกรม', (s.proGram || 80) === g, () => this.setState({ proGram: g }), true)) : [],
+      // แบบแปลน/เอกสารขนาดใหญ่: เลือกแนวกระดาษ (2026-09-11) — บันทึกลง state orient เดิม (คอลัมน์ orders.orient) + พ่วงเข้า proLabel ให้หลังบ้านเห็น
+      proOrientOpts: s.proType === 'blueprint' ? [
+        this.seg('แนวตั้ง', s.orient !== 'landscape', () => this.setState({ orient: 'portrait' }), true),
+        this.seg('แนวนอน', s.orient === 'landscape', () => this.setState({ orient: 'landscape' }), true)
+      ] : [],
       // ข้อความเขียวกำกับกระดาษ ใต้กริดประเภท ก่อนตัวเลือกขนาด — โปสเตอร์+เพลท ใช้อาร์ตมัน 250 แกรม (เพลทเพิ่ม 2026-09-11)
       proPaperNote: s.proType === 'poster' ? '🖼️ โปสเตอร์ (กระดาษอาร์ตมัน 250 แกรม)'
         : s.proType === 'plate' ? '🪧 เพลท (กระดาษอาร์ตมัน 250 แกรม)' : '',
@@ -3250,6 +3259,8 @@ class App extends React.Component {
                 {/* คำกำกับกระดาษ (โปสเตอร์/เพลท) — ข้อความเขียวสด หลังกดเลือกประเภท ก่อนตัวเลือกขนาด (เจ้าของสั่ง 2026-09-11) */}
                 {v.isPro && v.proPaperNote && <div style={css("font-size:11.5px;font-weight:700;color:var(--acc);line-height:1.6")}>{v.proPaperNote}</div>}
                 {v.isPro && v.proSizeOpts.length > 0 && <div style={css("display:flex;flex-direction:column;gap:6px")}><div style={css("font-size:12px;font-weight:600;color:var(--sub)")}>ขนาด</div><div style={css("display:flex;gap:8px;flex-wrap:wrap")}>{v.proSizeOpts.map((o, i) => <button key={i} onClick={o.pick} style={o.st}>{o.label}</button>)}</div></div>}
+                {/* แนวกระดาษ (ปริ้นสีขาวดำขนาดใหญ่ — 2026-09-11) */}
+                {v.isPro && v.proOrientOpts.length > 0 && <div style={css("display:flex;flex-direction:column;gap:6px")}><div style={css("font-size:12px;font-weight:600;color:var(--sub)")}>แนวของกระดาษ</div><div style={css("display:flex;gap:8px;flex-wrap:wrap")}>{v.proOrientOpts.map((o, i) => <button key={i} onClick={o.pick} style={{...o.st, flex:'1 1 45%'}}>{o.label}</button>)}</div></div>}
                 {v.isPro && v.proShowSides && <div style={css("display:flex;flex-direction:column;gap:6px")}><div style={css("font-size:12px;font-weight:600;color:var(--sub)")}>ด้านที่พิมพ์</div><div style={css("display:flex;gap:8px;flex-wrap:wrap")}>{v.proSidesOpts.map((o, i) => <button key={i} onClick={o.pick} style={{...o.st, flex:'1 1 45%'}}>{o.label}</button>)}</div></div>}
                 {v.isPro && v.proExtraOpts.length > 0 && <div style={css("display:flex;flex-direction:column;gap:6px")}><div style={css("font-size:12px;font-weight:600;color:var(--sub)")}>ตัวเลือกเสริม</div><div style={css("display:flex;gap:8px;flex-wrap:wrap")}>{v.proExtraOpts.map((o, i) => <button key={i} onClick={o.pick} style={{...o.st, flex:'1 1 45%'}}>{o.label}</button>)}</div></div>}
                 {v.isPro && v.proBoardOpts.length > 0 && <div style={css("display:flex;flex-direction:column;gap:6px")}>
