@@ -2108,11 +2108,8 @@ class App extends React.Component {
       proShowBind: s.proType === 'foldbook',
       proBindOpts: PRO_BINDS.map(b => this.seg(b, s.proBind === b, () => this.setState({ proBind: b }))),
       proPicked: this.proLabel(),
-      // ตัวเลือกเสริมตามประเภทงาน — ราคาบวกเพิ่มโชว์ตรงปุ่มเลย (โปสเตอร์+เพลทถอดตัวเลือกกระดาษออก 2026-09-11: มีกระดาษอาร์ตมัน 250 แกรมแบบเดียว)
-      proExtraOpts: s.proType === 'foldbook' ? [
-        this.seg('กระดาษธรรมดา (ฟรี)', !s.proSpecial, () => this.setState({ proSpecial: false }), true),
-        this.seg('กระดาษพิเศษ +฿' + PRO_SPECIAL_PAPER + '/แผ่น', s.proSpecial, () => this.setState({ proSpecial: true }), true)
-      ] : s.proType === 'portfolio' ? [
+      // ตัวเลือกเสริมตามประเภทงาน — ราคาบวกเพิ่มโชว์ตรงปุ่มเลย (ตัวเลือกกระดาษธรรมดา/พิเศษถูกถอดหมดแล้ว 2026-09-11: โปสเตอร์+เพลท+พับครึ่ง)
+      proExtraOpts: s.proType === 'portfolio' ? [
         this.seg('ไม่เย็บ (ฟรี)', !s.proStaple, () => this.setState({ proStaple: false }), true),
         this.seg('เย็บ +฿' + PRO_PORTFOLIO.staple + '/ชุด', s.proStaple, () => this.setState({ proStaple: true }), true)
       ] : s.proType === 'standee' ? [
