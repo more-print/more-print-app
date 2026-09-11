@@ -235,7 +235,7 @@ const POP_SPOTS = [
 
 const PRO_TYPES = [
   // โปสเตอร์ขึ้นอันแรก (เจ้าของสั่ง 2026-09-09)
-  { k: 'poster', icon: '🖼️', label: 'โปสเตอร์ (กระดาษอาร์ตมัน 250 แกรม)', sizes: ['A4', 'A3', 'A2', 'A1', 'A0'], sidesOpt: true }, // คำกำกับกระดาษบนการ์ด (เจ้าของสั่ง 2026-09-11) — ป้ายออเดอร์ proLabel ยังเป็น 'โปสเตอร์ <ขนาด>'
+  { k: 'poster', icon: '🖼️', label: 'โปสเตอร์', sizes: ['A4', 'A3', 'A2', 'A1', 'A0'], sidesOpt: true }, // คำกำกับกระดาษอาร์ตมัน 250 แกรม อยู่เป็นข้อความเขียวหลังกดเลือก (เจ้าของแก้ 2026-09-11) ไม่ใช่บนการ์ด
   { k: 'plate', icon: '🪧', label: 'เพลท', sizes: ['A4', 'A3', 'A2', 'A1', 'A0'] },
   { k: 'postcard', icon: '💌', label: 'Postcard' },
   { k: 'foldbook', icon: '📖', label: 'พับครึ่ง (เข้าเล่ม/เมนู)', sizes: ['A4', 'A3', 'A2'], bindOpt: true },
@@ -2125,6 +2125,7 @@ class App extends React.Component {
       // ความหนากระดาษแบบแปลน (80/100/120 แกรม) ซ่อนชั่วคราว — ยังไม่รู้ราคา (เจ้าของสั่ง 2026-09-12); เปิดคืน: เอา `false &&` ออก
       proGramOpts: (false && s.proType === 'blueprint') ? [80, 100, 120].map(g =>
         this.seg(g + ' แกรม', (s.proGram || 80) === g, () => this.setState({ proGram: g }), true)) : [],
+      posterPaperNote: s.proType === 'poster', // ข้อความเขียว 'โปสเตอร์ (กระดาษอาร์ตมัน 250 แกรม)' ใต้กริดประเภท ก่อนตัวเลือกขนาด
       proLamHead: s.proType === 'foldbook' ? 'การเคลือบ (ฟิล์มลามิเนต)' : 'การเคลือบ', // พับครึ่งระบุชนิดฟิล์มที่หัวข้อ (เจ้าของสั่ง 2026-09-11)
       proLamOpts: (s.proType === 'plate' || s.proType === 'poster' || s.proType === 'foldbook') ? [
         this.seg('ไม่เคลือบ', s.proLam === 'none', () => this.setState({ proLam: 'none', proFilm: 'lam' }), true),
@@ -3244,6 +3245,8 @@ class App extends React.Component {
                     )}
                   </button>
                 ))}</div></div>}
+                {/* คำกำกับกระดาษโปสเตอร์ — ข้อความเขียวสด หลังกดเลือกประเภท ก่อนตัวเลือกขนาด (เจ้าของสั่ง 2026-09-11) */}
+                {v.isPro && v.posterPaperNote && <div style={css("font-size:11.5px;font-weight:700;color:var(--acc);line-height:1.6")}>🖼️ โปสเตอร์ (กระดาษอาร์ตมัน 250 แกรม)</div>}
                 {v.isPro && v.proSizeOpts.length > 0 && <div style={css("display:flex;flex-direction:column;gap:6px")}><div style={css("font-size:12px;font-weight:600;color:var(--sub)")}>ขนาด</div><div style={css("display:flex;gap:8px;flex-wrap:wrap")}>{v.proSizeOpts.map((o, i) => <button key={i} onClick={o.pick} style={o.st}>{o.label}</button>)}</div></div>}
                 {v.isPro && v.proShowSides && <div style={css("display:flex;flex-direction:column;gap:6px")}><div style={css("font-size:12px;font-weight:600;color:var(--sub)")}>ด้านที่พิมพ์</div><div style={css("display:flex;gap:8px;flex-wrap:wrap")}>{v.proSidesOpts.map((o, i) => <button key={i} onClick={o.pick} style={{...o.st, flex:'1 1 45%'}}>{o.label}</button>)}</div></div>}
                 {v.isPro && v.proExtraOpts.length > 0 && <div style={css("display:flex;flex-direction:column;gap:6px")}><div style={css("font-size:12px;font-weight:600;color:var(--sub)")}>ตัวเลือกเสริม</div><div style={css("display:flex;gap:8px;flex-wrap:wrap")}>{v.proExtraOpts.map((o, i) => <button key={i} onClick={o.pick} style={{...o.st, flex:'1 1 45%'}}>{o.label}</button>)}</div></div>}
