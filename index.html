@@ -1173,7 +1173,7 @@ class App extends React.Component {
         pc = rate * shPro + PRO_FOLDBOOK_BIND * s.copies;
       }
       else if (s.proType === 'portfolio') { rate = s.sides === 2 ? PRO_PORTFOLIO.two : PRO_PORTFOLIO.one; pc = rate * shPro + (s.proStaple ? PRO_PORTFOLIO.staple * s.copies : 0); }
-      else if (s.proType === 'namecard') { pc = (s.sides === 2 ? PRO_NAMECARD.two : PRO_NAMECARD.one) * (s.proQty / 100); }
+      else if (s.proType === 'namecard') { pc = (s.sides === 2 ? PRO_NAMECARD.two : PRO_NAMECARD.one) * (s.proQty / 100) * s.copies; } // × จำนวนชุด (เดิมลืมคูณ — เจ้าของแจ้ง 2026-09-11)
       else if (s.proType === 'standee') { pc = (s.proStand ? PRO_STANDEE.stand : PRO_STANDEE.base) * s.copies; }
       printCost = Math.ceil(pc);
     }
@@ -2066,12 +2066,13 @@ class App extends React.Component {
       rainMode: s.shopRain === true, // โหมดฝนตก — ทุกงานแบบจัดส่งบังคับรถยนต์
       proAfter17: s.now.getHours() >= 17, // แยกข้อความ: หลัง 17:00 = ผลิตพรุ่งนี้ · ก่อน 08:30 = ผลิตเช้านี้
       pickStandard: () => this.setState({ tier: 'standard', paper: SIZE_BY_TYPE[s.ptype][0] }, () => this.remeasureOrigin()), // สลับประเภทงาน = ต้นทางค่าส่งเปลี่ยน — วัดระยะใหม่ถ้าปักหมุดค้างไว้
-      pickPro: () => this.setState({ tier: 'pro', sides: (s.proType === 'poster' || s.proType === 'portfolio' || s.proType === 'namecard' || s.proType === 'foldbook') ? s.sides : 1 }, () => this.remeasureOrigin()), // ประเภทที่พิมพ์หน้าเดียว ห้ามติดค่าหน้า-หลังค้างจาก Standard
+      pickPro: () => this.setState({ tier: 'pro', sides: (s.proType === 'poster' || s.proType === 'portfolio' || s.proType === 'namecard' || s.proType === 'foldbook') ? s.sides : 1, copies: s.proType === 'sticker' ? 1 : s.copies }, () => this.remeasureOrigin()), // ประเภทที่พิมพ์หน้าเดียว ห้ามติดค่าหน้า-หลังค้างจาก Standard · สติ๊กเกอร์ล็อก 1 ชุดเสมอ (จำนวนชิ้นรายไฟล์คือตัวกำหนด)
       proTypeOpts: PRO_TYPES.map(t => ({
         k: t.k, on: s.proType === t.k, // การ์ดกริด 2 คอลัมน์ใช้ on จัดสไตล์เอง (2026-09-11 เลิกใช้สไตล์ seg)
         ...this.seg(t.label, s.proType === t.k,
-          () => this.setState({ proType: t.k, proSize: (t.sizes || [''])[0], proQty: (t.qty || [100])[0], sides: t.k === 'foldbook' ? 2 : 1,
-            proLam: 'none', proSpecial: false, proStaple: false, proStand: false, proBoard: '', proGram: 80, stkType: '' })),
+          () => this.setState(st => ({ proType: t.k, proSize: (t.sizes || [''])[0], proQty: (t.qty || [100])[0], sides: t.k === 'foldbook' ? 2 : 1,
+            proLam: 'none', proSpecial: false, proStaple: false, proStand: false, proBoard: '', proGram: 80, stkType: '',
+            copies: t.k === 'sticker' ? 1 : st.copies }))), // สติ๊กเกอร์ไม่มีจำนวนชุด — ล็อก 1 (ช่องชุดถูกซ่อนด้วย)
         svg: ICON_PRO[t.k]
       })),
       proPickupOn: c.proPickupOn,
@@ -3348,13 +3349,14 @@ class App extends React.Component {
                 </div>
               ))}
               {v.showBind && !v.bindOpen && <div style={css("font-size:11px;color:var(--sub);line-height:1.5")}><span style={css("display:inline-flex;vertical-align:-2px;margin-right:5px")}>{fi('clock', 12)}</span>บริการเข้าเล่ม (+฿20/ชุด) เปิดรับเฉพาะ 09:00–22:00 น. ครับ</div>}
-              <div style={css("display:flex;justify-content:space-between;align-items:center")}><div style={css("font-size:12px;font-weight:600;color:var(--sub)")}>จำนวนชุด (สำเนา)</div>
+              {/* สติ๊กเกอร์ไม่มีจำนวนชุด — ลูกค้ากำหนดขนาด+จำนวนชิ้นรายไฟล์เองอยู่แล้ว (เจ้าของสั่ง 2026-09-11, copies ถูกล็อก 1 ตอนเลือกประเภท) */}
+              {!v.stkOn && <div style={css("display:flex;justify-content:space-between;align-items:center")}><div style={css("font-size:12px;font-weight:600;color:var(--sub)")}>จำนวนชุด (สำเนา)</div>
                 <div style={css("display:flex;align-items:center;gap:10px")}>
                   <button onClick={v.copyDec} style={css("width:30px;height:30px;border:1px solid var(--line);background:var(--soft);color:var(--ink);border-radius:9px;font-size:15px;cursor:pointer")}>−</button>
                   <div style={css("font-family:'IBM Plex Mono',monospace;font-size:15px;font-weight:600;min-width:26px;text-align:center")}>{v.copies}</div>
                   <button onClick={v.copyInc} style={css("width:30px;height:30px;border:1px solid var(--line);background:var(--soft);color:var(--ink);border-radius:9px;font-size:15px;cursor:pointer")}>+</button>
                 </div>
-              </div>
+              </div>}
             </div>
             <div style={css("background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px;display:flex;flex-direction:column;gap:8px")}>
               <div style={css("font-size:12px;font-weight:600;color:var(--sub)")}>หมายเหตุ (รายละเอียดงาน) <span style={css("font-weight:400")}>— กรอกหรือไม่กรอกก็ได้</span></div>
