@@ -265,7 +265,7 @@ const FOLDBOOK_BOOK = {
   A2: { book: 'A3', perPage: 50, minPages: 1, minCopies: 1 }
 };
 const PLATE_SHEET  = { A0: 600, A1: 300, A2: 150, A3: 75, A4: 38 };   // เพลท /แผ่น (ค่าพิมพ์) — พิมพ์ด้านหน้าอย่างเดียว · ค่าบอร์ดแยกบวกตาม PLATE_BOARD (2026-09-13)
-const PLATE_BOARD = { future: 60, foam: 60, paswood: 160 };           // ค่าบอร์ดเพลท /แผ่น (เจ้าของกำหนด 2026-09-13): ฟิวเจอร์บอร์ด 60 · โฟมบอร์ด 60 · พาสวูด 160
+const PLATE_BOARD = { future: 60, foam: 60, paswood: 160 };           // ค่าบอร์ดเพลท /แผ่น (เจ้าของกำหนด 2026-09-13): ฟิวเจอร์บอร์ด 60 · โฟมบอร์ด 60 · พลาสวูด 160
 const PRO_SPECIAL_PAPER = 5;   // กระดาษพิเศษ /แผ่น (โปสเตอร์+เพลท)
 const PRO_LAM_ONE = 5;         // เคลือบหน้าเดียว /แผ่น
 const PRO_LAM_TWO = 10;        // เคลือบหน้า-หลัง /แผ่น
@@ -1406,7 +1406,7 @@ class App extends React.Component {
     if (s.proType === 'blueprint') ex.push(s.orient === 'landscape' ? 'แนวนอน' : 'แนวตั้ง'); // แนวกระดาษ (2026-09-11) — หลังบ้านเห็นในป้าย
     if ((s.proType === 'plate' || s.proType === 'poster')) {
       // เพลทบอกประเภทบอร์ดที่ลูกค้าเลือก (บังคับเลือก · คิดราคาต่อแผ่นตาม PLATE_BOARD — 2026-09-13)
-      if (s.proType === 'plate') ex.push(s.proBoard === 'foam' ? 'ติดโฟมบอร์ด' : s.proBoard === 'future' ? 'ติดฟิวเจอร์บอร์ด' : s.proBoard === 'paswood' ? 'ติดพาสวูด' : 'ติดบอร์ด');
+      if (s.proType === 'plate') ex.push(s.proBoard === 'foam' ? 'ติดโฟมบอร์ด' : s.proBoard === 'future' ? 'ติดฟิวเจอร์บอร์ด' : s.proBoard === 'paswood' ? 'ติดพลาสวูด' : 'ติดบอร์ด');
       if (s.proSpecial) ex.push('กระดาษพิเศษ');
       if (s.proType === 'poster' && s.sides === 2) ex.push('หน้า-หลัง');
       // ระบุชนิดฟิล์มเคลือบ (โปสเตอร์+เพลท) — เคลือบมีเฉพาะขนาด A4/A3 (2026-09-13); เพลทมีแค่ลามิเนต ฟิล์มแข็งเป็นของโปสเตอร์
@@ -2152,7 +2152,7 @@ class App extends React.Component {
       proBoardOpts: s.proType === 'plate' ? [
         this.seg('ฟิวเจอร์บอร์ด +฿' + PLATE_BOARD.future + '/แผ่น', s.proBoard === 'future', () => this.setState({ proBoard: 'future' }), true),
         this.seg('โฟมบอร์ด +฿' + PLATE_BOARD.foam + '/แผ่น', s.proBoard === 'foam', () => this.setState({ proBoard: 'foam' }), true),
-        this.seg('พาสวูด +฿' + PLATE_BOARD.paswood + '/แผ่น', s.proBoard === 'paswood', () => this.setState({ proBoard: 'paswood' }), true)
+        this.seg('พลาสวูด +฿' + PLATE_BOARD.paswood + '/แผ่น', s.proBoard === 'paswood', () => this.setState({ proBoard: 'paswood' }), true)
       ] : [],
       proBoardPicked: !!s.proBoard,
       // ปริ้นขาวดำขนาดใหญ่: ความหนากระดาษ 80/100/120 แกรม (ไม่บวกราคา — 2026-09-09)
@@ -2339,7 +2339,7 @@ class App extends React.Component {
         if (bigPending) return this.showToast(bigPending.upErr ? 'ไฟล์ใหญ่อัปโหลดไม่สำเร็จ — กดปุ่ม "ลองใหม่" ที่ไฟล์ก่อนนะครับ 🔁' : 'รอไฟล์ใหญ่อัปโหลดให้เสร็จก่อนนะครับ ⏳ (ดู % ที่รายการไฟล์)');
         // เพลทต้องเลือกประเภทบอร์ดก่อน (นโยบาย 2026-09-09)
         if (s.tier === 'pro' && s.proType === 'plate' && !s.proBoard)
-          return this.showToast('🪧 เลือกประเภทบอร์ดก่อนนะครับ — ฟิวเจอร์บอร์ด / โฟมบอร์ด (+฿60/แผ่น) หรือ พาสวูด (+฿160/แผ่น)');
+          return this.showToast('🪧 เลือกประเภทบอร์ดก่อนนะครับ — ฟิวเจอร์บอร์ด / โฟมบอร์ด (+฿60/แผ่น) หรือ พลาสวูด (+฿160/แผ่น)');
         // งานสติ๊กเกอร์รับไฟล์ลายละ "1 หน้า (รูปเดียว)" เท่านั้น — ไฟล์หลายหน้าห้ามไปต่อ (นโยบาย 2026-09-09)
         if (s.tier === 'pro' && s.proType === 'sticker' && s.files.some(f => (f.pages || 1) > 1))
           return this.showToast('🏷️ ไฟล์สติ๊กเกอร์ต้องมีรูปเดียว (1 หน้า) ต่อ 1 ลายเท่านั้นครับ — ที่เหลือทางร้านจัดการให้เอง ลบไฟล์หลายหน้าแล้วส่งใหม่นะครับ 🙏');
