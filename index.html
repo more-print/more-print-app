@@ -255,7 +255,15 @@ const STD_BINDS = [
 ];
 // ── ราคางาน Pro (เจ้าของกำหนด 2026-08-20) — ต่อแผ่น ──
 const POSTER_SHEET = { A0: 500, A1: 250, A2: 125, A3: 50, A4: 25 };   // โปสเตอร์ /แผ่น (ด้านหน้าเดียว) — หน้า-หลัง ×2 · ไม่มีติดบอร์ด (A2-A0 ปรับใหม่ 2026-09-11)
-const FOLDBOOK_SHEET = { A2: 100, A3: 50, A4: 25 };                   // พับครึ่ง (เข้าเล่ม/เมนู) /แผ่น — แยกจากโปสเตอร์ตอนโปสเตอร์ขึ้นราคา A2 (2026-09-11 ราคาพับครึ่งคงเดิม)
+const FOLDBOOK_SHEET = { A2: 100, A3: 50, A4: 25 };                   // พับครึ่ง /แผ่นกระดาษ (ซากอ้างอิงเรทเดิม — ราคาจริงใช้ FOLDBOOK_BOOK ต่อหน้าแล้ว 2026-09-13)
+// พับครึ่งโฉมใหม่ (เจ้าของกำหนด 2026-09-13): คิดต่อ "หน้าเอกสาร" ตามขนาดเล่มสำเร็จ (key = ขนาดกระดาษที่ใช้พิมพ์ เก็บใน proSize เดิม)
+// เล่ม A5 (พับจากกระดาษ A4) หน้าละ 12.5 ขั้นต่ำ 8 หน้า + ต้องสั่ง ≥2 เล่ม · เล่ม A4 (จาก A3) หน้าละ 25 ขั้นต่ำ 4 หน้า · เล่ม A3 (จาก A2) หน้าละ 50 ตามสัดส่วนตารางเดิม
+// เคลือบ +5/+10 ต่อแผ่นกระดาษจริง (1 แผ่นพับ = 4 หน้าเอกสาร ปัดขึ้น) · เข้าเล่ม +20/เล่มเหมือนเดิม
+const FOLDBOOK_BOOK = {
+  A4: { book: 'A5', perPage: 12.5, minPages: 8, minCopies: 2 },
+  A3: { book: 'A4', perPage: 25, minPages: 4, minCopies: 1 },
+  A2: { book: 'A3', perPage: 50, minPages: 1, minCopies: 1 }
+};
 const PLATE_SHEET  = { A0: 600, A1: 300, A2: 150, A3: 75, A4: 38 };   // เพลท /แผ่น — รวมติดบอร์ดแล้วเสมอ · พิมพ์ด้านหน้าอย่างเดียว
 const PRO_SPECIAL_PAPER = 5;   // กระดาษพิเศษ /แผ่น (โปสเตอร์+เพลท)
 const PRO_LAM_ONE = 5;         // เคลือบหน้าเดียว /แผ่น
@@ -1155,8 +1163,10 @@ class App extends React.Component {
       let pc = 0;
       if (s.proType === 'plate' || s.proType === 'poster') {
         // โปสเตอร์: ด้านหน้าเดียวตามตาราง หน้า-หลัง ×2 · เพลท: ราคารวมติดบอร์ดแล้ว พิมพ์หน้าเดียวเท่านั้น · เคลือบบวกต่อแผ่น (ไม่คูณ)
+        // เคลือบมีเฉพาะขนาด A4/A3 (2026-09-13) — ขนาดใหญ่กว่าห้ามมีค่าเคลือบติดมาแม้ state ค้าง (กันบั๊กราคา)
         const base = s.proType === 'poster' ? (POSTER_SHEET[s.proSize] ?? 0) * (s.sides === 2 ? 2 : 1) : (PLATE_SHEET[s.proSize] ?? 0);
-        rate = base + (s.proLam === 'two' ? PRO_LAM_TWO : s.proLam === 'one' ? PRO_LAM_ONE : 0) + (s.proSpecial ? PRO_SPECIAL_PAPER : 0);
+        const lamFee = ['A4', 'A3'].includes(s.proSize) ? (s.proLam === 'two' ? PRO_LAM_TWO : s.proLam === 'one' ? PRO_LAM_ONE : 0) : 0;
+        rate = base + lamFee + (s.proSpecial ? PRO_SPECIAL_PAPER : 0);
         pc = rate * shPro;
       } else if (s.proType === 'postcard') { rate = PRO_POSTCARD_SHEET; pc = rate * shPro; }
       else if (s.proType === 'sticker') {
@@ -1167,11 +1177,13 @@ class App extends React.Component {
       }
       else if (s.proType === 'blueprint') { rate = BLUEPRINT_PRICE[s.proSize] ?? 0; pc = rate * shPro; }
       else if (s.proType === 'foldbook') {
-        // พับครึ่ง เข้าเล่ม/เมนู: แผ่นตามตารางโปสเตอร์ (หน้า-หลัง ×2) + เคลือบ/กระดาษพิเศษต่อแผ่น + เข้าเล่ม 20/ชุด ทุกแบบ
-        rate = (FOLDBOOK_SHEET[s.proSize] ?? 0) * (s.sides === 2 ? 2 : 1)
-          + (s.proLam === 'two' ? PRO_LAM_TWO : s.proLam === 'one' ? PRO_LAM_ONE : 0)
-          + (s.proSpecial ? PRO_SPECIAL_PAPER : 0);
-        pc = rate * shPro + PRO_FOLDBOOK_BIND * s.copies;
+        // พับครึ่งโฉมใหม่ (2026-09-13): ราคา = จำนวนหน้าเอกสาร × เรทต่อหน้า (ตามขนาดเล่ม) × จำนวนเล่ม
+        // + เคลือบต่อแผ่นกระดาษจริง (ceil(หน้า/4)) + เข้าเล่ม 20/เล่ม — พิมพ์หน้า-หลังเสมอ (เล่มพับ) ไม่มีตัวเลือกด้าน
+        const bk = FOLDBOOK_BOOK[s.proSize] || FOLDBOOK_BOOK.A4;
+        rate = bk.perPage;
+        const fbSheets = Math.ceil(pages / 4); // แผ่นกระดาษจริง: 1 แผ่นพับ = 4 หน้าเอกสาร
+        const fbLam = (s.proLam === 'two' ? PRO_LAM_TWO : s.proLam === 'one' ? PRO_LAM_ONE : 0) * fbSheets;
+        pc = (pages * bk.perPage + fbLam) * s.copies + PRO_FOLDBOOK_BIND * s.copies;
       }
       else if (s.proType === 'portfolio') { rate = s.sides === 2 ? PRO_PORTFOLIO.two : PRO_PORTFOLIO.one; pc = rate * shPro + (s.proStaple ? PRO_PORTFOLIO.staple * s.copies : 0); }
       else if (s.proType === 'namecard') { pc = (s.sides === 2 ? PRO_NAMECARD.two : PRO_NAMECARD.one) * (s.proQty / 100) * s.copies; } // × จำนวนชุด (เดิมลืมคูณ — เจ้าของแจ้ง 2026-09-11)
@@ -1322,10 +1334,18 @@ class App extends React.Component {
         desc: x.t.toUpperCase() + ' · ' + x.w + '×' + x.h + ' ซม. × ' + (x.q * cp) + ' ชิ้น = ' + (x.sheets * cp) + ' แผ่น A3', amt: amts[i] }));
       // ไม่ต้องมีบรรทัดปรับ — ยอดช่วง ตร.ม. ของ PVC ถูกเกลี่ยรวมในบรรทัดรายไฟล์แล้ว (คำอธิบายช่วง ตร.ม. อยู่ที่กล่องสรุปสติ๊กเกอร์)
     } else if (s.tier === 'pro') {
-      if (!(c.rate > 0)) return null; // ประเภทที่ไม่ได้คิดต่อแผ่น
+      if (!(c.rate > 0)) return null; // ประเภทที่ไม่ได้คิดต่อแผ่น/หน้า
+      // พับครึ่ง (2026-09-13) คิดต่อหน้า เรทมีเศษ .5 ได้ — ใช้ alloc ปัดสะสมให้รวมตรงยอดเสมอ · ประเภทอื่นเรทเต็มบาท alloc ให้ผลเท่าเดิม
+      const unit = s.proType === 'foldbook' ? ' หน้า × ฿' : ' แผ่น × ฿';
+      const amts = alloc(s.files.map(f => f.pages * cp * c.rate));
       s.files.forEach((f, i) => lines.push({ name: 'ไฟล์ที่ ' + (i + 1) + ' · ' + f.name,
-        desc: (f.pages * cp) + ' แผ่น × ฿' + c.rate, amt: f.pages * cp * c.rate }));
-      if (s.proType === 'foldbook') adjust.push({ label: 'เข้าเล่ม ฿' + PRO_FOLDBOOK_BIND + ' × ' + cp + ' ชุด', amt: PRO_FOLDBOOK_BIND * cp });
+        desc: (f.pages * cp) + unit + c.rate, amt: amts[i] }));
+      if (s.proType === 'foldbook') {
+        const fbSheets = Math.ceil(s.files.reduce((a, f) => a + (f.pages || 1), 0) / 4);
+        const fbLamRate = s.proLam === 'two' ? PRO_LAM_TWO : s.proLam === 'one' ? PRO_LAM_ONE : 0;
+        if (fbLamRate > 0) adjust.push({ label: 'เคลือบฟิล์มลามิเนต ฿' + fbLamRate + ' × ' + fbSheets + ' แผ่น × ' + cp + ' เล่ม', amt: fbLamRate * fbSheets * cp });
+        adjust.push({ label: 'เข้าเล่ม ฿' + PRO_FOLDBOOK_BIND + ' × ' + cp + ' เล่ม', amt: PRO_FOLDBOOK_BIND * cp });
+      }
       if (s.proType === 'portfolio' && s.proStaple) adjust.push({ label: 'เย็บ ฿' + PRO_PORTFOLIO.staple + ' × ' + cp + ' ชุด', amt: PRO_PORTFOLIO.staple * cp });
     } else if (s.ptype === 'bw') {
       const nupC = (s.nup || 1) > 1 ? s.nup : 1;
@@ -1357,7 +1377,7 @@ class App extends React.Component {
     const base = t.k === 'plate' ? 'เพลท ' + s.proSize
       : t.k === 'poster' ? 'โปสเตอร์ ' + s.proSize
       : t.k === 'postcard' ? 'Postcard A3 (9 ใบ/แผ่น)'
-      : t.k === 'foldbook' ? 'พับครึ่ง ' + s.proSize
+      : t.k === 'foldbook' ? 'พับครึ่ง เล่ม ' + ((FOLDBOOK_BOOK[s.proSize] || {}).book || s.proSize) + ' (กระดาษ ' + s.proSize + ')'
       : t.k === 'namecard' ? 'นามบัตร ' + s.proQty + ' ใบ' + (s.sides === 2 ? ' หน้า-หลัง' : ' หน้าเดียว')
       : t.k === 'blueprint' ? 'ปริ้นสีขาวดำขนาดใหญ่ (แบบแปลน,เอกสาร) ' + s.proSize
       : t.k === 'sticker' ? (() => { // พ่วงเนื้อ (รายลาย/ผสม)+ขนาด+จำนวนชิ้น/แผ่นเข้าไปในป้าย — หลังบ้าน/ร้านพาร์ทเนอร์เห็นทันทีว่าต้องปริ้นอะไร
@@ -1374,10 +1394,11 @@ class App extends React.Component {
     // ตัวเลือกเสริมพ่วงเข้าไปในป้าย — หลังบ้านทุกที่จะเห็นครบว่าลูกค้าเลือกอะไร (บันทึกลงช่อง paper)
     const ex = [];
     if (s.proType === 'foldbook') {
-      ex.push(s.sides === 2 ? 'หน้า-หลัง' : 'หน้าเดียว');
-      if (s.proSpecial) ex.push('กระดาษพิเศษ');
-      if (s.proLam === 'one') ex.push('เคลือบหน้าเดียว');
-      if (s.proLam === 'two') ex.push('เคลือบหน้า-หลัง');
+      // พับครึ่งโฉมใหม่ (2026-09-13): พิมพ์หน้า-หลังเสมอ ไม่ต้องบอกด้าน — บอกจำนวนหน้าให้ร้านเห็นแทน
+      const fbPages = (s.files || []).reduce((a, f) => a + (f.pages || 1), 0);
+      if (fbPages > 0) ex.push(fbPages + ' หน้า');
+      if (s.proLam === 'one') ex.push('เคลือบฟิล์มลามิเนตหน้าเดียว');
+      if (s.proLam === 'two') ex.push('เคลือบฟิล์มลามิเนตหน้า-หลัง');
     }
     // if (s.proType === 'blueprint') ex.push('กระดาษ ' + (s.proGram || 80) + ' แกรม'); // ความหนากระดาษขาวดำใหญ่ — ปิดชั่วคราวพร้อมตัวเลือก (2026-09-12 ยังไม่รู้ราคา) เปิดคืนพร้อม proGramOpts
     if (s.proType === 'blueprint') ex.push(s.orient === 'landscape' ? 'แนวนอน' : 'แนวตั้ง'); // แนวกระดาษ (2026-09-11) — หลังบ้านเห็นในป้าย
@@ -1386,13 +1407,10 @@ class App extends React.Component {
       if (s.proType === 'plate') ex.push(s.proBoard === 'foam' ? 'ติดโฟมบอร์ด' : s.proBoard === 'future' ? 'ติดฟิวเจอร์บอร์ด' : 'ติดบอร์ด');
       if (s.proSpecial) ex.push('กระดาษพิเศษ');
       if (s.proType === 'poster' && s.sides === 2) ex.push('หน้า-หลัง');
-      if (s.proType === 'poster') {
-        // โปสเตอร์ระบุชนิดฟิล์ม (2026-09-11) — หลังบ้านเห็นชัดว่าเคลือบแบบไหน
+      // ระบุชนิดฟิล์มเคลือบ (โปสเตอร์+เพลท) — เคลือบมีเฉพาะขนาด A4/A3 (2026-09-13); เพลทมีแค่ลามิเนต ฟิล์มแข็งเป็นของโปสเตอร์
+      if (['A4', 'A3'].includes(s.proSize)) {
         if (s.proLam === 'one') ex.push('เคลือบฟิล์มลามิเนตด้านหน้า');
-        if (s.proLam === 'two') ex.push(s.proFilm === 'hard' ? 'เคลือบฟิล์มแข็ง' : 'เคลือบฟิล์มลามิเนตหน้า-หลัง');
-      } else {
-        if (s.proLam === 'one') ex.push('เคลือบหน้าเดียว');
-        if (s.proLam === 'two') ex.push('เคลือบหน้า-หลัง');
+        if (s.proLam === 'two') ex.push(s.proType === 'poster' && s.proFilm === 'hard' ? 'เคลือบฟิล์มแข็ง' : 'เคลือบฟิล์มลามิเนตหน้า-หลัง');
       }
     }
     if (s.proType === 'portfolio' && s.proStaple) ex.push('เย็บ');
@@ -1917,11 +1935,15 @@ class App extends React.Component {
         if (!EMAIL_RE.test(email)) return this.showToast('รูปแบบอีเมลไม่ถูกต้อง ❌');
         if (!s.passIn) return this.showToast('กรอกรหัสผ่านด้วยครับ 🔑');
         if (!this.auth) return this.showToast('ระบบสมาชิกยังไม่พร้อมใช้งาน');
+        // try/finally กัน authBusy ค้าง (เน็ตสะดุดแล้วปุ่มหมุนตลอด = "ล็อกอินไม่ได้/เว็บค้าง" — เจ้าของแจ้ง 2026-09-13)
         this.setState({ authBusy: true });
-        const { data, error } = await this.auth.auth.signInWithPassword({ email, password: s.passIn });
-        this.setState({ authBusy: false });
+        let data, error;
+        try { ({ data, error } = await this.auth.auth.signInWithPassword({ email, password: s.passIn })); }
+        catch (e) { error = e; }
+        finally { this.setState({ authBusy: false }); }
         if (error) {
           if (/not confirmed/i.test(error.message || '')) return this.showToast('อีเมลนี้ยังไม่ได้กดยืนยันครับ 📧 เปิดลิงก์ยืนยันในอีเมล (เช็คถังขยะ/Junk ด้วย) แล้วค่อยเข้าสู่ระบบ');
+          if (/fetch|network|failed/i.test(String(error.message || error))) return this.showToast('เน็ตสะดุด เชื่อมต่อไม่สำเร็จ 🙏 ลองกดเข้าสู่ระบบอีกครั้งครับ');
           return this.showToast('อีเมลหรือรหัสผ่านไม่ถูกต้อง ❌');
         }
         const md = (data.user && data.user.user_metadata) || {};
@@ -1945,13 +1967,16 @@ class App extends React.Component {
           return this.showToast('ยินดีต้อนรับ คุณ' + fname + ' 🎉');
         }
         this.setState({ authBusy: true });
-        const { data, error } = await this.auth.auth.signUp({ email, password: s.regPass1, options: { data: { fname, lname }, emailRedirectTo: 'https://more-print.github.io/more-print-app/' } });
-        this.setState({ authBusy: false });
+        let data, error;
+        try { ({ data, error } = await this.auth.auth.signUp({ email, password: s.regPass1, options: { data: { fname, lname }, emailRedirectTo: 'https://more-print.github.io/more-print-app/' } })); }
+        catch (e) { error = e; } // กัน authBusy ค้างตอนเน็ตสะดุด (2026-09-13)
+        finally { this.setState({ authBusy: false }); }
         if (error) {
           const m = (error.message || '').toLowerCase();
           if (m.includes('already registered') || m.includes('already been registered')) return this.showToast('อีเมลนี้ถูกสมัครไว้แล้ว — กด "เข้าสู่ระบบ" ได้เลยครับ');
           if (m.includes('invalid')) return this.showToast('อีเมลไม่ถูกต้อง ❌');
-          return this.showToast('สมัครไม่สำเร็จ: ' + error.message);
+          if (/fetch|network|failed/i.test(m)) return this.showToast('เน็ตสะดุด เชื่อมต่อไม่สำเร็จ 🙏 ลองกดสมัครอีกครั้งครับ');
+          return this.showToast('สมัครไม่สำเร็จ: ' + (error.message || 'ลองใหม่อีกครั้งครับ'));
         }
         if (data.user && Array.isArray(data.user.identities) && data.user.identities.length === 0) {
           return this.showToast('อีเมลนี้ถูกสมัครไว้แล้ว — กด "เข้าสู่ระบบ" ได้เลยครับ');
@@ -2094,14 +2119,18 @@ class App extends React.Component {
       proShowQty: !!((PRO_TYPES.find(t => t.k === s.proType) || {}).qty),
       proQtyOpts: (((PRO_TYPES.find(t => t.k === s.proType) || {}).qty) || []).map(n => this.seg(n + ' ใบ ฿' + Math.ceil((s.sides === 2 ? PRO_NAMECARD.two : PRO_NAMECARD.one) * n / 100), s.proQty === n, () => this.setState({ proQty: n }))),
       proSizeOpts: ((PRO_TYPES.find(t => t.k === s.proType) || {}).sizes || []).map(sz => {
-        const p = s.proType === 'blueprint' ? BLUEPRINT_PRICE[sz] : s.proType === 'plate' ? PLATE_SHEET[sz] : s.proType === 'poster' ? POSTER_SHEET[sz] : s.proType === 'foldbook' ? FOLDBOOK_SHEET[sz] : null;
-        // แบบแปลน/เอกสารขนาดใหญ่: กระดาษ 80 แกรมทุกขนาด — คำกำกับแยกบรรทัดล่างของปุ่ม (เจ้าของสั่ง 2026-09-11)
+        const p = s.proType === 'blueprint' ? BLUEPRINT_PRICE[sz] : s.proType === 'plate' ? PLATE_SHEET[sz] : s.proType === 'poster' ? POSTER_SHEET[sz] : null;
+        // แบบแปลน: กระดาษ 80 แกรมแยกบรรทัดล่าง (2026-09-11) · พับครึ่ง: ปุ่มเป็นขนาดเล่มสำเร็จ + เรทต่อหน้า (2026-09-13)
         const lbl = s.proType === 'blueprint'
           ? <span>{sz + (p ? ' ฿' + p : '')}<span style={{ display: 'block', fontSize: '10.5px', fontWeight: 600, opacity: .8, marginTop: '2px' }}>80 แกรม</span></span>
+          : s.proType === 'foldbook'
+          ? <span>{'เล่ม ' + ((FOLDBOOK_BOOK[sz] || {}).book || sz) + ' ฿' + ((FOLDBOOK_BOOK[sz] || {}).perPage || 0) + '/หน้า'}<span style={{ display: 'block', fontSize: '10.5px', fontWeight: 600, opacity: .8, marginTop: '2px' }}>{'พับจากกระดาษ ' + sz}</span></span>
           : sz + (p ? ' ฿' + p : '');
-        return this.seg(lbl, s.proSize === sz, () => this.setState({ proSize: sz }), true);
+        // โปสเตอร์/เพลทขนาดใหญ่ (A2-A0) ไม่มีบริการเคลือบ — สลับไปขนาดใหญ่ต้องล้างค่าเคลือบทิ้ง กันค่าธรรมเนียมค้าง (2026-09-13)
+        return this.seg(lbl, s.proSize === sz, () => this.setState(st => ({ proSize: sz,
+          ...(((st.proType === 'plate' || st.proType === 'poster') && !['A4', 'A3'].includes(sz)) ? { proLam: 'none', proFilm: 'lam' } : {}) })), true);
       }),
-      proShowSides: s.proType === 'poster' || s.proType === 'portfolio' || s.proType === 'namecard' || s.proType === 'foldbook',
+      proShowSides: s.proType === 'poster' || s.proType === 'portfolio' || s.proType === 'namecard', // พับครึ่งพิมพ์หน้า-หลังเสมอ (คิดต่อหน้าแล้ว 2026-09-13) — ตัดตัวเลือกด้านออก
       proSidesOpts: [
         this.seg('ด้านหน้าอย่างเดียว' + (s.proType === 'portfolio' ? ' ฿' + PRO_PORTFOLIO.one + '/แผ่น' : s.proType === 'namecard' ? ' ฿' + PRO_NAMECARD.one : s.proType === 'poster' ? ' ฿' + (POSTER_SHEET[s.proSize] ?? 0) + '/แผ่น' : s.proType === 'foldbook' ? ' ฿' + (FOLDBOOK_SHEET[s.proSize] ?? 0) + '/แผ่น' : ''), s.sides === 1, () => this.setState({ sides: 1 }), true),
         this.seg('หน้า-หลัง' + (s.proType === 'portfolio' ? ' ฿' + PRO_PORTFOLIO.two + '/แผ่น' : s.proType === 'namecard' ? ' ฿' + PRO_NAMECARD.two : s.proType === 'poster' ? ' ฿' + (POSTER_SHEET[s.proSize] ?? 0) * 2 + '/แผ่น' : s.proType === 'foldbook' ? ' ฿' + (FOLDBOOK_SHEET[s.proSize] ?? 0) * 2 + '/แผ่น' : ''), s.sides === 2, () => this.setState({ sides: 2 }), true)
@@ -2135,24 +2164,30 @@ class App extends React.Component {
       // ข้อความเขียวกำกับกระดาษ ใต้กริดประเภท ก่อนตัวเลือกขนาด — โปสเตอร์+เพลท ใช้อาร์ตมัน 250 แกรม (เพลทเพิ่ม 2026-09-11)
       proPaperNote: s.proType === 'poster' ? '🖼️ โปสเตอร์ (กระดาษอาร์ตมัน 250 แกรม)'
         : s.proType === 'plate' ? '🪧 เพลท (กระดาษอาร์ตมัน 250 แกรม)'
+        : s.proType === 'foldbook' ? '📖 พับครึ่ง (กระดาษอาร์ตมัน 250 แกรม)'
+        : s.proType === 'portfolio' ? '📁 Portfolio เข้าเล่มเย็บมุงหลังคา'
+        : s.proType === 'namecard' ? '💳 ขนาดนามบัตร ไซส์มาตรฐาน 5.5*8.8 ซม.'
         : s.proType === 'blueprint' ? '📐 กระดาษขนาด 80 แกรม' : '',
       proLamHead: s.proType === 'foldbook' ? 'การเคลือบ (ฟิล์มลามิเนต)' : 'การเคลือบ', // พับครึ่งระบุชนิดฟิล์มที่หัวข้อ (เจ้าของสั่ง 2026-09-11)
-      proLamOpts: (s.proType === 'plate' || s.proType === 'poster' || s.proType === 'foldbook') ? [
+      // เคลือบมีเฉพาะขนาดเล็ก A4/A3 (โปสเตอร์+เพลท — เจ้าของสั่ง 2026-09-13) ขนาดใหญ่กว่านั้นไม่มีบริการเคลือบ · พับครึ่งมีทุกขนาด
+      proLamOpts: ((s.proType === 'plate' || s.proType === 'poster') ? ['A4', 'A3'].includes(s.proSize) : s.proType === 'foldbook') ? [
         this.seg('ไม่เคลือบ', s.proLam === 'none', () => this.setState({ proLam: 'none', proFilm: 'lam' }), true),
         this.seg('เคลือบหน้าเดียว +฿' + PRO_LAM_ONE, s.proLam === 'one', () => this.setState({ proLam: 'one', proFilm: 'lam' }), true), // ฟิล์มแข็งเคลือบทั้งแผ่นเท่านั้น — ออกจากหน้า-หลังต้องรีเซ็ตกลับลามิเนต
         this.seg('เคลือบหน้า-หลัง +฿' + PRO_LAM_TWO, s.proLam === 'two', () => this.setState({ proLam: 'two' }), true)
       ] : [],
-      // ตัวเลือกเคลือบของโปสเตอร์ (2026-09-11): โผล่ต่อท้ายเมื่อลูกค้ากดเคลือบ — เลือกชนิดฟิล์ม ราคาเท่าค่าเคลือบเดิม (+5/+10 ไม่บวกซ้ำ)
-      // ฟิล์มแข็งต้องเคลือบทั้งแผ่น จึงมีให้เลือกเฉพาะตอนเคลือบหน้า-หลัง
-      proFilmOpts: (s.proType === 'poster' && s.proLam !== 'none') ? (s.proLam === 'one' ? [
+      // ตัวเลือกเคลือบ (โปสเตอร์+เพลท 2026-09-13): โผล่ต่อท้ายเมื่อลูกค้ากดเคลือบ — เลือกชนิดฟิล์ม ราคาเท่าค่าเคลือบเดิม (+5/+10 ไม่บวกซ้ำ)
+      // โปสเตอร์: ฟิล์มแข็งมีเฉพาะเคลือบหน้า-หลัง (ต้องเคลือบทั้งแผ่น) · เพลท: มีแค่ฟิล์มลามิเนตอย่างเดียว
+      proFilmOpts: ((s.proType === 'poster' || s.proType === 'plate') && s.proLam !== 'none' && ['A4', 'A3'].includes(s.proSize)) ? (s.proLam === 'one' ? [
         this.seg('เคลือบฟิล์มลามิเนตด้านหน้า +฿' + PRO_LAM_ONE, true, () => this.setState({ proFilm: 'lam' }), true)
-      ] : [
+      ] : s.proType === 'poster' ? [
         this.seg('เคลือบฟิล์มลามิเนตหน้า-หลัง +฿' + PRO_LAM_TWO, s.proFilm !== 'hard', () => this.setState({ proFilm: 'lam' }), true),
         this.seg('เคลือบฟิล์มแข็ง +฿' + PRO_LAM_TWO, s.proFilm === 'hard', () => this.setState({ proFilm: 'hard' }), true)
+      ] : [
+        this.seg('เคลือบฟิล์มลามิเนตหน้า-หลัง +฿' + PRO_LAM_TWO, true, () => this.setState({ proFilm: 'lam' }), true)
       ]) : [],
-      proHint: s.proType === 'foldbook' ? '📖 เข้าเล่มทุกแบบ +฿' + PRO_FOLDBOOK_BIND + '/ชุด · หน้า-หลังราคา ×2'
+      proHint: s.proType === 'foldbook' ? '📖 เข้าเล่มทุกแบบ +฿' + PRO_FOLDBOOK_BIND + '/เล่ม · พิมพ์หน้า-หลังทั้งเล่ม'
         : s.proType === 'plate' ? '🪧 เพลทรวมติดบอร์ดแล้ว · พิมพ์ด้านหน้าอย่างเดียว'
-        : s.proType === 'postcard' ? '💌 1 แผ่น A3 = 9 ใบ · ฿' + PRO_POSTCARD_SHEET + '/แผ่น · ผลิตไม่เกิน 1 ชม.'
+        : s.proType === 'postcard' ? <React.Fragment>ขนาด 4*6 ซม. (กว้าง * ยาว)<span style={{ display: 'block' }}>💌 1 แผ่น A3 = 9 ใบ · ฿{PRO_POSTCARD_SHEET}/แผ่น</span></React.Fragment>
         : s.proType === 'sticker' ? '🏷️ ส่ง 1 ไฟล์ต่อ 1 ลาย (รูปเดียว) · ระบบจัดวางลงแผ่น A3 และคิดราคาให้อัตโนมัติครับ'
         : s.proType === 'namecard' ? '💳 ราคาต่อ 100 ใบ (A3 4 แผ่น)'
         : s.proType === 'standee' ? '🧍 ขนาดกว้าง 60 × สูง 120 ซม.'
@@ -2224,7 +2259,7 @@ class App extends React.Component {
       copyDec: () => this.setState(st => ({ copies: Math.max(1, st.copies - 1) })),
       rateHint: s.tier === 'pro'
         ? (s.proType === 'foldbook'
-            ? '✨ ' + this.proLabel() + ' ฿' + c.rate + '/แผ่น' + (c.pages > 0 ? ' × ' + (c.pages * s.copies) + ' แผ่น + เข้าเล่ม ฿' + PRO_FOLDBOOK_BIND + ' × ' + s.copies + ' ชุด = ฿' + c.printCost : ' + เข้าเล่ม ฿' + PRO_FOLDBOOK_BIND + '/ชุด — อัปโหลดไฟล์แล้วคำนวณให้ทันที')
+            ? '✨ ' + this.proLabel() + ' หน้าละ ฿' + c.rate + (c.pages > 0 ? ' × ' + c.pages + ' หน้า × ' + s.copies + ' เล่ม + เข้าเล่ม ฿' + PRO_FOLDBOOK_BIND + '/เล่ม = ฿' + c.printCost : ' + เข้าเล่ม ฿' + PRO_FOLDBOOK_BIND + '/เล่ม — อัปโหลดไฟล์แล้วคำนวณให้ทันที')
             : s.proType === 'namecard' ? '✨ ' + this.proLabel() + ' = ฿' + c.printCost
             : s.proType === 'sticker' ? (() => { const si = this.stickerInfo(); if (!si.ready)
                   return '✨ สติ๊กเกอร์คิดราคาตามแผ่น A3 ที่ใช้จริง — เลือกเนื้อ + กรอกขนาดและจำนวนชิ้นครบทุกลาย แล้วระบบคำนวณให้ทันที';
@@ -2314,6 +2349,15 @@ class App extends React.Component {
           if (bad >= 0) return this.showToast('🏷️ กรอกขนาด (กว้าง×ยาว ซม.) และจำนวนชิ้นของ "ไฟล์ที่ ' + (bad + 1) + '" ให้ครบก่อนนะครับ');
           const over = si.list.findIndex(x => x.over);
           if (over >= 0) return this.showToast('🏷️ ไฟล์ที่ ' + (over + 1) + ' ขนาดใหญ่เกินแผ่น A3 ครับ (พิมพ์ได้ไม่เกิน ' + (STK_W - STK_MARGIN * 2) + '×' + (STK_H - STK_MARGIN * 2) + ' ซม.) — ลดขนาดลงหรือทักไลน์ร้านได้เลย');
+        }
+        // พับครึ่งโฉมใหม่ (2026-09-13): ขั้นต่ำต่อเล่ม — เล่ม A5 ≥8 หน้า + สั่ง ≥2 เล่ม · เล่ม A4 ≥4 หน้า
+        if (s.tier === 'pro' && s.proType === 'foldbook') {
+          const bk = FOLDBOOK_BOOK[s.proSize] || {};
+          const fbPages = s.files.reduce((a, f) => a + (f.pages || 1), 0);
+          if ((bk.minPages || 1) > 1 && fbPages < bk.minPages)
+            return this.showToast('📖 เล่ม ' + bk.book + ' รับผลิตขั้นต่ำ ' + bk.minPages + ' หน้าขึ้นไปครับ (ตอนนี้ ' + fbPages + ' หน้า) 🙏');
+          if ((bk.minCopies || 1) > 1 && s.copies < bk.minCopies)
+            return this.showToast('📖 เล่ม ' + bk.book + ' รับผลิตขั้นต่ำ ' + bk.minCopies + ' เล่มขึ้นไปครับ — เพิ่มจำนวนเล่มที่ช่อง "จำนวนชุด (สำเนา)" นะครับ 🙏');
         }
         this.setState({ screen: 'delivery', vehicle: this.forceCar() ? 'car' : s.vehicle, vehSel: this.forceCar() ? true : s.vehSel }); // งานแข็ง/ฝนตกบังคับรถยนต์ = ข้ามขั้นเลือกพาหนะให้เลย
       },
@@ -4340,7 +4384,26 @@ class App extends React.Component {
   }
 }
 
-ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+// ── ตัวดักแอปพัง (2026-09-13 เจ้าของแจ้งเว็บรวน/จอค้าง): เดิมถ้า render พัง (เช่น ข้อมูลออเดอร์ในเครื่องเสียหาย) จะเหลือจอขาวค้างถาวร ──
+// เปลี่ยนเป็นหน้ากู้คืน: ปุ่มโหลดใหม่ + ปุ่มล้างข้อมูลชั่วคราว (ล้างเฉพาะออเดอร์/ประวัติที่ค้าง — บัญชีผู้ใช้ mp_user ไม่ถูกแตะ)
+class MpBoot extends React.Component {
+  constructor(p){ super(p); this.state = { crashed: false }; }
+  static getDerivedStateFromError(){ return { crashed: true }; }
+  componentDidCatch(err, info){ try { console.error('mp crash:', err, info); } catch (e) {} }
+  render(){
+    if (!this.state.crashed) return this.props.children;
+    return (
+      <div style={{ maxWidth: '340px', margin: '80px auto', padding: '0 20px', textAlign: 'center', fontFamily: 'inherit' }}>
+        <div style={{ fontSize: '40px' }}>🛠️</div>
+        <div style={{ marginTop: '10px', fontSize: '16px', fontWeight: 800 }}>ขออภัยครับ หน้าเว็บมีปัญหาชั่วคราว</div>
+        <div style={{ marginTop: '6px', fontSize: '12.5px', color: '#8a8a84', lineHeight: 1.6 }}>กด "โหลดใหม่" ก่อน ถ้ายังไม่หายให้กด "ล้างข้อมูลชั่วคราว" (บัญชีและออเดอร์ที่สั่งไปแล้วไม่หายครับ — ติดตามออเดอร์ได้จากรหัสในแชท/LINE)</div>
+        <button onClick={() => location.reload()} style={{ marginTop: '16px', width: '100%', height: '46px', border: 'none', borderRadius: '12px', background: '#00b368', color: '#fff', fontSize: '14px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>🔄 โหลดใหม่</button>
+        <button onClick={() => { try { ['mp_order', 'mp_orders', 'mp_history', 'mp_review_last'].forEach(k => localStorage.removeItem(k)); } catch (e) {} location.reload(); }} style={{ marginTop: '9px', width: '100%', height: '42px', border: '1px solid #ddd', borderRadius: '12px', background: '#fff', color: '#333', fontSize: '13px', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>🧹 ล้างข้อมูลชั่วคราวแล้วโหลดใหม่</button>
+      </div>
+    );
+  }
+}
+ReactDOM.createRoot(document.getElementById('root')).render(<MpBoot><App/></MpBoot>);
 </script>
 </body>
 </html>
