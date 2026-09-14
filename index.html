@@ -425,6 +425,7 @@ class App extends React.Component {
       rcOn: false, rcName: (rc0 && rc0.name) || '', rcAddr: (rc0 && rc0.addr) || '', rcTax: (rc0 && rc0.tax) || '', rcPhone: (rc0 && rc0.phone) || '', rcView: null, logoutArm: false, // ใบเสร็จรับเงิน + ยืนยันออกจากระบบ
       vehicle: 'bike', // พาหนะส่งที่ลูกค้าเลือกเอง: 'bike' มอเตอร์ไซค์ · 'car' รถยนต์ (ใช้ทั้ง Standard และ Pro)
       reviews: [], reviewsReady: false, revAll: false, revTab: '', revStars: 5, revText: '', trackStars: 5, trackText: '', // revTab: '' = อัตโนมัติ (มีรีวิวงานจริง = เปิดแท็บงานจริงก่อน)
+      revAsk: null, revAskStars: 5, revAskText: '', // ป๊อปอัพชวนรีวิวงานที่ส่งสำเร็จแล้วแต่ยังไม่ได้รีวิวเอง (2026-09-14)
       alertPrompt: false, alertAck: false,
       proType: 'poster', proSize: 'A4', proBind: 'ไสกาว', proQty: 100, proPickup: false, stdPickup: false, // stdPickup = งาน Standard รับหน้าร้าน MORE PRINT
       proBoard: '', proGram: 80, stkType: '', proFilm: 'lam', // เพลท: ประเภทบอร์ด (บังคับเลือก ไม่บวกราคา) · แบบแปลน: ความหนากระดาษ (แกรม) · สติ๊กเกอร์: เนื้อ pp/pvc (บังคับเลือก) · โปสเตอร์: ชนิดฟิล์มเคลือบ lam/hard
@@ -553,6 +554,7 @@ class App extends React.Component {
     } catch (e) {}
     if (this.db) setTimeout(() => this.refreshOrderList(), 1200);
     if (this.db) setTimeout(() => this.retryPendingOrder(), 2500); // มีออเดอร์ค้างส่งจากรอบก่อน (เน็ตสะดุดแล้วปิดเว็บ) — ส่งต่อให้ทันทีที่กลับมา
+    if (this.db) setTimeout(() => this.maybeAskReview(), 3500); // งานส่งสำเร็จแล้วยังไม่ได้รีวิว — เด้งป๊อปอัพชวนรีวิวบนหน้าแรก
     const t = new Date(Date.now() + 90 * 60000);
     this.setState({ time: String(t.getHours()).padStart(2, '0') + ':' + String(Math.floor(t.getMinutes() / 15) * 15).padStart(2, '0') });
     this.clockTimer = setInterval(() => { this.setState({ now: new Date() }); this.purgeCancelledLocal(); this.refreshOrderList(); }, 30000);
@@ -1895,6 +1897,38 @@ class App extends React.Component {
     this.loadChat();
   }
   // เก็บออเดอร์ที่จบแล้ว (ส่งสำเร็จ/ลูกค้ารับแล้ว) เข้าประวัติในเครื่อง — กันซ้ำด้วยรหัสออเดอร์
+  // ── ป๊อปอัพชวนรีวิว (เจ้าของสั่ง 2026-09-14): งานส่งสำเร็จแล้วแต่ลูกค้ายังไม่ได้กดรีวิวเอง — เด้งหน้าแรกตอนเปิดเว็บ + เปิดเองได้จากหน้าประวัติ ──
+  // mp_review_<id>: 'done' = ลูกค้ารีวิวเองแล้ว (ไม่เด้งอีก) · 'auto' = แค่ 5 ดาวอัตโนมัติ (ยังชวนได้) · mp_revask_<id> = เด้งไปแล้วกี่ครั้ง (เพดาน 3 ครั้ง กันน่ารำคาญ)
+  reviewAskCandidate(){
+    try {
+      const h = JSON.parse(localStorage.getItem('mp_history') || '[]');
+      return h.find(x => {
+        try { return x.id && localStorage.getItem('mp_review_' + x.id) !== 'done' && Number(localStorage.getItem('mp_revask_' + x.id) || 0) < 3; }
+        catch (e) { return false; }
+      }) || null;
+    } catch (e) { return null; }
+  }
+  maybeAskReview(){
+    if (!this.db || this.state.screen !== 'home' || this.state.revAsk) return;
+    const cand = this.reviewAskCandidate();
+    if (!cand) return;
+    try { localStorage.setItem('mp_revask_' + cand.id, String(Number(localStorage.getItem('mp_revask_' + cand.id) || 0) + 1)); } catch (e) {}
+    this.setState({ revAsk: cand, revAskStars: 5, revAskText: '' });
+  }
+  submitReviewAsk(){
+    const o = this.state.revAsk;
+    if (!o) return;
+    if (!this.db) { try { localStorage.setItem('mp_review_' + o.id, 'done'); } catch (e) {} this.setState({ revAsk: null }); return this.showToast('โหมดตัวอย่าง — รีวิวไม่ถูกบันทึกจริง'); }
+    this.db.from('reviews').insert({ order_id: o.id, name: (this.state.user || {}).fname || 'ลูกค้า', stars: this.state.revAskStars, comment: (this.state.revAskText || '').trim() || null, ptype: o.plabel || null, auto: false })
+      .then(({ error }) => {
+        if (error) return this.showToast('ส่งรีวิวไม่สำเร็จ ลองใหม่อีกครั้งครับ 🙏');
+        try { localStorage.setItem('mp_review_' + o.id, 'done'); } catch (e) {}
+        this.setState({ revAsk: null });
+        this.showToast('ขอบคุณสำหรับรีวิวครับ 💚');
+        this.loadReviews();
+      });
+  }
+
   addHistory(src){
     try {
       const o = src || this.state.order;
@@ -2913,6 +2947,14 @@ class App extends React.Component {
       revReady: s.reviewsReady,
       showTrackReview: !!s.order && step >= 4 && !cancelled, // เดิมมีเงื่อนไข reviewsReady — โหลดรีวิวหน้าแรกพลาดครั้งเดียวทำช่องให้ดาวหายทั้งเว็บ (เจ้าของแจ้ง 2026-09-14) เอาออก
       trackRevDone: (() => { try { return s.order && localStorage.getItem('mp_review_' + s.order.id) === 'done'; } catch (e) { return false; } })(),
+      // ป๊อปอัพชวนรีวิว + ปุ่มรีวิวในหน้าประวัติ (2026-09-14)
+      revAsk: s.revAsk, revAskStars: s.revAskStars, revAskText: s.revAskText,
+      setRevAskStars: (n) => () => this.setState({ revAskStars: n }),
+      setRevAskText: (e) => this.setState({ revAskText: e.target.value }),
+      revAskSend: () => this.submitReviewAsk(),
+      revAskClose: () => this.setState({ revAsk: null }),
+      histNeedsReview: (id) => { try { return localStorage.getItem('mp_review_' + id) !== 'done'; } catch (e) { return false; } },
+      histReview: (h) => this.setState({ revAsk: h, revAskStars: 5, revAskText: '' }), // เปิดเองจากประวัติ — ไม่นับเพดานเด้งอัตโนมัติ
       trackStars: s.trackStars, setTrackStars: (n) => () => this.setState({ trackStars: n }),
       trackText: s.trackText, setTrackText: (e) => this.setState({ trackText: e.target.value }),
       sendTrackReview: () => {
@@ -4280,6 +4322,8 @@ class App extends React.Component {
                       <div style={css("display:flex;justify-content:space-between")}><span style={css("color:var(--sub)")}>ยอดชำระ</span><b style={css("font-family:'IBM Plex Mono',monospace")}>฿{h.total}</b></div>
                       <div style={css("display:flex;justify-content:space-between")}><span style={css("color:var(--sub)")}>สำเร็จเมื่อ</span><span>{v.histWhen(h.doneAt)}</span></div>
                     </div>
+                    {/* ยังไม่ได้รีวิวงานนี้ — ปุ่มเปิดป๊อปอัพรีวิว (2026-09-14) */}
+                    {v.histNeedsReview(h.id) && <button onClick={() => v.histReview(h)} style={css("margin-top:11px;width:100%;height:42px;border:none;border-radius:12px;background:#f5a623;color:#fff;font-size:13px;font-weight:800;cursor:pointer;font-family:inherit")}>⭐ รีวิวงานนี้หน่อยครับ — ยังไม่ได้ให้คะแนน</button>}
                     {h.rc && <button onClick={() => v.openReceipt(h)} style={css("margin-top:11px;width:100%;height:42px;border:1.5px solid var(--acc);border-radius:12px;background:var(--accSoft);color:var(--acc);font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:7px")}>{fi('receipt', 14)} เปิดใบเสร็จรับเงิน{h.rc.no ? ' (เลขที่ ' + h.rc.no + ')' : ''}</button>}
                     <div onClick={() => v.openHistChat(h)} style={css("margin-top:11px;background:var(--acc);border-radius:12px;padding:11px 14px;display:flex;align-items:center;gap:10px;cursor:pointer")}>
                       <span style={css("display:flex;color:#fff")}>{fi('chat', 17)}</span>
@@ -4430,6 +4474,21 @@ class App extends React.Component {
         )}
 
         {/* ── Toast ── */}
+        {/* ── ป๊อปอัพชวนรีวิวงานที่ส่งสำเร็จ (2026-09-14): เด้งหน้าแรกอัตโนมัติ (สูงสุด 3 ครั้ง/ออเดอร์) หรือเปิดจากปุ่มในประวัติ ── */}
+        {v.revAsk && (
+          <div style={css("position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:1200;display:flex;align-items:center;justify-content:center;padding:22px")} onClick={v.revAskClose}>
+            <div style={css("width:100%;max-width:360px;background:var(--card);border-radius:18px;padding:20px 18px;box-shadow:0 10px 40px rgba(0,0,0,.3)")} onClick={(e) => e.stopPropagation()}>
+              <div style={css("font-size:16px;font-weight:800")}>⭐ รีวิวงานของคุณหน่อยครับ</div>
+              <div style={css("margin-top:6px;font-size:12.5px;color:var(--sub);line-height:1.6")}>งานส่งสำเร็จแล้ว: <b style={css("color:var(--ink)")}>{v.revAsk.plabel || 'งานปริ้น'}</b><span style={css("display:block;font-family:'IBM Plex Mono',monospace;font-size:11px")}>{v.revAsk.id}</span></div>
+              <div style={css("margin-top:10px;display:flex;gap:6px;justify-content:center")}>
+                {[1, 2, 3, 4, 5].map(n => <span key={n} onClick={v.setRevAskStars(n)} style={css("font-size:34px;line-height:1;cursor:pointer;color:" + (n <= v.revAskStars ? "#f5a623" : "var(--line)"))}>★</span>)}
+              </div>
+              <textarea value={v.revAskText} onChange={v.setRevAskText} placeholder="ชื่นชมหรือแนะนำให้ร้านปรับปรุง (ไม่บังคับ)" style={css("margin-top:10px;width:100%;box-sizing:border-box;min-height:60px;border:1px solid var(--line);border-radius:10px;background:var(--soft);color:var(--ink);padding:9px 11px;font-size:12.5px;outline:none;resize:vertical;font-family:inherit")}/>
+              <button onClick={v.revAskSend} style={css("margin-top:10px;width:100%;height:46px;border:none;border-radius:12px;background:var(--acc);color:#fff;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit")}>ส่งรีวิว 💚</button>
+              <div onClick={v.revAskClose} style={css("margin-top:8px;text-align:center;font-size:12px;color:var(--sub);font-weight:600;cursor:pointer;padding:6px")}>ไว้ทีหลัง</div>
+            </div>
+          </div>
+        )}
         {v.toast && (
           <div style={css("position:fixed;left:50%;bottom:96px;transform:translateX(-50%);background:#111;color:#fff;font-size:12.5px;padding:10px 18px;border-radius:18px;z-index:40;box-shadow:0 4px 14px rgba(0,0,0,.3);max-width:86vw;width:max-content;text-align:center;line-height:1.5")}>{v.toast}</div>
         )}
