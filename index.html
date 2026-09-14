@@ -870,8 +870,11 @@ class App extends React.Component {
       const cfg = window.MP_CONFIG || {};
       // fetch พร้อมเวลาหมดอายุ — เน็ตช้า/ตัวกลางล่มต้องไม่ค้างนาฬิกาทรายไม่จบ
       const tfetch = (u, ms) => { const c = new AbortController(); const t = setTimeout(() => c.abort(), ms); return fetch(u, { signal: c.signal }).finally(() => clearTimeout(t)); };
-      // เน็ตมือถือสะดุด/ตัวแกะลิงก์เพิ่งตื่น (cold start) อาจทำครั้งแรกพลาด — ลองซ้ำอัตโนมัติอีกรอบก่อนยอมแพ้ (แก้เคส "บางทีอ่านพิกัดไม่สำเร็จ")
-      for (let att = 0; att < 2 && !pt; att++) {
+      // เน็ตมือถือสะดุด/ตัวแกะลิงก์เพิ่งตื่น — ลองซ้ำอัตโนมัติยาว ๆ สูงสุด 6 รอบ (~45 วิ) ลูกค้าไม่ต้องก๊อปมาวางใหม่เอง
+      // (เจ้าของแจ้ง 2026-09-14: ลูกค้าต้องวางลิงก์ซ้ำหลายรอบกว่าจะติด — เดิมลองแค่ 2 รอบต่อการกด 1 ครั้ง)
+      const mySeq = (this._gmSeq = (this._gmSeq || 0) + 1); // วางลิงก์ใหม่/กดซ้ำ = ยกเลิกรอบเก่าทิ้ง กันผลตีกัน
+      for (let att = 0; att < 6 && !pt; att++) {
+        if (this._gmSeq !== mySeq || (this._pinSeq || 0) !== pinAtStart) break; // ลูกค้าเริ่มรอบใหม่/ย้ายหมุดเอง — หยุดรอบนี้
         try {
           const r = await tfetch(cfg.SUPABASE_URL + '/functions/v1/smart-handler?u=' + encodeURIComponent(url), att === 0 ? 10000 : 8000);
           if (r.ok) {
@@ -880,7 +883,12 @@ class App extends React.Component {
           }
           if (finalUrl !== url) break; // ตัวแกะตอบแล้ว (แม้ลิงก์ไม่มีพิกัด เช่น ลิงก์แชร์ร้าน) — ไม่ต้องลองซ้ำ
         } catch (e) {}
+        if (!pt && finalUrl === url) {
+          if (att === 1) this.showToast('เน็ตสะดุดนิดหน่อย ⏳ ระบบกำลังลองอ่านลิงก์ต่ออัตโนมัติ ไม่ต้องวางใหม่นะครับ');
+          await new Promise(rs => setTimeout(rs, 1500)); // เว้นจังหวะให้เน็ต/ตัวแกะฟื้น
+        }
       }
+      if (this._gmSeq !== mySeq) return; // มีรอบใหม่มาแทนแล้ว — จบเงียบ ๆ ให้รอบใหม่จัดการจอเอง
       if (!pt && finalUrl === url) {
         // ตัวกลางสำรอง (เฉพาะกรณีตัวแกะลิงก์หลักไม่ตอบ)
         try {
@@ -1842,10 +1850,11 @@ class App extends React.Component {
     if (!pt) {
       const cfg = window.MP_CONFIG || {};
       const tf = (u, ms) => { const c = new AbortController(); const t = setTimeout(() => c.abort(), ms); return fetch(u, { signal: c.signal }).finally(() => clearTimeout(t)); };
-      // ลองซ้ำอีกรอบถ้าเน็ตสะดุด/ตัวแกะลิงก์เพิ่งตื่น — แบบเดียวกับหน้าจัดส่ง
-      for (let att = 0; att < 2 && !pt; att++) {
+      // ลองซ้ำอัตโนมัติสูงสุด 4 รอบ (เน็ตสะดุด/ตัวแกะลิงก์เพิ่งตื่น) — ลูกค้าไม่ต้องวางลิงก์ใหม่เอง (2026-09-14)
+      for (let att = 0; att < 4 && !pt; att++) {
         try { const r = await tf(cfg.SUPABASE_URL + '/functions/v1/smart-handler?u=' + encodeURIComponent(url), att === 0 ? 10000 : 8000);
           if (r.ok) { const j = await r.json(); if (j.final) { pt = this.extractLatLng(j.final); break; } } } catch (e) {}
+        if (!pt) await new Promise(rs => setTimeout(rs, 1200));
       }
     }
     return pt;
@@ -2452,6 +2461,8 @@ class App extends React.Component {
             return this.showToast('📖 เล่ม ' + bk.book + ' รับผลิตขั้นต่ำ ' + bk.minCopies + ' เล่มขึ้นไปครับ — เพิ่มจำนวนเล่มที่ช่อง "จำนวนชุด (สำเนา)" นะครับ 🙏');
         }
         this.setState({ screen: 'delivery', vehicle: this.forceCar() ? 'car' : s.vehicle, vehSel: this.forceCar() ? true : s.vehSel }); // งานแข็ง/ฝนตกบังคับรถยนต์ = ข้ามขั้นเลือกพาหนะให้เลย
+        // อุ่นเครื่องตัวแกะลิงก์แผนที่ล่วงหน้า — เครื่องเย็น (นานไม่มีคนใช้) ตอบครั้งแรกช้า/พลาด ทำให้ลูกค้าวางลิงก์แล้ว "อ่านพิกัดไม่สำเร็จ" (2026-09-14)
+        try { const cf = window.MP_CONFIG || {}; if (cf.SUPABASE_URL) fetch(cf.SUPABASE_URL + '/functions/v1/smart-handler?warm=1').catch(() => {}); } catch (e) {}
       },
       gmapLink: s.gmapLink, gmapBusy: s.gmapBusy,
       gmapWrongApp: /share\.google/i.test(s.gmapLink || ''), // ลูกค้าวางลิงก์แชร์จากแอป Google (ไม่ใช่ Google Maps) — เตือนทันทีก่อนกดตกลง
