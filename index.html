@@ -537,7 +537,7 @@ class App extends React.Component {
       if (od && od.id) {
         this.setState({
           order: { id: od.id, total: od.total || 0, times: od.times || ['', '', '', ''], plabel: od.plabel || '', eta: od.eta || null, pickup: !!od.pickup, ts: od.ts || null, express: !!od.express, adjs: od.adjs || [],
-            addr: od.addr || '', phone: od.phone || '', veh: od.veh || '', copies: od.copies || 0, pages: od.pages || 0, fails: od.fails || [], dist: od.dist ?? null, rc: od.rc || null, cp: od.cp || null },
+            addr: od.addr || '', phone: od.phone || '', veh: od.veh || '', copies: od.copies || 0, pages: od.pages || 0, fails: od.fails || [], dist: od.dist ?? null, rc: od.rc || null, cp: od.cp || null, unsaved: !!od.unsaved },
           trackStep: od.step == null ? 1 : od.step, // step 0 (ยกเลิก) เป็น falsy — ห้ามใช้ || 1
           cancelReason: od.cancelReason || ''
         });
@@ -552,6 +552,7 @@ class App extends React.Component {
       }
     } catch (e) {}
     if (this.db) setTimeout(() => this.refreshOrderList(), 1200);
+    if (this.db) setTimeout(() => this.retryPendingOrder(), 2500); // มีออเดอร์ค้างส่งจากรอบก่อน (เน็ตสะดุดแล้วปิดเว็บ) — ส่งต่อให้ทันทีที่กลับมา
     const t = new Date(Date.now() + 90 * 60000);
     this.setState({ time: String(t.getHours()).padStart(2, '0') + ':' + String(Math.floor(t.getMinutes() / 15) * 15).padStart(2, '0') });
     this.clockTimer = setInterval(() => { this.setState({ now: new Date() }); this.purgeCancelledLocal(); this.refreshOrderList(); }, 30000);
@@ -1501,30 +1502,80 @@ class App extends React.Component {
         coupon: c.coupon || null, discount: c.discount || 0,
         note: (s.note || '').trim().slice(0, 300) || null // หมายเหตุ/รายละเอียดงานจากลูกค้า
       };
-      // คอลัมน์เสริมที่ฐานข้อมูลอาจยังไม่มี — เจอ error คอลัมน์ไหนก็ตัดกลุ่มนั้นออกแล้วลองใหม่ (ตัดสะสมได้หลายกลุ่ม ออเดอร์ต้องไม่หาย)
-      const optionalCols = [['orient', 'nup'], ['coupon', 'discount'], ['line_uid'], ['pickup'], ['ptype'], ['note']];
-      const body = { ...payload };
-      let { error } = await this.db.from('orders').insert(body);
-      for (let pass = 0; pass < 2 && error; pass++) { // สองรอบ — ฐานข้อมูลรายงานคอลัมน์หายทีละตัว ลำดับไม่แน่นอน
-        for (const group of optionalCols) {
-          if (error && group.some(k => (error.message || '').includes(k)) && group.some(k => k in body)) {
-            group.forEach(k => { delete body[k]; });
-            ({ error } = await this.db.from('orders').insert(body));
-          }
-        }
-      }
+      // ── ตาข่ายกันออเดอร์หลุด (2026-09-14 — เคสจริง: เน็ตลูกค้าสะดุดตอนกดยืนยัน แถวออเดอร์ไม่ลงฐานข้อมูล หลังบ้าน/LINE ไม่เห็นเลย) ──
+      // จด payload ลงเครื่องก่อนยิง insert เสมอ — insert พลาดเมื่อไหร่ ระบบส่งซ้ำอัตโนมัติได้จนกว่าจะถึงร้าน (ปิดเว็บแล้วเปิดใหม่ก็ยังส่งต่อ)
+      const pend = { id, payload, coupon: c.coupon || null, cuid: (() => { try { return this.couponUid(); } catch (e) { return null; } })(), t: Date.now() };
+      try { localStorage.setItem('mp_pending', JSON.stringify(pend)); } catch (e) {}
+      this._pending = pend;
+      const error = await this.insertOrderRow(payload);
       if (error) throw error;
-      // แจ้งเตือน LINE ทีมงาน (ยิงทิ้งไว้ — ถ้าระบบแจ้งเตือนยังไม่ตั้งค่า ออเดอร์ไม่กระทบ)
-      try { fetch((window.MP_CONFIG || {}).SUPABASE_URL + '/functions/v1/notify-order', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id }) }); } catch (e) {}
-      if (c.coupon) { try {
-        this.db.rpc('use_coupon', { code_in: c.coupon, uid_in: this.couponUid() }).then(r => {
-          if (r && r.error && /PGRST202|not find the function|does not exist/i.test(String(r.error.message || '') + String(r.error.code || ''))) this.db.rpc('use_coupon', { code_in: c.coupon }).then(() => {}); // ต้อง .then ไม่งั้น builder ไม่ยิงคำขอจริง
-        });
-      } catch (e) {} }
+      this.orderSaved(pend); // แจ้งเตือน LINE + เผาสิทธิ์โค้ด + ล้าง pending
     } catch (e) {
       console.error('saveOrder:', e);
-      this.showToast('⚠️ บันทึกออนไลน์ไม่สำเร็จ — ติดต่อร้านทาง LINE');
+      this.markUnsaved(id, true); // ป้ายแดงถาวรบนหน้าติดตาม + วนส่งซ้ำอัตโนมัติทุกรอบเช็คสถานะ
+      this.showToast('⚠️ ออเดอร์ยังส่งไม่ถึงร้าน (เน็ตสะดุด) — ระบบกำลังส่งซ้ำอัตโนมัติ อย่าเพิ่งปิดหน้านี้นะครับ');
     }
+  }
+
+  // insert แถวออเดอร์พร้อมตัดคอลัมน์เสริมที่ฐานข้อมูลอาจยังไม่มี (ตัดสะสมได้หลายกลุ่ม ออเดอร์ต้องไม่หาย) — คืน error หรือ null
+  async insertOrderRow(payload){
+    const optionalCols = [['orient', 'nup'], ['coupon', 'discount'], ['line_uid'], ['pickup'], ['ptype'], ['note']];
+    const body = { ...payload };
+    let { error } = await this.db.from('orders').insert(body);
+    for (let pass = 0; pass < 2 && error; pass++) { // สองรอบ — ฐานข้อมูลรายงานคอลัมน์หายทีละตัว ลำดับไม่แน่นอน
+      for (const group of optionalCols) {
+        if (error && group.some(k => (error.message || '').includes(k)) && group.some(k => k in body)) {
+          group.forEach(k => { delete body[k]; });
+          ({ error } = await this.db.from('orders').insert(body));
+        }
+      }
+    }
+    // แถวมีอยู่แล้ว (insert รอบก่อนสำเร็จแต่คำตอบหายกลางทาง) = ถือว่าสำเร็จ
+    if (error && /duplicate|already exists|unique/i.test(String(error.message || ''))) return null;
+    return error || null;
+  }
+
+  // หลังแถวออเดอร์ลงฐานข้อมูลสำเร็จ: แจ้งเตือน LINE ทีมงาน + เผาสิทธิ์โค้ดส่วนลด + ล้างรายการค้างส่ง
+  orderSaved(pend){
+    try { fetch((window.MP_CONFIG || {}).SUPABASE_URL + '/functions/v1/notify-order', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: pend.id }) }); } catch (e) {}
+    if (pend.coupon) { try {
+      this.db.rpc('use_coupon', { code_in: pend.coupon, uid_in: pend.cuid }).then(r => {
+        if (r && r.error && /PGRST202|not find the function|does not exist/i.test(String(r.error.message || '') + String(r.error.code || ''))) this.db.rpc('use_coupon', { code_in: pend.coupon }).then(() => {}); // ต้อง .then ไม่งั้น builder ไม่ยิงคำขอจริง
+      });
+    } catch (e) {} }
+    this.clearPending(pend.id);
+    this.markUnsaved(pend.id, false);
+  }
+
+  clearPending(id){
+    if (this._pending && this._pending.id === id) this._pending = null;
+    try { const p = JSON.parse(localStorage.getItem('mp_pending') || 'null'); if (p && p.id === id) localStorage.removeItem('mp_pending'); } catch (e) {}
+  }
+
+  // ติด/ปลดธง "ออเดอร์ยังส่งไม่ถึงร้าน" ทั้ง state + สำเนาในเครื่อง — หน้าติดตามใช้โชว์ป้ายแดง/พาดหัวตามจริง
+  markUnsaved(id, flag){
+    this.setState(st => st.order && st.order.id === id ? { order: { ...st.order, unsaved: !!flag } } : null);
+    try {
+      const od = JSON.parse(localStorage.getItem('mp_order') || 'null');
+      if (od && od.id === id) { od.unsaved = !!flag; localStorage.setItem('mp_order', JSON.stringify(od)); this.upsertOrderList(od); }
+    } catch (e) {}
+  }
+
+  // ส่งออเดอร์ค้างซ้ำ (เรียกจาก: รอบเช็คสถานะทุก 8 วิ · ปุ่มบนป้ายแดง · ตอนเปิดเว็บใหม่) — คืน true เมื่อถึงร้านแล้ว
+  async retryPendingOrder(){
+    let pend = this._pending;
+    if (!pend) { try { pend = JSON.parse(localStorage.getItem('mp_pending') || 'null'); } catch (e) {} }
+    if (!pend || !pend.payload || !this.db) return false;
+    if (this._retryBusy) return false;
+    this._retryBusy = true;
+    try {
+      const error = await this.insertOrderRow(pend.payload);
+      if (error) { console.error('retry order:', error); return false; }
+      this.orderSaved(pend);
+      this.showToast('✅ ออเดอร์ส่งถึงร้านเรียบร้อยแล้วครับ');
+      return true;
+    } catch (e) { console.error('retry order:', e); return false; }
+    finally { this._retryBusy = false; }
   }
 
   // เช็คสถานะจากฐานข้อมูลผ่านช่องมองเฉพาะใบ (ต้องรู้รหัสออเดอร์เป๊ะ ๆ เท่านั้น)
@@ -1543,6 +1594,9 @@ class App extends React.Component {
         const od = (() => { try { return JSON.parse(localStorage.getItem('mp_order') || 'null'); } catch (e) { return null; } })();
         const ageMin = od && od.ts ? (Date.now() - od.ts) / 60000 : 999;
         if (this._savingOrder === id) return; // ออเดอร์กำลังอัปไฟล์/บันทึกอยู่ ยังไม่ลงฐานข้อมูล — ไม่ใช่ถูกร้านลบ
+        // ออเดอร์ค้างส่ง (insert พลาดตอนเน็ตสะดุด) — ห้ามตีความว่า "ร้านยกเลิก" เด็ดขาด ให้ส่งซ้ำแทน (2026-09-14 เคสจริงลูกค้าเห็นป้ายยกเลิกทั้งที่ร้านไม่เคยเห็นออเดอร์)
+        const pd = this._pending || (() => { try { return JSON.parse(localStorage.getItem('mp_pending') || 'null'); } catch (e) { return null; } })();
+        if (pd && pd.id === id) { this.retryPendingOrder().then(ok => { if (ok) this.fetchOrderStatus(id); }); return; }
         if (ageMin > 5 && this.state.trackStep !== 0 && this.state.trackStep < 4) { // ใบที่ส่งสำเร็จแล้วโดนร้านลบทีหลัง = งานจบปกติ ไม่ใช่ถูกยกเลิก
           if (this.state.order && this.state.order.id === id) clearInterval(this.trackTimer);
           const rsn = 'ออเดอร์นี้ถูกยกเลิกและลบออกจากระบบโดยร้านแล้ว — ถ้าโอนเงินไปแล้ว ทักแชทร้านทาง LINE เพื่อขอคืนได้เลยครับ';
@@ -1710,7 +1764,7 @@ class App extends React.Component {
     try { localStorage.setItem('mp_order', JSON.stringify(o)); } catch (e) {}
     clearInterval(this.trackTimer);
     this.setState({
-      order: { id: o.id, total: o.total || 0, times: o.times || ['', '', '', ''], plabel: o.plabel || '', eta: o.eta || null, pickup: !!o.pickup, ts: o.ts || null, express: !!o.express, adjs: o.adjs || [], addr: o.addr || '', phone: o.phone || '', veh: o.veh || '', copies: o.copies || 0, pages: o.pages || 0, fails: o.fails || [], dist: o.dist ?? null, rc: o.rc || null, cp: o.cp || null },
+      order: { id: o.id, total: o.total || 0, times: o.times || ['', '', '', ''], plabel: o.plabel || '', eta: o.eta || null, pickup: !!o.pickup, ts: o.ts || null, express: !!o.express, adjs: o.adjs || [], addr: o.addr || '', phone: o.phone || '', veh: o.veh || '', copies: o.copies || 0, pages: o.pages || 0, fails: o.fails || [], dist: o.dist ?? null, rc: o.rc || null, cp: o.cp || null, unsaved: !!o.unsaved },
       trackStep: o.step == null ? 1 : o.step, cancelReason: o.cancelReason || '', chat: [], trackOpen: true, trackMin: false, selfCancelArm: false // ระวัง: step 0 (ยกเลิก) เป็น falsy ห้ามใช้ || 1 · trackOpen true = ใบที่เพิ่งแตะเลือกกางให้เห็นทันทีเสมอ
     }, () => {
       if (this.db && o.step !== 0 && (o.step || 1) < 4) this.startPolling(o.id);
@@ -2528,6 +2582,7 @@ class App extends React.Component {
           this.saveOrder(id, c, t0);
           this.startPolling(id);
         }
+        try { // เกราะกันหน้าค้าง (2026-09-14 เคสจริง): ถ้าโค้ดจัดจอหลังจากนี้พังกลางทาง ออเดอร์ถึงร้านแล้วแต่ลูกค้าค้างหน้าจ่าย ไม่รู้ว่าสำเร็จ — catch ท้ายฟังก์ชันพาเข้าหน้าติดตามเสมอ
         // จำป้ายประเภทงานไว้กับออเดอร์ — ใช้แสดงในรีวิว ("งานเอกสารขาวดำ" ฯลฯ)
         const plabel = s.tier === 'pro' ? 'PRO ' + this.proLabel() : ((PRINT_TYPES.find(t => t.k === s.ptype) || {}).label || '');
         // เวลาคาดว่าจะได้รับ: เวลาฐานตามประเภทงาน (คิวจริงจะบวกเพิ่มตามหลังเมื่อระบบตอบ)
@@ -2604,6 +2659,17 @@ class App extends React.Component {
           }, 7000);
         }
         this.showToast('รับออเดอร์แล้ว! 🎉');
+        } catch (e) {
+          // อะไรพังก็ตาม ลูกค้าต้องเห็นหน้าติดตามพร้อมรหัสออเดอร์เสมอ (ออเดอร์กำลังถูกบันทึก/ส่งซ้ำโดย saveOrder อยู่แล้ว)
+          console.error('confirmPay ui:', e);
+          try {
+            const fb = { id, total: c.grandTotal, times: [t0, '', '', ''], step: 1, plabel: '', eta: null, pickup: false, ts: Date.now(), express: false, addr: '', phone: s.phone || '', veh: '', copies: 1, pages: 0, dist: null, rc: null, cp: null };
+            localStorage.setItem('mp_order', JSON.stringify(fb));
+            this.upsertOrderList(fb);
+          } catch (e2) {}
+          this.setState({ order: { id, total: c.grandTotal, times: [t0, '', '', ''], plabel: '', eta: null, pickup: false, ts: Date.now(), express: false, addr: '', phone: s.phone || '', veh: '', copies: 1, pages: 0, dist: null, rc: null, cp: null }, trackStep: 1, cancelReason: '', screen: 'track', files: [], slip: null });
+          this.showToast('รับออเดอร์แล้ว! 🎉 (รหัส ' + id + ')');
+        }
       },
       hasOrder: !!s.order, noOrder: !s.order,
       // การ์ดติดตามหุบ/กางได้ทุกสถานะ — ออเดอร์ที่จบแล้ว (ส่งสำเร็จ/ยกเลิก) เริ่มแบบหุบ ออเดอร์ที่ยังทำอยู่เริ่มแบบกาง
@@ -2613,6 +2679,12 @@ class App extends React.Component {
       trackToggle: () => (step >= 4 || cancelled) ? this.setState({ trackOpen: !s.trackOpen }) : this.setState({ trackMin: !s.trackMin }),
       // ไฟล์ที่อัปพลาดตอนสั่ง — โชว์ปุ่มส่งใหม่เฉพาะช่วงร้านยังไม่ออกส่ง (สถานะ 1-2)
       trackFails: (!cancelled && step >= 1 && step <= 2 && s.order && s.order.fails && s.order.fails.length) ? s.order.fails : [],
+      // ออเดอร์ยังส่งไม่ถึงร้าน (insert พลาดตอนเน็ตสะดุด — 2026-09-14): ป้ายแดง + ปุ่มส่งซ้ำเดี๋ยวนี้ (ระบบก็วนส่งซ้ำเองทุก 8 วิอยู่แล้ว)
+      trackUnsaved: !cancelled && !!(s.order && s.order.unsaved),
+      retryNow: () => {
+        this.showToast('⏳ กำลังส่งออเดอร์ไปที่ร้านอีกครั้ง...');
+        this.retryPendingOrder().then(ok => { if (!ok) this.showToast('ยังส่งไม่สำเร็จ 🙏 เช็คสัญญาณเน็ตแล้วกดอีกครั้ง หรือทักไลน์ร้านพร้อมสลิปได้เลยครับ'); });
+      },
       reupBusy: s.reupBusy,
       reupPick: (i) => { this.setState({ reupIdx: i }); this.reupRef.current && this.reupRef.current.click(); },
       onReupFile: (e) => { const f = (e.target.files || [])[0]; e.target.value = ''; if (f) this.reupFile(this.state.reupIdx, f); },
@@ -2648,7 +2720,7 @@ class App extends React.Component {
         if (pk && step === 3) return '📦 สินค้าเสร็จแล้ว — มารับที่ร้านอุดมสุขปริ้นติ้ง (กังสดาล) ได้เลยครับ';
         // งานด่วน (Express — Standard): order.eta เป็นเวลาผลิตเร่งแล้ว (45 นาที/150 หน้า ไม่บวกคิว) + ช่วงเดินทางตามพาหนะ — คำนวณสดทุกครั้งที่นาฬิกา s.now เดิน (ทุก 30 วิ)
         if (s.order && s.order.express && !pk) {
-          const bx = step === 3 ? '🛵 ไรเดอร์กำลังไปหาคุณ' : step === 2 ? '🖨️ กำลังปริ้นเอกสารของคุณ' : '✅ ร้านรับออเดอร์แล้ว';
+          const bx = (s.order && s.order.unsaved) ? '⏳ กำลังส่งออเดอร์ไปที่ร้าน…' : step === 3 ? '🛵 ไรเดอร์กำลังไปหาคุณ' : step === 2 ? '🖨️ กำลังปริ้นเอกสารของคุณ' : '✅ ร้านรับออเดอร์แล้ว';
           const ex = s.order.eta;
           // ป้ายงานด่วนใช้ไอคอนรถส่งของ (FI.express) — etaLabel เลยคืนเป็น JSX เฉพาะ branch นี้ (branch อื่นยังเป็น string ใช้ร่วมกันได้)
           const exIco = <span style={{ display: 'inline-flex', verticalAlign: '-3px', margin: '0 4px' }}>{fi('express', 14)}</span>;
@@ -2675,7 +2747,7 @@ class App extends React.Component {
           }
           return '🛵 ไรเดอร์กำลังไปหาคุณ · 🕐 เวลาจัดส่งโดยประมาณ ' + lo + '-' + hi + ' นาที (' + vehName + ')';
         }
-        const base = step === 3 ? '🛵 ไรเดอร์กำลังไปหาคุณ' : step === 2 ? (isPro ? '🖨️ กำลังผลิตสินค้าของคุณ' : '🖨️ กำลังปริ้นเอกสารของคุณ') : '✅ ร้านรับออเดอร์แล้ว';
+        const base = (s.order && s.order.unsaved) ? '⏳ กำลังส่งออเดอร์ไปที่ร้าน (เน็ตสะดุด — ระบบส่งซ้ำให้อัตโนมัติ)' : step === 3 ? '🛵 ไรเดอร์กำลังไปหาคุณ' : step === 2 ? (isPro ? '🖨️ กำลังผลิตสินค้าของคุณ' : '🖨️ กำลังปริ้นเอกสารของคุณ') : '✅ ร้านรับออเดอร์แล้ว';
         const eta = s.order && s.order.eta;
         if (!eta) return base;
         // ช่วงเวลาแบบ กี่โมง–กี่โมง: ผลิตเสร็จ (eta) + เวลาเดินทางตามพาหนะ (มอไซค์ 10-25 · รถยนต์ 25-45 · มารับเอง 0-15 นาที)
@@ -2839,7 +2911,7 @@ class App extends React.Component {
       },
       // รีวิวหลังได้รับของ (หน้าติดตาม เมื่อสถานะ = ส่งแล้ว)
       revReady: s.reviewsReady,
-      showTrackReview: !!s.order && step >= 4 && !cancelled && s.reviewsReady,
+      showTrackReview: !!s.order && step >= 4 && !cancelled, // เดิมมีเงื่อนไข reviewsReady — โหลดรีวิวหน้าแรกพลาดครั้งเดียวทำช่องให้ดาวหายทั้งเว็บ (เจ้าของแจ้ง 2026-09-14) เอาออก
       trackRevDone: (() => { try { return s.order && localStorage.getItem('mp_review_' + s.order.id) === 'done'; } catch (e) { return false; } })(),
       trackStars: s.trackStars, setTrackStars: (n) => () => this.setState({ trackStars: n }),
       trackText: s.trackText, setTrackText: (e) => this.setState({ trackText: e.target.value }),
@@ -3866,6 +3938,14 @@ class App extends React.Component {
                     </div>
                     {!v.selfCancelled && v.cancelReason && <div style={css("margin-top:6px;font-size:13px;color:#a61e1e;line-height:1.5")}><b>เหตุผล:</b> {v.cancelReason}</div>}
                     <div style={css("margin-top:8px;font-size:11.5px;color:#a61e1e")}>โอนเงินแล้ว? ติดต่อขอคืนเงิน/สั่งใหม่ทาง LINE OA @346kifvy 💬</div>
+                  </div>
+                )}
+                {/* ออเดอร์ยังส่งไม่ถึงร้าน (เน็ตสะดุดตอนกดยืนยัน) — บอกตรง ๆ + ปุ่มส่งซ้ำ (ระบบก็วนส่งซ้ำเองทุก 8 วิ) — 2026-09-14 */}
+                {v.trackUnsaved && (
+                  <div style={css("background:#fff0f0;border:1.5px solid #c92a2a;border-radius:14px;padding:13px 15px")}>
+                    <div style={css("font-size:13.5px;font-weight:800;color:#c92a2a")}>⚠️ ออเดอร์ยังส่งไม่ถึงร้าน</div>
+                    <div style={css("margin-top:4px;font-size:12px;color:#c92a2a;line-height:1.6")}>สัญญาณเน็ตสะดุดตอนกดยืนยัน — ระบบกำลังส่งซ้ำให้อัตโนมัติ เปิดหน้านี้ทิ้งไว้สักครู่ หรือกดปุ่มด้านล่างได้เลยครับ (ยอดที่โอนแล้วไม่หาย)</div>
+                    <button onClick={v.retryNow} style={css("margin-top:9px;width:100%;height:42px;border:none;border-radius:10px;background:#c92a2a;color:#fff;font-size:13.5px;font-weight:700;cursor:pointer;font-family:inherit")}>📤 ส่งออเดอร์ไปที่ร้านอีกครั้ง</button>
                   </div>
                 )}
                 {v.trackFails.length > 0 && (
