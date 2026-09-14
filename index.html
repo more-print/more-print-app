@@ -555,6 +555,7 @@ class App extends React.Component {
     if (this.db) setTimeout(() => this.refreshOrderList(), 1200);
     if (this.db) setTimeout(() => this.retryPendingOrder(), 2500); // มีออเดอร์ค้างส่งจากรอบก่อน (เน็ตสะดุดแล้วปิดเว็บ) — ส่งต่อให้ทันทีที่กลับมา
     if (this.db) setTimeout(() => this.maybeAskReview(), 3500); // งานส่งสำเร็จแล้วยังไม่ได้รีวิว — เด้งป๊อปอัพชวนรีวิวบนหน้าแรก
+    if (this.db) setTimeout(() => this.maybeAskReview(), 9000); // เช็คซ้ำอีกรอบ — เผื่อสถานะ "ส่งแล้ว" เพิ่งวิ่งมาถึงช้ากว่ารอบแรก (เน็ตช้า)
     const t = new Date(Date.now() + 90 * 60000);
     this.setState({ time: String(t.getHours()).padStart(2, '0') + ':' + String(Math.floor(t.getMinutes() / 15) * 15).padStart(2, '0') });
     this.clockTimer = setInterval(() => { this.setState({ now: new Date() }); this.purgeCancelledLocal(); this.refreshOrderList(); }, 30000);
@@ -1061,6 +1062,7 @@ class App extends React.Component {
       this.backupUser(user);
       this.setState({ user, phone: '', screen: this.state.screen === 'login' ? 'home' : this.state.screen }); // บัญชีใหม่ — ไม่สืบทอดเบอร์คนก่อน · กู้กลางทางให้อยู่หน้าเดิม
       this.showToast('ยินดีต้อนรับ คุณ' + user.fname + ' 💚');
+      setTimeout(() => this.maybeAskReview(), 1200); // ล็อกอิน LINE กลับเข้ามาหลังงานส่งสำเร็จ — เด้งชวนรีวิว
     } catch (e) {
       console.error('line profile:', e);
       this.showToast('ดึงข้อมูล LINE ไม่สำเร็จ ลองอีกครั้งครับ');
@@ -1941,6 +1943,7 @@ class App extends React.Component {
       const cut = h.slice(0, 30);
       localStorage.setItem('mp_history', JSON.stringify(cut));
       this.setState({ history: cut });
+      setTimeout(() => this.maybeAskReview(), 900); // งานเพิ่งส่งสำเร็จระหว่างลูกค้าอยู่หน้าแรก — เด้งชวนรีวิวได้ทันที ไม่ต้องรอเปิดเว็บรอบหน้า
     } catch (e) {}
   }
   loadChat(){
@@ -2040,6 +2043,7 @@ class App extends React.Component {
         this.backupUser(user);
         this.setState({ user, phone: user.phone || '', screen: 'home' }); // ห้ามสืบทอดเบอร์ของบัญชีก่อนหน้าในเครื่องเดียวกัน
         this.showToast('ยินดีต้อนรับกลับ คุณ' + user.fname + ' 👋');
+        setTimeout(() => this.maybeAskReview(), 1200); // ล็อกอินกลับเข้ามาหลังงานส่งสำเร็จ — เด้งชวนรีวิว
       },
       doRegister: async () => {
         const fname = s.regFname.trim(), lname = s.regLname.trim(), email = s.regEmail.trim().toLowerCase();
@@ -3038,6 +3042,7 @@ class App extends React.Component {
           if ((n.k === 'track' || n.k === 'history') && !hasLocal && !this.ensureUser()) { this.setState({ screen: 'login' }); return this.showToast('เข้าสู่ระบบก่อนนะครับ 🙏'); }
           if (n.k === 'order' && s.banners.some(b => b.color === 'alert') && !s.alertAck) return this.setState({ alertPrompt: true });
           this.setState({ screen: n.k });
+          if (n.k === 'home') setTimeout(() => this.maybeAskReview(), 700); // กลับมาหน้าแรก — มีงานส่งสำเร็จที่ยังไม่รีวิว = เด้งชวนรีวิว
         },
         on: this.state.screen === n.k,
         st: { textAlign: 'center', cursor: 'pointer', minWidth: '58px', padding: '4px 0', color: this.state.screen === n.k ? 'var(--acc)' : 'var(--sub)' }
