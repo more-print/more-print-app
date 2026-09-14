@@ -1483,7 +1483,32 @@ function AdminApp(){
               <div style={css("margin-top:10px;font-size:14px")}>ยังไม่มีออเดอร์เข้ามา</div>
             </div>
           )}
-          {shown.map((o, i) => <OrderCard key={o.id} o={o} idx={i + 1} onAdvance={advance} onRetreat={retreat} onAdjust={adjustOrder} onCancel={cancel} onRemove={removeOrder} busy={busyId === o.id} unread={unreadMap[o.id] || 0} onSeen={clearUnread}/>)}
+          {/* ช่วง "ปีนี้": จัดกลุ่มรายการตามเดือน มีหัวข้อคั่นชัด ๆ ว่าออเดอร์ไหนอยู่เดือนไหน (เจ้าของสั่ง 2026-09-14) — แท็บกำลังทำโชว์ทุกช่วงอยู่แล้วไม่ต้องคั่น */}
+          {(() => {
+            const TH_M = ['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน', 'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'];
+            const byMonth = period === 'year' && filter !== 'pending';
+            const out = [];
+            let lastM = -1;
+            shown.forEach((o, i) => {
+              if (byMonth) {
+                const d = new Date(o.created_at);
+                const m = d.getMonth();
+                if (m !== lastM) {
+                  lastM = m;
+                  const cnt = shown.filter(x => new Date(x.created_at).getMonth() === m).length;
+                  out.push(
+                    <div key={'mh' + m} style={css("display:flex;align-items:center;gap:10px;margin:" + (out.length ? "18px" : "4px") + " 2px 2px")}>
+                      <span style={css("flex:none;font-size:13px;font-weight:800;color:var(--acc)")}>📅 เดือน{TH_M[m]} {d.getFullYear() + 543}</span>
+                      <span style={css("flex:none;font-size:11px;font-weight:700;color:var(--acc);background:var(--accSoft);padding:2px 10px;border-radius:99px")}>{cnt} ออเดอร์</span>
+                      <span style={css("flex:1;height:1px;background:var(--line)")}></span>
+                    </div>
+                  );
+                }
+              }
+              out.push(<OrderCard key={o.id} o={o} idx={i + 1} onAdvance={advance} onRetreat={retreat} onAdjust={adjustOrder} onCancel={cancel} onRemove={removeOrder} busy={busyId === o.id} unread={unreadMap[o.id] || 0} onSeen={clearUnread}/>);
+            });
+            return out;
+          })()}
         </div>
       )}
 
