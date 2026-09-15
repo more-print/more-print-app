@@ -20,6 +20,10 @@
     #rcSheet,#rcSheet *{visibility:visible !important}
     #rcSheet{position:absolute !important;left:0;top:0;width:100%;border-radius:0 !important;box-shadow:none !important}
   }
+  /* จอกว้าง (คอม/แท็บเล็ตแนวนอน): ขยายคอลัมน์แอปให้ใช้พื้นที่มากขึ้น — มือถือคงเดิม (เจ้าของสั่ง 2026-09-15) */
+  @media(min-width:900px){ .mp-shell{max-width:560px !important} }
+  @media(min-width:1500px){ .mp-shell{max-width:640px !important} }
+  img{max-width:100%}
 </style>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -3088,7 +3092,7 @@ class App extends React.Component {
   render(){
     const v = this.vals();
     return (
-      <div style={v.rootSt}>
+      <div className="mp-shell" style={v.rootSt}>
 
         {/* ── Header ── */}
         <div style={css("background:var(--head);color:#fff;padding:14px 20px;display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;z-index:10")}>
@@ -3494,7 +3498,7 @@ class App extends React.Component {
                                   <div style={css("margin-top:8px;font-size:10.5px;font-weight:600;color:var(--sub)")}>1. เลือกประเภทสติ๊กเกอร์</div>
                                   <div style={css("margin-top:4px;display:flex;gap:7px")}>
                                     {['pp', 'pvc'].map(k => (
-                                      <button key={k} onClick={() => f.setStk(k)} style={css("flex:1;height:38px;border-radius:9px;font-size:12.5px;font-weight:700;cursor:pointer;font-family:inherit;border:" + (f.t === k ? "1.5px solid var(--acc)" : "1px solid var(--line)") + ";background:" + (f.t === k ? "var(--accSoft)" : "var(--card)") + ";color:" + (f.t === k ? "var(--acc)" : "var(--ink)"))}>{k.toUpperCase()}{k === 'pp' ? ' (ติดฉลากสินค้า)' : ' (คุณภาพสูง)'}</button>
+                                      <button key={k} onClick={() => f.setStk(k)} style={css("flex:1;min-width:0;min-height:38px;padding:7px 4px;line-height:1.35;box-sizing:border-box;border-radius:9px;font-size:12.5px;font-weight:700;cursor:pointer;font-family:inherit;border:" + (f.t === k ? "1.5px solid var(--acc)" : "1px solid var(--line)") + ";background:" + (f.t === k ? "var(--accSoft)" : "var(--card)") + ";color:" + (f.t === k ? "var(--acc)" : "var(--ink)"))}>{k.toUpperCase()}{k === 'pp' ? ' (ติดฉลากสินค้า)' : ' (คุณภาพสูง)'}</button>
                                     ))}
                                   </div>
                                   {!f.t && <div style={css("margin-top:4px;font-size:10.5px;font-weight:700;color:#c92a2a")}>⚠️ กดเลือกแบบของลายนี้ก่อนครับ — PP หรือ PVC</div>}
