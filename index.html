@@ -269,15 +269,19 @@ const PRO_SPECIAL_PAPER = 5;   // กระดาษพิเศษ /แผ่�
 const PRO_LAM_ONE = 5;         // เคลือบหน้าเดียว /แผ่น
 const PRO_LAM_TWO = 10;        // เคลือบหน้า-หลัง /แผ่น
 const PRO_POSTCARD_SHEET = 50; // Postcard A3 (9 ใบ/แผ่น)
-// ── สติ๊กเกอร์ v2 (เจ้าของกำหนด 2026-09-09): เลือกเนื้อ PP/PVC + กรอกขนาดชิ้น (ซม.) + จำนวนชิ้นรายลาย ──
-// ระบบจัดวางลงแผ่น A3 (29.7×42 ซม.) อัตโนมัติ: เว้นขอบแผ่นข้างละ 0.5 ซม. + ช่องไฟระหว่างชิ้น 1 ซม. ลองทั้งแนวตั้ง/แนวนอน เอาแบบที่วางได้เยอะสุด
-const STK_W = 29.7, STK_H = 42, STK_MARGIN = 0.5, STK_GAP = 1;
-const STK_PP_SHEET = 50;   // PP ฿/แผ่น A3
-const STK_PP_TIER = [[100, 33], [50, 35]]; // PP ลดอัตโนมัติตามแผ่นรวม: ≥100 แผ่น ฿33 (100 แผ่น = ฿3,300) · ≥50 แผ่น ฿35 (50 แผ่น = ฿1,750)
-const STK_PVC_SQM = 550;   // PVC ฿/ตร.ม. — A3 8 แผ่น = 1 ตร.ม. → ฿68.75/แผ่น
-// วางชิ้น w×h ซม. ได้กี่ชิ้นต่อแผ่น A3 — 0 = ชิ้นใหญ่เกินแผ่น (ทั้งสองแนว)
-function stickerPerSheet(w, h){
-  const uw = STK_W - STK_MARGIN * 2, uh = STK_H - STK_MARGIN * 2;
+// ── สติ๊กเกอร์ v3 (เจ้าของสั่ง 2026-09-15): ลูกค้าเลือก "จำนวนแผ่น" — ระบบคำนวณชิ้นสูงสุดต่อแผ่นให้อัตโนมัติจากขนาดชิ้น ──
+// ฐานคำนวณ: PP = A3 Super/Plus 13"×19" (33.02×48.26 ซม.) · PVC = 1 ตร.ม. (100×100 ซม.) — ขอบแผ่นข้างละ 0.5 ซม. + ช่องไฟระหว่างชิ้น 0.5 มม. (เจ้าของยืนยัน) ลองทั้งแนวตั้ง/นอน เอาที่วางได้เยอะสุด
+// เทียบตัวอย่างจริงจากร้าน: 5.5×8.8 ซม. → 25 ชิ้น/แผ่น 13"×19" (5×5) ✓
+const STK_SHEET = { pp: { w: 33.02, h: 48.26 }, pvc: { w: 100, h: 100 } };
+const STK_MARGIN = 0.5, STK_GAP = 0.05;
+const stkUnit = (t) => t === 'pvc' ? 'ตร.ม.' : 'แผ่น';
+const STK_PP_SHEET = 50;   // PP ฿/แผ่น 13"×19"
+const STK_PP_TIER = [[100, 33], [50, 35]]; // PP ลดอัตโนมัติตามแผ่นรวม: ≥100 แผ่น ฿33 · ≥50 แผ่น ฿35
+const STK_PVC_SQM = 550;   // PVC ฿/ตร.ม. (1 หน่วย = 100×100 ซม.)
+// วางชิ้น w×h ซม. ได้กี่ชิ้นต่อ 1 หน่วยของเนื้อ t ('pp' = แผ่น 13"×19" · 'pvc' = 1 ตร.ม.) — 0 = ชิ้นใหญ่เกินแผ่น (ทั้งสองแนว)
+function stickerPerSheet(w, h, t){
+  const shp = STK_SHEET[t] || STK_SHEET.pp;
+  const uw = shp.w - STK_MARGIN * 2, uh = shp.h - STK_MARGIN * 2;
   const fit = (a, b) => (!(a > 0) || !(b > 0) || a > uw + 1e-9 || b > uh + 1e-9) ? 0
     : Math.floor((uw + STK_GAP) / (a + STK_GAP) + 1e-9) * Math.floor((uh + STK_GAP) / (b + STK_GAP) + 1e-9);
   return Math.max(fit(w, h), fit(h, w));
@@ -1184,7 +1188,7 @@ class App extends React.Component {
         pc = rate * shPro;
       } else if (s.proType === 'postcard') { rate = PRO_POSTCARD_SHEET; pc = rate * shPro; }
       else if (s.proType === 'sticker') {
-        // สติ๊กเกอร์ v2: แผ่น A3 ที่ใช้จริงจากการจัดวางอัตโนมัติ (ขนาดชิ้น×จำนวนชิ้นรายลาย) × เรทตามเนื้อ PP/PVC — ดู stickerInfo()
+        // สติ๊กเกอร์ v3: จำนวนแผ่นที่ลูกค้าเลือก (PP 13"×19" / PVC ตร.ม.) × เรทตามเนื้อ — ชิ้นคำนวณอัตโนมัติ ดู stickerInfo()
         const si = this.stickerInfo();
         rate = 0; // เรทมีได้ 2 กลุ่ม (PP/PVC) — บรรทัดอธิบายใช้ rateHint สาขาสติ๊กเกอร์แทน
         pc = si.cost; // ข้อมูลยังไม่ครบ = 0 ไปก่อน (toDelivery บังคับกรอกครบก่อนไปต่ออยู่แล้ว)
@@ -1275,56 +1279,29 @@ class App extends React.Component {
     return s.proType === 'plate' && ['A0', 'A1', 'A2', 'A3'].includes(s.proSize);
   }
 
-  // ── สติ๊กเกอร์ v2: คำนวณจัดวาง+ราคาจากขนาด/จำนวนชิ้น/เนื้อ (PP·PVC) รายไฟล์ (จุดเดียว — calc/ป้าย/ช่องกรอก/บันทึก ใช้ร่วมกันหมด) ──
-  // เนื้อเลือกได้รายลาย (เจ้าของสั่ง 2026-09-09): f.stk รายไฟล์ (บังคับเลือกทุกลาย — การ์ดอธิบายด้านบนกดไม่ได้) — ราคาคิดแยกกลุ่ม:
-  //   PP ลดขั้นตามแผ่นรวมเฉพาะฝั่ง PP · PVC ขั้นต่ำ ฿550 คิดเฉพาะฝั่ง PVC
-  // คืน { list:[{ok,over,w,h,q,cap,sheets,t}], ready, sheets, pcs, pp:{sheets,rate,cost}, pvc:{sheets,blocks,cost,partial}, cost }
+  // ── สติ๊กเกอร์ v3: ลูกค้ากรอกขนาดชิ้น + จำนวนแผ่น (f.shq) — ระบบคำนวณชิ้นสูงสุด/หน่วยให้เอง (จุดเดียว — calc/ป้าย/ช่องกรอก/บันทึก ใช้ร่วมกันหมด) ──
+  // เนื้อเลือกได้รายลาย: f.stk · หน่วยตามเนื้อ: PP = แผ่น 13"×19" · PVC = ตร.ม. (100×100 ซม.) · จำนวนชิ้น q = cap × แผ่น อัตโนมัติ ทุกแผ่นเต็มเสมอ
+  // คืน { list:[{ok,over,w,h,q,cap,sheets,t}], ready, sheets, pcs, pp:{sheets,rate,cost}, pvc:{sheets,blocks,cost}, cost }
   stickerInfo(){
     const s = this.state, copies = Math.max(1, s.copies || 1);
     const list = (s.files || []).map(f => {
-      const w = parseFloat(f.w), h = parseFloat(f.h), q = f.qty || 0;
-      const ok = w > 0 && h > 0 && q > 0;
-      const cap = ok ? stickerPerSheet(w, h) : 0;
-      return { ok, over: ok && cap === 0, w: ok ? w : null, h: ok ? h : null, q, cap,
-        sheets: cap > 0 ? Math.ceil(q / cap) : 0, t: f.stk || '' }; // เนื้อเลือกที่กล่องรายลายเท่านั้น (การ์ดบนเป็นป้ายอธิบาย ไม่ใช่ปุ่ม — เจ้าของสั่ง 2026-09-09)
+      const w = parseFloat(f.w), h = parseFloat(f.h), sh = f.shq || 0, t = f.stk || '';
+      const cap = (w > 0 && h > 0 && t) ? stickerPerSheet(w, h, t) : 0;
+      return { ok: w > 0 && h > 0 && sh > 0, over: w > 0 && h > 0 && !!t && cap === 0,
+        w: w > 0 ? w : null, h: h > 0 ? h : null, q: cap * sh, cap, sheets: sh, t };
     });
-    const ready = list.length > 0 && list.every(x => x.ok && !x.over && !!x.t) && !(s.files || []).some(f => (f.pages || 1) > 1);
+    const ready = list.length > 0 && list.every(x => x.ok && !x.over && !!x.t && x.cap > 0) && !(s.files || []).some(f => (f.pages || 1) > 1);
     const sheets = list.reduce((a, x) => a + x.sheets, 0) * copies;
     const pcs = list.reduce((a, x) => a + x.q, 0) * copies;
     const ppSheets = list.filter(x => x.t === 'pp').reduce((a, x) => a + x.sheets, 0) * copies;
     const pvcSheets = list.filter(x => x.t === 'pvc').reduce((a, x) => a + x.sheets, 0) * copies;
     const ppRate = (STK_PP_TIER.find(t => ppSheets >= t[0]) || [0, STK_PP_SHEET])[1];
-    // PVC คิดเป็นช่วง ตร.ม. เต็มเสมอ (เจ้าของยืนยัน 2026-09-09): ≤1 ตร.ม. ฿550 · 1-2 = ฿1,100 · 2-3 = ฿1,650 · ขึ้นช่วงละ ฿550 (1 ตร.ม. = A3 8 แผ่น)
-    const pvcBlocks = pvcSheets > 0 ? Math.ceil(pvcSheets / 8) : 0;
-    const pvcCost = pvcBlocks * STK_PVC_SQM;
+    // PVC v3: 1 หน่วย = 1 ตร.ม. เต็มเสมอ (ลูกค้าเลือกจำนวน ตร.ม. ตรง ๆ) — ไม่มีเศษช่วงแล้ว
+    const pvcCost = pvcSheets * STK_PVC_SQM;
     return { list, ready, sheets, pcs,
       pp: { sheets: ppSheets, rate: ppRate, cost: ppSheets * ppRate },
-      pvc: { sheets: pvcSheets, blocks: pvcBlocks, cost: pvcCost, partial: pvcSheets > 0 && pvcSheets < pvcBlocks * 8 },
+      pvc: { sheets: pvcSheets, blocks: pvcSheets, cost: pvcCost },
       cost: ppSheets * ppRate + pvcCost };
-  }
-
-  // ── ปริ้นเต็มจำนวน (PVC): แผนเติมชิ้นฟรีของทั้งกลุ่ม — ปุ่มเดียวทั้งงาน แบ่งพื้นที่ว่างให้ทุกลายอย่างยุติธรรม ──
-  // (เดิมเป็นปุ่มรายไฟล์ แต่ละปุ่มเหมาเสนอพื้นที่ว่างก้อนเดียวกัน → 2 ไฟล์ขึ้นไปเลขซ้ำชวนงง — เจ้าของแจ้ง 2026-09-10)
-  // เติมเศษแผ่นสุดท้ายของทุกลาย PVC ให้เต็ม + แบ่งแผ่นว่างที่เหลือ (ต่อชุด) วนเรียงทีละลาย — รวมแล้วไม่เกิน blocks×8 แผ่น = จำนวนช่วง ตร.ม. ไม่ขยับ ราคาเท่าเดิมเสมอ
-  // คืน { blocks, plan:[{i, from, to}] } หรือ null = ไม่มีอะไรให้เติม
-  stickerFillPlan(){
-    const s = this.state, cp = Math.max(1, s.copies || 1);
-    if (!(s.tier === 'pro' && s.proType === 'sticker')) return null;
-    const si = this.stickerInfo();
-    if (!(si.pvc.sheets > 0)) return null;
-    const idx = si.list.map((x, i) => ({ x, i })).filter(o => o.x.t === 'pvc' && o.x.ok && !o.x.over);
-    if (!idx.length) return null;
-    const F = Math.floor((si.pvc.blocks * 8 - si.pvc.sheets) / cp); // แผ่นว่างต่อชุดที่แจกเพิ่มได้
-    const plan = idx.map((o, k) => ({ i: o.i, from: o.x.q,
-      to: (o.x.sheets + Math.floor(F / idx.length) + (k < F % idx.length ? 1 : 0)) * o.x.cap }))
-      .filter(p => p.to > p.from);
-    return plan.length ? { blocks: si.pvc.blocks, plan } : null;
-  }
-  stickerFillGo(){
-    const pl = this.stickerFillPlan();
-    if (!pl) return;
-    this.setState(st => ({ files: st.files.map((f, j) => { const p = pl.plan.find(q => q.i === j); return p ? { ...f, qty: p.to } : f; }) }));
-    this.showToast('🎁 เพิ่มจำนวนชิ้นให้เต็มพื้นที่ ' + pl.blocks + ' ตร.ม. ที่จ่ายแล้ว — ราคาเท่าเดิมครับ');
   }
 
   // ── บิลราคาโดยประมาณ: แตกค่าปริ้นรายไฟล์เมื่อสั่งหลายไฟล์ (เจ้าของสั่ง 2026-09-09 — ทุกประเภทงาน) ──
@@ -1339,14 +1316,11 @@ class App extends React.Component {
     if (s.tier === 'pro' && s.proType === 'sticker') {
       const si = this.stickerInfo();
       if (!si.ready) return null;
-      // PVC คิดเป็นช่วง ตร.ม. เต็ม (ราคากลุ่ม) — เกลี่ยยอดกลุ่มลงรายไฟล์ตามสัดส่วนแผ่นที่ใช้ ให้บิลรวมตรงเป๊ะ
-      const raws = si.list.map(x => x.t === 'pvc'
-        ? (si.pvc.sheets > 0 ? (x.sheets * cp / si.pvc.sheets) * si.pvc.cost : 0)
-        : x.sheets * cp * si.pp.rate);
+      // v3: ราคา = จำนวนหน่วยที่ลูกค้าเลือกตรง ๆ (PP ฿เรท/แผ่น 13"×19" · PVC ฿550/ตร.ม.) — ไม่มีเกลี่ยช่วงแล้ว
+      const raws = si.list.map(x => x.t === 'pvc' ? x.sheets * cp * STK_PVC_SQM : x.sheets * cp * si.pp.rate);
       const amts = alloc(raws);
       si.list.forEach((x, i) => lines.push({ name: 'ไฟล์ที่ ' + (i + 1) + ' · ' + ((s.files[i] || {}).name || ''),
-        desc: x.t.toUpperCase() + ' · ' + x.w + '×' + x.h + ' ซม. × ' + (x.q * cp) + ' ชิ้น = ' + (x.sheets * cp) + ' แผ่น A3', amt: amts[i] }));
-      // ไม่ต้องมีบรรทัดปรับ — ยอดช่วง ตร.ม. ของ PVC ถูกเกลี่ยรวมในบรรทัดรายไฟล์แล้ว (คำอธิบายช่วง ตร.ม. อยู่ที่กล่องสรุปสติ๊กเกอร์)
+        desc: x.t.toUpperCase() + ' · ' + x.w + '×' + x.h + ' ซม. · ' + (x.sheets * cp) + ' ' + stkUnit(x.t) + ' × ' + x.cap + ' ชิ้น/' + stkUnit(x.t) + ' = ' + (x.q * cp) + ' ชิ้น', amt: amts[i] }));
     } else if (s.tier === 'pro') {
       if (!(c.rate > 0)) return null; // ประเภทที่ไม่ได้คิดต่อแผ่น/หน้า
       // พับครึ่ง (2026-09-13) คิดต่อหน้า เรทมีเศษ .5 ได้ — ใช้ alloc ปัดสะสมให้รวมตรงยอดเสมอ · ประเภทอื่นเรทเต็มบาท alloc ให้ผลเท่าเดิม
@@ -1398,11 +1372,11 @@ class App extends React.Component {
           const si = this.stickerInfo();
           const ts = [...new Set(si.list.map(x => x.t).filter(Boolean))];
           const tp = ts.length ? ' ' + ts.map(x => x.toUpperCase()).join('+') : '';
-          if (!si.list.length) return 'สติ๊กเกอร์' + tp + ' A3';
+          if (!si.list.length) return 'สติ๊กเกอร์' + tp;
           const one = si.list.length === 1 ? si.list[0] : null;
-          return 'สติ๊กเกอร์' + tp + ' A3 · ' + (one && one.ok
-            ? one.w + '×' + one.h + ' ซม. × ' + one.q + ' ชิ้น (' + one.sheets + ' แผ่น)'
-            : si.list.length + ' ลาย รวม ' + si.list.reduce((a, x) => a + x.q, 0) + ' ชิ้น (' + si.list.reduce((a, x) => a + x.sheets, 0) + ' แผ่น)');
+          return 'สติ๊กเกอร์' + tp + ' · ' + (one && one.ok
+            ? one.w + '×' + one.h + ' ซม. × ' + one.q + ' ชิ้น (' + one.sheets + ' ' + stkUnit(one.t) + ')'
+            : si.list.length + ' ลาย รวม ' + si.list.reduce((a, x) => a + x.q, 0) + ' ชิ้น (' + si.list.reduce((a, x) => a + x.sheets, 0) + ' แผ่น/ตร.ม.)');
         })()
       : t.label;
     // ตัวเลือกเสริมพ่วงเข้าไปในป้าย — หลังบ้านทุกที่จะเห็นครบว่าลูกค้าเลือกอะไร (บันทึกลงช่อง paper)
@@ -1471,9 +1445,9 @@ class App extends React.Component {
           const error = await uploadRetry(path, f.file);
           if (error) { console.error('upload:', error); path = null; upFail++; failIdx.push({ i, name: f.name }); }
         }
-        // qty/w/h/sh = จำนวนชิ้น·ขนาด (ซม.)·แผ่น A3 ของสติ๊กเกอร์ต่อลาย — บันทึกเฉพาะออเดอร์สติ๊กเกอร์เท่านั้น (กันค่าค้างติดไปงานประเภทอื่นตอนลูกค้าสลับประเภท)
+        // qty/w/h/sh = จำนวนชิ้น (ระบบคำนวณ = cap×แผ่น)·ขนาด (ซม.)·จำนวนแผ่น (PP 13"×19" / PVC ตร.ม.) ต่อลาย — บันทึกเฉพาะออเดอร์สติ๊กเกอร์เท่านั้น
         const sti = (s.tier === 'pro' && s.proType === 'sticker') ? this.stickerInfo().list[i] : null;
-        const row = { name: f.name, pages: f.pages, path, drive_url: f.big ? (f.b2Url || null) : null, auto: !!f.auto, heavy: f.heavy || 0, scanned: !!f.scanned, qty: sti ? Math.max(1, f.qty || 1) : null };
+        const row = { name: f.name, pages: f.pages, path, drive_url: f.big ? (f.b2Url || null) : null, auto: !!f.auto, heavy: f.heavy || 0, scanned: !!f.scanned, qty: sti ? Math.max(1, sti.q || 1) : null };
         if (sti && sti.ok) { row.w = sti.w; row.h = sti.h; row.sh = sti.sheets; row.stk = sti.t || null; } // stk = เนื้อของลายนี้ (pp/pvc)
         files.push(row);
       }
@@ -2196,17 +2170,17 @@ class App extends React.Component {
         thumb: f.thumb || null, heavy: f.heavy || 0, scanned: !!f.scanned,
         up: f.up || 0, upDone: !!f.upDone, upErr: !!f.upErr,
         retryUp: () => { const it = s.files[i]; if (it && it.big && it.file) this.uploadBig(it); },
-        // งานสติ๊กเกอร์: ขนาด/จำนวนชิ้นกรอกที่ช่องใต้ตัวเลือกงาน (stkFiles) — แถวไฟล์บนนี้แค่โชว์สรุป
+        // งานสติ๊กเกอร์: ขนาด/จำนวนแผ่นกรอกที่ช่องใต้ตัวเลือกงาน (stkFiles) — แถวไฟล์บนนี้แค่โชว์สรุป
         stMode: stOn,
-        qty: f.qty || 0,
+        qty: stOn && si && si.list[i] ? si.list[i].q : (f.qty || 0),
         stSheets: si && si.list[i] ? si.list[i].sheets : 0,
         stDone: !!(si && si.list[i] && si.list[i].ok && !si.list[i].over),
         stText: si && si.list[i] && si.list[i].ok && !si.list[i].over
-          ? si.list[i].w + '×' + si.list[i].h + ' ซม. × ' + si.list[i].q + ' ชิ้น (' + si.list[i].sheets + ' แผ่น A3)' : '',
+          ? si.list[i].w + '×' + si.list[i].h + ' ซม. × ' + si.list[i].q + ' ชิ้น (' + si.list[i].sheets + ' ' + stkUnit(si.list[i].t) + ')' : '',
         sub: stOn
           ? (si.list[i] && si.list[i].ok && !si.list[i].over
-              ? '🏷️ ลายนี้ ' + si.list[i].w + '×' + si.list[i].h + ' ซม. × ' + si.list[i].q + ' ชิ้น = ' + si.list[i].sheets + ' แผ่น A3 (วางได้ ' + si.list[i].cap + ' ชิ้น/แผ่น)'
-              : '🏷️ กรอกขนาด (กว้าง×ยาว ซม.) และจำนวนชิ้นของลายนี้ที่ช่องด้านล่าง')
+              ? '🏷️ ลายนี้ ' + si.list[i].w + '×' + si.list[i].h + ' ซม. · ' + si.list[i].sheets + ' ' + stkUnit(si.list[i].t) + ' × ' + si.list[i].cap + ' ชิ้น/' + stkUnit(si.list[i].t) + ' = ' + si.list[i].q + ' ชิ้น'
+              : '🏷️ เลือกเนื้อ + กรอกขนาด (กว้าง×ยาว ซม.) และจำนวนแผ่นของลายนี้ที่ช่องด้านล่าง')
           : f.counting ? '⏳ กำลังอ่านไฟล์ (นับหน้า + สแกนปริมาณสี)…' : ((f.auto ? '🔒 นับหน้าจากไฟล์จริงแล้ว — ล็อกจำนวน' : '✏️ ระบุจำนวนหน้าเองด้วยปุ่ม + / − (ร้านเปิดไฟล์เช็คก่อนปริ้นเสมอ)') + (s.ptype === 'color' && f.scanned ? ' · 🎨 สีเยอะ ' + (f.heavy || 0) + ' หน้า' : '')),
         // ไฟล์ที่ระบบอ่านนับหน้าได้เอง = ล็อกจำนวนตามไฟล์จริง แก้ไม่ได้ (กันกดลดหน้าให้ราคาถูกกว่าความจริง) — แก้ได้เฉพาะไฟล์ที่เว็บนับไม่ได้ (เช่น DOCX)
         inc: () => { if (f.auto) return this.showToast('ไฟล์นี้ระบบนับหน้าจากตัวไฟล์จริงแล้ว ล็อกจำนวนไว้ครับ 🔒'); this.setState(st => ({ files: st.files.map((x, j) => j === i ? { ...x, pages: x.pages + 1 } : x) })); },
@@ -2321,7 +2295,7 @@ class App extends React.Component {
       proHint: s.proType === 'foldbook' ? '📖 เข้าเล่มทุกแบบ +฿' + PRO_FOLDBOOK_BIND + '/เล่ม · พิมพ์หน้า-หลังทั้งเล่ม'
         : s.proType === 'plate' ? '🪧 เพลทรวมติดบอร์ดแล้ว · พิมพ์ด้านหน้าอย่างเดียว'
         : s.proType === 'postcard' ? <React.Fragment>ขนาด 4*6 ซม. (กว้าง * ยาว)<span style={{ display: 'block' }}>💌 1 แผ่น A3 = 9 ใบ · ฿{PRO_POSTCARD_SHEET}/แผ่น</span></React.Fragment>
-        : s.proType === 'sticker' ? '🏷️ ส่ง 1 ไฟล์ต่อ 1 ลาย (รูปเดียว) · ระบบจัดวางลงแผ่น A3 และคิดราคาให้อัตโนมัติครับ'
+        : s.proType === 'sticker' ? '🏷️ ส่ง 1 ไฟล์ต่อ 1 ลาย (รูปเดียว) · เลือกจำนวนแผ่นแล้วระบบคำนวณจำนวนชิ้นสูงสุดให้อัตโนมัติครับ (PP = แผ่น 13"×19" · PVC = ตร.ม.)'
         : s.proType === 'namecard' ? '💳 ราคาต่อ 100 ใบ (A3 4 แผ่น)'
         : s.proType === 'standee' ? '🧍 ขนาดกว้าง 60 × สูง 120 ซม.'
         : '',
@@ -2339,29 +2313,29 @@ class App extends React.Component {
           multi: (f.pages || 1) > 1, // ไฟล์เกิน 1 หน้า = ผิดกติกาสติ๊กเกอร์ (ลายละ 1 รูป) — เตือนแดง + toDelivery บล็อก
           pages: f.pages || 1,
           valW: f.w == null ? '' : String(f.w), valH: f.h == null ? '' : String(f.h),
-          valQ: f.qty == null ? '' : String(f.qty),
+          valSh: f.shq == null ? '' : String(f.shq),
           t: f.stk || '', // เนื้อของลายนี้ (เลือกที่ปุ่ม PP/PVC ในกล่องลายเท่านั้น)
           setStk: (k) => set(i, 'stk', k),
           info: si.list[i], // {ok, over, cap, sheets, t}
           del: () => this.setState(st => ({ files: st.files.filter((_, j) => j !== i) })),
           setW: (e) => { const d = num(e); set(i, 'w', d === '' ? null : d); },
           setH: (e) => { const d = num(e); set(i, 'h', d === '' ? null : d); },
-          setQty: (e) => { const d = e.target.value.replace(/\D/g, '').slice(0, 4); set(i, 'qty', d === '' ? null : Math.max(1, parseInt(d, 10))); }
+          setSh: (e) => { const d = e.target.value.replace(/\D/g, '').slice(0, 3); set(i, 'shq', d === '' ? null : Math.max(1, parseInt(d, 10))); }
         }));
       })() : [],
-      stkFill: this.stickerFillPlan(), // ปุ่มปริ้นเต็มจำนวนแบบกลุ่ม (null = ไม่มีอะไรให้เติม/ไม่ใช่งาน PVC)
-      stkFillGo: () => this.stickerFillGo(),
       stkMulti: s.tier === 'pro' && s.proType === 'sticker' && s.files.some(f => (f.pages || 1) > 1),
       stkSum: (() => {
         if (!(s.tier === 'pro' && s.proType === 'sticker') || !s.files.length) return null;
         const si = this.stickerInfo();
         const notes = [];
         if (si.pp.sheets > 0 && si.pp.rate < STK_PP_SHEET) notes.push('🎉 PP ลดอัตโนมัติเหลือ ฿' + si.pp.rate + '/แผ่น');
-        if (si.pvc.sheets > 0) notes.push('PVC คิดเป็น ' + si.pvc.blocks + ' ตร.ม. (ช่วงละ ฿' + STK_PVC_SQM + ' · 1 ตร.ม. = A3 8 แผ่น)');
+        const units = [];
+        if (si.pp.sheets > 0) units.push('PP ' + si.pp.sheets + ' แผ่น 13"×19"');
+        if (si.pvc.sheets > 0) units.push('PVC ' + si.pvc.sheets + ' ตร.ม.');
         // แยกยอดสองเนื้อเมื่อสั่งผสมในออเดอร์เดียว — ลูกค้าเห็นชัดว่าเงินมาจากส่วนไหน
         const brk = (si.pp.sheets > 0 && si.pvc.sheets > 0)
-          ? 'PP ' + si.pp.sheets + ' แผ่น ฿' + si.pp.cost + ' + PVC ' + si.pvc.sheets + ' แผ่น ฿' + si.pvc.cost : '';
-        return { ready: si.ready, pcs: si.pcs, sheets: si.sheets, cost: si.cost, brk, tierNote: notes.join(' · ') };
+          ? 'PP ' + si.pp.sheets + ' แผ่น ฿' + si.pp.cost + ' + PVC ' + si.pvc.sheets + ' ตร.ม. ฿' + si.pvc.cost : '';
+        return { ready: si.ready, pcs: si.pcs, units: units.join(' + '), cost: si.cost, brk, tierNote: notes.join(' · ') };
       })(),
       showSize: s.tier !== 'pro' && SIZE_BY_TYPE[s.ptype].length > 1,
       sizeOpts: SIZE_BY_TYPE[s.ptype].map(sz => {
@@ -2395,10 +2369,10 @@ class App extends React.Component {
             ? '✨ ' + this.proLabel() + ' หน้าละ ฿' + c.rate + (c.pages > 0 ? ' × ' + c.pages + ' หน้า × ' + s.copies + ' เล่ม + เข้าเล่ม ฿' + PRO_FOLDBOOK_BIND + '/เล่ม = ฿' + c.printCost : ' + เข้าเล่ม ฿' + PRO_FOLDBOOK_BIND + '/เล่ม — อัปโหลดไฟล์แล้วคำนวณให้ทันที')
             : s.proType === 'namecard' ? '✨ ' + this.proLabel() + ' = ฿' + c.printCost
             : s.proType === 'sticker' ? (() => { const si = this.stickerInfo(); if (!si.ready)
-                  return '✨ สติ๊กเกอร์คิดราคาตามแผ่น A3 ที่ใช้จริง — เลือกเนื้อ + กรอกขนาดและจำนวนชิ้นครบทุกลาย แล้วระบบคำนวณให้ทันที';
+                  return '✨ เลือกเนื้อ กรอกขนาดชิ้น และจำนวนแผ่น — ระบบคำนวณจำนวนชิ้นสูงสุดต่อแผ่นและราคาให้ทันที (PP แผ่น 13"×19" ฿' + STK_PP_SHEET + ' · PVC ตร.ม. ละ ฿' + STK_PVC_SQM + ')';
                 const parts = [];
                 if (si.pp.sheets > 0) parts.push('PP ฿' + si.pp.rate + '/แผ่น × ' + si.pp.sheets + ' แผ่น');
-                if (si.pvc.sheets > 0) parts.push('PVC ' + si.pvc.sheets + ' แผ่น = ' + si.pvc.blocks + ' ตร.ม. ฿' + si.pvc.cost);
+                if (si.pvc.sheets > 0) parts.push('PVC ฿' + STK_PVC_SQM + '/ตร.ม. × ' + si.pvc.sheets + ' ตร.ม.');
                 return '✨ ' + this.proLabel() + (s.copies > 1 ? ' × ' + s.copies + ' ชุด' : '') + ' — ' + parts.join(' + ') + ' = ฿' + c.printCost; })()
             : s.proType === 'standee' ? '✨ Standy ฿' + (s.proStand ? PRO_STANDEE.stand : PRO_STANDEE.base) + '/ชิ้น × ' + s.copies + ' = ฿' + c.printCost
             : '✨ ' + this.proLabel() + ' ฿' + c.rate + '/แผ่น' + (c.pages > 0 ? ' × ' + (c.pages * s.copies) + ' แผ่น = ฿' + c.printCost : ' — อัปโหลดไฟล์แล้วระบบคำนวณให้ทันที'))
@@ -2428,9 +2402,11 @@ class App extends React.Component {
       // สติ๊กเกอร์ไม่นับเป็น "หน้า" — บิลสรุปเป็นชิ้น/แผ่น A3 แทน กันลูกค้างง (เจ้าของสั่ง 2026-09-09)
       pageSummary: (s.tier === 'pro' && s.proType === 'sticker') ? (() => {
           const si = this.stickerInfo();
-          if (!si.ready) return 'สติ๊กเกอร์ — กรอกประเภท/ขนาด/จำนวนชิ้นให้ครบ แล้วยอดขึ้นตรงนี้ครับ';
-          const ts = [...new Set(si.list.map(x => x.t))].map(x => x.toUpperCase()).join('+');
-          return 'สติ๊กเกอร์ ' + ts + ' รวม ' + si.pcs + ' ชิ้น (กระดาษ A3 ' + si.sheets + ' แผ่น' + (s.copies > 1 ? ' · ' + s.copies + ' ชุด' : '') + ')';
+          if (!si.ready) return 'สติ๊กเกอร์ — เลือกเนื้อ + ขนาด + จำนวนแผ่นให้ครบ แล้วยอดขึ้นตรงนี้ครับ';
+          const parts = [];
+          if (si.pp.sheets > 0) parts.push('PP ' + si.pp.sheets + ' แผ่น 13"×19"');
+          if (si.pvc.sheets > 0) parts.push('PVC ' + si.pvc.sheets + ' ตร.ม.');
+          return 'สติ๊กเกอร์รวม ' + si.pcs + ' ชิ้น (' + parts.join(' + ') + (s.copies > 1 ? ' · ' + s.copies + ' ชุด' : '') + ')';
         })()
         : c.pages + ' หน้า × ' + s.copies + ' ชุด (' + (s.tier === 'pro' ? 'PRO ' + this.proLabel() : ((PRINT_TYPES.find(t => t.k === s.ptype) || {}).label || '') + ' ' + s.paper + ((s.nup || 1) > 1 ? ' · ' + s.nup + ' หน้า/แผ่น' : '')) + ')',
       printCost: c.printCost, bindCost: c.bindCost, printTotal: c.printTotal,
@@ -2473,15 +2449,16 @@ class App extends React.Component {
         // งานสติ๊กเกอร์รับไฟล์ลายละ "1 หน้า (รูปเดียว)" เท่านั้น — ไฟล์หลายหน้าห้ามไปต่อ (นโยบาย 2026-09-09)
         if (s.tier === 'pro' && s.proType === 'sticker' && s.files.some(f => (f.pages || 1) > 1))
           return this.showToast('🏷️ ไฟล์สติ๊กเกอร์ต้องมีรูปเดียว (1 หน้า) ต่อ 1 ลายเท่านั้นครับ — ที่เหลือทางร้านจัดการให้เอง ลบไฟล์หลายหน้าแล้วส่งใหม่นะครับ 🙏');
-        // สติ๊กเกอร์ v2: ต้องเลือกเนื้อ (PP/PVC เลือกได้รายลาย) + กรอกขนาด/จำนวนชิ้นครบทุกลาย + ชิ้นไม่ใหญ่เกินแผ่น A3 (นโยบาย 2026-09-09)
+        // สติ๊กเกอร์ v3: ต้องเลือกเนื้อ (PP/PVC รายลาย) + กรอกขนาด/จำนวนแผ่นครบทุกลาย + ชิ้นไม่ใหญ่เกินแผ่นของเนื้อนั้น
         if (s.tier === 'pro' && s.proType === 'sticker') {
           const si = this.stickerInfo();
           const noT = si.list.findIndex(x => !x.t);
           if (noT >= 0) return this.showToast('🏷️ เลือกประเภทสติ๊กเกอร์ (PP หรือ PVC) ของ "ไฟล์ที่ ' + (noT + 1) + '" ก่อนนะครับ');
           const bad = si.list.findIndex(x => !x.ok);
-          if (bad >= 0) return this.showToast('🏷️ กรอกขนาด (กว้าง×ยาว ซม.) และจำนวนชิ้นของ "ไฟล์ที่ ' + (bad + 1) + '" ให้ครบก่อนนะครับ');
+          if (bad >= 0) return this.showToast('🏷️ กรอกขนาด (กว้าง×ยาว ซม.) และจำนวนแผ่นของ "ไฟล์ที่ ' + (bad + 1) + '" ให้ครบก่อนนะครับ');
           const over = si.list.findIndex(x => x.over);
-          if (over >= 0) return this.showToast('🏷️ ไฟล์ที่ ' + (over + 1) + ' ขนาดใหญ่เกินแผ่น A3 ครับ (พิมพ์ได้ไม่เกิน ' + (STK_W - STK_MARGIN * 2) + '×' + (STK_H - STK_MARGIN * 2) + ' ซม.) — ลดขนาดลงหรือทักไลน์ร้านได้เลย');
+          if (over >= 0) { const shp = STK_SHEET[si.list[over].t] || STK_SHEET.pp;
+            return this.showToast('🏷️ ไฟล์ที่ ' + (over + 1) + ' ขนาดใหญ่เกิน' + (si.list[over].t === 'pvc' ? 'พื้นที่ 1 ตร.ม.' : 'แผ่น 13"×19"') + ' ครับ (พิมพ์ได้ไม่เกิน ' + (shp.w - STK_MARGIN * 2) + '×' + (shp.h - STK_MARGIN * 2) + ' ซม.) — ลดขนาดลงหรือทักไลน์ร้านได้เลย'); }
         }
         // พับครึ่งโฉมใหม่ (2026-09-13): ขั้นต่ำต่อเล่ม — เล่ม A5 ≥8 หน้า + สั่ง ≥2 เล่ม · เล่ม A4 ≥4 หน้า
         if (s.tier === 'pro' && s.proType === 'foldbook') {
@@ -3489,9 +3466,9 @@ class App extends React.Component {
                 {v.stkOn && <div style={css("display:flex;flex-direction:column;gap:6px")}>
                   {/* ข้อความเตือนแดง "เลือก PP/PVC ก่อน" ถูกถอด (2026-09-11) — toDelivery ยังบล็อก+toast รายไฟล์ถ้าไม่เลือกเหมือนเดิม */}
                   <div style={css("margin-top:2px;background:var(--card);border:1.5px solid var(--acc);border-radius:12px;padding:12px 14px")}>
-                    <div style={css("font-size:12.5px;font-weight:700;color:var(--acc)")}>🏷️ กรอกขนาดชิ้น + จำนวนชิ้นของแต่ละลายตรงนี้เลย</div>
+                    <div style={css("font-size:12.5px;font-weight:700;color:var(--acc)")}>🏷️ เลือกเนื้อ + ขนาดชิ้น + จำนวนแผ่น — ระบบคำนวณจำนวนชิ้นให้อัตโนมัติ</div>
                     {v.stkFiles.length === 0
-                      ? <div style={css("margin-top:7px;font-size:11.5px;color:var(--sub);line-height:1.6")}>อัปโหลดไฟล์ลายสติ๊กเกอร์ที่ด้านบนก่อน (1 ไฟล์ = 1 ลาย) แล้วช่องกรอกขนาดกับจำนวนชิ้นของแต่ละไฟล์จะขึ้นตรงนี้ครับ</div>
+                      ? <div style={css("margin-top:7px;font-size:11.5px;color:var(--sub);line-height:1.6")}>อัปโหลดไฟล์ลายสติ๊กเกอร์ที่ด้านบนก่อน (1 ไฟล์ = 1 ลาย) แล้วช่องกรอกขนาดกับจำนวนแผ่นของแต่ละไฟล์จะขึ้นตรงนี้ครับ</div>
                       : <React.Fragment>
                           {v.stkFiles.map((f, i) => (
                             f.multi
@@ -3518,40 +3495,30 @@ class App extends React.Component {
                                     <input value={f.valH} onChange={f.setH} inputMode="decimal" placeholder="ยาว" style={css("flex:1;min-width:0;height:40px;border:1.5px solid var(--acc);border-radius:10px;background:var(--card);color:var(--ink);font-size:14px;font-weight:700;text-align:center;outline:none")}/>
                                     <span style={css("flex:none;font-size:11px;font-weight:600;color:var(--sub)")}>ซม.</span>
                                   </div>
-                                  <div style={css("margin-top:8px;font-size:10.5px;font-weight:600;color:var(--sub)")}>3. จำนวนชิ้นที่ต้องการ</div>
+                                  <div style={css("margin-top:8px;font-size:10.5px;font-weight:600;color:var(--sub)")}>3. {f.t === 'pvc' ? 'จำนวนตารางเมตรที่ต้องการ (1 ตร.ม. = 100×100 ซม.)' : 'จำนวนแผ่นที่ต้องการ (แผ่นละ 13"×19" นิ้ว)'}</div>
                                   <div style={css("margin-top:4px;display:flex;align-items:center;gap:7px")}>
-                                    <input value={f.valQ} onChange={f.setQty} inputMode="numeric" placeholder="เช่น 40" style={css("flex:1;min-width:0;height:40px;border:1.5px solid var(--acc);border-radius:10px;background:var(--card);color:var(--ink);font-size:14px;font-weight:700;text-align:center;outline:none")}/>
-                                    <span style={css("flex:none;font-size:11px;font-weight:600;color:var(--sub)")}>ชิ้น</span>
+                                    <input value={f.valSh} onChange={f.setSh} inputMode="numeric" placeholder="เช่น 2" style={css("flex:1;min-width:0;height:40px;border:1.5px solid var(--acc);border-radius:10px;background:var(--card);color:var(--ink);font-size:14px;font-weight:700;text-align:center;outline:none")}/>
+                                    <span style={css("flex:none;font-size:11px;font-weight:600;color:var(--sub)")}>{f.t === 'pvc' ? 'ตร.ม.' : 'แผ่น'}</span>
                                   </div>
                                   <div style={css("margin-top:7px;font-size:10.5px;line-height:1.5;" + (f.info && f.info.over ? "font-weight:700;color:#c92a2a" : "color:var(--sub)"))}>
                                     {f.info && f.info.over
-                                      ? '⚠️ ขนาดใหญ่เกินแผ่น A3 (พิมพ์ได้ไม่เกิน 28.7×41 ซม.) — ลดขนาดลงหรือทักไลน์ร้านครับ'
-                                      : f.info && f.info.ok
-                                      ? 'วางลงแผ่น A3 ได้ ' + f.info.cap + ' ชิ้น/แผ่น → ลายนี้ใช้ ' + f.info.sheets + ' แผ่น'
-                                      : 'กรอกขนาด กว้าง × ยาว (ซม.) และจำนวนชิ้นที่ต้องการให้ครบครับ'}
+                                      ? (() => { const shp = STK_SHEET[f.t] || STK_SHEET.pp; return '⚠️ ขนาดใหญ่เกิน' + (f.t === 'pvc' ? 'พื้นที่ 1 ตร.ม.' : 'แผ่น 13"×19"') + ' (พิมพ์ได้ไม่เกิน ' + (shp.w - STK_MARGIN * 2) + '×' + (shp.h - STK_MARGIN * 2) + ' ซม.) — ลดขนาดลงหรือทักไลน์ร้านครับ'; })()
+                                      : f.info && f.info.cap > 0 && f.info.ok
+                                      ? '🎉 วางได้สูงสุด ' + f.info.cap + ' ชิ้น/' + stkUnit(f.t) + ' × ' + f.info.sheets + ' ' + stkUnit(f.t) + ' = รวม ' + f.info.q + ' ชิ้น'
+                                      : f.info && f.info.cap > 0
+                                      ? '🎉 ขนาดนี้วางได้สูงสุด ' + f.info.cap + ' ชิ้น/' + stkUnit(f.t) + ' — เลือกจำนวน' + stkUnit(f.t) + 'ด้านบนได้เลยครับ'
+                                      : 'เลือกเนื้อ + กรอกขนาด กว้าง × ยาว (ซม.) และจำนวนแผ่นให้ครบครับ'}
                                   </div>
                                 </div>
                           ))}
-                          {v.stkFill && (
-                            <div style={css("margin-top:10px;background:var(--accSoft);border:1.5px dashed var(--acc);border-radius:9px;padding:9px 11px")}>
-                              <div style={css("font-size:10.5px;font-weight:600;color:var(--acc);line-height:1.55")}>งาน PVC คิดเป็นช่วงละ 1 ตร.ม. (฿{STK_PVC_SQM}/ตร.ม.) — ตอนนี้จ่ายพื้นที่ {v.stkFill.blocks} ตร.ม. แต่ยังใช้ไม่เต็มครับ</div>
-                              <button onClick={v.stkFillGo} style={css("margin-top:6px;width:100%;box-sizing:border-box;padding:8px 12px;border:none;border-radius:9px;background:var(--acc);color:#fff;line-height:1.5;cursor:pointer;font-family:inherit;text-align:center")}>
-                                <span style={css("display:block;font-size:13px;font-weight:700")}>🎁 ปริ้นเต็มจำนวน</span>
-                                <span style={css("display:block;margin-top:1px;font-size:11px;font-weight:600;opacity:.95;white-space:normal")}>{v.stkFill.plan.length === 1
-                                  ? 'เพิ่มเป็น ' + v.stkFill.plan[0].to + ' ชิ้น ราคาเท่าเดิม'
-                                  : v.stkFill.plan.map(p => 'ไฟล์ที่ ' + (p.i + 1) + ': ' + p.from + ' → ' + p.to + ' ชิ้น').join(' · ') + ' — ราคาเท่าเดิม'}</span>
-                              </button>
-                              <div style={css("margin-top:4px;font-size:10px;color:var(--sub);line-height:1.5")}>กดหรือไม่กดก็ได้ครับ — ระบบเพิ่มจำนวนชิ้นของลาย PVC ให้เต็มพื้นที่ {v.stkFill.blocks} ตารางเมตรที่จ่ายแล้วอัตโนมัติ คุ้มสุด</div>
-                            </div>
-                          )}
                           {v.stkMulti && <div style={css("margin-top:10px;background:#fff0f0;border:1px solid #ffa8a8;border-radius:10px;padding:8px 11px;font-size:11.5px;font-weight:700;color:#c92a2a;line-height:1.5")}>⚠️ ลบไฟล์ที่เกิน 1 หน้าออกก่อน ถึงจะไปขั้นตอนถัดไปได้ครับ</div>}
                           {v.stkSum && !v.stkMulti && (v.stkSum.ready
                             ? <div style={css("margin-top:10px;background:var(--accSoft);border:1px solid var(--acc);border-radius:10px;padding:8px 11px;font-size:12px;font-weight:700;color:var(--acc)")}>
-                                <div style={css("display:flex;justify-content:space-between;gap:8px")}><span>สติ๊กเกอร์รวมทั้งหมด {v.stkSum.pcs} ชิ้น = กระดาษ A3 {v.stkSum.sheets} แผ่น</span><span>฿{v.stkSum.cost}</span></div>
+                                <div style={css("display:flex;justify-content:space-between;gap:8px")}><span>สติ๊กเกอร์รวมทั้งหมด {v.stkSum.pcs} ชิ้น ({v.stkSum.units})</span><span>฿{v.stkSum.cost}</span></div>
                                 {v.stkSum.brk && <div style={css("margin-top:2px;font-size:11px")}>{v.stkSum.brk}</div>}
                                 {v.stkSum.tierNote && <div style={css("margin-top:2px;font-size:11px")}>{v.stkSum.tierNote}</div>}
                               </div>
-                            : <div style={css("margin-top:10px;background:#fff7e0;border:1px solid #f0c36d;border-radius:10px;padding:8px 11px;font-size:11.5px;font-weight:700;color:#8a6d1a;line-height:1.5")}>กรอกประเภทสติ๊กเกอร์ + ขนาด + จำนวนชิ้นให้ครบทุกลาย แล้วระบบจะสรุปจำนวนแผ่นและราคาให้ตรงนี้ครับ</div>)}
+                            : <div style={css("margin-top:10px;background:#fff7e0;border:1px solid #f0c36d;border-radius:10px;padding:8px 11px;font-size:11.5px;font-weight:700;color:#8a6d1a;line-height:1.5")}>เลือกประเภทสติ๊กเกอร์ + ขนาดชิ้น + จำนวนแผ่นให้ครบทุกลาย แล้วระบบจะคำนวณจำนวนชิ้นและราคาให้ตรงนี้ครับ</div>)}
                         </React.Fragment>}
                   </div>
                 </div>}
