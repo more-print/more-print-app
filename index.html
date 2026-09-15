@@ -411,6 +411,7 @@ class App extends React.Component {
     this.fileRef = React.createRef();
     this.slipRef = React.createRef();
     this.reupRef = React.createRef(); // ช่องเลือกไฟล์สำหรับส่งไฟล์ที่อัปพลาดใหม่
+    this.slipReRef = React.createRef(); // ช่องเลือกรูปสำหรับส่งสลิปที่อัปพลาดใหม่ (2026-09-15)
     this.chatImgRef = React.createRef(); // ช่องเลือกรูปแนบในแชท (เช่น สลิปส่วนต่างค่าส่ง)
     let rc0 = null; try { rc0 = JSON.parse(localStorage.getItem('mp_rc') || 'null'); } catch (e) {} // ข้อมูลผู้ซื้อในใบเสร็จที่เคยกรอก
     if (!rc0) try { const m = document.cookie.match(/(?:^|;\s*)mp_rc_bk=([^;]+)/); rc0 = m ? JSON.parse(decodeURIComponent(m[1])) : null; } catch (e) {} // สำรองในคุกกี้ — เครื่องล้าง storage เองก็ยังจำได้
@@ -538,7 +539,7 @@ class App extends React.Component {
       if (od && od.id) {
         this.setState({
           order: { id: od.id, total: od.total || 0, times: od.times || ['', '', '', ''], plabel: od.plabel || '', eta: od.eta || null, pickup: !!od.pickup, ts: od.ts || null, express: !!od.express, adjs: od.adjs || [],
-            addr: od.addr || '', phone: od.phone || '', veh: od.veh || '', copies: od.copies || 0, pages: od.pages || 0, fails: od.fails || [], dist: od.dist ?? null, rc: od.rc || null, cp: od.cp || null, unsaved: !!od.unsaved },
+            addr: od.addr || '', phone: od.phone || '', veh: od.veh || '', copies: od.copies || 0, pages: od.pages || 0, fails: od.fails || [], dist: od.dist ?? null, rc: od.rc || null, cp: od.cp || null, unsaved: !!od.unsaved, slipFail: !!od.slipFail },
           trackStep: od.step == null ? 1 : od.step, // step 0 (ยกเลิก) เป็น falsy — ห้ามใช้ || 1
           cancelReason: od.cancelReason || ''
         });
@@ -1490,7 +1491,7 @@ class App extends React.Component {
         const ext = (s.slip.name.split('.').pop() || 'jpg').replace(/[^a-zA-Z0-9]/g, '').slice(0, 5) || 'jpg';
         slip_path = id.replace('#', '') + '/slip.' + ext;
         const se = await uploadRetry(slip_path, s.slip);
-        if (se) { console.error('slip:', se); slip_path = null; }
+        if (se) { console.error('slip:', se); slip_path = null; this.markSlipFail(id, true); } // ขึ้นป้าย+ปุ่มส่งสลิปใหม่บนหน้าติดตาม (2026-09-15 เคสจริง #MP-V6RXTVBS)
       }
       const u = s.user || {};
       const payload = {
@@ -1776,7 +1777,7 @@ class App extends React.Component {
     try { localStorage.setItem('mp_order', JSON.stringify(o)); } catch (e) {}
     clearInterval(this.trackTimer);
     this.setState({
-      order: { id: o.id, total: o.total || 0, times: o.times || ['', '', '', ''], plabel: o.plabel || '', eta: o.eta || null, pickup: !!o.pickup, ts: o.ts || null, express: !!o.express, adjs: o.adjs || [], addr: o.addr || '', phone: o.phone || '', veh: o.veh || '', copies: o.copies || 0, pages: o.pages || 0, fails: o.fails || [], dist: o.dist ?? null, rc: o.rc || null, cp: o.cp || null, unsaved: !!o.unsaved },
+      order: { id: o.id, total: o.total || 0, times: o.times || ['', '', '', ''], plabel: o.plabel || '', eta: o.eta || null, pickup: !!o.pickup, ts: o.ts || null, express: !!o.express, adjs: o.adjs || [], addr: o.addr || '', phone: o.phone || '', veh: o.veh || '', copies: o.copies || 0, pages: o.pages || 0, fails: o.fails || [], dist: o.dist ?? null, rc: o.rc || null, cp: o.cp || null, unsaved: !!o.unsaved, slipFail: !!o.slipFail },
       trackStep: o.step == null ? 1 : o.step, cancelReason: o.cancelReason || '', chat: [], trackOpen: true, trackMin: false, selfCancelArm: false // ระวัง: step 0 (ยกเลิก) เป็น falsy ห้ามใช้ || 1 · trackOpen true = ใบที่เพิ่งแตะเลือกกางให้เห็นทันทีเสมอ
     }, () => {
       if (this.db && o.step !== 0 && (o.step || 1) < 4) this.startPolling(o.id);
@@ -1784,6 +1785,28 @@ class App extends React.Component {
       if (this.db) this.loadChat();
     });
   }
+  // ── สลิปอัปโหลดไม่สำเร็จ (เน็ตลูกค้าสะดุด — 2026-09-15): ธง slipFail + ปุ่มส่งสลิปใหม่ ──
+  markSlipFail(id, flag){
+    this.setState(st => st.order && st.order.id === id ? { order: { ...st.order, slipFail: !!flag } } : null);
+    try {
+      const od = JSON.parse(localStorage.getItem('mp_order') || 'null');
+      if (od && od.id === id) { od.slipFail = !!flag; localStorage.setItem('mp_order', JSON.stringify(od)); this.upsertOrderList(od); }
+    } catch (e) {}
+  }
+  // อัปสลิปใหม่ที่ path ตายตัว <รหัส>/slip-re.jpg — anon แก้คอลัมน์ slip_path ไม่ได้ หลังบ้านทั้ง 3 จึงมองหาไฟล์ path นี้เองเมื่อออเดอร์ไม่มีสลิป
+  async reupSlip(file){
+    const o = this.state.order;
+    if (!o || !this.db || !file) return;
+    this.setState({ reupBusy: true });
+    const path = o.id.replace('#', '') + '/slip-re.jpg'; // นามสกุลไม่ต้องตรงชนิดไฟล์จริง — เบราว์เซอร์แสดงรูปตามเนื้อไฟล์
+    let { error } = await this.db.storage.from('uploads').upload(path, file);
+    if (error && /exist|duplicate/i.test(String(error.message || ''))) error = null; // เคยส่งไปแล้ว = ร้านเห็นไฟล์เดิมอยู่แล้ว
+    this.setState({ reupBusy: false });
+    if (error) { console.error('slip-re:', error); return this.showToast('อัปโหลดไม่สำเร็จ ลองอีกครั้งครับ 🙏 (หรือส่งรูปสลิปทางแชทร้านก็ได้)'); }
+    this.markSlipFail(o.id, false);
+    this.showToast('✓ ส่งสลิปเรียบร้อย ร้านเห็นแล้วครับ 🎉');
+  }
+
   // ส่งไฟล์ที่อัปพลาดใหม่: อัปเข้าคลัง แล้วให้ RPC reattach_file (SECURITY DEFINER) เขียน path เข้าออเดอร์เดิม
   async reupFile(idx, file){
     const o = this.state.order;
@@ -2730,6 +2753,10 @@ class App extends React.Component {
       trackFails: (!cancelled && step >= 1 && step <= 2 && s.order && s.order.fails && s.order.fails.length) ? s.order.fails : [],
       // ออเดอร์ยังส่งไม่ถึงร้าน (insert พลาดตอนเน็ตสะดุด — 2026-09-14): ป้ายแดง + ปุ่มส่งซ้ำเดี๋ยวนี้ (ระบบก็วนส่งซ้ำเองทุก 8 วิอยู่แล้ว)
       trackUnsaved: !cancelled && !!(s.order && s.order.unsaved),
+      // สลิปอัปโหลดไม่สำเร็จ — ป้าย+ปุ่มส่งสลิปใหม่ (โชว์เฉพาะงานยังไม่จบ 2026-09-15)
+      trackSlipFail: !cancelled && step >= 1 && step <= 3 && !!(s.order && s.order.slipFail),
+      slipRePick: () => { this.slipReRef.current && this.slipReRef.current.click(); },
+      onSlipReFile: (e) => { const f = e.target.files && e.target.files[0]; e.target.value = ''; if (f) this.reupSlip(f); },
       retryNow: () => {
         this.showToast('⏳ กำลังส่งออเดอร์ไปที่ร้านอีกครั้ง...');
         this.retryPendingOrder().then(ok => { if (!ok) this.showToast('ยังส่งไม่สำเร็จ 🙏 เช็คสัญญาณเน็ตแล้วกดอีกครั้ง หรือทักไลน์ร้านพร้อมสลิปได้เลยครับ'); });
@@ -4019,6 +4046,15 @@ class App extends React.Component {
                       ))}
                     </div>
                     <input ref={this.reupRef} type="file" accept="application/pdf,image/*" onChange={v.onReupFile} style={{ display: 'none' }}/>
+                  </div>
+                )}
+                {/* สลิปอัปโหลดไม่สำเร็จ — ปุ่มส่งสลิปใหม่ (อัปที่ <รหัส>/slip-re.jpg หลังบ้านเห็นเอง — 2026-09-15) */}
+                {v.trackSlipFail && (
+                  <div style={css("background:#fff0f0;border:1.5px solid #ffc9c9;border-radius:14px;padding:13px 15px")}>
+                    <div style={css("font-size:13.5px;font-weight:800;color:#c92a2a")}>⚠️ สลิปโอนเงินอัปโหลดไม่สำเร็จ</div>
+                    <div style={css("margin-top:3px;font-size:11.5px;color:#a61e1e;line-height:1.6")}>เน็ตสะดุดตอนแนบสลิป — แตะส่งรูปสลิปเดิมอีกครั้ง ร้านจะได้ตรวจยอดและเริ่มงานให้เร็วที่สุดครับ</div>
+                    <button onClick={v.slipRePick} disabled={v.reupBusy} style={css("margin-top:9px;width:100%;height:42px;border:none;border-radius:10px;background:#c92a2a;color:#fff;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit" + (v.reupBusy ? ";opacity:.6" : ""))}>{v.reupBusy ? '⏳ กำลังส่ง…' : '🧾 ส่งสลิปใหม่อีกครั้ง'}</button>
+                    <input ref={this.slipReRef} type="file" accept="image/*" onChange={v.onSlipReFile} style={{ display: 'none' }}/>
                   </div>
                 )}
                 {v.trackCollapsed ? (

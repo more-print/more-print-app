@@ -397,6 +397,15 @@ function Manage({ o, onPrice, onPayout, onAdvance, onRetreat, onAdjust, onCancel
           <span style={css("font-size:10.5px;color:var(--acc);font-weight:600")}>{FI.receipt(11)} สลิปโอนเงิน — แตะดูเต็ม</span>
         </a>
       )}
+      {/* สลิปแนบครั้งแรกไม่สำเร็จ — ลองหาไฟล์ที่ลูกค้าส่งใหม่ <รหัส>/slip-re.jpg: โหลดได้ค่อยโชว์ (2026-09-15) */}
+      {!o.slip_path && (
+        <a href={fileUrl(o.id.replace('#', '') + '/slip-re.jpg')} target="_blank" rel="noreferrer" style={css("display:none;text-decoration:none")}>
+          <img src={fileUrl(o.id.replace('#', '') + '/slip-re.jpg')} alt="สลิป (ส่งใหม่)"
+            onLoad={(e) => { e.target.closest('a').style.display = 'inline-block'; }}
+            style={css("max-width:130px;max-height:170px;border-radius:9px;border:1px solid var(--line);display:block;background:var(--soft)")}/>
+          <span style={css("font-size:10.5px;color:var(--acc);font-weight:600")}>{FI.receipt(11)} สลิปที่ลูกค้าส่งใหม่ — แตะดูเต็ม</span>
+        </a>
+      )}
       {o.status > 0 && o.status < 4 && (
         <div style={css("display:flex;gap:8px")}>
           <button onClick={() => onAdvance(o)} style={css("flex:1;height:38px;border:none;border-radius:10px;background:var(--purple);color:#fff;font-size:12px;font-weight:700;cursor:pointer")}>→ อัปเดตเป็น "{stepsOf(o)[Math.min(o.status, 3)]}"</button>

@@ -478,9 +478,19 @@ function OrderCard({ o, idx, onAdvance, onRetreat, onAdjust, onCancel, onRemove,
                   <img src={fileUrl(o.slip_path)} alt="สลิปโอนเงิน" style={css("max-width:170px;max-height:220px;border-radius:10px;border:1px solid var(--line);display:block;background:var(--soft)")}/>
                   <div style={css("font-size:11px;color:var(--acc);margin-top:4px;font-weight:600")}>แตะเพื่อดูรูปเต็ม</div>
                 </a>
-              : (o.status >= 1 && o.status < 4
-                ? <div style={css("margin-top:4px;font-size:12.5px;color:#c92a2a;font-weight:700")}>⚠️ ไม่มีสลิปแนบมา — โทรเช็คก่อนปริ้น</div>
-                : <div style={css("margin-top:4px;font-size:11.5px;color:var(--sub)")}>— ไม่มีไฟล์ (อาจถูกล้างเพื่อคืนพื้นที่แล้ว)</div>)}
+              : <div>
+                  {/* สลิปแนบครั้งแรกไม่สำเร็จ — ลองหาไฟล์ที่ลูกค้ากดส่งใหม่ (<รหัส>/slip-re.jpg): โหลดได้ = โชว์แทน + ซ่อนป้ายเตือน (2026-09-15) */}
+                  <a href={fileUrl(o.id.replace('#', '') + '/slip-re.jpg')} target="_blank" rel="noreferrer" style={css("display:none;margin-top:6px;text-decoration:none")}>
+                    <img src={fileUrl(o.id.replace('#', '') + '/slip-re.jpg')} alt="สลิปโอนเงิน (ส่งใหม่)"
+                      onLoad={(e) => { e.target.parentElement.style.display = 'inline-block'; const w = e.target.parentElement.parentElement.querySelector('.slip-warn'); if (w) w.style.display = 'none'; }}
+                      onError={(e) => { e.target.parentElement.style.display = 'none'; }}
+                      style={css("max-width:170px;max-height:220px;border-radius:10px;border:1px solid var(--line);display:block;background:var(--soft)")}/>
+                    <div style={css("font-size:11px;color:var(--acc);margin-top:4px;font-weight:600")}>ลูกค้าส่งสลิปใหม่ (แนบครั้งแรกไม่สำเร็จ) · แตะดูรูปเต็ม</div>
+                  </a>
+                  {(o.status >= 1 && o.status < 4)
+                    ? <div className="slip-warn" style={css("margin-top:4px;font-size:12.5px;color:#c92a2a;font-weight:700")}>⚠️ ไม่มีสลิปแนบมา — โทรเช็คก่อนปริ้น</div>
+                    : <div className="slip-warn" style={css("margin-top:4px;font-size:11.5px;color:var(--sub)")}>— ไม่มีไฟล์ (อาจถูกล้างเพื่อคืนพื้นที่แล้ว)</div>}
+                </div>}
             </div>
           </div>
           <div style={css("display:flex;gap:10px;font-size:12px")}>

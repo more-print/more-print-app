@@ -361,6 +361,18 @@ function ProOrder({ o, idx, isOwner, payoutReady, onPrice, onPayout, onAdvance, 
               : <a href={fileUrl(o.slip_path)} target="_blank" rel="noreferrer" style={css("font-weight:700;color:var(--acc)")}>เปิดดูสลิปโอนเงินของลูกค้า →</a>}
           </div>
         )}
+        {/* ไม่มีสลิปในออเดอร์ (แนบครั้งแรกไม่สำเร็จ) — ลองหาไฟล์ที่ลูกค้ากดส่งใหม่ <รหัส>/slip-re.jpg: โหลดได้ค่อยโชว์ทั้งแถว (2026-09-15) */}
+        {!o.slip_path && (
+          <div style={css("display:none;gap:10px;font-size:12px")}>
+            <span style={css("flex:none;width:76px;color:var(--sub);font-weight:600")}>{FI.receipt(13)} สลิป</span>
+            <a href={fileUrl(o.id.replace('#', '') + '/slip-re.jpg')} target="_blank" rel="noreferrer" style={css("text-decoration:none")}>
+              <img src={fileUrl(o.id.replace('#', '') + '/slip-re.jpg')} alt="สลิป (ส่งใหม่)"
+                onLoad={(e) => { e.target.closest('a').parentElement.style.display = 'flex'; }}
+                style={css("max-width:110px;max-height:140px;border-radius:9px;border:1px solid var(--line);display:block;background:var(--soft)")}/>
+              <span style={css("font-size:10.5px;color:var(--acc);font-weight:600")}>ลูกค้าส่งสลิปใหม่ · เปิดดูเต็มจอ</span>
+            </a>
+          </div>
+        )}
       {priced && !edit ? (
         <div style={css("margin-top:10px;background:var(--soft);border-radius:10px;padding:10px 12px;font-size:12.5px;display:flex;flex-direction:column;gap:4px")}>
           {(o.discount || 0) > 0 && <div style={css("font-size:11px;font-weight:700;color:#c2255c")}>🎟️ ลูกค้าใช้โค้ดส่วนลด {o.coupon || ''} −฿{o.discount}{printDisc(o) > 0 ? ' — ส่วนแบ่งทั้งสองฝั่งคิดจากราคาหลังหักส่วนลด (หาร 80/20 ตามสัดส่วน)' : ' — โค้ดส่งฟรี ลดเฉพาะค่าส่งฝั่ง MORE PRINT ส่วนแบ่งร้านไม่กระทบ'}</div>}
