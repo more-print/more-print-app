@@ -1093,7 +1093,9 @@ function AdminApp(){
         : '• ' + adjLabel + ' (' + (sd.veh === 'car' ? '🚗 รถยนต์' : '🏍️ มอเตอร์ไซค์') + ') ' + (sdDiff > 0 ? '+฿' + sdDiff : sdDiff < 0 ? '−฿' + (-sdDiff) : 'ค่าส่ง ฿' + sd.fee + ' เท่าเดิม') + '\n   จุดส่ง: ' + sd.addr);
     }
     const net = items.reduce((s, it) => s + it.amt, 0) + sdDiff;
-    const newTotal = Math.max(0, Math.round((Number(o.total) || 0) + net));
+    // ฐาน = บิลปัจจุบัน (o.total); เผื่อออเดอร์เก่าไม่มี total ค่อยคำนวณจากส่วนประกอบ
+    const base = Number(o.total) || Math.max(0, (o.print_cost || 0) + (o.bind_cost || 0) + (o.delivery_cost || 0) + (o.night_fee || 0) + (o.adjustments || []).reduce((s, a) => s + (Number(a.amt) || 0), 0) - (o.discount || 0));
+    const newTotal = Math.max(0, Math.round(base + net));
     upd = { ...upd, total: newTotal, adjustments: adjs };
     if (!DB) { setOrders(list => list.map(x => x.id === o.id ? { ...x, ...upd } : x)); return; }
     setBusyId(o.id);
