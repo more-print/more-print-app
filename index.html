@@ -1620,7 +1620,12 @@ class App extends React.Component {
       }
       if (row) {
         // ร้านปรับแต่งออเดอร์ (เพิ่ม/ลดรายการ) — get_order_status รุ่นใหม่คืน total+adjustments มาด้วย ให้บิลลูกค้าอัปเดตสด (รุ่นเก่าไม่มี field = ข้ามเฉยๆ)
-        const adjPatch = { ...(row.total != null ? { total: row.total } : {}), ...(row.adjustments != null ? { adjs: row.adjustments } : {}) };
+        // ร้านเปลี่ยนการรับงาน มารับเอง → จัดส่ง (2026-09-15): รุ่นใหม่คืน pickup+addr ด้วย — ป้าย/ขั้นตอนหน้าติดตามเปลี่ยนตามทันที
+        const wasPickup = (this.state.order && this.state.order.id === id) ? !!this.state.order.pickup : null;
+        const adjPatch = { ...(row.total != null ? { total: row.total } : {}), ...(row.adjustments != null ? { adjs: row.adjustments } : {}),
+          ...(row.pickup != null ? { pickup: !!row.pickup } : {}),
+          ...(row.pickup === false && row.addr ? { addr: String(row.addr).replace(/^[🚗🏍️\s]+/, ''), veh: String(row.addr).startsWith('🚗') ? '🚗 รถยนต์' : '🏍️ มอเตอร์ไซค์' } : {}) };
+        if (row.pickup === false && wasPickup === true) this.showToast('🚚 ร้านเปลี่ยนการรับงานเป็น "จัดส่งถึงที่" ตามที่คุณแจ้งแล้วครับ — ดูรายละเอียด/ยอดใหม่ในบิลและแชทได้เลย');
         this.setState(st => st.order && st.order.id === id
           ? { trackStep: row.status, cancelReason: row.cancel_reason || '', order: { ...st.order, times: row.times || st.order.times, ...adjPatch } }
           : null);
@@ -1633,6 +1638,8 @@ class App extends React.Component {
             od.cancelReason = row.cancel_reason || '';
             if (row.total != null) od.total = row.total;
             if (row.adjustments != null) od.adjs = row.adjustments;
+            if (row.pickup != null) od.pickup = !!row.pickup;
+            if (row.pickup === false && row.addr) { od.addr = String(row.addr).replace(/^[🚗🏍️\s]+/, ''); od.veh = String(row.addr).startsWith('🚗') ? '🚗 รถยนต์' : '🏍️ มอเตอร์ไซค์'; }
             if (row.status === 0 && !od.cancelledAt) od.cancelledAt = Date.now(); // จดเวลายกเลิก — ครบกำหนดจะเก็บกวาดออกจากหน้าจอเอง
             localStorage.setItem('mp_order', JSON.stringify(od));
             this.upsertOrderList(od);
@@ -2618,6 +2625,8 @@ class App extends React.Component {
       bookLabel: (STD_BINDS.find(b => b.k === s.bind) || {}).name || (s.bind === 'book' ? 'เข้าเล่ม' : s.bind === 'landscape' ? 'เล่มแนวนอน' : 'ไม่เข้าเล่ม'),
       isColorType: s.ptype === 'color',
       destLabel: s.addr + (this.handoffLabel() ? ' · ' + this.handoffLabel() : ''),
+      // ที่อยู่บนหน้าติดตาม: ใช้ของออเดอร์จริงก่อน (อยู่รอดหลังรีเฟรช + อัปเดตเมื่อร้านเปลี่ยนเป็นจัดส่ง 2026-09-15) — ไม่มีค่อยถอยไปใช้ค่าฟอร์ม
+      trackDest: (s.order && s.order.addr) ? s.order.addr : (s.addr + (this.handoffLabel() ? ' · ' + this.handoffLabel() : '')),
       timeLabel: (this.isExpress() ? 'งานด่วน (เร่งผลิต)' : s.time + ' น.'),
       deliveryLabel: this.isExpress() ? '(ด่วน)' : '',
       slipName: s.slip ? s.slip.name : '',
@@ -4103,7 +4112,7 @@ class App extends React.Component {
                       )}
                     </div>
                     <div style={css("background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px;font-size:12.5px;display:flex;flex-direction:column;gap:5px")}>
-                      <div style={css("display:flex;justify-content:space-between")}><span style={css("color:var(--sub)")}>ส่งที่</span><span style={css("text-align:right;max-width:60%")}>{v.destLabel}</span></div>
+                      <div style={css("display:flex;justify-content:space-between")}><span style={css("color:var(--sub)")}>ส่งที่</span><span style={css("text-align:right;max-width:60%")}>{v.trackDest}</span></div>
                       {/* ร้านปรับรายการภายหลัง (เพิ่ม/ลด) — โชว์ทีละบรรทัด แล้วยอดรวมด้านล่างเป็นยอดล่าสุด */}
                       {v.orderAdjs.map((a, i) => (
                         <div key={i} style={css("display:flex;justify-content:space-between")}><span style={css("color:var(--sub)")}>🛠️ {a.amt > 0 ? 'เพิ่ม' : 'ลด'} {a.label}</span><span style={css("font-family:'IBM Plex Mono',monospace;font-weight:600;color:" + (a.amt > 0 ? "var(--warnInk)" : "#22c55e"))}>{a.amt > 0 ? '+' : '−'}฿{Math.abs(a.amt)}</span></div>

@@ -347,7 +347,19 @@ const DEMO_MSGS = [
   { id: 2, sender: 'shop', body: 'รับทราบครับ กำลังจัดให้เลย', created_at: new Date(Date.now() - 7*60000).toISOString() }
 ];
 
-function OrderCard({ o, idx, onAdvance, onRetreat, onAdjust, onCancel, onRemove, busy, unread, onSeen }){
+function OrderCard({ o, idx, onAdvance, onRetreat, onAdjust, onCancel, onRemove, onSwitchDelivery, busy, unread, onSeen }){
+  // เปลี่ยนมารับเอง → จัดส่ง (เคสจริงลูกค้าเปลี่ยนใจทาง LINE — 2026-09-15)
+  const [sdOpen, setSdOpen] = React.useState(false);
+  const [sdAddr, setSdAddr] = React.useState('');
+  const [sdFee, setSdFee] = React.useState('');
+  const [sdVeh, setSdVeh] = React.useState('bike');
+  const sdGo = () => {
+    const fee = Math.round(Number(sdFee) || 0);
+    if (!sdAddr.trim()) return alert('กรอกที่อยู่/จุดส่ง หรือวางลิงก์แผนที่ที่ลูกค้าส่งมาก่อนครับ');
+    if (!(fee >= 0)) return alert('กรอกค่าส่งเป็นตัวเลขครับ (0 = ไม่คิดเพิ่ม)');
+    onSwitchDelivery(o, sdAddr.trim(), fee, sdVeh);
+    setSdOpen(false); setSdAddr(''); setSdFee('');
+  };
   const cancelled = o.status === 0;
   const [open, setOpen] = React.useState(!cancelled && o.status < 4);
   const [cancelOpen, setCancelOpen] = React.useState(false);
@@ -554,6 +566,30 @@ function OrderCard({ o, idx, onAdvance, onRetreat, onAdjust, onCancel, onRemove,
               style={css("height:36px;border:1px solid var(--line);border-radius:10px;background:var(--soft);color:var(--sub);font-size:12px;font-weight:700;cursor:pointer" + (busy ? ";opacity:.6" : ""))}>
               ↩ กดผิด? ย้อนกลับเป็น "{STEPS[o.status - 2]}"
             </button>
+          )}
+          {/* ลูกค้าขอเปลี่ยนจากมารับเองเป็นจัดส่ง — อัปเดตบิล+ที่อยู่เรียลไทม์ + แจ้งแชท/LINE ลูกค้าอัตโนมัติ (2026-09-15) */}
+          {!cancelled && o.pickup && o.status >= 1 && o.status < 4 && (
+            <div style={css("border:1px dashed #1971c2;border-radius:10px;overflow:hidden")}>
+              <div onClick={() => setSdOpen(v => !v)} style={css("padding:8px 12px;font-size:11.5px;font-weight:700;color:#1971c2;cursor:pointer;display:flex;align-items:center;gap:6px")}>
+                🚚 ลูกค้าขอเปลี่ยนเป็นจัดส่ง (จากมารับเอง)<span style={css("flex:1")}></span>{sdOpen ? '▲' : '▼'}
+              </div>
+              {sdOpen && (
+                <div style={css("padding:10px 12px;border-top:1px dashed #a5d8ff;display:flex;flex-direction:column;gap:8px;background:#f0f8ff")}>
+                  <textarea value={sdAddr} onChange={e => setSdAddr(e.target.value)} maxLength={300} placeholder="ที่อยู่/จุดส่งที่ลูกค้าแจ้ง — วางลิงก์ Google Maps ที่ลูกค้าส่งมาได้เลย"
+                    style={css("width:100%;box-sizing:border-box;min-height:52px;border:1px solid #a5d8ff;border-radius:9px;background:#fff;color:var(--ink);padding:8px 11px;font-size:12.5px;outline:none;resize:vertical;font-family:inherit")}/>
+                  <div style={css("display:flex;gap:7px")}>
+                    <button onClick={() => setSdVeh('bike')} style={css("flex:1;height:34px;border-radius:9px;font-size:11.5px;font-weight:700;cursor:pointer;font-family:inherit;" + (sdVeh === 'bike' ? "border:1.5px solid #1971c2;background:#e7f5ff;color:#1971c2" : "border:1px solid var(--line);background:var(--card);color:var(--sub)"))}>🏍️ มอเตอร์ไซค์</button>
+                    <button onClick={() => setSdVeh('car')} style={css("flex:1;height:34px;border-radius:9px;font-size:11.5px;font-weight:700;cursor:pointer;font-family:inherit;" + (sdVeh === 'car' ? "border:1.5px solid #7048e8;background:#f3f0ff;color:#7048e8" : "border:1px solid var(--line);background:var(--card);color:var(--sub)"))}>🚗 รถยนต์</button>
+                  </div>
+                  <div style={css("display:flex;gap:7px;align-items:center")}>
+                    <input value={sdFee} onChange={e => setSdFee(e.target.value.replace(/[^0-9]/g, '').slice(0, 4))} inputMode="numeric" placeholder="ค่าส่ง (บาท)"
+                      style={css("flex:1;min-width:0;box-sizing:border-box;height:38px;border:1px solid #a5d8ff;border-radius:9px;background:#fff;color:var(--ink);padding:0 11px;font-size:12.5px;outline:none;font-family:inherit")}/>
+                    <button disabled={busy} onClick={sdGo} style={css("flex:none;height:38px;padding:0 16px;border:none;border-radius:9px;background:#1971c2;color:#fff;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit" + (busy ? ";opacity:.6" : ""))}>ยืนยันเปลี่ยนเป็นจัดส่ง +฿{sdFee || '?'}</button>
+                  </div>
+                  <div style={css("font-size:10.5px;color:var(--sub);line-height:1.6")}>ยืนยันแล้ว: ออเดอร์เปลี่ยนเป็นจัดส่ง + ค่าส่งเข้าบิล (บรรทัดปรับแต่ง) + แชทแจ้งลูกค้าพร้อม QR ให้ชำระค่าส่ง + หน้าติดตามลูกค้าเปลี่ยนเป็น "จัดส่งถึงที่" อัตโนมัติ</div>
+                </div>
+              )}
+            </div>
           )}
           {/* ปรับแต่งออเดอร์ (เพิ่ม/ลดรายการ + ราคา) — แถบเล็กพับเก็บ ไม่บังปุ่มหลัก · กางเป็นแผงดันเนื้อหาลง ไม่ลอยทับ */}
           {!cancelled && (
@@ -1018,6 +1054,25 @@ function AdminApp(){
       // เพิ่มรายการ = แนบ QR พร้อมเพย์ของร้าน (อัปไว้ในคลังที่ chat/shop/promptpay-qr.jpg แล้ว)
       await DB.from('messages').insert({ order_id: o.id, sender: 'shop', body: text, seen_by_shop: true, ...(signed > 0 ? { img: 'chat/shop/promptpay-qr.jpg' } : {}) });
       // เด้ง LINE ลูกค้าด้วย (เฉพาะคนล็อกอิน LINE) — เรื่องเงินสำคัญ ยอมใช้โควตา 1 ข้อความ
+      try { fetch(CFG.SUPABASE_URL + '/functions/v1/notify-order?action=msg', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: o.id, text }) }); } catch (e) {}
+      await refresh();
+    } catch (e) { console.error(e); alert('บันทึกไม่สำเร็จ ลองใหม่ครับ'); }
+    setBusyId(null);
+  };
+
+  // เปลี่ยนการรับงาน มารับเอง → จัดส่ง (เคสจริง 2026-09-15): อัปเดตแถวออเดอร์เรียลไทม์ + ค่าส่งเข้า adjustments (บิลลูกค้าเห็นบรรทัดปรับ) + แชท/LINE แจ้งลูกค้า
+  // หน้าติดตามลูกค้าเปลี่ยนป้ายเป็น "จัดส่ง" เองผ่าน get_order_status ที่คืน pickup/addr (ต้องรัน SQL อัปเดตฟังก์ชันก่อน — ยังไม่รันบิลก็อัปเดตแต่ป้ายรับงานยังไม่เปลี่ยน)
+  const switchDelivery = async (o, addr, fee, veh) => {
+    const adjs = [...(o.adjustments || []), { label: 'เปลี่ยนจากมารับเองเป็นจัดส่ง — ค่าส่ง', amt: fee, at: new Date().toISOString() }];
+    const newTotal = Math.max(0, Math.round((Number(o.total) || 0) + fee));
+    const newAddr = (veh === 'car' ? '🚗 ' : '🏍️ ') + addr;
+    if (!DB) { setOrders(list => list.map(x => x.id === o.id ? { ...x, pickup: false, addr: newAddr, delivery_cost: fee, total: newTotal, adjustments: adjs } : x)); return; }
+    setBusyId(o.id);
+    try {
+      const { error } = await DB.from('orders').update({ pickup: false, addr: newAddr, delivery_cost: fee, total: newTotal, adjustments: adjs }).eq('id', o.id);
+      if (error) { alert('บันทึกไม่สำเร็จ: ' + error.message); setBusyId(null); return; }
+      const text = '🚚 ร้านเปลี่ยนการรับงานของออเดอร์นี้เป็น "จัดส่งถึงที่" ตามที่แจ้งครับ\nจุดส่ง: ' + addr + '\nค่าส่ง +฿' + fee + ' → ยอดรวมใหม่ ฿' + newTotal + (fee > 0 ? '\nรบกวนสแกน QR นี้ชำระค่าส่ง ฿' + fee + ' แล้วแนบสลิปในแชทนี้ได้เลยครับ 🙏' : '');
+      await DB.from('messages').insert({ order_id: o.id, sender: 'shop', body: text, seen_by_shop: true, ...(fee > 0 ? { img: 'chat/shop/promptpay-qr.jpg' } : {}) });
       try { fetch(CFG.SUPABASE_URL + '/functions/v1/notify-order?action=msg', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: o.id, text }) }); } catch (e) {}
       await refresh();
     } catch (e) { console.error(e); alert('บันทึกไม่สำเร็จ ลองใหม่ครับ'); }
@@ -1515,7 +1570,7 @@ function AdminApp(){
                   );
                 }
               }
-              out.push(<OrderCard key={o.id} o={o} idx={i + 1} onAdvance={advance} onRetreat={retreat} onAdjust={adjustOrder} onCancel={cancel} onRemove={removeOrder} busy={busyId === o.id} unread={unreadMap[o.id] || 0} onSeen={clearUnread}/>);
+              out.push(<OrderCard key={o.id} o={o} idx={i + 1} onAdvance={advance} onRetreat={retreat} onAdjust={adjustOrder} onCancel={cancel} onRemove={removeOrder} onSwitchDelivery={switchDelivery} busy={busyId === o.id} unread={unreadMap[o.id] || 0} onSeen={clearUnread}/>);
             });
             return out;
           })()}

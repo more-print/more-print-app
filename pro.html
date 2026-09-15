@@ -231,7 +231,18 @@ function MpChat({ o, me, title }){
   );
 }
 
-function ProOrder({ o, idx, isOwner, payoutReady, onPrice, onPayout, onAdvance, onRetreat, onAdjust, onCancel, onPartnerAdvance, onPartnerRetreat, onPartnerCancel, onPartnerRemove }){
+function ProOrder({ o, idx, isOwner, payoutReady, onPrice, onPayout, onAdvance, onRetreat, onAdjust, onCancel, onSwitchDelivery, onPartnerAdvance, onPartnerRetreat, onPartnerCancel, onPartnerRemove }){
+  // เปลี่ยนมารับเอง → จัดส่ง (เฉพาะเจ้าของ — เคสจริงลูกค้าเปลี่ยนใจทาง LINE 2026-09-15)
+  const [sdOpen, setSdOpen] = React.useState(false);
+  const [sdAddr, setSdAddr] = React.useState('');
+  const [sdFee, setSdFee] = React.useState('');
+  const [sdVeh, setSdVeh] = React.useState('bike');
+  const sdGo = () => {
+    const fee = Math.round(Number(sdFee) || 0);
+    if (!sdAddr.trim()) return alert('กรอกที่อยู่/จุดส่ง หรือวางลิงก์แผนที่ที่ลูกค้าส่งมาก่อนครับ');
+    onSwitchDelivery(o, sdAddr.trim(), fee, sdVeh);
+    setSdOpen(false); setSdAddr(''); setSdFee('');
+  };
   // ── ปรับแต่งออเดอร์ (เฉพาะเจ้าของ MORE PRINT): แผงพับเก็บ ไม่บังปุ่มหลัก ──
   const [adjOpen, setAdjOpen] = React.useState(false);
   const [adjMode, setAdjMode] = React.useState('add');
@@ -463,6 +474,30 @@ function ProOrder({ o, idx, isOwner, payoutReady, onPrice, onPayout, onAdvance, 
           ↩ กดผิด? ย้อนสถานะกลับเป็น "{stepsOf(o)[o.status - 2]}"
         </button>
       )}
+      {/* ลูกค้าขอเปลี่ยนจากมารับเองเป็นจัดส่ง (เฉพาะเจ้าของ) — บิล+ที่อยู่อัปเดตเรียลไทม์ + แจ้งแชทลูกค้า (2026-09-15) */}
+      {isOwner && o.pickup && o.status >= 1 && o.status < 4 && (
+        <div style={css("margin-top:9px;border:1px dashed #1971c2;border-radius:10px;overflow:hidden")}>
+          <div onClick={() => setSdOpen(v => !v)} style={css("padding:8px 12px;font-size:11.5px;font-weight:700;color:#1971c2;cursor:pointer;display:flex;align-items:center;gap:6px")}>
+            🚚 ลูกค้าขอเปลี่ยนเป็นจัดส่ง (จากมารับเอง)<span style={css("flex:1")}></span>{sdOpen ? '▲' : '▼'}
+          </div>
+          {sdOpen && (
+            <div style={css("padding:10px 12px;border-top:1px dashed #a5d8ff;display:flex;flex-direction:column;gap:8px;background:var(--soft)")}>
+              <textarea value={sdAddr} onChange={e => setSdAddr(e.target.value)} maxLength={300} placeholder="ที่อยู่/จุดส่งที่ลูกค้าแจ้ง — วางลิงก์ Google Maps ที่ลูกค้าส่งมาได้เลย"
+                style={css("width:100%;box-sizing:border-box;min-height:52px;border:1px solid var(--line);border-radius:9px;background:var(--card);color:var(--ink);padding:8px 11px;font-size:12.5px;outline:none;resize:vertical;font-family:inherit")}/>
+              <div style={css("display:flex;gap:7px")}>
+                <button onClick={() => setSdVeh('bike')} style={css("flex:1;height:34px;border-radius:9px;font-size:11.5px;font-weight:700;cursor:pointer;font-family:inherit;" + (sdVeh === 'bike' ? "border:1.5px solid #1971c2;background:#e7f5ff;color:#1971c2" : "border:1px solid var(--line);background:var(--card);color:var(--sub)"))}>🏍️ มอเตอร์ไซค์</button>
+                <button onClick={() => setSdVeh('car')} style={css("flex:1;height:34px;border-radius:9px;font-size:11.5px;font-weight:700;cursor:pointer;font-family:inherit;" + (sdVeh === 'car' ? "border:1.5px solid #7048e8;background:#f3f0ff;color:#7048e8" : "border:1px solid var(--line);background:var(--card);color:var(--sub)"))}>🚗 รถยนต์</button>
+              </div>
+              <div style={css("display:flex;gap:7px;align-items:center")}>
+                <input value={sdFee} onChange={e => setSdFee(e.target.value.replace(/[^0-9]/g, '').slice(0, 4))} inputMode="numeric" placeholder="ค่าส่ง (บาท)"
+                  style={css("flex:1;min-width:0;box-sizing:border-box;height:38px;border:1px solid var(--line);border-radius:9px;background:var(--card);color:var(--ink);padding:0 11px;font-size:12.5px;outline:none;font-family:inherit")}/>
+                <button onClick={sdGo} style={css("flex:none;height:38px;padding:0 16px;border:none;border-radius:9px;background:#1971c2;color:#fff;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit")}>ยืนยัน +฿{sdFee || '?'}</button>
+              </div>
+              <div style={css("font-size:10.5px;color:var(--sub);line-height:1.6")}>ยืนยันแล้ว: ออเดอร์เปลี่ยนเป็นจัดส่ง + ค่าส่งเข้าบิล + แชทแจ้งลูกค้าพร้อม QR + หน้าติดตามลูกค้าเปลี่ยนเป็น "จัดส่งถึงที่" อัตโนมัติ</div>
+            </div>
+          )}
+        </div>
+      )}
       {/* ปรับแต่งออเดอร์ (เฉพาะเจ้าของ) — แถบพับเก็บ กางแล้วดันเนื้อหาลง ไม่ลอยทับ */}
       {isOwner && o.status !== 0 && (
         <div style={css("margin-top:9px;border:1px dashed var(--line);border-radius:10px;overflow:hidden")}>
@@ -617,6 +652,19 @@ function Dash({ role }){
       ? '🛠️ ร้านปรับออเดอร์ตามที่คุยกัน: เพิ่ม "' + label + '" +฿' + n + '\nยอดรวมใหม่ ฿' + newTotal + '\nรบกวนสแกน QR นี้ชำระเพิ่ม ฿' + n + ' แล้วแนบสลิปในแชทนี้ได้เลยครับ 🙏'
       : '🛠️ ร้านปรับออเดอร์ตามที่คุยกัน: ลด "' + label + '" −฿' + n + '\nยอดรวมใหม่ ฿' + newTotal + ' — ร้านจะโอนคืน ฿' + n + ' ครับ\nรบกวนพิมพ์เลขพร้อมเพย์/เลขบัญชี หรือส่งรูป QR ธนาคารของคุณในแชทนี้ เดี๋ยวร้านโอนคืนให้เร็วที่สุดครับ 🙏';
     await DB.from('messages').insert({ order_id: o.id, sender: 'shop', body: text, seen_by_shop: true, ...(signed > 0 ? { img: 'chat/shop/promptpay-qr.jpg' } : {}) });
+    try { fetch(CFG.SUPABASE_URL + '/functions/v1/notify-order?action=msg', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: o.id, text }) }); } catch (e) {}
+    await load();
+  };
+  // เปลี่ยนการรับงาน มารับเอง → จัดส่ง (เจ้าของ — เคสจริง 2026-09-15): แถวออเดอร์+บิลเรียลไทม์ + แชท/LINE แจ้งลูกค้า
+  const switchDelivery = async (o, addr, fee, veh) => {
+    const adjs = [...(o.adjustments || []), { label: 'เปลี่ยนจากมารับเองเป็นจัดส่ง — ค่าส่ง', amt: fee, at: new Date().toISOString() }];
+    const newTotal = Math.max(0, Math.round((Number(o.total) || 0) + fee));
+    const newAddr = (veh === 'car' ? '🚗 ' : '🏍️ ') + addr;
+    if (!DB) { setOrders(l => l.map(x => x.id === o.id ? { ...x, pickup: false, addr: newAddr, delivery_cost: fee, total: newTotal, adjustments: adjs } : x)); return; }
+    const { error } = await DB.from('orders').update({ pickup: false, addr: newAddr, delivery_cost: fee, total: newTotal, adjustments: adjs }).eq('id', o.id);
+    if (error) return alert('บันทึกไม่สำเร็จ: ' + error.message);
+    const text = '🚚 ร้านเปลี่ยนการรับงานของออเดอร์นี้เป็น "จัดส่งถึงที่" ตามที่แจ้งครับ\nจุดส่ง: ' + addr + '\nค่าส่ง +฿' + fee + ' → ยอดรวมใหม่ ฿' + newTotal + (fee > 0 ? '\nรบกวนสแกน QR นี้ชำระค่าส่ง ฿' + fee + ' แล้วแนบสลิปในแชทนี้ได้เลยครับ 🙏' : '');
+    await DB.from('messages').insert({ order_id: o.id, sender: 'shop', body: text, seen_by_shop: true, ...(fee > 0 ? { img: 'chat/shop/promptpay-qr.jpg' } : {}) });
     try { fetch(CFG.SUPABASE_URL + '/functions/v1/notify-order?action=msg', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: o.id, text }) }); } catch (e) {}
     await load();
   };
@@ -966,7 +1014,7 @@ function Dash({ role }){
               </div>
               {loading && <div style={css("text-align:center;color:var(--sub);font-size:13px;padding:16px 0")}>กำลังโหลด…</div>}
               {!loading && cur[2].length === 0 && <div style={css("text-align:center;color:var(--sub);font-size:13px;padding:28px 0")}>ไม่มีออเดอร์ในหมวดนี้</div>}
-              {cur[2].map((o, i) => <ProOrder key={o.id} o={o} idx={dayNum[o.id] || (i + 1)} isOwner={isOwner} payoutReady={payoutReady} onPrice={setPrice} onPayout={markPayout} onAdvance={advance} onRetreat={retreat} onAdjust={adjustOrder} onCancel={cancelOrder} onPartnerAdvance={partnerAdvance} onPartnerRetreat={partnerRetreat} onPartnerCancel={partnerCancel} onPartnerRemove={partnerRemove}/>)}
+              {cur[2].map((o, i) => <ProOrder key={o.id} o={o} idx={dayNum[o.id] || (i + 1)} isOwner={isOwner} payoutReady={payoutReady} onPrice={setPrice} onPayout={markPayout} onAdvance={advance} onRetreat={retreat} onAdjust={adjustOrder} onCancel={cancelOrder} onSwitchDelivery={switchDelivery} onPartnerAdvance={partnerAdvance} onPartnerRetreat={partnerRetreat} onPartnerCancel={partnerCancel} onPartnerRemove={partnerRemove}/>)}
             </React.Fragment>
           );
         })()}
