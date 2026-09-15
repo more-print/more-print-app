@@ -49,7 +49,11 @@ function css(str){
   return o;
 }
 const baht = (n) => '฿' + (Math.round((n || 0) * 100) / 100).toLocaleString('th-TH');
-const jobValue = (o) => (o.print_cost || 0) + (o.bind_cost || 0);
+const jobValue = (o) => (o.print_cost || 0) + (o.bind_cost || 0); // ราคาเต็มก่อนส่วนลด
+// ส่วนลดที่กินค่างานปริ้น — โค้ดส่งฟรี (ยอดลดเท่าค่าส่งพอดี) ลดค่าส่งฝั่งเรา ไม่แตะส่วนแบ่งร้าน
+const printDisc = (o) => { const d = o.discount || 0; if (d <= 0) return 0; if ((o.delivery_cost || 0) > 0 && d === o.delivery_cost) return 0; return Math.min(d, jobValue(o)); };
+// ฐานคิดส่วนแบ่ง/คอม 80/20 = ราคาหลังหักส่วนลด (เจ้าของเคาะ 2026-09-15) — ต้องตรงกับ pro.html
+const jobNet = (o) => Math.max(0, jobValue(o) - printDisc(o));
 const fmtDate = (iso) => { const d = new Date(iso); return d.getDate() + ' ' + TH_MONTHS[d.getMonth()] + ' ' + ((d.getFullYear() + 543) % 100); };
 const fmtHM = (d) => String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
 const fileUrl = (path) => path && CFG.SUPABASE_URL ? CFG.SUPABASE_URL + '/storage/v1/object/public/uploads/' + path : null;
@@ -375,7 +379,7 @@ function Manage({ o, onPrice, onPayout, onAdvance, onRetreat, onAdjust, onCancel
             style={css("height:36px;padding:0 12px;border:none;border-radius:10px;background:" + (reason.trim() ? "#c92a2a" : "#f1b5b5") + ";color:#fff;font-size:11.5px;font-weight:700;cursor:pointer")}>ยืนยันยกเลิก</button>
         </div>
       )}
-      {(o.discount || 0) > 0 && <div style={css("font-size:11px;font-weight:700;color:#c2255c")}>🎟️ ใช้โค้ดส่วนลด {o.coupon || ''} −฿{o.discount} (หักจากส่วนของเรา — ส่วนแบ่งร้านคิดจากราคางานเต็ม)</div>}
+      {(o.discount || 0) > 0 && <div style={css("font-size:11px;font-weight:700;color:#c2255c")}>🎟️ ใช้โค้ดส่วนลด {o.coupon || ''} −฿{o.discount} (หาร 80/20 ตามสัดส่วน — คอมและส่วนแบ่งร้านคิดจากราคาหลังหักส่วนลด)</div>}
       {o.status === 0 && o.cancel_reason && <div style={css("font-size:11px;color:#c92a2a")}>เหตุผลที่ยกเลิก: {o.cancel_reason}</div>}
       {o.note && <div style={css("background:#fff7e0;border:1px solid #f0c36d;border-radius:10px;padding:8px 11px;font-size:12px;color:#8a6d1a;line-height:1.6")}><b>{FI.file(11)} หมายเหตุจากลูกค้า:</b> {o.note}</div>}
       {/* ที่อยู่จัดส่ง + นำทาง + สลิป (เท่าหลังบ้าน Standard) */}
@@ -467,7 +471,7 @@ function Dash(){
     const list = orders.filter(o => o.status === 4 && jobValue(o) > 0 && !o.payout_at && new Date(o.created_at) >= b.from && new Date(o.created_at) < b.to); // ใบที่ยังไม่ตั้งราคา (0 บาท) ห้ามประทับโอน — เดี๋ยวตั้งราคาแล้วเงินร้านหาย
     const ids = list.map(o => o.id);
     if (!ids.length) return;
-    const amount = Math.round(list.reduce((a, o) => a + jobValue(o) * (1 - COMMISSION), 0) * 100) / 100;
+    const amount = Math.round(list.reduce((a, o) => a + jobNet(o) * (1 - COMMISSION), 0) * 100) / 100; // ฐานหลังหักส่วนลด (2026-09-15)
     if (!DB) { setOrders(l => l.map(x => ids.includes(x.id) ? { ...x, payout_at: ts } : x)); setPayPanel(null); setPaySlip(null); return; }
     setPayBusy(true);
     let slip_path = null;
@@ -590,10 +594,10 @@ function Dash(){
   const doneAll = orders.filter(o => o.status === 4);
   const shipOf = (o) => (o.delivery_cost || 0) + (o.night_fee || 0);
   const pending = orders.filter(o => o.status > 0 && o.status < 4);
-  const pendingComm = pending.reduce((a, o) => a + jobValue(o) * COMMISSION, 0);
+  const pendingComm = pending.reduce((a, o) => a + jobNet(o) * COMMISSION, 0);
   const agg = (since) => {
     const rows = done.filter(o => new Date(o.created_at) >= since);
-    const job = rows.reduce((a, o) => a + jobValue(o), 0);
+    const job = rows.reduce((a, o) => a + jobNet(o), 0);
     const ship = doneAll.filter(o => new Date(o.created_at) >= since).reduce((a, o) => a + shipOf(o), 0);
     return { n: rows.length, job, comm: job * COMMISSION, partner: job * (1 - COMMISSION), ship };
   };
@@ -601,7 +605,7 @@ function Dash(){
   const chartData = (() => {
     const income = (d0, d1) => {
       const inB = (o) => { const t = new Date(o.created_at); return t >= d0 && t < d1; };
-      return done.filter(inB).reduce((a, o) => a + jobValue(o) * COMMISSION, 0)
+      return done.filter(inB).reduce((a, o) => a + jobNet(o) * COMMISSION, 0)
            + doneAll.filter(inB).reduce((a, o) => a + shipOf(o), 0);
     };
     const out = [];
@@ -633,7 +637,7 @@ function Dash(){
   const byMonth = {};
   const mk = (d) => d.getFullYear() * 100 + d.getMonth();
   const ensureM = (d) => { const k = mk(d); if (!byMonth[k]) byMonth[k] = { y: d.getFullYear(), m: d.getMonth(), n: 0, job: 0, ship: 0 }; return byMonth[k]; };
-  done.forEach(o => { const b = ensureM(new Date(o.created_at)); b.n++; b.job += jobValue(o); });
+  done.forEach(o => { const b = ensureM(new Date(o.created_at)); b.n++; b.job += jobNet(o); });
   doneAll.forEach(o => { ensureM(new Date(o.created_at)).ship += shipOf(o); });
   const months = Object.keys(byMonth).sort((a, b) => b - a).map(k => byMonth[k]);
 
@@ -651,7 +655,7 @@ function Dash(){
                              : new Date(from.getFullYear(), from.getMonth(), from.getDate() + 7),
         n: 0, job: 0, unpaid: 0 };
       const b = map[key];
-      b.n++; b.job += jobValue(o);
+      b.n++; b.job += jobNet(o);
       if (!o.payout_at) b.unpaid++;
     });
     const fmtD = (d) => d.getDate() + ' ' + TH_MONTHS[d.getMonth()];
@@ -673,7 +677,7 @@ function Dash(){
     const k = o.customer_phone || o.customer_fname || '?';
     if (!custMap[k]) custMap[k] = { name: ('คุณ' + (o.customer_fname || '') + ' ' + (o.customer_lname || '')).trim(), phone: o.customer_phone || '', count: 0, job: 0, last: o.created_at, jobs: {} };
     const c = custMap[k];
-    c.count++; c.job += jobValue(o);
+    c.count++; c.job += jobNet(o);
     const jl = o.paper || 'PRO';
     c.jobs[jl] = (c.jobs[jl] || 0) + 1;
     if (o.created_at > c.last) c.last = o.created_at;
@@ -688,10 +692,10 @@ function Dash(){
   if (bill) {
     const rows = done.filter(o => { const d = new Date(o.created_at);
       return bill.from ? (d >= bill.from && d < bill.to) : (d.getFullYear() === bill.y && d.getMonth() === bill.m); });
-    const job = rows.reduce((a, o) => a + jobValue(o), 0);
+    const job = rows.reduce((a, o) => a + jobNet(o), 0);
     const comm = job * COMMISSION, net = job - comm;
     const unpaid = rows.filter(o => !o.payout_at);
-    const unpaidNet = unpaid.reduce((a, o) => a + jobValue(o) * (1 - COMMISSION), 0);
+    const unpaidNet = unpaid.reduce((a, o) => a + jobNet(o) * (1 - COMMISSION), 0);
     const monthLabel = bill.label || (TH_MONTHS[bill.m] + ' ' + (bill.y + 543));
     const forUs = bill.who === 'us'; // บิลรายได้ของเรา — ตัวเลขกลับด้านจากบิลร้าน
     const d0 = new Date();
@@ -730,7 +734,7 @@ function Dash(){
                   <td style={css("padding:7px 8px;font-size:12px;border-bottom:1px solid #eee;white-space:nowrap")}>{fmtDate(o.created_at)}</td>
                   <td style={css("padding:7px 8px;font-size:12px;font-family:'IBM Plex Mono',monospace;border-bottom:1px solid #eee")}>{o.id}</td>
                   <td style={css("padding:7px 8px;font-size:12px;border-bottom:1px solid #eee")}>{o.paper} × {o.copies || 1}</td>
-                  <td style={css("padding:7px 8px;font-size:12px;text-align:right;font-family:'IBM Plex Mono',monospace;border-bottom:1px solid #eee")}>{(Math.round(jobValue(o) * 100) / 100).toLocaleString('th-TH')}</td>
+                  <td style={css("padding:7px 8px;font-size:12px;text-align:right;font-family:'IBM Plex Mono',monospace;border-bottom:1px solid #eee")}>{(Math.round(jobNet(o) * 100) / 100).toLocaleString('th-TH')}</td>
                 </tr>
               ))}
             </tbody>
@@ -1037,9 +1041,9 @@ function Dash(){
             {/* แถว 3: ตัวเลขเงิน คั่นด้วยเส้น | อ่านกวาดตาง่าย */}
             <div style={css("margin-top:9px;display:flex;align-items:center;gap:0;flex-wrap:wrap;font-size:12px;font-weight:600")}>
               {jobValue(o) > 0 && <React.Fragment>
-                <span style={css("padding-right:12px")}>ค่างานปริ้น <b style={css("font-family:'IBM Plex Mono',monospace;color:var(--ink)")}>{baht(jobValue(o))}</b></span>
-                <span style={css("border-left:1.5px solid var(--line);padding:0 12px")}>คอมฯ <b style={css("font-family:'IBM Plex Mono',monospace;color:var(--acc)")}>{baht(jobValue(o) * COMMISSION)}</b></span>
-                <span style={css("border-left:1.5px solid var(--line);padding:0 12px")}>ร้านได้รับ <b style={css("font-family:'IBM Plex Mono',monospace;color:var(--purple)")}>{baht(jobValue(o) * (1 - COMMISSION))}</b></span>
+                <span style={css("padding-right:12px")}>ค่างานปริ้น <b style={css("font-family:'IBM Plex Mono',monospace;color:var(--ink)")}>{baht(jobNet(o))}</b></span>
+                <span style={css("border-left:1.5px solid var(--line);padding:0 12px")}>คอมฯ <b style={css("font-family:'IBM Plex Mono',monospace;color:var(--acc)")}>{baht(jobNet(o) * COMMISSION)}</b></span>
+                <span style={css("border-left:1.5px solid var(--line);padding:0 12px")}>ร้านได้รับ <b style={css("font-family:'IBM Plex Mono',monospace;color:var(--purple)")}>{baht(jobNet(o) * (1 - COMMISSION))}</b></span>
               </React.Fragment>}
               {shipOf(o) > 0 && <span style={css(jobValue(o) > 0 ? "border-left:1.5px solid var(--line);padding:0 12px" : "padding-right:12px")}>ค่าส่ง <b style={css("font-family:'IBM Plex Mono',monospace;color:var(--green)")}>{baht(shipOf(o))}</b></span>}
             </div>
