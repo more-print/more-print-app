@@ -2243,8 +2243,9 @@ class App extends React.Component {
       }),
       proShowSides: s.proType === 'poster' || s.proType === 'portfolio' || s.proType === 'namecard', // พับครึ่งพิมพ์หน้า-หลังเสมอ (คิดต่อหน้าแล้ว 2026-09-13) — ตัดตัวเลือกด้านออก
       proSidesOpts: [
-        this.seg('ด้านหน้าอย่างเดียว' + (s.proType === 'portfolio' ? ' ฿' + PRO_PORTFOLIO.one + '/แผ่น' : s.proType === 'namecard' ? ' ฿' + PRO_NAMECARD.one : s.proType === 'poster' ? ' ฿' + (POSTER_SHEET[s.proSize] ?? 0) + '/แผ่น' : s.proType === 'foldbook' ? ' ฿' + (FOLDBOOK_SHEET[s.proSize] ?? 0) + '/แผ่น' : ''), s.sides === 1, () => this.setState({ sides: 1 }), true),
-        this.seg('หน้า-หลัง' + (s.proType === 'portfolio' ? ' ฿' + PRO_PORTFOLIO.two + '/แผ่น' : s.proType === 'namecard' ? ' ฿' + PRO_NAMECARD.two : s.proType === 'poster' ? ' ฿' + (POSTER_SHEET[s.proSize] ?? 0) * 2 + '/แผ่น' : s.proType === 'foldbook' ? ' ฿' + (FOLDBOOK_SHEET[s.proSize] ?? 0) * 2 + '/แผ่น' : ''), s.sides === 2, () => this.setState({ sides: 2 }), true)
+        // นามบัตรไม่โชว์ราคาท้ายปุ่มด้าน (เจ้าของสั่ง 2026-09-15 — ราคาบนปุ่มไม่ขยับตามจำนวนใบ ลูกค้างง ให้ดูราคาที่ตัวเลือก "จำนวน" แทน)
+        this.seg('ด้านหน้าอย่างเดียว' + (s.proType === 'portfolio' ? ' ฿' + PRO_PORTFOLIO.one + '/แผ่น' : s.proType === 'poster' ? ' ฿' + (POSTER_SHEET[s.proSize] ?? 0) + '/แผ่น' : s.proType === 'foldbook' ? ' ฿' + (FOLDBOOK_SHEET[s.proSize] ?? 0) + '/แผ่น' : ''), s.sides === 1, () => this.setState({ sides: 1 }), true),
+        this.seg('หน้า-หลัง' + (s.proType === 'portfolio' ? ' ฿' + PRO_PORTFOLIO.two + '/แผ่น' : s.proType === 'poster' ? ' ฿' + (POSTER_SHEET[s.proSize] ?? 0) * 2 + '/แผ่น' : s.proType === 'foldbook' ? ' ฿' + (FOLDBOOK_SHEET[s.proSize] ?? 0) * 2 + '/แผ่น' : ''), s.sides === 2, () => this.setState({ sides: 2 }), true)
       ],
       proShowBind: s.proType === 'foldbook',
       proBindOpts: PRO_BINDS.map(b => this.seg(b, s.proBind === b, () => this.setState({ proBind: b }))),
