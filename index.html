@@ -1626,6 +1626,7 @@ class App extends React.Component {
           ...(row.pickup != null ? { pickup: !!row.pickup } : {}),
           ...(row.pickup === false && row.addr ? { addr: String(row.addr).replace(/^[🚗🏍️\s]+/, ''), veh: String(row.addr).startsWith('🚗') ? '🚗 รถยนต์' : '🏍️ มอเตอร์ไซค์' } : {}) };
         if (row.pickup === false && wasPickup === true) this.showToast('🚚 ร้านเปลี่ยนการรับงานเป็น "จัดส่งถึงที่" ตามที่คุณแจ้งแล้วครับ — ดูรายละเอียด/ยอดใหม่ในบิลและแชทได้เลย');
+        if (row.pickup === true && wasPickup === false) this.showToast('🏪 ร้านเปลี่ยนการรับงานเป็น "มารับเองที่ร้าน" ตามที่คุณแจ้งแล้วครับ — รายละเอียดการคืนค่าส่งอยู่ในแชท');
         this.setState(st => st.order && st.order.id === id
           ? { trackStep: row.status, cancelReason: row.cancel_reason || '', order: { ...st.order, times: row.times || st.order.times, ...adjPatch } }
           : null);
@@ -1927,11 +1928,12 @@ class App extends React.Component {
     // สำเร็จ: RPC คืน 'ok:<ค่าส่งเดิม>' → คิดส่วนต่างตามนโยบายร้าน (เกณฑ์ราคาเดิม แค่คิดตามระยะใหม่)
     const oldFee = parseFloat(String(data).split(':')[1] || '') || 0;
     const diff = Math.round((pt.fee - oldFee) * 100) / 100;
-    const veh = (o.addr || '').match(/^(🚗|🏍️)/); const na = (veh ? veh[1] + ' ' : '') + txt;
-    this.setState({ order: { ...o, addr: na, total: Math.max(0, (o.total || 0) - oldFee + pt.fee) }, chAdOpen: false, chAdMode: '', chAdLink: '', chAdText: '', chAdPt: null });
+    const veh = (o.addr || '').match(/^(🚗|🏍️)/); const na = (veh ? veh[1] + ' ' : '🏍️ ') + txt; // ออเดอร์มารับเอง (ไม่มีพาหนะเดิม) เริ่มที่มอเตอร์ไซค์
+    const wasPk = !!o.pickup; // มารับเอง → จัดส่ง (2026-09-15): พลิกธง + ป้ายพาหนะในเครื่องด้วย
+    this.setState({ order: { ...o, addr: na, pickup: false, veh: o.veh || (na.startsWith('🚗') ? '🚗 รถยนต์' : '🏍️ มอเตอร์ไซค์'), total: Math.max(0, (o.total || 0) - oldFee + pt.fee) }, chAdOpen: false, chAdMode: '', chAdLink: '', chAdText: '', chAdPt: null });
     try { const od = JSON.parse(localStorage.getItem('mp_order') || 'null');
-      if (od && od.id === o.id) { od.addr = na; od.dist = pt.km; od.total = Math.max(0, (od.total || 0) - oldFee + pt.fee); localStorage.setItem('mp_order', JSON.stringify(od)); this.upsertOrderList(od); } } catch (e) {}
-    this.showToast('✓ เปลี่ยนที่อยู่จัดส่งเรียบร้อยครับ 🎉');
+      if (od && od.id === o.id) { od.addr = na; od.pickup = false; od.veh = od.veh || (na.startsWith('🚗') ? '🚗 รถยนต์' : '🏍️ มอเตอร์ไซค์'); od.dist = pt.km; od.total = Math.max(0, (od.total || 0) - oldFee + pt.fee); localStorage.setItem('mp_order', JSON.stringify(od)); this.upsertOrderList(od); } } catch (e) {}
+    this.showToast(wasPk ? '✓ เปลี่ยนเป็นจัดส่งถึงที่เรียบร้อยครับ 🎉' : '✓ เปลี่ยนที่อยู่จัดส่งเรียบร้อยครับ 🎉');
     if (diff > 0) this.chatBot('🤖 ที่อยู่ใหม่ไกลขึ้น ค่าส่งเพิ่มเป็น ฿' + pt.fee + ' (เพิ่มจากเดิม ฿' + diff + ') — รบกวนโอนส่วนต่าง ฿' + diff + ' มาที่พร้อมเพย์เดิมของร้าน แล้วแนบสลิปในแชทนี้ได้เลยครับ 🙏');
     else if (diff < 0) this.chatBot('🤖 ที่อยู่ใหม่ใกล้ขึ้น ค่าส่งลดเหลือ ฿' + pt.fee + ' (ลดลง ฿' + (-diff) + ') 🎉 ร้านจะโอนส่วนต่างคืนให้ — พิมพ์เลขพร้อมเพย์/บัญชีของคุณในแชทนี้ได้เลย เดี๋ยวร้านโอนคืนพร้อมส่งสลิปให้ครับ');
     else this.chatBot('🤖 ค่าส่งที่อยู่ใหม่เท่าเดิม (฿' + pt.fee + ') — ไม่ต้องโอนเพิ่ม และร้านไม่ต้องโอนคืนครับ ✓');
@@ -2897,8 +2899,9 @@ class App extends React.Component {
         if (q.kind === 'addr') {
           const o = s.order || {};
           if (done || cancelled) return this.chatBot('ออเดอร์นี้จบไปแล้ว เปลี่ยนที่อยู่ไม่ได้ครับ 🙏');
-          if (o.pickup) return this.chatBot('ออเดอร์นี้เลือกมารับเองที่ร้าน ไม่มีที่อยู่จัดส่งครับ 🏪');
           if (stp >= 3) return this.chatBot('ออเดอร์กำลังจัดส่งแล้ว เปลี่ยนที่อยู่ไม่ทันแล้วครับ 🙏 โทรบอกร้านด่วนได้เลย');
+          // ออเดอร์มารับเอง = เปลี่ยนเป็นจัดส่งได้เลย (เจ้าของสั่ง 2026-09-15) — บอกจุดส่งแล้วระบบคิดค่าส่ง+แจ้งยอดโอนเพิ่มให้อัตโนมัติ
+          if (o.pickup) this.chatBot('🤖 ออเดอร์นี้เดิมเลือก "มารับเองที่ร้าน" — อยากเปลี่ยนเป็นให้ร้านจัดส่งใช่ไหมครับ? บอกจุดส่งด้านล่างได้เลย ระบบจะคิดค่าส่งและแจ้งยอดที่ต้องโอนเพิ่มให้อัตโนมัติครับ 🚚');
           return this.setState({ chAdOpen: true, chAdMode: '', chAdLink: '', chAdText: '', chAdPt: null });
         }
         if (q.kind === 'edit' && (done || stp >= 2)) {

@@ -348,17 +348,21 @@ const DEMO_MSGS = [
 ];
 
 function OrderCard({ o, idx, onAdvance, onRetreat, onAdjust, onCancel, onRemove, onSwitchDelivery, busy, unread, onSeen }){
-  // เปลี่ยนมารับเอง → จัดส่ง (เคสจริงลูกค้าเปลี่ยนใจทาง LINE — 2026-09-15)
-  const [sdOpen, setSdOpen] = React.useState(false);
+  // การรับงาน/จุดส่ง ในแผงแก้ไขออเดอร์ (มารับเอง ↔ จัดส่ง / แก้ที่อยู่-ค่าส่ง — 2026-09-15)
+  const [sdMode, setSdMode] = React.useState(o.pickup ? 'pickup' : 'delivery');
   const [sdAddr, setSdAddr] = React.useState('');
   const [sdFee, setSdFee] = React.useState('');
-  const [sdVeh, setSdVeh] = React.useState('bike');
+  const [sdVeh, setSdVeh] = React.useState((o.addr || '').startsWith('🚗') ? 'car' : 'bike');
   const sdGo = () => {
+    if (sdMode === 'pickup') {
+      if (o.pickup) return alert('ออเดอร์นี้เป็น "มารับเองที่ร้าน" อยู่แล้วครับ');
+      return onSwitchDelivery(o, 'pickup', '', 0, sdVeh);
+    }
     const fee = Math.round(Number(sdFee) || 0);
     if (!sdAddr.trim()) return alert('กรอกที่อยู่/จุดส่ง หรือวางลิงก์แผนที่ที่ลูกค้าส่งมาก่อนครับ');
-    if (!(fee >= 0)) return alert('กรอกค่าส่งเป็นตัวเลขครับ (0 = ไม่คิดเพิ่ม)');
-    onSwitchDelivery(o, sdAddr.trim(), fee, sdVeh);
-    setSdOpen(false); setSdAddr(''); setSdFee('');
+    if (sdFee === '') return alert('กรอกค่าส่งใหม่ก่อนครับ (0 = ส่งฟรี)');
+    onSwitchDelivery(o, 'delivery', sdAddr.trim(), fee, sdVeh);
+    setSdAddr(''); setSdFee('');
   };
   const cancelled = o.status === 0;
   const [open, setOpen] = React.useState(!cancelled && o.status < 4);
@@ -567,35 +571,11 @@ function OrderCard({ o, idx, onAdvance, onRetreat, onAdjust, onCancel, onRemove,
               ↩ กดผิด? ย้อนกลับเป็น "{STEPS[o.status - 2]}"
             </button>
           )}
-          {/* ลูกค้าขอเปลี่ยนจากมารับเองเป็นจัดส่ง — อัปเดตบิล+ที่อยู่เรียลไทม์ + แจ้งแชท/LINE ลูกค้าอัตโนมัติ (2026-09-15) */}
-          {!cancelled && o.pickup && o.status >= 1 && o.status < 4 && (
-            <div style={css("border:1px dashed #1971c2;border-radius:10px;overflow:hidden")}>
-              <div onClick={() => setSdOpen(v => !v)} style={css("padding:8px 12px;font-size:11.5px;font-weight:700;color:#1971c2;cursor:pointer;display:flex;align-items:center;gap:6px")}>
-                🚚 ลูกค้าขอเปลี่ยนเป็นจัดส่ง (จากมารับเอง)<span style={css("flex:1")}></span>{sdOpen ? '▲' : '▼'}
-              </div>
-              {sdOpen && (
-                <div style={css("padding:10px 12px;border-top:1px dashed #a5d8ff;display:flex;flex-direction:column;gap:8px;background:#f0f8ff")}>
-                  <textarea value={sdAddr} onChange={e => setSdAddr(e.target.value)} maxLength={300} placeholder="ที่อยู่/จุดส่งที่ลูกค้าแจ้ง — วางลิงก์ Google Maps ที่ลูกค้าส่งมาได้เลย"
-                    style={css("width:100%;box-sizing:border-box;min-height:52px;border:1px solid #a5d8ff;border-radius:9px;background:#fff;color:var(--ink);padding:8px 11px;font-size:12.5px;outline:none;resize:vertical;font-family:inherit")}/>
-                  <div style={css("display:flex;gap:7px")}>
-                    <button onClick={() => setSdVeh('bike')} style={css("flex:1;height:34px;border-radius:9px;font-size:11.5px;font-weight:700;cursor:pointer;font-family:inherit;" + (sdVeh === 'bike' ? "border:1.5px solid #1971c2;background:#e7f5ff;color:#1971c2" : "border:1px solid var(--line);background:var(--card);color:var(--sub)"))}>🏍️ มอเตอร์ไซค์</button>
-                    <button onClick={() => setSdVeh('car')} style={css("flex:1;height:34px;border-radius:9px;font-size:11.5px;font-weight:700;cursor:pointer;font-family:inherit;" + (sdVeh === 'car' ? "border:1.5px solid #7048e8;background:#f3f0ff;color:#7048e8" : "border:1px solid var(--line);background:var(--card);color:var(--sub)"))}>🚗 รถยนต์</button>
-                  </div>
-                  <div style={css("display:flex;gap:7px;align-items:center")}>
-                    <input value={sdFee} onChange={e => setSdFee(e.target.value.replace(/[^0-9]/g, '').slice(0, 4))} inputMode="numeric" placeholder="ค่าส่ง (บาท)"
-                      style={css("flex:1;min-width:0;box-sizing:border-box;height:38px;border:1px solid #a5d8ff;border-radius:9px;background:#fff;color:var(--ink);padding:0 11px;font-size:12.5px;outline:none;font-family:inherit")}/>
-                    <button disabled={busy} onClick={sdGo} style={css("flex:none;height:38px;padding:0 16px;border:none;border-radius:9px;background:#1971c2;color:#fff;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit" + (busy ? ";opacity:.6" : ""))}>ยืนยันเปลี่ยนเป็นจัดส่ง +฿{sdFee || '?'}</button>
-                  </div>
-                  <div style={css("font-size:10.5px;color:var(--sub);line-height:1.6")}>ยืนยันแล้ว: ออเดอร์เปลี่ยนเป็นจัดส่ง + ค่าส่งเข้าบิล (บรรทัดปรับแต่ง) + แชทแจ้งลูกค้าพร้อม QR ให้ชำระค่าส่ง + หน้าติดตามลูกค้าเปลี่ยนเป็น "จัดส่งถึงที่" อัตโนมัติ</div>
-                </div>
-              )}
-            </div>
-          )}
-          {/* ปรับแต่งออเดอร์ (เพิ่ม/ลดรายการ + ราคา) — แถบเล็กพับเก็บ ไม่บังปุ่มหลัก · กางเป็นแผงดันเนื้อหาลง ไม่ลอยทับ */}
+          {/* แก้ไขออเดอร์รวมศูนย์ (เจ้าของสั่งรวม 2026-09-15): เพิ่ม/ลดรายการ + เปลี่ยนการรับงาน (มารับเอง↔จัดส่ง) + แก้จุดส่ง ในแผงเดียว */}
           {!cancelled && (
             <div style={css("border:1px dashed var(--line);border-radius:10px;overflow:hidden")}>
               <div onClick={() => setAdjOpen(v => !v)} style={css("padding:8px 12px;font-size:11.5px;font-weight:700;color:var(--sub);cursor:pointer;display:flex;align-items:center;gap:6px")}>
-                🛠️ ปรับแต่งออเดอร์ (เพิ่ม/ลดรายการ){(o.adjustments || []).length > 0 ? ' · ปรับแล้ว ' + o.adjustments.length + ' รายการ' : ''}<span style={css("flex:1")}></span>{adjOpen ? '▲' : '▼'}
+                🛠️ แก้ไขออเดอร์ (รายการ · การรับงาน/จุดส่ง){(o.adjustments || []).length > 0 ? ' · ปรับแล้ว ' + o.adjustments.length + ' รายการ' : ''}<span style={css("flex:1")}></span>{adjOpen ? '▲' : '▼'}
               </div>
               {(o.adjustments || []).length > 0 && (
                 <div style={css("padding:0 12px 8px;display:flex;flex-direction:column;gap:3px")}>
@@ -618,6 +598,32 @@ function OrderCard({ o, idx, onAdvance, onRetreat, onAdjust, onCancel, onRemove,
                     <button disabled={busy} onClick={adjGo} style={css("flex:none;height:38px;padding:0 16px;border:none;border-radius:9px;color:#fff;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;background:" + (adjMode === 'add' ? "#e8590c" : "#22c55e") + (busy ? ";opacity:.6" : ""))}>{adjMode === 'add' ? 'ยืนยันเพิ่ม +฿' + (adjAmt || '?') : 'ยืนยันลด −฿' + (adjAmt || '?')}</button>
                   </div>
                   <div style={css("font-size:10.5px;color:var(--sub);line-height:1.6")}>{adjMode === 'add' ? 'ยืนยันแล้ว: ยอดออเดอร์เพิ่มขึ้น + ส่งข้อความพร้อม QR ร้านเข้า Live Chat ลูกค้าให้อัตโนมัติ' : 'ยืนยันแล้ว: ยอดออเดอร์ลดลง + แชทแจ้งยอดคืนเงินและขอเลขบัญชี/QR ลูกค้าให้อัตโนมัติ'}</div>
+                  {/* ── การรับงาน/จุดส่ง: สลับ มารับเอง ↔ จัดส่ง หรือแก้ที่อยู่/ค่าส่งของงานจัดส่งเดิม (2026-09-15) ── */}
+                  {o.status >= 1 && o.status < 4 && (
+                    <div style={css("border-top:1px dashed var(--line);padding-top:9px;display:flex;flex-direction:column;gap:8px")}>
+                      <div style={css("font-size:11.5px;font-weight:800;color:#1971c2")}>🚚 การรับงาน / จุดส่ง <span style={css("font-weight:600;color:var(--sub)")}>(ตอนนี้: {o.pickup ? '🏪 มารับเอง' : '🚚 จัดส่งถึงที่'})</span></div>
+                      <div style={css("display:flex;gap:7px")}>
+                        <button onClick={() => setSdMode('pickup')} style={css("flex:1;height:34px;border-radius:9px;font-size:11.5px;font-weight:700;cursor:pointer;font-family:inherit;" + (sdMode === 'pickup' ? "border:1.5px solid #b8860b;background:#fff8e1;color:#b8860b" : "border:1px solid var(--line);background:var(--card);color:var(--sub)"))}>🏪 มารับเองที่ร้าน</button>
+                        <button onClick={() => setSdMode('delivery')} style={css("flex:1;height:34px;border-radius:9px;font-size:11.5px;font-weight:700;cursor:pointer;font-family:inherit;" + (sdMode === 'delivery' ? "border:1.5px solid #1971c2;background:#e7f5ff;color:#1971c2" : "border:1px solid var(--line);background:var(--card);color:var(--sub)"))}>🚚 จัดส่งถึงที่</button>
+                      </div>
+                      {sdMode === 'delivery' && (
+                        <React.Fragment>
+                          <textarea value={sdAddr} onChange={e => setSdAddr(e.target.value)} maxLength={300} placeholder="ที่อยู่/จุดส่งที่ลูกค้าแจ้ง — วางลิงก์ Google Maps ที่ลูกค้าส่งมาได้เลย"
+                            style={css("width:100%;box-sizing:border-box;min-height:52px;border:1px solid var(--line);border-radius:9px;background:var(--card);color:var(--ink);padding:8px 11px;font-size:12.5px;outline:none;resize:vertical;font-family:inherit")}/>
+                          <div style={css("display:flex;gap:7px")}>
+                            <button onClick={() => setSdVeh('bike')} style={css("flex:1;height:32px;border-radius:9px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;" + (sdVeh === 'bike' ? "border:1.5px solid #1971c2;background:#e7f5ff;color:#1971c2" : "border:1px solid var(--line);background:var(--card);color:var(--sub)"))}>🏍️ มอเตอร์ไซค์</button>
+                            <button onClick={() => setSdVeh('car')} style={css("flex:1;height:32px;border-radius:9px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;" + (sdVeh === 'car' ? "border:1.5px solid #7048e8;background:#f3f0ff;color:#7048e8" : "border:1px solid var(--line);background:var(--card);color:var(--sub)"))}>🚗 รถยนต์</button>
+                          </div>
+                        </React.Fragment>
+                      )}
+                      <div style={css("display:flex;gap:7px;align-items:center")}>
+                        {sdMode === 'delivery' && <input value={sdFee} onChange={e => setSdFee(e.target.value.replace(/[^0-9]/g, '').slice(0, 4))} inputMode="numeric" placeholder={'ค่าส่งใหม่ (เดิม ฿' + (o.delivery_cost || 0) + ')'}
+                          style={css("flex:1;min-width:0;box-sizing:border-box;height:38px;border:1px solid var(--line);border-radius:9px;background:var(--card);color:var(--ink);padding:0 11px;font-size:12.5px;outline:none;font-family:inherit")}/>}
+                        <button disabled={busy} onClick={sdGo} style={css("flex:" + (sdMode === 'delivery' ? "none" : "1") + ";height:38px;padding:0 16px;border:none;border-radius:9px;background:#1971c2;color:#fff;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit" + (busy ? ";opacity:.6" : ""))}>{sdMode === 'pickup' ? 'ยืนยันเปลี่ยนเป็นมารับเอง (คืนค่าส่ง ฿' + (o.delivery_cost || 0) + ')' : 'ยืนยันจุดส่ง/ค่าส่งใหม่'}</button>
+                      </div>
+                      <div style={css("font-size:10.5px;color:var(--sub);line-height:1.6")}>ยืนยันแล้ว: บิลลูกค้าอัปเดตทันที + แชทแจ้งยอดที่ต้องโอนเพิ่ม (พร้อม QR) หรือยอดคืนเงินให้อัตโนมัติ + หน้าติดตามลูกค้าเปลี่ยนการรับงาน/ที่อยู่ให้เอง</div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -1060,19 +1066,30 @@ function AdminApp(){
     setBusyId(null);
   };
 
-  // เปลี่ยนการรับงาน มารับเอง → จัดส่ง (เคสจริง 2026-09-15): อัปเดตแถวออเดอร์เรียลไทม์ + ค่าส่งเข้า adjustments (บิลลูกค้าเห็นบรรทัดปรับ) + แชท/LINE แจ้งลูกค้า
-  // หน้าติดตามลูกค้าเปลี่ยนป้ายเป็น "จัดส่ง" เองผ่าน get_order_status ที่คืน pickup/addr (ต้องรัน SQL อัปเดตฟังก์ชันก่อน — ยังไม่รันบิลก็อัปเดตแต่ป้ายรับงานยังไม่เปลี่ยน)
-  const switchDelivery = async (o, addr, fee, veh) => {
-    const adjs = [...(o.adjustments || []), { label: 'เปลี่ยนจากมารับเองเป็นจัดส่ง — ค่าส่ง', amt: fee, at: new Date().toISOString() }];
-    const newTotal = Math.max(0, Math.round((Number(o.total) || 0) + fee));
-    const newAddr = (veh === 'car' ? '🚗 ' : '🏍️ ') + addr;
-    if (!DB) { setOrders(list => list.map(x => x.id === o.id ? { ...x, pickup: false, addr: newAddr, delivery_cost: fee, total: newTotal, adjustments: adjs } : x)); return; }
+  // การรับงาน/จุดส่ง (2026-09-15): มารับเอง ↔ จัดส่ง หรือแก้ที่อยู่/ค่าส่ง — อัปเดตแถวเรียลไทม์ + ส่วนต่างเข้า adjustments (บิลลูกค้าเห็นสด) + แชท/LINE แจ้งยอดโอนเพิ่ม (พร้อม QR) หรือยอดคืน
+  // หน้าติดตามลูกค้าเปลี่ยนป้าย/ที่อยู่เองผ่าน get_order_status ที่คืน pickup/addr (ต้องรัน SQL อัปเดตฟังก์ชัน — ยังไม่รันบิลก็อัปเดตแต่ป้ายยังไม่เปลี่ยน)
+  const switchDelivery = async (o, mode, addr, fee, veh) => {
+    const oldFee = Number(o.delivery_cost) || 0;
+    const toPickup = mode === 'pickup';
+    const diff = toPickup ? -oldFee : fee - oldFee; // ส่วนต่างที่ลูกค้าต้องโอนเพิ่ม (+) หรือร้านคืน (−)
+    const newAddr = toPickup ? '🏪 มารับเองที่ร้าน (เปลี่ยนตามที่ลูกค้าแจ้ง)' : (veh === 'car' ? '🚗 ' : '🏍️ ') + addr;
+    const newTotal = Math.max(0, Math.round((Number(o.total) || 0) + diff));
+    const adjLabel = toPickup ? 'เปลี่ยนเป็นมารับเองที่ร้าน — คืนค่าส่ง' : (o.pickup ? 'เปลี่ยนเป็นจัดส่งถึงที่ — ค่าส่ง' : 'แก้จุดส่ง/ค่าส่งใหม่');
+    const adjs = diff !== 0 ? [...(o.adjustments || []), { label: adjLabel, amt: diff, at: new Date().toISOString() }] : (o.adjustments || []);
+    const upd = { pickup: toPickup, addr: newAddr, delivery_cost: toPickup ? 0 : fee, total: newTotal, adjustments: adjs };
+    if (!DB) { setOrders(list => list.map(x => x.id === o.id ? { ...x, ...upd } : x)); return; }
     setBusyId(o.id);
     try {
-      const { error } = await DB.from('orders').update({ pickup: false, addr: newAddr, delivery_cost: fee, total: newTotal, adjustments: adjs }).eq('id', o.id);
+      const { error } = await DB.from('orders').update(upd).eq('id', o.id);
       if (error) { alert('บันทึกไม่สำเร็จ: ' + error.message); setBusyId(null); return; }
-      const text = '🚚 ร้านเปลี่ยนการรับงานของออเดอร์นี้เป็น "จัดส่งถึงที่" ตามที่แจ้งครับ\nจุดส่ง: ' + addr + '\nค่าส่ง +฿' + fee + ' → ยอดรวมใหม่ ฿' + newTotal + (fee > 0 ? '\nรบกวนสแกน QR นี้ชำระค่าส่ง ฿' + fee + ' แล้วแนบสลิปในแชทนี้ได้เลยครับ 🙏' : '');
-      await DB.from('messages').insert({ order_id: o.id, sender: 'shop', body: text, seen_by_shop: true, ...(fee > 0 ? { img: 'chat/shop/promptpay-qr.jpg' } : {}) });
+      const head = toPickup
+        ? '🏪 ร้านเปลี่ยนการรับงานของออเดอร์นี้เป็น "มารับเองที่ร้าน" ตามที่แจ้งครับ'
+        : '🚚 ร้านอัปเดตการจัดส่งของออเดอร์นี้ตามที่แจ้งครับ\nจุดส่ง: ' + addr + '\nค่าส่งใหม่ ฿' + fee;
+      const tail = diff > 0 ? '\nยอดรวมล่าสุด ฿' + newTotal + '\nรบกวนสแกน QR นี้ชำระเพิ่ม ฿' + diff + ' แล้วแนบสลิปในแชทนี้ได้เลยครับ 🙏'
+        : diff < 0 ? '\nยอดรวมล่าสุด ฿' + newTotal + ' — ร้านจะโอนคืน ฿' + (-diff) + ' ครับ\nรบกวนพิมพ์เลขพร้อมเพย์/เลขบัญชี หรือส่งรูป QR ธนาคารของคุณในแชทนี้ เดี๋ยวร้านโอนคืนให้เร็วที่สุดครับ 🙏'
+        : '\nยอดรวมเท่าเดิม ฿' + newTotal + ' — ไม่ต้องโอนเพิ่มครับ ✓';
+      const text = head + tail;
+      await DB.from('messages').insert({ order_id: o.id, sender: 'shop', body: text, seen_by_shop: true, ...(diff > 0 ? { img: 'chat/shop/promptpay-qr.jpg' } : {}) });
       try { fetch(CFG.SUPABASE_URL + '/functions/v1/notify-order?action=msg', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: o.id, text }) }); } catch (e) {}
       await refresh();
     } catch (e) { console.error(e); alert('บันทึกไม่สำเร็จ ลองใหม่ครับ'); }
