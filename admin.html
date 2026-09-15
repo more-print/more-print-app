@@ -347,21 +347,24 @@ const DEMO_MSGS = [
   { id: 2, sender: 'shop', body: 'รับทราบครับ กำลังจัดให้เลย', created_at: new Date(Date.now() - 7*60000).toISOString() }
 ];
 
-function OrderCard({ o, idx, onAdvance, onRetreat, onAdjust, onCancel, onRemove, onSwitchDelivery, busy, unread, onSeen }){
+function OrderCard({ o, idx, onAdvance, onRetreat, onApplyEdits, onCancel, onRemove, busy, unread, onSeen }){
   // การรับงาน/จุดส่ง ในแผงแก้ไขออเดอร์ (มารับเอง ↔ จัดส่ง / แก้ที่อยู่-ค่าส่ง — 2026-09-15)
   const [sdMode, setSdMode] = React.useState(o.pickup ? 'pickup' : 'delivery');
   const [sdAddr, setSdAddr] = React.useState('');
   const [sdFee, setSdFee] = React.useState('');
   const [sdVeh, setSdVeh] = React.useState((o.addr || '').startsWith('🚗') ? 'car' : 'bike');
+  // บิลแก้ไขรวม (เจ้าของสั่ง 2026-09-15): พักรายการไว้ก่อน กดยืนยันครั้งเดียว → อัปเดต+แชทแจ้งยอดสุทธิ+QR ทีเดียว (แก้รายการเดียวก็ใช้ทางเดียวกัน)
+  const [drafts, setDrafts] = React.useState([]);      // รายการเนื้องาน {label, amt(±)}
+  const [sdDraft, setSdDraft] = React.useState(null);  // เปลี่ยนการรับงาน/จุดส่ง {mode, addr, fee, veh}
   const sdGo = () => {
     if (sdMode === 'pickup') {
       if (o.pickup) return alert('ออเดอร์นี้เป็น "มารับเองที่ร้าน" อยู่แล้วครับ');
-      return onSwitchDelivery(o, 'pickup', '', 0, sdVeh);
+      return setSdDraft({ mode: 'pickup', addr: '', fee: 0, veh: sdVeh });
     }
     const fee = Math.round(Number(sdFee) || 0);
     if (!sdAddr.trim()) return alert('กรอกที่อยู่/จุดส่ง หรือวางลิงก์แผนที่ที่ลูกค้าส่งมาก่อนครับ');
     if (sdFee === '') return alert('กรอกค่าส่งใหม่ก่อนครับ (0 = ส่งฟรี)');
-    onSwitchDelivery(o, 'delivery', sdAddr.trim(), fee, sdVeh);
+    setSdDraft({ mode: 'delivery', addr: sdAddr.trim(), fee, veh: sdVeh });
     setSdAddr(''); setSdFee('');
   };
   const cancelled = o.status === 0;
@@ -377,8 +380,15 @@ function OrderCard({ o, idx, onAdvance, onRetreat, onAdjust, onCancel, onRemove,
   const adjGo = () => {
     const n = Math.round(Number(adjAmt));
     if (!adjLabel.trim() || !n || n <= 0) return alert('กรอกชื่อรายการ และราคาเป็นตัวเลขมากกว่า 0 ก่อนครับ');
-    onAdjust(o, adjMode, adjLabel.trim(), n);
-    setAdjOpen(false); setAdjLabel(''); setAdjAmt('');
+    setDrafts(d => [...d, { label: adjLabel.trim(), amt: adjMode === 'add' ? n : -n }]);
+    setAdjLabel(''); setAdjAmt('');
+  };
+  const sdDiffOf = (sd) => !sd ? 0 : (sd.mode === 'pickup' ? -(Number(o.delivery_cost) || 0) : sd.fee - (Number(o.delivery_cost) || 0));
+  const draftNet = drafts.reduce((s, d) => s + d.amt, 0) + sdDiffOf(sdDraft);
+  const editGo = () => {
+    if (!drafts.length && !sdDraft) return;
+    onApplyEdits(o, drafts, sdDraft);
+    setDrafts([]); setSdDraft(null); setAdjOpen(false);
   };
   const askDelete = () => {
     if (!confirmDel) {
@@ -595,9 +605,9 @@ function OrderCard({ o, idx, onAdvance, onRetreat, onAdjust, onCancel, onRemove,
                   <div style={css("display:flex;gap:7px;align-items:center")}>
                     <input value={adjAmt} onChange={e => setAdjAmt(e.target.value.replace(/[^0-9]/g, '').slice(0, 5))} inputMode="numeric" placeholder="ราคา (บาท)"
                       style={css("flex:1;min-width:0;box-sizing:border-box;height:38px;border:1px solid var(--line);border-radius:9px;background:var(--card);color:var(--ink);padding:0 11px;font-size:12.5px;outline:none;font-family:inherit")}/>
-                    <button disabled={busy} onClick={adjGo} style={css("flex:none;height:38px;padding:0 16px;border:none;border-radius:9px;color:#fff;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;background:" + (adjMode === 'add' ? "#e8590c" : "#22c55e") + (busy ? ";opacity:.6" : ""))}>{adjMode === 'add' ? 'ยืนยันเพิ่ม +฿' + (adjAmt || '?') : 'ยืนยันลด −฿' + (adjAmt || '?')}</button>
+                    <button disabled={busy} onClick={adjGo} style={css("flex:none;height:38px;padding:0 16px;border:none;border-radius:9px;color:#fff;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;background:" + (adjMode === 'add' ? "#e8590c" : "#22c55e") + (busy ? ";opacity:.6" : ""))}>{adjMode === 'add' ? 'ใส่บิลแก้ไข +฿' + (adjAmt || '?') : 'ใส่บิลแก้ไข −฿' + (adjAmt || '?')}</button>
                   </div>
-                  <div style={css("font-size:10.5px;color:var(--sub);line-height:1.6")}>{adjMode === 'add' ? 'ยืนยันแล้ว: ยอดออเดอร์เพิ่มขึ้น + ส่งข้อความพร้อม QR ร้านเข้า Live Chat ลูกค้าให้อัตโนมัติ' : 'ยืนยันแล้ว: ยอดออเดอร์ลดลง + แชทแจ้งยอดคืนเงินและขอเลขบัญชี/QR ลูกค้าให้อัตโนมัติ'}</div>
+                  <div style={css("font-size:10.5px;color:var(--sub);line-height:1.6")}>ใส่ได้หลายรายการ (รวมเปลี่ยนการรับงานด้านล่างด้วย) แล้วกด "ยืนยันส่งบิลแก้ไข" ท้ายแผง — ระบบอัปเดตบิล + แชทแจ้งยอดสุทธิพร้อม QR ครั้งเดียว</div>
                   {/* ── การรับงาน/จุดส่ง: สลับ มารับเอง ↔ จัดส่ง หรือแก้ที่อยู่/ค่าส่งของงานจัดส่งเดิม (2026-09-15) ── */}
                   {o.status >= 1 && o.status < 4 && (
                     <div style={css("border-top:1px dashed var(--line);padding-top:9px;display:flex;flex-direction:column;gap:8px")}>
@@ -619,9 +629,31 @@ function OrderCard({ o, idx, onAdvance, onRetreat, onAdjust, onCancel, onRemove,
                       <div style={css("display:flex;gap:7px;align-items:center")}>
                         {sdMode === 'delivery' && <input value={sdFee} onChange={e => setSdFee(e.target.value.replace(/[^0-9]/g, '').slice(0, 4))} inputMode="numeric" placeholder={'ค่าส่งใหม่ (เดิม ฿' + (o.delivery_cost || 0) + ')'}
                           style={css("flex:1;min-width:0;box-sizing:border-box;height:38px;border:1px solid var(--line);border-radius:9px;background:var(--card);color:var(--ink);padding:0 11px;font-size:12.5px;outline:none;font-family:inherit")}/>}
-                        <button disabled={busy} onClick={sdGo} style={css("flex:" + (sdMode === 'delivery' ? "none" : "1") + ";height:38px;padding:0 16px;border:none;border-radius:9px;background:#1971c2;color:#fff;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit" + (busy ? ";opacity:.6" : ""))}>{sdMode === 'pickup' ? 'ยืนยันเปลี่ยนเป็นมารับเอง (คืนค่าส่ง ฿' + (o.delivery_cost || 0) + ')' : 'ยืนยันจุดส่ง/ค่าส่งใหม่'}</button>
+                        <button disabled={busy} onClick={sdGo} style={css("flex:" + (sdMode === 'delivery' ? "none" : "1") + ";height:38px;padding:0 16px;border:none;border-radius:9px;background:#1971c2;color:#fff;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit" + (busy ? ";opacity:.6" : ""))}>{sdMode === 'pickup' ? 'ใส่บิลแก้ไข: มารับเอง (คืนค่าส่ง ฿' + (o.delivery_cost || 0) + ')' : 'ใส่บิลแก้ไข: จุดส่ง/ค่าส่งใหม่'}</button>
                       </div>
-                      <div style={css("font-size:10.5px;color:var(--sub);line-height:1.6")}>ยืนยันแล้ว: บิลลูกค้าอัปเดตทันที + แชทแจ้งยอดที่ต้องโอนเพิ่ม (พร้อม QR) หรือยอดคืนเงินให้อัตโนมัติ + หน้าติดตามลูกค้าเปลี่ยนการรับงาน/ที่อยู่ให้เอง</div>
+                      <div style={css("font-size:10.5px;color:var(--sub);line-height:1.6")}>กด "ใส่บิลแก้ไข" แล้วรายการจะไปรวมในบิลแก้ไขท้ายแผง — ยังไม่ส่งถึงลูกค้าจนกว่าจะกดยืนยันส่ง</div>
+                    </div>
+                  )}
+                  {(drafts.length > 0 || sdDraft) && (
+                    <div style={css("border-top:1px dashed var(--line);padding-top:9px;display:flex;flex-direction:column;gap:6px")}>
+                      <div style={css("font-size:11.5px;font-weight:800")}>🧾 บิลแก้ไขรอบนี้ <span style={css("font-weight:600;color:var(--sub)")}>(ยังไม่ส่งถึงลูกค้า)</span></div>
+                      {drafts.map((d, i) => (
+                        <div key={i} style={css("display:flex;align-items:center;gap:7px;font-size:11.5px")}>
+                          <span style={css("flex:1;min-width:0;color:var(--sub)")}>{d.amt > 0 ? '➕' : '➖'} {d.label}</span>
+                          <span style={css("flex:none;font-family:'IBM Plex Mono',monospace;font-weight:700;color:" + (d.amt > 0 ? "#e8590c" : "#22c55e"))}>{d.amt > 0 ? '+' : '−'}฿{Math.abs(d.amt)}</span>
+                          <button onClick={() => setDrafts(l => l.filter((_, j) => j !== i))} style={css("flex:none;width:24px;height:24px;border:1px solid var(--line);border-radius:7px;background:var(--card);color:var(--sub);font-size:11px;cursor:pointer;font-family:inherit")}>✕</button>
+                        </div>
+                      ))}
+                      {sdDraft && (
+                        <div style={css("display:flex;align-items:center;gap:7px;font-size:11.5px")}>
+                          <span style={css("flex:1;min-width:0;color:var(--sub)")}>{sdDraft.mode === 'pickup' ? '🏪 เปลี่ยนเป็นมารับเองที่ร้าน' : (o.pickup ? '🚚 เปลี่ยนเป็นจัดส่งถึงที่ ' : '🚚 แก้จุดส่ง/ค่าส่งใหม่ ') + (sdDraft.veh === 'car' ? '🚗' : '🏍️')}</span>
+                          <span style={css("flex:none;font-family:'IBM Plex Mono',monospace;font-weight:700;color:" + (sdDiffOf(sdDraft) > 0 ? "#e8590c" : sdDiffOf(sdDraft) < 0 ? "#22c55e" : "var(--sub)"))}>{sdDiffOf(sdDraft) > 0 ? '+฿' + sdDiffOf(sdDraft) : sdDiffOf(sdDraft) < 0 ? '−฿' + (-sdDiffOf(sdDraft)) : '±฿0'}</span>
+                          <button onClick={() => setSdDraft(null)} style={css("flex:none;width:24px;height:24px;border:1px solid var(--line);border-radius:7px;background:var(--card);color:var(--sub);font-size:11px;cursor:pointer;font-family:inherit")}>✕</button>
+                        </div>
+                      )}
+                      <button disabled={busy} onClick={editGo} style={css("height:42px;border:none;border-radius:10px;color:#fff;font-size:12.5px;font-weight:800;cursor:pointer;font-family:inherit;background:" + (draftNet > 0 ? "#e8590c" : draftNet < 0 ? "#22c55e" : "#1971c2"))}>
+                        {draftNet > 0 ? '✅ ยืนยันส่งบิลแก้ไข — ลูกค้าโอนเพิ่ม ฿' + draftNet + ' (แชท + QR ครั้งเดียว)' : draftNet < 0 ? '✅ ยืนยันส่งบิลแก้ไข — คืนเงินลูกค้า ฿' + (-draftNet) : '✅ ยืนยันส่งบิลแก้ไข — ยอดรวมเท่าเดิม'}
+                      </button>
                     </div>
                   )}
                 </div>
@@ -1044,52 +1076,35 @@ function AdminApp(){
     } else setOrders(list => list.map(x => x.id === o.id ? { ...x, status: prev, times } : x));
   };
 
-  // ปรับแต่งออเดอร์ (ฟังก์ชันเสริมแอดมิน): บวก/ลบยอด + จดรายการ + แจ้งลูกค้าใน Live Chat อัตโนมัติ (เพิ่ม = แนบ QR ร้าน · ลด = ขอบัญชีคืนเงิน)
-  const adjustOrder = async (o, mode, label, n) => {
-    const signed = mode === 'add' ? n : -n;
-    const adjs = [...(o.adjustments || []), { label, amt: signed, at: new Date().toISOString() }];
-    const newTotal = Math.max(0, Math.round((Number(o.total) || 0) + signed));
-    if (!DB) { setOrders(list => list.map(x => x.id === o.id ? { ...x, total: newTotal, adjustments: adjs } : x)); return; }
-    setBusyId(o.id);
-    try {
-      const { error } = await DB.from('orders').update({ total: newTotal, adjustments: adjs }).eq('id', o.id);
-      if (error) { alert(/adjustments/.test(String(error.message || '')) ? 'ยังไม่ได้รัน SQL เพิ่มคอลัมน์ adjustments ครับ (ดูก้อน SQL ที่ Claude ส่งให้)' : 'บันทึกไม่สำเร็จ: ' + error.message); setBusyId(null); return; }
-      const text = signed > 0
-        ? '🛠️ ร้านปรับออเดอร์ตามที่คุยกัน: เพิ่ม "' + label + '" +฿' + n + '\nยอดรวมใหม่ ฿' + newTotal + '\nรบกวนสแกน QR นี้ชำระเพิ่ม ฿' + n + ' แล้วแนบสลิปในแชทนี้ได้เลยครับ 🙏'
-        : '🛠️ ร้านปรับออเดอร์ตามที่คุยกัน: ลด "' + label + '" −฿' + n + '\nยอดรวมใหม่ ฿' + newTotal + ' — ร้านจะโอนคืน ฿' + n + ' ครับ\nรบกวนพิมพ์เลขพร้อมเพย์/เลขบัญชี หรือส่งรูป QR ธนาคารของคุณในแชทนี้ เดี๋ยวร้านโอนคืนให้เร็วที่สุดครับ 🙏';
-      // เพิ่มรายการ = แนบ QR พร้อมเพย์ของร้าน (อัปไว้ในคลังที่ chat/shop/promptpay-qr.jpg แล้ว)
-      await DB.from('messages').insert({ order_id: o.id, sender: 'shop', body: text, seen_by_shop: true, ...(signed > 0 ? { img: 'chat/shop/promptpay-qr.jpg' } : {}) });
-      // เด้ง LINE ลูกค้าด้วย (เฉพาะคนล็อกอิน LINE) — เรื่องเงินสำคัญ ยอมใช้โควตา 1 ข้อความ
-      try { fetch(CFG.SUPABASE_URL + '/functions/v1/notify-order?action=msg', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: o.id, text }) }); } catch (e) {}
-      await refresh();
-    } catch (e) { console.error(e); alert('บันทึกไม่สำเร็จ ลองใหม่ครับ'); }
-    setBusyId(null);
-  };
-
-  // การรับงาน/จุดส่ง (2026-09-15): มารับเอง ↔ จัดส่ง หรือแก้ที่อยู่/ค่าส่ง — อัปเดตแถวเรียลไทม์ + ส่วนต่างเข้า adjustments (บิลลูกค้าเห็นสด) + แชท/LINE แจ้งยอดโอนเพิ่ม (พร้อม QR) หรือยอดคืน
-  // หน้าติดตามลูกค้าเปลี่ยนป้าย/ที่อยู่เองผ่าน get_order_status ที่คืน pickup/addr (ต้องรัน SQL อัปเดตฟังก์ชัน — ยังไม่รันบิลก็อัปเดตแต่ป้ายยังไม่เปลี่ยน)
-  const switchDelivery = async (o, mode, addr, fee, veh) => {
-    const oldFee = Number(o.delivery_cost) || 0;
-    const toPickup = mode === 'pickup';
-    const diff = toPickup ? -oldFee : fee - oldFee; // ส่วนต่างที่ลูกค้าต้องโอนเพิ่ม (+) หรือร้านคืน (−)
-    const newAddr = toPickup ? '🏪 มารับเองที่ร้าน (เปลี่ยนตามที่ลูกค้าแจ้ง)' : (veh === 'car' ? '🚗 ' : '🏍️ ') + addr;
-    const newTotal = Math.max(0, Math.round((Number(o.total) || 0) + diff));
-    const adjLabel = toPickup ? 'เปลี่ยนเป็นมารับเองที่ร้าน — คืนค่าส่ง' : (o.pickup ? 'เปลี่ยนเป็นจัดส่งถึงที่ — ค่าส่ง' : 'แก้จุดส่ง/ค่าส่งใหม่');
-    const adjs = diff !== 0 ? [...(o.adjustments || []), { label: adjLabel, amt: diff, at: new Date().toISOString(), kind: 'ship' }] : (o.adjustments || []); // kind:'ship' = ฝั่งค่าส่ง ไม่ใช่เนื้องาน
-    const upd = { pickup: toPickup, addr: newAddr, delivery_cost: toPickup ? 0 : fee, total: newTotal, adjustments: adjs };
+  // บิลแก้ไขรวม (เจ้าของสั่ง 2026-09-15): เพิ่ม/ลดหลายรายการ + เปลี่ยนการรับงาน/จุดส่ง พร้อมกันได้ → อัปเดตฐานข้อมูลครั้งเดียว + แชทแจ้งยอดสุทธิ (พร้อม QR ถ้าต้องโอนเพิ่ม) ครั้งเดียว
+  const applyEdits = async (o, items, sd) => {
+    const now = new Date().toISOString();
+    const adjs = [...(o.adjustments || []), ...items.map(it => ({ label: it.label, amt: it.amt, at: now }))];
+    const lines = items.map(it => it.amt > 0 ? '• เพิ่ม "' + it.label + '" +฿' + it.amt : '• ลด "' + it.label + '" −฿' + (-it.amt));
+    let upd = {}, sdDiff = 0;
+    if (sd) {
+      const oldFee = Number(o.delivery_cost) || 0;
+      const toPickup = sd.mode === 'pickup';
+      sdDiff = toPickup ? -oldFee : sd.fee - oldFee;
+      const adjLabel = toPickup ? 'เปลี่ยนเป็นมารับเองที่ร้าน — คืนค่าส่ง' : (o.pickup ? 'เปลี่ยนเป็นจัดส่งถึงที่ — ค่าส่ง' : 'แก้จุดส่ง/ค่าส่งใหม่');
+      if (sdDiff !== 0) adjs.push({ label: adjLabel, amt: sdDiff, at: now, kind: 'ship' }); // kind:'ship' = ค่าส่ง ไม่เข้าฐานแบ่ง 80/20
+      upd = { pickup: toPickup, addr: toPickup ? '🏪 มารับเองที่ร้าน (เปลี่ยนตามที่ลูกค้าแจ้ง)' : (sd.veh === 'car' ? '🚗 ' : '🏍️ ') + sd.addr, delivery_cost: toPickup ? 0 : sd.fee };
+      lines.push(toPickup ? '• เปลี่ยนเป็นมารับเองที่ร้าน' + (oldFee > 0 ? ' — คืนค่าส่ง −฿' + oldFee : '')
+        : '• ' + adjLabel + ' (' + (sd.veh === 'car' ? '🚗 รถยนต์' : '🏍️ มอเตอร์ไซค์') + ') ' + (sdDiff > 0 ? '+฿' + sdDiff : sdDiff < 0 ? '−฿' + (-sdDiff) : 'ค่าส่ง ฿' + sd.fee + ' เท่าเดิม') + '\n   จุดส่ง: ' + sd.addr);
+    }
+    const net = items.reduce((s, it) => s + it.amt, 0) + sdDiff;
+    const newTotal = Math.max(0, Math.round((Number(o.total) || 0) + net));
+    upd = { ...upd, total: newTotal, adjustments: adjs };
     if (!DB) { setOrders(list => list.map(x => x.id === o.id ? { ...x, ...upd } : x)); return; }
     setBusyId(o.id);
     try {
       const { error } = await DB.from('orders').update(upd).eq('id', o.id);
-      if (error) { alert('บันทึกไม่สำเร็จ: ' + error.message); setBusyId(null); return; }
-      const head = toPickup
-        ? '🏪 ร้านเปลี่ยนการรับงานของออเดอร์นี้เป็น "มารับเองที่ร้าน" ตามที่แจ้งครับ'
-        : '🚚 ร้านอัปเดตการจัดส่งของออเดอร์นี้ตามที่แจ้งครับ\nจุดส่ง: ' + addr + '\nค่าส่งใหม่ ฿' + fee;
-      const tail = diff > 0 ? '\nยอดรวมล่าสุด ฿' + newTotal + '\nรบกวนสแกน QR นี้ชำระเพิ่ม ฿' + diff + ' แล้วแนบสลิปในแชทนี้ได้เลยครับ 🙏'
-        : diff < 0 ? '\nยอดรวมล่าสุด ฿' + newTotal + ' — ร้านจะโอนคืน ฿' + (-diff) + ' ครับ\nรบกวนพิมพ์เลขพร้อมเพย์/เลขบัญชี หรือส่งรูป QR ธนาคารของคุณในแชทนี้ เดี๋ยวร้านโอนคืนให้เร็วที่สุดครับ 🙏'
-        : '\nยอดรวมเท่าเดิม ฿' + newTotal + ' — ไม่ต้องโอนเพิ่มครับ ✓';
-      const text = head + tail;
-      await DB.from('messages').insert({ order_id: o.id, sender: 'shop', body: text, seen_by_shop: true, ...(diff > 0 ? { img: 'chat/shop/promptpay-qr.jpg' } : {}) });
+      if (error) { alert(/adjustments/.test(String(error.message || '')) ? 'ยังไม่ได้รัน SQL เพิ่มคอลัมน์ adjustments ครับ' : 'บันทึกไม่สำเร็จ: ' + error.message); setBusyId(null); return; }
+      const tail = net > 0 ? '\nยอดรวมล่าสุด ฿' + newTotal + '\nรบกวนสแกน QR นี้ชำระเพิ่ม ฿' + net + ' แล้วแนบสลิปในแชทนี้ได้เลยครับ 🙏'
+      : net < 0 ? '\nยอดรวมล่าสุด ฿' + newTotal + ' — ร้านจะโอนคืน ฿' + (-net) + ' ครับ\nรบกวนพิมพ์เลขพร้อมเพย์/เลขบัญชี หรือส่งรูป QR ธนาคารของคุณในแชทนี้ เดี๋ยวร้านโอนคืนให้เร็วที่สุดครับ 🙏'
+      : '\nยอดรวมเท่าเดิม ฿' + newTotal + ' — ไม่ต้องโอนเพิ่มครับ ✓';
+      const text = '🛠️ ร้านแก้ไขออเดอร์ตามที่คุยกันครับ\n' + lines.join('\n') + tail;
+      await DB.from('messages').insert({ order_id: o.id, sender: 'shop', body: text, seen_by_shop: true, ...(net > 0 ? { img: 'chat/shop/promptpay-qr.jpg' } : {}) });
       try { fetch(CFG.SUPABASE_URL + '/functions/v1/notify-order?action=msg', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: o.id, text }) }); } catch (e) {}
       await refresh();
     } catch (e) { console.error(e); alert('บันทึกไม่สำเร็จ ลองใหม่ครับ'); }
@@ -1587,7 +1602,7 @@ function AdminApp(){
                   );
                 }
               }
-              out.push(<OrderCard key={o.id} o={o} idx={i + 1} onAdvance={advance} onRetreat={retreat} onAdjust={adjustOrder} onCancel={cancel} onRemove={removeOrder} onSwitchDelivery={switchDelivery} busy={busyId === o.id} unread={unreadMap[o.id] || 0} onSeen={clearUnread}/>);
+              out.push(<OrderCard key={o.id} o={o} idx={i + 1} onAdvance={advance} onRetreat={retreat} onApplyEdits={applyEdits} onCancel={cancel} onRemove={removeOrder} busy={busyId === o.id} unread={unreadMap[o.id] || 0} onSeen={clearUnread}/>);
             });
             return out;
           })()}
