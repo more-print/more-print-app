@@ -89,7 +89,11 @@ const jobValue = (o) => (o.print_cost || 0) + (o.bind_cost || 0); // มูล�
 // ส่วนลดที่กินค่างานปริ้น — โค้ดส่งฟรี (ยอดลดเท่าค่าส่งพอดี) ลดค่าส่งฝั่ง MORE PRINT ไม่แตะส่วนแบ่งร้าน
 const printDisc = (o) => { const d = o.discount || 0; if (d <= 0) return 0; if ((o.delivery_cost || 0) > 0 && d === o.delivery_cost) return 0; return Math.min(d, jobValue(o)); };
 // ฐานคิดส่วนแบ่ง 80/20 = ราคาหลังหักส่วนลด (เจ้าของเคาะ 2026-09-15: ส่วนลดหารตามสัดส่วน ร้าน 80 เรา 20) — ต้องตรงกับ commission.html
-const jobNet = (o) => Math.max(0, jobValue(o) - printDisc(o));
+// รายการปรับจากแผงแก้ไขออเดอร์ที่เป็น "เนื้องานปริ้น" เข้าฐานแบ่ง 80/20 ด้วย (เจ้าของแจ้ง 2026-09-15 ยอดการ์ดไม่อัปเดต)
+// ส่วนรายการฝั่งค่าส่ง/เปลี่ยนการรับงาน (kind:'ship' หรือ label ขึ้นต้นตามระบบ) ไม่เข้าฐาน — ค่าส่งเป็นของ MORE PRINT
+const shipAdj = (a) => a && (a.kind === 'ship' || /^(เปลี่ยนเป็นจัดส่งถึงที่|เปลี่ยนเป็นมารับเองที่ร้าน|แก้จุดส่ง)/.test(String(a.label || '')));
+const adjJob = (o) => (o.adjustments || []).reduce((sm, a) => sm + (shipAdj(a) ? 0 : (Number(a.amt) || 0)), 0);
+const jobNet = (o) => Math.max(0, jobValue(o) + adjJob(o) - printDisc(o));
 const commOf = (o) => jobNet(o) * COMMISSION;
 const partnerOf = (o) => jobNet(o) - commOf(o);
 
@@ -393,8 +397,9 @@ function ProOrder({ o, idx, isOwner, payoutReady, onPrice, onPayout, onAdvance, 
         <div style={css("margin-top:10px;background:var(--soft);border-radius:10px;padding:10px 12px;font-size:12.5px;display:flex;flex-direction:column;gap:4px")}>
           {(o.discount || 0) > 0 && <div style={css("font-size:11px;font-weight:700;color:#c2255c")}>🎟️ ลูกค้าใช้โค้ดส่วนลด {o.coupon || ''} −฿{o.discount}{printDisc(o) > 0 ? ' — ส่วนแบ่งทั้งสองฝั่งคิดจากราคาหลังหักส่วนลด (หาร 80/20 ตามสัดส่วน)' : ' — โค้ดส่งฟรี ลดเฉพาะค่าส่งฝั่ง MORE PRINT ส่วนแบ่งร้านไม่กระทบ'}</div>}
           {isOwner && <div style={css("display:flex;justify-content:space-between")}><span style={css("color:var(--sub)")}>ค่างานปริ้น (ราคาเต็ม)</span><span style={css("font-family:'IBM Plex Mono',monospace;font-weight:600")}>{baht(jobValue(o))} <span onClick={() => { setEdit(true); setPrice(String(jobValue(o))); }} style={css("color:var(--acc);font-size:11px;cursor:pointer;text-decoration:underline")}>แก้</span></span></div>}
+          {isOwner && adjJob(o) !== 0 && <div style={css("display:flex;justify-content:space-between")}><span style={css("color:#e8590c")}>รายการปรับเพิ่ม/ลด (เนื้องาน)</span><span style={css("font-family:'IBM Plex Mono',monospace;color:#e8590c;font-weight:600")}>{adjJob(o) > 0 ? '+' : '−'}{baht(Math.abs(adjJob(o)))}</span></div>}
           {isOwner && printDisc(o) > 0 && <div style={css("display:flex;justify-content:space-between")}><span style={css("color:#c2255c")}>ส่วนลดที่ลูกค้าใช้</span><span style={css("font-family:'IBM Plex Mono',monospace;color:#c2255c;font-weight:600")}>−{baht(printDisc(o))}</span></div>}
-          {isOwner && printDisc(o) > 0 && <div style={css("display:flex;justify-content:space-between")}><span style={css("color:var(--sub)")}>ฐานคิดส่วนแบ่ง (หลังหักส่วนลด)</span><span style={css("font-family:'IBM Plex Mono',monospace;font-weight:600")}>{baht(jobNet(o))}</span></div>}
+          {isOwner && (printDisc(o) > 0 || adjJob(o) !== 0) && <div style={css("display:flex;justify-content:space-between")}><span style={css("color:var(--sub)")}>ฐานคิดส่วนแบ่ง (รวมปรับ/หักส่วนลด)</span><span style={css("font-family:'IBM Plex Mono',monospace;font-weight:600")}>{baht(jobNet(o))}</span></div>}
           {isOwner && <div style={css("display:flex;justify-content:space-between")}><span style={css("color:var(--sub)")}>ค่าคอม MORE PRINT ({Math.round(COMMISSION * 100)}%)</span><span style={css("font-family:'IBM Plex Mono',monospace;color:var(--acc);font-weight:600")}>−{baht(commOf(o))}</span></div>}
           <div style={css("display:flex;justify-content:space-between;font-weight:700" + (isOwner ? ";border-top:1px dashed var(--line);padding-top:5px" : ""))}><span>{isOwner ? 'ยอดโอนให้ร้านพาร์ทเนอร์' : 'ส่วนของร้านคุณ (หลังหักคอม ' + Math.round(COMMISSION * 100) + '%)'}</span><span style={css("font-family:'IBM Plex Mono',monospace;color:var(--gold)")}>{baht(partnerOf(o))}</span></div>
           {isOwner && o.status !== 0 && !o.payout_at && (
@@ -670,7 +675,7 @@ function Dash({ role }){
     const newAddr = toPickup ? '🏪 มารับเองที่ร้านอุดมสุขปริ้นติ้ง (เปลี่ยนตามที่ลูกค้าแจ้ง)' : (veh === 'car' ? '🚗 ' : '🏍️ ') + addr;
     const newTotal = Math.max(0, Math.round((Number(o.total) || 0) + diff));
     const adjLabel = toPickup ? 'เปลี่ยนเป็นมารับเองที่ร้าน — คืนค่าส่ง' : (o.pickup ? 'เปลี่ยนเป็นจัดส่งถึงที่ — ค่าส่ง' : 'แก้จุดส่ง/ค่าส่งใหม่');
-    const adjs = diff !== 0 ? [...(o.adjustments || []), { label: adjLabel, amt: diff, at: new Date().toISOString() }] : (o.adjustments || []);
+    const adjs = diff !== 0 ? [...(o.adjustments || []), { label: adjLabel, amt: diff, at: new Date().toISOString(), kind: 'ship' }] : (o.adjustments || []); // kind:'ship' = ไม่เข้าฐานแบ่ง 80/20
     const upd = { pickup: toPickup, addr: newAddr, delivery_cost: toPickup ? 0 : fee, total: newTotal, adjustments: adjs };
     if (!DB) { setOrders(l => l.map(x => x.id === o.id ? { ...x, ...upd } : x)); return; }
     const { error } = await DB.from('orders').update(upd).eq('id', o.id);

@@ -1075,7 +1075,7 @@ function AdminApp(){
     const newAddr = toPickup ? '🏪 มารับเองที่ร้าน (เปลี่ยนตามที่ลูกค้าแจ้ง)' : (veh === 'car' ? '🚗 ' : '🏍️ ') + addr;
     const newTotal = Math.max(0, Math.round((Number(o.total) || 0) + diff));
     const adjLabel = toPickup ? 'เปลี่ยนเป็นมารับเองที่ร้าน — คืนค่าส่ง' : (o.pickup ? 'เปลี่ยนเป็นจัดส่งถึงที่ — ค่าส่ง' : 'แก้จุดส่ง/ค่าส่งใหม่');
-    const adjs = diff !== 0 ? [...(o.adjustments || []), { label: adjLabel, amt: diff, at: new Date().toISOString() }] : (o.adjustments || []);
+    const adjs = diff !== 0 ? [...(o.adjustments || []), { label: adjLabel, amt: diff, at: new Date().toISOString(), kind: 'ship' }] : (o.adjustments || []); // kind:'ship' = ฝั่งค่าส่ง ไม่ใช่เนื้องาน
     const upd = { pickup: toPickup, addr: newAddr, delivery_cost: toPickup ? 0 : fee, total: newTotal, adjustments: adjs };
     if (!DB) { setOrders(list => list.map(x => x.id === o.id ? { ...x, ...upd } : x)); return; }
     setBusyId(o.id);
