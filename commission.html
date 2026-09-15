@@ -760,9 +760,10 @@ function Dash(){
       if (!map[key]) map[key] = { from,
         to: billMode === 'm' ? new Date(from.getFullYear(), from.getMonth() + 1, 1)
                              : new Date(from.getFullYear(), from.getMonth(), from.getDate() + 7),
-        n: 0, job: 0, unpaid: 0 };
+        n: 0, job: 0, unpaid: 0, disc: 0, dn: 0 };
       const b = map[key];
       b.n++; b.job += jobNet(o);
+      if (printDisc(o) > 0) { b.disc += printDisc(o); b.dn++; } // ส่วนลดที่ลูกค้าใช้ (หักจากฐานแบ่งแล้ว) — โชว์ในแถวรอบบิล
       if (!o.payout_at) b.unpaid++;
     });
     const fmtD = (d) => d.getDate() + ' ' + TH_MONTHS[d.getMonth()];
@@ -801,6 +802,9 @@ function Dash(){
       return bill.from ? (d >= bill.from && d < bill.to) : (d.getFullYear() === bill.y && d.getMonth() === bill.m); });
     const job = rows.reduce((a, o) => a + jobNet(o), 0);
     const comm = job * COMMISSION, net = job - comm;
+    // ส่วนลดที่ลูกค้าใช้ในรอบนี้ (เฉพาะโค้ดลดราคางาน — โค้ดส่งฟรีลดฝั่งค่าส่ง MORE PRINT ไม่เข้าบิลนี้)
+    const discTotal = rows.reduce((a, o) => a + printDisc(o), 0);
+    const discN = rows.filter(o => printDisc(o) > 0).length;
     const unpaid = rows.filter(o => !o.payout_at);
     const unpaidNet = unpaid.reduce((a, o) => a + jobNet(o) * (1 - COMMISSION), 0);
     const monthLabel = bill.label || (TH_MONTHS[bill.m] + ' ' + (bill.y + 543));
@@ -840,7 +844,11 @@ function Dash(){
                   <td style={css("padding:7px 8px;font-size:12px;color:#888;border-bottom:1px solid #eee")}>{i + 1}</td>
                   <td style={css("padding:7px 8px;font-size:12px;border-bottom:1px solid #eee;white-space:nowrap")}>{fmtDate(o.created_at)}</td>
                   <td style={css("padding:7px 8px;font-size:12px;font-family:'IBM Plex Mono',monospace;border-bottom:1px solid #eee")}>{o.id}</td>
-                  <td style={css("padding:7px 8px;font-size:12px;border-bottom:1px solid #eee")}>{o.paper} × {o.copies || 1}</td>
+                  <td style={css("padding:7px 8px;font-size:12px;border-bottom:1px solid #eee")}>{o.paper} × {o.copies || 1}
+                    {printDisc(o) > 0 && <div style={css("margin-top:2px;font-size:10px;color:#c2255c;font-weight:700")}>🎟️ ใช้โค้ด{o.coupon ? ' ' + o.coupon : 'ส่วนลด'} −฿{printDisc(o).toLocaleString('th-TH')} · เต็ม ฿{(jobValue(o) + adjJob(o)).toLocaleString('th-TH')} → ลดเหลือ ฿{jobNet(o).toLocaleString('th-TH')}</div>}
+                    {(o.discount || 0) > 0 && printDisc(o) === 0 && <div style={css("margin-top:2px;font-size:10px;color:#888")}>🎟️ โค้ดส่งฟรี{o.coupon ? ' ' + o.coupon : ''} — ลดค่าส่งฝั่ง MORE PRINT ยอดร้านไม่กระทบ</div>}
+                    {adjJob(o) !== 0 && <div style={css("margin-top:2px;font-size:10px;color:#e8590c")}>🛠️ รวมรายการปรับเนื้องาน {adjJob(o) > 0 ? '+' : '−'}฿{Math.abs(adjJob(o)).toLocaleString('th-TH')}</div>}
+                  </td>
                   <td style={css("padding:7px 8px;font-size:12px;text-align:right;font-family:'IBM Plex Mono',monospace;border-bottom:1px solid #eee")}>{(Math.round(jobNet(o) * 100) / 100).toLocaleString('th-TH')}</td>
                 </tr>
               ))}
@@ -848,6 +856,7 @@ function Dash(){
           </table>
           <div style={css("margin-top:16px;margin-left:auto;max-width:330px;display:flex;flex-direction:column;gap:6px;font-size:13px")}>
             <div style={css("display:flex;justify-content:space-between")}><span style={css("color:#666")}>ยอดงานรวมทั้งหมด ({rows.length} งาน)</span><span style={css("font-family:'IBM Plex Mono',monospace;font-weight:600")}>{baht(job)}</span></div>
+            {discTotal > 0 && <div style={css("display:flex;justify-content:space-between;font-size:11px")}><span style={css("color:#c2255c")}>🎟️ ในยอดนี้หักส่วนลดที่ลูกค้าใช้แล้ว ({discN} ใบ)</span><span style={css("font-family:'IBM Plex Mono',monospace;font-weight:600;color:#c2255c")}>−{baht(discTotal)}</span></div>}
             {forUs
               ? <div style={css("display:flex;justify-content:space-between")}><span style={css("color:#666")}>ค่าคอมมิชชั่น{PARTNER_NAME} ({Math.round((1 - COMMISSION) * 100)}%)</span><span style={css("font-family:'IBM Plex Mono',monospace;font-weight:600;color:#c92a2a")}>−{baht(net)}</span></div>
               : <div style={css("display:flex;justify-content:space-between")}><span style={css("color:#666")}>หักค่าคอมมิชชั่น MORE PRINT ({Math.round(COMMISSION * 100)}%)</span><span style={css("font-family:'IBM Plex Mono',monospace;font-weight:600;color:#c92a2a")}>−{baht(comm)}</span></div>}
@@ -1033,7 +1042,7 @@ function Dash(){
                 <div key={i} style={css("margin-top:9px;border:1px solid " + (b.current ? "var(--acc)" : "var(--line)") + ";border-radius:12px;padding:10px 13px;display:flex;align-items:center;gap:10px;flex-wrap:wrap")}>
                   <div style={css("flex:1;min-width:130px")}>
                     <div style={css("font-size:12.5px;font-weight:700")}>{b.label} {b.current && <span style={css("font-size:9.5px;font-weight:700;background:var(--accSoft);color:var(--acc);border-radius:99px;padding:2px 8px")}>⏳ รอบปัจจุบัน ยังไม่ครบกำหนดตัด</span>}</div>
-                    <div style={css("margin-top:2px;font-size:11px;color:var(--sub)")}>{b.n} งาน · ยอดงาน {baht(b.job)} · หักคอม {baht(b.comm)}</div>
+                    <div style={css("margin-top:2px;font-size:11px;color:var(--sub)")}>{b.n} งาน · ยอดงาน {baht(b.job)} · หักคอม {baht(b.comm)}{b.disc > 0 ? <span style={css("color:#c2255c;font-weight:700")}> · 🎟️ หักส่วนลดลูกค้าแล้ว {baht(b.disc)} ({b.dn} ใบ)</span> : null}</div>
                   </div>
                   <div style={css("text-align:right;flex:none")}>
                     <div style={css("font-family:'IBM Plex Mono',monospace;font-size:14px;font-weight:800;color:" + (billFor === 'us' ? "var(--green)" : "var(--acc)"))}>{baht(billFor === 'us' ? b.comm : b.net)}</div>
