@@ -312,7 +312,7 @@ function pageRate(ptype, size, sides, totalPages){
 }
 // ขั้นสถานะของงาน Pro (ร้านอุดมสุขผลิต): แยกตามวิธีรับงาน
 const STEPS_PRO_SHIP = ['รับออเดอร์', 'กำลังผลิตสินค้า', 'กำลังจัดส่ง', 'ส่งแล้ว'];
-const STEPS_PRO_PICKUP = ['รับออเดอร์', 'กำลังผลิตสินค้า', 'เสร็จแล้ว รอมารับ', 'รับสินค้าแล้ว'];
+const STEPS_PRO_PICKUP = ['รับออเดอร์', 'กำลังผลิตสินค้า', 'เสร็จแล้ว มารับได้เลยครับ', 'รับสินค้าแล้ว']; // ขั้น 3 เจ้าของขอคำนุ่มขึ้น (2026-09-17)
 const stepsFor = (od) => !od ? null : od.pickup ? STEPS_PRO_PICKUP : (od.plabel || '').startsWith('PRO') ? STEPS_PRO_SHIP : null;
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 const FILE_BASE = (window.MP_CONFIG || {}).SUPABASE_URL ? (window.MP_CONFIG.SUPABASE_URL + '/storage/v1/object/public/uploads/') : '';
@@ -3651,7 +3651,7 @@ class App extends React.Component {
               {v.proPickupOn && (
                 <div style={css("border:1.5px solid var(--acc);border-radius:12px;padding:12px 14px;background:var(--accSoft)")}>
                   <div style={css("font-size:13.5px;font-weight:800;color:var(--acc)")}>🏪 {v.isPro ? 'มารับเองที่ร้านอุดมสุขปริ้นติ้ง (กังสดาล)' : 'รับหน้าร้าน MORE PRINT (หอพักบริบูรณ์เพลส)'}</div>
-                  <div style={css("margin-top:4px;font-size:11.5px;color:var(--sub);line-height:1.6")}>ไม่มีค่าส่ง · ไม่ต้องปักหมุด — เมื่อสินค้าเสร็จ สถานะจะขึ้น "เสร็จแล้ว รอมารับ" แล้วมารับได้เลยครับ · <a href={v.isPro ? 'https://maps.app.goo.gl/SshjXkvaCxvKPugL7' : 'https://maps.app.goo.gl/NeVkZbtj6soQpwFx7'} target="_blank" rel="noreferrer" style={css("color:var(--acc);font-weight:700")}><span style={css("display:inline-flex;vertical-align:-2px;margin-right:4px")}>{fi('nav', 12)}</span>เปิดแผนที่ร้าน</a></div>
+                  <div style={css("margin-top:4px;font-size:11.5px;color:var(--sub);line-height:1.6")}>ไม่มีค่าส่ง · ไม่ต้องปักหมุด — เมื่อสินค้าเสร็จ สถานะจะขึ้น "เสร็จแล้ว มารับได้เลยครับ" ·<a href={v.isPro ? 'https://maps.app.goo.gl/SshjXkvaCxvKPugL7' : 'https://maps.app.goo.gl/NeVkZbtj6soQpwFx7'} target="_blank" rel="noreferrer" style={css("color:var(--acc);font-weight:700")}><span style={css("display:inline-flex;vertical-align:-2px;margin-right:4px")}>{fi('nav', 12)}</span>เปิดแผนที่ร้าน</a></div>
                 </div>
               )}
               {!v.proPickupOn && <React.Fragment>
