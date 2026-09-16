@@ -38,7 +38,7 @@ const DB = (CFG.SUPABASE_URL && CFG.SUPABASE_ANON_KEY && window.supabase)
 
 const STEPS = ['รับออเดอร์', 'กำลังปริ้น', 'กำลังจัดส่ง', 'ส่งแล้ว'];
 // มารับเองที่ร้าน: ขั้น 3 เปลี่ยนเป็น รอลูกค้ามารับ (เจ้าของสั่ง 2026-09-17 — ขั้นอื่นคงเดิม)
-const stepsOf = (o) => o && o.pickup ? ['รับออเดอร์', 'กำลังปริ้น', 'รอลูกค้ามารับ', 'ส่งแล้ว'] : STEPS;
+const stepsOf = (o) => o && o.pickup ? ['รับออเดอร์', 'กำลังปริ้น', 'ปริ้นเสร็จสิ้น รอลูกค้ามารับงาน', 'ส่งแล้ว'] : STEPS;
 const BANNER_THEMES = {
   green: 'linear-gradient(135deg,#00b368,#00744a)',
   dark: 'linear-gradient(135deg,#2b2b28,#000)',
