@@ -1618,7 +1618,7 @@ class App extends React.Component {
         pickup: !!row.pickup, addr: rawAddr.replace(/^[🚗🏍️🏪\s]+/, ''), veh: row.pickup ? '' : (rawAddr.startsWith('🚗') ? '🚗 รถยนต์' : '🏍️ มอเตอร์ไซค์'),
         plabel: row.paper || 'งานปริ้น', pages: row.pages || 0, copies: row.copies || 1,
         ts: row.created_at ? new Date(row.created_at).getTime() : Date.now() }; };
-      rows.filter(r => r.status >= 4).slice(0, 10).forEach(r => this.addHistory(mk(r))); // ใบจบแล้ว → ประวัติ (กันซ้ำด้วย id ใน addHistory)
+      rows.filter(r => r.status >= 4).slice(0, 10).reverse().forEach(r => this.addHistory(mk(r))); // ใบจบแล้ว → ประวัติ (ใส่เก่า→ใหม่ ให้ใบล่าสุดอยู่บนสุด · กันซ้ำด้วย id ใน addHistory)
       const actives = rows.filter(r => r.status > 0 && r.status < 4);
       actives.slice().reverse().forEach(r => this.upsertOrderList(mk(r))); // เรียงเก่า→ใหม่ ให้ใบล่าสุดขึ้นหัวลิสต์
       // เครื่องนี้ยังไม่มีออเดอร์ที่กำลังติดตาม → หยิบใบล่าสุดที่ยังไม่จบขึ้นหน้าติดตามให้เลย
