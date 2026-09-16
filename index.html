@@ -566,6 +566,7 @@ class App extends React.Component {
       }
     } catch (e) {}
     if (this.db) setTimeout(() => this.refreshOrderList(), 1200);
+    if (this.db) setTimeout(() => this.syncMyOrders(), 1800); // ดึงออเดอร์ตามตัวตน (LINE/สมาชิก) — เปิดเครื่องใหม่ออเดอร์ก็ตามมา (2026-09-17)
     if (this.db) setTimeout(() => this.retryPendingOrder(), 2500); // มีออเดอร์ค้างส่งจากรอบก่อน (เน็ตสะดุดแล้วปิดเว็บ) — ส่งต่อให้ทันทีที่กลับมา
     if (this.db) setTimeout(() => this.maybeAskReview(), 3500); // งานส่งสำเร็จแล้วยังไม่ได้รีวิว — เด้งป๊อปอัพชวนรีวิวบนหน้าแรก
     if (this.db) setTimeout(() => this.maybeAskReview(), 9000); // เช็คซ้ำอีกรอบ — เผื่อสถานะ "ส่งแล้ว" เพิ่งวิ่งมาถึงช้ากว่ารอบแรก (เน็ตช้า)
@@ -1083,6 +1084,7 @@ class App extends React.Component {
       this.backupUser(user);
       this.setState({ user, phone: '', screen: this.state.screen === 'login' ? 'home' : this.state.screen }); // บัญชีใหม่ — ไม่สืบทอดเบอร์คนก่อน · กู้กลางทางให้อยู่หน้าเดิม
       this.showToast('ยินดีต้อนรับ คุณ' + user.fname + ' 💚');
+      setTimeout(() => this.syncMyOrders(), 700); // ดึงออเดอร์ของบัญชี LINE นี้จากทุกเครื่องมาโชว์ (2026-09-17)
       setTimeout(() => this.maybeAskReview(), 1200); // ล็อกอิน LINE กลับเข้ามาหลังงานส่งสำเร็จ — เด้งชวนรีวิว
     } catch (e) {
       console.error('line profile:', e);
@@ -1593,6 +1595,45 @@ class App extends React.Component {
   }
 
   // เช็คสถานะจากฐานข้อมูลผ่านช่องมองเฉพาะใบ (ต้องรู้รหัสออเดอร์เป๊ะ ๆ เท่านั้น)
+  // ── ซิงก์ออเดอร์ตามตัวตน (เจ้าของสั่ง 2026-09-17): ล็อกอิน LINE (line_uid) หรือสมาชิกอีเมล แล้วเปิดจากเครื่อง/เบราว์เซอร์ไหน ออเดอร์ก็ตามมาครบ ──
+  // ใช้ RPC my_orders_line(lid) ฝั่ง anon (line_uid เป็น token สุ่มยาว เดาไม่ได้) / my_orders_email() ฝั่ง session สมาชิก (auth.email() ปลอมไม่ได้)
+  // ยังไม่ได้รัน SQL สร้าง RPC = เงียบเฉยๆ ไม่มีผลอะไร (try/catch ครอบ)
+  async syncMyOrders(){
+    try {
+      let rows = null;
+      const lid = this.state.user && this.state.user.line_uid;
+      if (lid && this.db) {
+        const r = await this.db.rpc('my_orders_line', { lid });
+        if (!r.error && Array.isArray(r.data)) rows = r.data;
+      } else if (this.auth && this.state.user && this.state.user.email) {
+        const { data } = await this.auth.auth.getSession();
+        if (data && data.session) {
+          const r = await this.auth.rpc('my_orders_email');
+          if (!r.error && Array.isArray(r.data)) rows = r.data;
+        }
+      }
+      if (!rows || !rows.length) return;
+      const mk = (row) => { const rawAddr = row.addr ? String(row.addr) : ''; return {
+        id: row.id, step: row.status, times: row.times || ['', '', '', ''], total: row.total || 0, adjs: row.adjustments || [],
+        pickup: !!row.pickup, addr: rawAddr.replace(/^[🚗🏍️🏪\s]+/, ''), veh: row.pickup ? '' : (rawAddr.startsWith('🚗') ? '🚗 รถยนต์' : '🏍️ มอเตอร์ไซค์'),
+        plabel: row.paper || 'งานปริ้น', pages: row.pages || 0, copies: row.copies || 1,
+        ts: row.created_at ? new Date(row.created_at).getTime() : Date.now() }; };
+      rows.filter(r => r.status >= 4).slice(0, 10).forEach(r => this.addHistory(mk(r))); // ใบจบแล้ว → ประวัติ (กันซ้ำด้วย id ใน addHistory)
+      const actives = rows.filter(r => r.status > 0 && r.status < 4);
+      actives.slice().reverse().forEach(r => this.upsertOrderList(mk(r))); // เรียงเก่า→ใหม่ ให้ใบล่าสุดขึ้นหัวลิสต์
+      // เครื่องนี้ยังไม่มีออเดอร์ที่กำลังติดตาม → หยิบใบล่าสุดที่ยังไม่จบขึ้นหน้าติดตามให้เลย
+      if (!this.state.order && actives.length) {
+        const od = mk(actives[0]);
+        try { localStorage.setItem('mp_order', JSON.stringify(od)); } catch (e) {}
+        this.setState({ order: { id: od.id, total: od.total, times: od.times, plabel: od.plabel, eta: null, pickup: od.pickup, ts: od.ts, express: false, adjs: od.adjs,
+          addr: od.addr, phone: '', veh: od.veh, copies: od.copies, pages: od.pages, fails: [], dist: null, rc: null, cp: null, unsaved: false, slipFail: false },
+          trackStep: od.step == null ? 1 : od.step, cancelReason: '' });
+        if (od.step !== 0 && od.step < 4) this.startPolling(od.id);
+        setTimeout(() => this.loadChat(), 400);
+      }
+    } catch (e) {}
+  }
+
   // กู้คืนการติดตามด้วยรหัสออเดอร์ (2026-09-17 เคสจริง: ลูกค้าสั่งในเบราว์เซอร์หนึ่ง แล้วเปิดซ้ำผ่านเบราว์เซอร์ในแอป LINE = คนละที่เก็บข้อมูล ออเดอร์เลยไม่ขึ้น)
   // ใช้ RPC get_order_status ตัวเดิม (ต้องรู้รหัสเป๊ะ — ปลอดภัยเท่าการติดตามปกติ) แล้วประกอบสำเนาออเดอร์ลงเครื่องนี้
   async trackByCode(){
@@ -2113,6 +2154,7 @@ class App extends React.Component {
         this.backupUser(user);
         this.setState({ user, phone: user.phone || '', screen: 'home' }); // ห้ามสืบทอดเบอร์ของบัญชีก่อนหน้าในเครื่องเดียวกัน
         this.showToast('ยินดีต้อนรับกลับ คุณ' + user.fname + ' 👋');
+        setTimeout(() => this.syncMyOrders(), 700); // ดึงออเดอร์ของสมาชิกคนนี้จากทุกเครื่องมาโชว์ (2026-09-17)
         setTimeout(() => this.maybeAskReview(), 1200); // ล็อกอินกลับเข้ามาหลังงานส่งสำเร็จ — เด้งชวนรีวิว
       },
       doRegister: async () => {
