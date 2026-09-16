@@ -392,7 +392,10 @@ function fi(name, size, color){
 // ยอดทุกบรรทัด + บรรทัดปรับ = ฿printCost ของ calc() เสมอ (การันตีใน billLines ด้วยการปัดแบบสะสม)
 function BillPrint({ v }){
   if (!v.billLines) return (
-    <div style={css("display:flex;justify-content:space-between")}><span style={css("color:var(--sub)")}>ค่าปริ้น {v.pageSummary}</span><span style={css("font-family:'IBM Plex Mono',monospace")}>฿{v.printCost}</span></div>
+    <React.Fragment>
+      <div style={css("display:flex;justify-content:space-between")}><span style={css("color:var(--sub)")}>ค่าปริ้น {v.pageSummary}</span><span style={css("font-family:'IBM Plex Mono',monospace")}>฿{v.printCost}</span></div>
+      {v.nightCharged && <div style={css("font-size:10.5px;color:var(--warnInk);margin-top:-4px")}>🌙 รวมค่าบริการกลางคืน (22:00–06:00) +฿{v.nightFee} ในค่าปริ้นแล้ว</div>}
+    </React.Fragment>
   );
   return (
     <React.Fragment>
@@ -1375,6 +1378,8 @@ class App extends React.Component {
       const amts = alloc(s.files.map(f => f.pages * cp * c.rate));
       s.files.forEach((f, i) => lines.push({ name: 'ไฟล์ที่ ' + (i + 1) + ' · ' + f.name, desc: (f.pages * cp) + ' หน้า × ฿' + c.rate, amt: amts[i] }));
     }
+    // ค่าบริการกลางคืนเป็นบรรทัดหนึ่งของค่าปริ้น (เจ้าของสั่ง 2026-09-17) — รวมแล้วเท่ากับ ค่าปริ้นรวมทุกไฟล์ ที่โชว์
+    if ((c.nightFee || 0) > 0) adjust.push({ label: '🌙 ค่าบริการกลางคืน (22:00–06:00)', amt: c.nightFee });
     return { lines, adjust };
   }
 
@@ -2435,7 +2440,8 @@ class App extends React.Component {
           return 'สติ๊กเกอร์รวม ' + si.pcs + ' ชิ้น (' + parts.join(' + ') + (s.copies > 1 ? ' · ' + s.copies + ' ชุด' : '') + ')';
         })()
         : c.pages + ' หน้า × ' + s.copies + ' ชุด (' + (s.tier === 'pro' ? 'PRO ' + this.proLabel() : ((PRINT_TYPES.find(t => t.k === s.ptype) || {}).label || '') + ' ' + s.paper + ((s.nup || 1) > 1 ? ' · ' + s.nup + ' หน้า/แผ่น' : '')) + ')',
-      printCost: c.printCost, bindCost: c.bindCost, printTotal: c.printTotal,
+      // ค่าปริ้นที่โชว์ลูกค้ารวมค่าบริการกลางคืนแล้ว (เจ้าของสั่ง 2026-09-17: กลางคืนเป็นค่าปริ้นงาน ไม่ใช่ค่าส่ง) — ยอดบันทึกลงฐานข้อมูล (print_cost/night_fee) แยกคอลัมน์เหมือนเดิม
+      printCost: c.printCost + c.nightFee, bindCost: c.bindCost, printTotal: c.printTotal,
       deliveryCost: c.deliveryCost, grandTotal: c.grandTotal,
       noteText: s.note, setNote: (e) => this.setState({ note: e.target.value }),
       // ตัวอย่างงานจริง: ป้ายเทา "ตัวอย่างงาน" ท้ายแถวเลือกประเภท (เฉพาะประเภทที่มีรูปจริง) · แตะป้าย = รูปขยายเต็มจอ
@@ -3852,7 +3858,6 @@ class App extends React.Component {
               <div style={css("display:flex;flex-direction:column;gap:5px;font-size:12.5px")}>
                 <div style={css("display:flex;justify-content:space-between")}><span style={css("color:var(--sub)")}>ค่าส่ง{v.deliveryPending ? ' (เริ่มต้น — รอปักหมุด)' : ' (ตามระยะจริง)'}</span><span style={css("font-family:'IBM Plex Mono',monospace")}>฿{v.deliveryFee}</span></div>
                 {v.express && <div style={css("display:flex;justify-content:space-between")}><span style={css("color:var(--sub)")}>งานด่วน (Express)</span><span style={css("font-family:'IBM Plex Mono',monospace")}>+฿{v.expressFee}</span></div>}
-                {v.nightCharged && <div style={css("display:flex;justify-content:space-between")}><span style={css("color:var(--warnInk)")}>🌙 ค่าบริการกลางคืน</span><span style={css("font-family:'IBM Plex Mono',monospace;color:var(--warnInk)")}>+฿{v.nightFee}</span></div>}
                 <div style={css("display:flex;justify-content:space-between;border-top:1px dashed var(--line);padding-top:6px;margin-top:2px;font-weight:700")}><span>รวมทั้งหมด</span><span style={css("font-family:'IBM Plex Mono',monospace;color:var(--acc)")}>฿{v.grandTotal}</span></div>
               </div>
             </div>
@@ -3913,7 +3918,6 @@ class App extends React.Component {
                 {v.proNote && <div style={css("font-size:11px;color:#a16207;font-weight:700;line-height:1.5;margin-top:-2px")}>{v.proNote}</div>}
                 <div style={css("display:flex;justify-content:space-between")}><span style={css("color:var(--sub)")}>เข้าเล่ม</span><span style={css("font-family:'IBM Plex Mono',monospace")}>฿{v.bindCost}</span></div>
                 <div style={css("display:flex;justify-content:space-between")}><span style={css("color:var(--sub)")}>ค่าส่ง {v.deliveryLabel}</span><span style={css("font-family:'IBM Plex Mono',monospace")}>฿{v.deliveryCost}</span></div>
-                {v.nightCharged && <div style={css("display:flex;justify-content:space-between")}><span style={css("color:var(--warnInk)")}>ค่าบริการกลางคืน</span><span style={css("font-family:'IBM Plex Mono',monospace;color:var(--warnInk)")}>฿{v.nightFee}</span></div>}
               </div>
               <div style={css("margin-top:10px;border-top:2px dashed var(--line);padding-top:10px;display:flex;justify-content:space-between;align-items:baseline")}><span style={css("font-weight:700;font-size:14px")}>ยอดรวม</span><span style={css("font-family:'IBM Plex Mono',monospace;font-size:24px;font-weight:600;color:var(--acc)")}>฿{v.grandTotal}</span></div>
             </div>
@@ -3938,7 +3942,6 @@ class App extends React.Component {
                 {v.proNote && <div style={css("font-size:11px;color:#a16207;font-weight:700;line-height:1.5;margin-top:-2px")}>{v.proNote}</div>}
                 <div style={css("display:flex;justify-content:space-between")}><span style={css("color:var(--sub)")}>เข้าเล่ม</span><span style={css("font-family:'IBM Plex Mono',monospace")}>฿{v.bindCost}</span></div>
                 <div style={css("display:flex;justify-content:space-between")}><span style={css("color:var(--sub)")}>ค่าส่ง {v.deliveryLabel}</span><span style={css("font-family:'IBM Plex Mono',monospace")}>฿{v.deliveryCost}</span></div>
-                {v.nightCharged && <div style={css("display:flex;justify-content:space-between")}><span style={css("color:var(--warnInk)")}>ค่าบริการกลางคืน</span><span style={css("font-family:'IBM Plex Mono',monospace;color:var(--warnInk)")}>฿{v.nightFee}</span></div>}
                 {v.discount > 0 && <div style={css("display:flex;justify-content:space-between")}><span style={css("color:var(--acc);font-weight:700")}>🎟️ ส่วนลด ({v.couponOk.code})</span><span style={css("font-family:'IBM Plex Mono',monospace;color:var(--acc);font-weight:700")}>−฿{v.discount}</span></div>}
                 <div style={css("display:flex;justify-content:space-between;font-size:12px")}><span style={css("color:var(--sub)")}>ส่งที่</span><span style={css("text-align:right;max-width:60%")}>{v.destLabel}</span></div>
               </div>
