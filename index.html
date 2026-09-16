@@ -443,7 +443,7 @@ class App extends React.Component {
       proType: 'poster', proSize: 'A4', proBind: 'ไสกาว', proQty: 100, proPickup: false, stdPickup: false, // stdPickup = งาน Standard รับหน้าร้าน MORE PRINT
       proBoard: '', proGram: 80, stkType: '', proFilm: 'lam', proPoPaper: 'art', // เพลท: ประเภทบอร์ด (บังคับเลือก ไม่บวกราคา) · แบบแปลน: ความหนากระดาษ (แกรม) · สติ๊กเกอร์: เนื้อ pp/pvc (บังคับเลือก) · โปสเตอร์: ชนิดฟิล์มเคลือบ lam/hard + ประเภทกระดาษ (art พื้นฐาน ไม่บวกราคา)
       proLam: 'none', proSpecial: false, proStaple: false, proStand: false, // ตัวเลือกเสริมงาน Pro (เคลือบ/กระดาษพิเศษ/เย็บ/ขาตั้ง)
-      distKm: null, distSrc: '', trackOpen: false, trackMin: false,
+      distKm: null, distSrc: '', trackOpen: false, trackMin: false, trkCode: '',
       // ประวัติการสั่ง (เก็บในเครื่อง): ออเดอร์ที่ผลิต/ส่งสำเร็จแล้ว ทั้ง standard และ pro
       history: (() => { try { return JSON.parse(localStorage.getItem('mp_history') || '[]'); } catch (e) { return []; } })(),
       histOpen: null, chatFor: null, chatFrom: 'track', chatBots: [],
@@ -1224,7 +1224,7 @@ class App extends React.Component {
     // 'landscape' (เล่มแนวนอน) ถูกตัดออกจากตัวเลือกแล้ว — เก็บสูตรราคาไว้ให้ออเดอร์เก่าที่เคยเลือกยังแสดงถูก
     const bindCost = s.tier === 'pro' ? 0 : (s.bind === 'corner' ? 0 : s.bind === 'book' ? 40 : s.bind === 'landscape' ? 60 : ((STD_BINDS.find(b => b.k === s.bind) || {}).price || 0)) * s.copies; // เย็บมุมฟรี (2026-08-24) · เข้าเล่ม 3 แบบใหม่ ฿20/ชุด (2026-09-08) · book/landscape = dead branch ออเดอร์เก่า
     const deliveryCost = proPickupOn ? 0 : deliveryFee + expressFee;
-    const nightFee2 = (s.tier === 'pro' || proPickupOn) ? 0 : nightFee; // งาน Pro ทุกแบบ + มารับเอง = ไม่มีค่าบริการกลางคืน (นโยบาย 2026-08-27)
+    const nightFee2 = s.tier === 'pro' ? 0 : nightFee; // งาน Pro ไม่มีค่ากลางคืน · Standard คิดทุกแบบรวมมารับเอง (เจ้าของสั่ง 2026-09-17 — กลางคืนเป็นค่าปริ้นงาน ไม่ใช่ค่าส่ง)
     // ── โค้ดส่วนลด: หักจากยอดรวมท้ายสุด (ไม่ติดลบ) ──
     const beforeDiscount = printCost + bindCost + deliveryCost + nightFee2;
     let discount = 0;
@@ -1511,7 +1511,7 @@ class App extends React.Component {
         addr: (s.tier === 'pro' && s.proPickup) ? '🏪 มารับเองที่ร้านอุดมสุขปริ้นติ้ง' : (s.tier !== 'pro' && s.stdPickup) ? '🏪 รับหน้าร้าน MORE PRINT (หอพักบริบูรณ์เพลส)' : ((s.vehicle === 'car' || this.forceCar()) ? '🚗 ' : '🏍️ ') + s.addr + (this.handoffLabel() ? ' · ' + this.handoffLabel() : ''), // งานบังคับรถยนต์ป้ายต้องตรง · วิธีรับของต่อท้าย (หลังบ้านแกะจากข้อความนี้)
         phone: s.phone, time: '', express: (c.expressFee || 0) > 0, night: this.isNight(), // express ตามที่คิดเงินจริงตอนกดจ่าย (เฉพาะ Standard แบบจัดส่ง)
         print_cost: c.printCost, bind_cost: c.bindCost, delivery_cost: c.deliveryCost,
-        night_fee: c.nightFee || 0, // ตามสูตรจริง — งาน Pro/มารับเอง = 0
+        night_fee: c.nightFee || 0, // ตามสูตรจริง — งาน Pro = 0 (Standard คิดทุกแบบรวมมารับเอง ตั้งแต่ 2026-09-17)
         total: c.grandTotal, status: 1, times: [t0, '', '', ''],
         coupon: c.coupon || null, discount: c.discount || 0,
         note: (s.note || '').trim().slice(0, 300) || null // หมายเหตุ/รายละเอียดงานจากลูกค้า
@@ -1593,6 +1593,34 @@ class App extends React.Component {
   }
 
   // เช็คสถานะจากฐานข้อมูลผ่านช่องมองเฉพาะใบ (ต้องรู้รหัสออเดอร์เป๊ะ ๆ เท่านั้น)
+  // กู้คืนการติดตามด้วยรหัสออเดอร์ (2026-09-17 เคสจริง: ลูกค้าสั่งในเบราว์เซอร์หนึ่ง แล้วเปิดซ้ำผ่านเบราว์เซอร์ในแอป LINE = คนละที่เก็บข้อมูล ออเดอร์เลยไม่ขึ้น)
+  // ใช้ RPC get_order_status ตัวเดิม (ต้องรู้รหัสเป๊ะ — ปลอดภัยเท่าการติดตามปกติ) แล้วประกอบสำเนาออเดอร์ลงเครื่องนี้
+  async trackByCode(){
+    let code = (this.state.trkCode || '').trim().toUpperCase().replace(/\s/g, '').replace(/^#/, '');
+    if (!code) return this.showToast('พิมพ์รหัสออเดอร์ก่อนนะครับ (ตัวอย่าง MP-AB12CD34)');
+    if (!code.startsWith('MP-')) code = 'MP-' + code.replace(/^MP-?/, '');
+    const id = '#' + code;
+    if (!this.db) return this.showToast('โหมดตัวอย่าง — ยังไม่ได้เชื่อมฐานข้อมูลครับ');
+    this.showToast('กำลังค้นหาออเดอร์… ⏳');
+    try {
+      const r = await this.db.rpc('get_order_status', { oid: id });
+      const row = !r.error && r.data ? (Array.isArray(r.data) ? r.data[0] : r.data) : null;
+      if (!row) return this.showToast('ไม่พบออเดอร์ "' + id + '" ครับ — เช็ครหัสจากหน้าสรุปตอนสั่ง หรือทักแชทร้านทาง LINE ได้เลย 🙏');
+      const rawAddr = row.addr ? String(row.addr) : '';
+      const addr = rawAddr.replace(/^[🚗🏍️🏪\s]+/, '');
+      const od = { id, step: row.status, times: row.times || ['', '', '', ''], total: row.total || 0, adjs: row.adjustments || [],
+        pickup: !!row.pickup, addr, veh: row.pickup ? '' : (rawAddr.startsWith('🚗') ? '🚗 รถยนต์' : '🏍️ มอเตอร์ไซค์'),
+        plabel: 'งานปริ้น', ts: Date.now(), cancelReason: row.cancel_reason || '' };
+      try { localStorage.setItem('mp_order', JSON.stringify(od)); this.upsertOrderList(od); } catch (e) {}
+      this.setState({ trkCode: '', trackStep: row.status == null ? 1 : row.status, cancelReason: row.cancel_reason || '',
+        order: { id, total: od.total, times: od.times, plabel: od.plabel, eta: null, pickup: od.pickup, ts: od.ts, express: false, adjs: od.adjs,
+          addr, phone: '', veh: od.veh, copies: 0, pages: 0, fails: [], dist: null, rc: null, cp: null, unsaved: false, slipFail: false } });
+      if (row.status !== 0 && row.status < 4) this.startPolling(id); else this.fetchOrderStatus(id);
+      setTimeout(() => this.loadChat(), 400);
+      this.showToast('✓ เจอออเดอร์แล้วครับ — ติดตามสถานะจากเครื่องนี้ได้เลย 🎉');
+    } catch (e) { this.showToast('ค้นหาไม่สำเร็จ ลองใหม่อีกครั้งครับ'); }
+  }
+
   async fetchOrderStatus(id){
     try {
       let row = null;
@@ -2155,6 +2183,8 @@ class App extends React.Component {
         if (s.screen === 'chat') return this.setState({ screen: s.chatFrom === 'history' ? 'history' : 'track', chatFor: null, chat: s.chatFor ? [] : s.chat });
         this.setState({ screen: s.screen === 'profile' ? 'home' : s.screen === 'pay' ? 'review' : s.screen === 'review' ? 'delivery' : s.screen === 'delivery' ? 'order' : 'home' });
       },
+      // ติดตามด้วยรหัสออเดอร์ — กล่องกู้คืนบนแท็บติดตามตอนไม่มีออเดอร์ในเครื่อง (2026-09-17)
+      trkCode: s.trkCode, setTrkCode: (e) => this.setState({ trkCode: e.target.value }), trkGo: () => this.trackByCode(),
       startOrder: () => {
         if (s.shopOpen === false) return this.showToast('ขออภัยครับ ตอนนี้ร้านปิดรับออเดอร์ชั่วคราว 🙏 เปิดรับอีกครั้งเร็ว ๆ นี้ครับ');
         if (!this.ensureUser()) { this.setState({ screen: 'login' }); return this.showToast('เข้าสู่ระบบก่อนสั่งปริ้นนะครับ 🙏'); }
@@ -4161,7 +4191,17 @@ class App extends React.Component {
               </React.Fragment>
             )}
             {v.noOrder && v.otherOrders.length === 0 && (
-              <div style={css("text-align:center;padding:50px 20px;color:var(--sub)")}><div style={css("display:flex;justify-content:center;color:var(--line)")}>{fi('file', 40)}</div><div style={css("margin-top:10px;font-size:14px")}>ยังไม่มีออเดอร์ — เริ่มสั่งปริ้นได้เลย</div><button onClick={v.startOrder} style={css("margin-top:16px;height:44px;padding:0 22px;border:none;border-radius:12px;background:var(--acc);color:#fff;font-size:14px;font-weight:700;cursor:pointer")}>เริ่มสั่งปริ้น</button></div>
+              <div style={css("text-align:center;padding:34px 20px;color:var(--sub)")}><div style={css("display:flex;justify-content:center;color:var(--line)")}>{fi('file', 40)}</div><div style={css("margin-top:10px;font-size:14px")}>ยังไม่มีออเดอร์ — เริ่มสั่งปริ้นได้เลย</div><button onClick={v.startOrder} style={css("margin-top:16px;height:44px;padding:0 22px;border:none;border-radius:12px;background:var(--acc);color:#fff;font-size:14px;font-weight:700;cursor:pointer")}>เริ่มสั่งปริ้น</button>
+                {/* กู้คืนการติดตามด้วยรหัสออเดอร์ — เคสสั่งในเบราว์เซอร์อื่น/เปิดผ่านแอป LINE แล้วออเดอร์ไม่ขึ้น (2026-09-17) */}
+                <div style={css("margin:22px auto 0;max-width:330px;text-align:left;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 14px")}>
+                  <div style={css("font-size:12.5px;font-weight:700;color:var(--ink)")}>🔎 เคยสั่งไว้แต่ออเดอร์ไม่ขึ้นในเครื่องนี้?</div>
+                  <div style={css("margin-top:3px;font-size:11px;color:var(--sub);line-height:1.6")}>กรอกรหัสออเดอร์ (ดูจากหน้าสรุปตอนสั่ง หรือทักถามร้านทาง LINE) แล้วระบบจะดึงสถานะมาให้ครับ</div>
+                  <div style={css("margin-top:8px;display:flex;gap:7px")}>
+                    <input value={v.trkCode} onChange={v.setTrkCode} onKeyDown={e => e.key === 'Enter' && v.trkGo()} placeholder="MP-XXXXXXXX" style={css("flex:1;min-width:0;box-sizing:border-box;height:42px;border:1.5px solid var(--acc);border-radius:10px;background:var(--soft);color:var(--ink);padding:0 12px;font-size:13px;font-family:'IBM Plex Mono',monospace;outline:none")}/>
+                    <button onClick={v.trkGo} style={css("flex:none;height:42px;padding:0 16px;border:none;border-radius:10px;background:var(--acc);color:#fff;font-size:13px;font-weight:700;cursor:pointer")}>ติดตาม</button>
+                  </div>
+                </div>
+              </div>
             )}
           </div>
         )}
