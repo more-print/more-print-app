@@ -297,13 +297,16 @@ const PRO_NAMECARD = { one: 250, two: 450 };              // ต่อ 100 ใ�
 const PRO_STANDEE = { base: 380, stand: 480 };            // 60×120 ซม. / ใส่ขาตั้ง
 const BLUEPRINT_PRICE = { A1: 40, A2: 20, A3: 5 };        // แบบแปลนขาวดำ /แผ่น
 const POSTER_PRICE = { A5: 10, A4: 15, A3: 30, A2: 130, A1: 250, A0: 500 };
-// เรทขาวดำ คิดต่อ "หน้าที่พิมพ์จริง" (พิมพ์ 1 ด้าน = 1 หน้า): 1–75 หน้า ฿1 · 76–150 ฿0.75 · เกิน 150 ฿0.50 (เจ้าของปรับ 2026-09-17)
+// เรทขาวดำ คิดต่อ "หน้าที่พิมพ์จริง" (พิมพ์ 1 ด้าน = 1 หน้า) — เจ้าของปรับ 2026-09-17:
+//   กลางวัน: 1–75 หน้า ฿1 · 76–150 ฿0.75 · เกิน 150 ฿0.50
+//   กลางคืน (22:00–06:00): ขั้นขยับขึ้น 1–100 ฿1 · 101–200 ฿0.75 · เกิน 200 ฿0.50
 // หน้า-หลังพิมพ์ 2 ด้านก็คิด 2 หน้า — ด้านหลังไม่ฟรี (นโยบาย 2026-08-27) · การกำหนดหน้า (nup) เท่านั้นที่ทำให้จำนวนหน้าพิมพ์ลดลง
-function bwSheetRate(totalSheets, sides){
+function bwSheetRate(totalSheets, sides, night){
+  if (night) return totalSheets > 200 ? 0.50 : totalSheets > 100 ? 0.75 : 1.00;
   return totalSheets > 150 ? 0.50 : totalSheets > 75 ? 0.75 : 1.00;
 }
-function pageRate(ptype, size, sides, totalPages){
-  if (ptype === 'bw') return bwSheetRate(totalPages, sides);
+function pageRate(ptype, size, sides, totalPages, night){
+  if (ptype === 'bw') return bwSheetRate(totalPages, sides, night);
   if (ptype === 'laser') return 2;
   if (ptype === 'color') return 5;
   if (ptype === 'portfolio') return size === 'A5' ? 8 : 12;
@@ -1159,7 +1162,7 @@ class App extends React.Component {
     }
     const pages = s.files.reduce((a, f) => a + f.pages, 0);
     const totalPages = pages * s.copies;
-    let rate = pageRate(s.ptype, s.paper, s.sides, totalPages);
+    let rate = pageRate(s.ptype, s.paper, s.sides, totalPages, this.isNight());
     let printCost = Math.ceil(totalPages * rate);
     // ขาวดำ: คิดต่อ "หน้าที่พิมพ์จริง" — หน้า-หลังพิมพ์ทั้ง 2 ด้านก็คิดทั้ง 2 ด้าน (ด้านหลังไม่ฟรี — นโยบาย 2026-08-27)
     let sheets = totalPages; // = จำนวนหน้าพิมพ์ที่คิดเงิน
@@ -1168,7 +1171,7 @@ class App extends React.Component {
       const nupC = (s.tier !== 'pro' && (s.nup || 1) > 1) ? s.nup : 1;
       const perCopy = nupC > 1 ? s.files.reduce((a, f) => a + Math.ceil(f.pages / nupC), 0) : pages;
       sheets = perCopy * s.copies;
-      rate = bwSheetRate(sheets, s.sides);
+      rate = bwSheetRate(sheets, s.sides, this.isNight()); // กลางคืนใช้ขั้นเรท 100/200 (เจ้าของปรับ 2026-09-17)
       printCost = Math.ceil(sheets * rate);
     }
     // ปริ้นสี: คิดทีละหน้าตามผลสแกนปริมาณสี (หน้า/ไฟล์ที่สแกนไม่ได้ = คิดเรทสีน้อยไว้ก่อน ร้านตรวจยืนยัน)
