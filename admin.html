@@ -418,6 +418,8 @@ function OrderCard({ o, idx, onAdvance, onRetreat, onApplyEdits, onCancel, onRem
           </div>
           <div style={css("margin-top:2px;font-size:11px;color:var(--sub);overflow:hidden;text-overflow:ellipsis;white-space:nowrap")}>{FI.clock(11)} {fmtWhen(o.created_at)} · คุณ{o.customer_fname} · {optionsLabel(o)}</div>
         </div>
+        {/* ใบงานด่วน: ป้ายแดงบนแถบหัว ก่อนสถานะ+ราคา — เห็นตั้งแต่ยังไม่กางการ์ด (เจ้าของสั่ง 2026-09-17) */}
+        {o.express && <span style={css("flex:none;font-size:12px;font-weight:800;color:#e03131")}>⚡ งานด่วน</span>}
         <StatusBadge status={o.status} o={o}/>
         <span style={css("font-family:'IBM Plex Mono',monospace;font-size:15px;font-weight:700;color:var(--acc);flex:none")}>฿{o.total}</span>
         <span style={css("color:var(--sub);font-size:12px;flex:none")}>{open ? '▲' : '▼'}</span>
