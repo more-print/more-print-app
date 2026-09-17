@@ -42,7 +42,7 @@
 // ค่าส่ง 2 ชั้น คิดตามระยะทางถนนจริงจากร้าน (ระบบเลือกพาหนะเองจากประเภทงาน):
 // 🏍️ มอเตอร์ไซค์ (งานทั่วไป): ไม่เกิน 2 กม. เหมา ฿19 แล้ว +฿6/กม. ตั้งแต่ กม.ที่ 3 (ปัดเศษ กม. ขึ้น) ไม่มีเพดาน — แก้ 2026-08-24
 // 🚗 รถยนต์ (งานใหญ่: Standy / เพลท A3 ขึ้นไป): ≤2กม. ฿69 · ≤4กม. ฿89 · ≤6กม. ฿129 · เกิน 6 กม. สั่งทาง LINE
-const CONFIG = { nightOverride: 'auto', nightFee: 10, expressFee: 20, expressEnabled: true, // งานด่วน (Express) +20 เฉพาะงาน Standard แบบจัดส่ง — ลัดคิว+เร่งผลิต เวลาคาดการณ์ = 45 นาที/150 หน้า (เปลี่ยนเป็น false เพื่อปิด)
+const CONFIG = { nightOverride: 'auto', nightFee: 19, expressFee: 20, expressEnabled: true, // งานด่วน (Express) +20 เฉพาะงาน Standard แบบจัดส่ง — ลัดคิว+เร่งผลิต เวลาคาดการณ์ = 45 นาที/150 หน้า (เปลี่ยนเป็น false เพื่อปิด)
   bindBookOn: false, // บริการเข้าเล่ม +฿40 งาน Standard: ปิดชั่วคราว (2026-08-27 ยังทำไม่ได้) — เปลี่ยนเป็น true เพื่อเปิดคืน
   shopLat: 16.4633326, shopLng: 102.8241938, // จุดร้านงาน Pro: โรงพิมพ์อุดมสุขปริ้นติ้ง (กังสดาล) — แก้ที่นี่ถ้าย้าย
   stdShopLat: 16.4850584, stdShopLng: 102.8165144, // จุดร้านงาน Standard: หน้าร้าน MORE PRINT (หอพักบริบูรณ์เพลส) — ค่าส่งแยกต้นทางตามประเภทงาน (นโยบาย 2026-09-08)
@@ -2112,7 +2112,7 @@ class App extends React.Component {
         night ? { '--bg': '#0f0f0d', '--card': '#1a1a18', '--ink': '#f2f2ee', '--sub': '#96968c', '--line': '#2b2b27', '--soft': '#232320', '--acc': '#00d97e', '--accBright': '#00d97e', '--accSoft': '#123324', '--warnBg': '#26200e', '--warnLine': '#4a3d16', '--warnInk': '#f0cd6e', '--shadow': '0 2px 12px rgba(0,0,0,.5)' } : {}
       ),
       headStatus: night ? 'NIGHT MODE 22–06' : 'เปิด 24 ชม.',
-      nightFee: CONFIG.nightFee ?? 25, nightCharged: c.nightFee > 0, expressFee: CONFIG.expressFee ?? 20, deliveryBase: CONFIG.deliveryBase ?? 10,
+      nightFee: CONFIG.nightFee ?? 19, nightCharged: c.nightFee > 0, expressFee: CONFIG.expressFee ?? 20, deliveryBase: CONFIG.deliveryBase ?? 10,
       isLogin: s.screen === 'login',
       notLogin: s.screen !== 'login' && s.screen !== 'chat',
       authMode: s.authMode, authBusy: s.authBusy,
