@@ -134,7 +134,7 @@ const ICON_COLORPRINT = (
 // ── ประเภทงานปริ้น + เรทราคา (ตามป้ายราคาหน้าร้าน) ──
 // งาน Standard มีแค่ 2 ประเภท (งานใหญ่/พิเศษไปทาง Pro) — ptype เก่า laser/portfolio/poster ยังแสดงในหลังบ้านได้
 const PRINT_TYPES = [
-  { k: 'bw', icon: '📄', label: 'ปริ้นขาวดำ', desc: 'หน้าละ ฿1 · เกิน 50 หน้าลดเหลือ 75/50 สต.' },
+  { k: 'bw', icon: '📄', label: 'ปริ้นขาวดำ', desc: 'หน้าละ ฿1 · เกิน 75 หน้า 75 สต. · เกิน 150 หน้า 50 สต.' }, // คำกำกับจริงถูกแทนที่แบบไดนามิกใน typeOpts — กลางคืนใช้ขั้น 100/200 (2026-09-17)
   { k: 'color', icon: ICON_COLORPRINT, label: 'ปริ้นสี', desc: '฿5-7/หน้า ตามปริมาณสี สแกนให้อัตโนมัติ' }
 ];
 const SIZE_BY_TYPE = { bw: ['A4'], color: ['A4'] };
@@ -2290,7 +2290,12 @@ class App extends React.Component {
         del: () => this.setState(st => ({ files: st.files.filter((_, j) => j !== i) }))
       })); })(),
       typeOpts: PRINT_TYPES.map(t => ({
-        icon: t.icon, label: t.label, desc: t.desc, on: s.ptype === t.k,
+        icon: t.icon, label: t.label,
+        // คำกำกับขาวดำสลับตามช่วงเวลา (เจ้าของสั่ง 2026-09-17): กลางวันขั้น 75/150 · กลางคืน (22:00-06:00) ขั้น 100/200 — ต้องตรงกับ bwSheetRate เสมอ
+        desc: t.k === 'bw' ? (this.isNight()
+          ? 'หน้าละ ฿1 · เกิน 100 หน้า 75 สต. · เกิน 200 หน้า 50 สต.'
+          : 'หน้าละ ฿1 · เกิน 75 หน้า 75 สต. · เกิน 150 หน้า 50 สต.') : t.desc,
+        on: s.ptype === t.k,
         pick: () => this.setState({ ptype: t.k, paper: SIZE_BY_TYPE[t.k][0] })
       })),
       // ระดับงาน: Standard = งานปริ้นทั่วไป (ของเดิม) · Pro = งานขั้นสูง A3/A2/A1 (ราคารอเจ้าของกำหนด)
