@@ -297,10 +297,10 @@ const PRO_NAMECARD = { one: 250, two: 450 };              // ต่อ 100 ใ�
 const PRO_STANDEE = { base: 380, stand: 480 };            // 60×120 ซม. / ใส่ขาตั้ง
 const BLUEPRINT_PRICE = { A1: 40, A2: 20, A3: 5 };        // แบบแปลนขาวดำ /แผ่น
 const POSTER_PRICE = { A5: 10, A4: 15, A3: 30, A2: 130, A1: 250, A0: 500 };
-// เรทขาวดำ คิดต่อ "หน้าที่พิมพ์จริง" (พิมพ์ 1 ด้าน = 1 หน้า): 1–50 หน้า ฿1 · 51–100 ฿0.75 · เกิน 100 ฿0.50 (นโยบายสุดท้าย 2026-09-05)
+// เรทขาวดำ คิดต่อ "หน้าที่พิมพ์จริง" (พิมพ์ 1 ด้าน = 1 หน้า): 1–75 หน้า ฿1 · 76–150 ฿0.75 · เกิน 150 ฿0.50 (เจ้าของปรับ 2026-09-17)
 // หน้า-หลังพิมพ์ 2 ด้านก็คิด 2 หน้า — ด้านหลังไม่ฟรี (นโยบาย 2026-08-27) · การกำหนดหน้า (nup) เท่านั้นที่ทำให้จำนวนหน้าพิมพ์ลดลง
 function bwSheetRate(totalSheets, sides){
-  return totalSheets > 100 ? 0.50 : totalSheets > 50 ? 0.75 : 1.00;
+  return totalSheets > 150 ? 0.50 : totalSheets > 75 ? 0.75 : 1.00;
 }
 function pageRate(ptype, size, sides, totalPages){
   if (ptype === 'bw') return bwSheetRate(totalPages, sides);
