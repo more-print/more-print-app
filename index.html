@@ -3272,9 +3272,9 @@ class App extends React.Component {
 
             {v.authMode === 'login' && (
               <div style={css("background:var(--card);border:1px solid var(--line);border-radius:16px;padding:18px 16px;display:flex;flex-direction:column;gap:12px;box-shadow:var(--shadow)")}>
-                <div><div style={css("font-size:12px;font-weight:600;color:var(--sub)")}>อีเมล</div>
+                <div><div style={css("font-size:12px;font-weight:600;color:var(--ink)")}>อีเมล</div>
                 <input value={v.emailIn} onChange={v.setEmailIn} placeholder="you@email.com" inputMode="email" autoComplete="email" style={css("margin-top:6px;width:100%;box-sizing:border-box;height:44px;border:1px solid var(--line);border-radius:10px;background:var(--soft);color:var(--ink);padding:0 12px;font-size:14px;outline:none")}/></div>
-                <div><div style={css("font-size:12px;font-weight:600;color:var(--sub)")}>รหัสผ่าน</div>
+                <div><div style={css("font-size:12px;font-weight:600;color:var(--ink)")}>รหัสผ่าน</div>
                 <input type="password" value={v.passIn} onChange={v.setPassIn} placeholder="••••••••" autoComplete="current-password" style={css("margin-top:6px;width:100%;box-sizing:border-box;height:44px;border:1px solid var(--line);border-radius:10px;background:var(--soft);color:var(--ink);padding:0 12px;font-size:14px;outline:none")}/></div>
                 <button onClick={v.doEmailLogin} disabled={v.authBusy} style={css("margin-top:4px;height:50px;border:none;border-radius:14px;background:var(--acc);color:#fff;font-size:15px;font-weight:700;cursor:pointer" + (v.authBusy ? ";opacity:.6" : ""))}>{v.authBusy ? 'กำลังเข้าสู่ระบบ…' : 'เข้าสู่ระบบ →'}</button>
               </div>
@@ -3283,18 +3283,18 @@ class App extends React.Component {
             {v.authMode === 'register' && (
               <div style={css("background:var(--card);border:1px solid var(--line);border-radius:16px;padding:18px 16px;display:flex;flex-direction:column;gap:12px;box-shadow:var(--shadow)")}>
                 <div style={css("display:flex;gap:10px")}>
-                  <div style={css("flex:1")}><div style={css("font-size:12px;font-weight:600;color:var(--sub)")}>ชื่อจริง</div>
+                  <div style={css("flex:1")}><div style={css("font-size:12px;font-weight:600;color:var(--ink)")}>ชื่อจริง</div>
                   <input value={v.regFname} onChange={v.setRegFname} placeholder="เช่น สมชาย" style={css("margin-top:6px;width:100%;box-sizing:border-box;height:44px;border:1px solid var(--line);border-radius:10px;background:var(--soft);color:var(--ink);padding:0 12px;font-size:14px;outline:none")}/></div>
-                  <div style={css("flex:1")}><div style={css("font-size:12px;font-weight:600;color:var(--sub)")}>นามสกุล</div>
+                  <div style={css("flex:1")}><div style={css("font-size:12px;font-weight:600;color:var(--ink)")}>นามสกุล</div>
                   <input value={v.regLname} onChange={v.setRegLname} placeholder="เช่น ใจดี" style={css("margin-top:6px;width:100%;box-sizing:border-box;height:44px;border:1px solid var(--line);border-radius:10px;background:var(--soft);color:var(--ink);padding:0 12px;font-size:14px;outline:none")}/></div>
                 </div>
-                <div><div style={css("font-size:12px;font-weight:600;color:var(--sub)")}>อีเมล</div>
+                <div><div style={css("font-size:12px;font-weight:600;color:var(--ink)")}>อีเมล</div>
                 <input value={v.regEmail} onChange={v.setRegEmail} placeholder="you@email.com" inputMode="email" autoComplete="email" style={css("margin-top:6px;width:100%;box-sizing:border-box;height:44px;border:1px solid " + (v.regEmailBad ? "#e03131" : "var(--line)") + ";border-radius:10px;background:var(--soft);color:var(--ink);padding:0 12px;font-size:14px;outline:none")}/>
                 {v.regEmailBad && <div style={css("margin-top:4px;font-size:11.5px;color:#e03131;font-weight:600")}>❌ รูปแบบอีเมลไม่ถูกต้อง เช่น somchai@gmail.com</div>}</div>
-                <div><div style={css("font-size:12px;font-weight:600;color:var(--sub)")}>รหัสผ่าน (อย่างน้อย 6 ตัวอักษร)</div>
+                <div><div style={css("font-size:12px;font-weight:600;color:var(--ink)")}>รหัสผ่าน (อย่างน้อย 6 ตัวอักษร)</div>
                 <input type="password" value={v.regPass1} onChange={v.setRegPass1} placeholder="••••••••" autoComplete="new-password" style={css("margin-top:6px;width:100%;box-sizing:border-box;height:44px;border:1px solid " + (v.passShort ? "#e03131" : "var(--line)") + ";border-radius:10px;background:var(--soft);color:var(--ink);padding:0 12px;font-size:14px;outline:none")}/>
                 {v.passShort && <div style={css("margin-top:4px;font-size:11.5px;color:#e03131;font-weight:600")}>❌ รหัสผ่านสั้นเกินไป ต้องอย่างน้อย 6 ตัวอักษร</div>}</div>
-                <div><div style={css("font-size:12px;font-weight:600;color:var(--sub)")}>ยืนยันรหัสผ่าน (กรอกซ้ำอีกครั้ง)</div>
+                <div><div style={css("font-size:12px;font-weight:600;color:var(--ink)")}>ยืนยันรหัสผ่าน (กรอกซ้ำอีกครั้ง)</div>
                 <input type="password" value={v.regPass2} onChange={v.setRegPass2} placeholder="••••••••" autoComplete="new-password" style={css("margin-top:6px;width:100%;box-sizing:border-box;height:44px;border:1px solid " + (v.passMismatch ? "#e03131" : "var(--line)") + ";border-radius:10px;background:var(--soft);color:var(--ink);padding:0 12px;font-size:14px;outline:none")}/>
                 {v.passMismatch && <div style={css("margin-top:4px;font-size:11.5px;color:#e03131;font-weight:600")}>❌ รหัสผ่านไม่เหมือนกัน — กรอกให้ตรงกับช่องบน</div>}</div>
                 <button onClick={v.doRegister} disabled={v.authBusy} style={css("margin-top:4px;height:50px;border:none;border-radius:14px;background:var(--acc);color:#fff;font-size:15px;font-weight:700;cursor:pointer" + (v.authBusy ? ";opacity:.6" : ""))}>{v.authBusy ? 'กำลังสมัคร…' : '✓ สมัครสมาชิก'}</button>
@@ -3396,7 +3396,7 @@ class App extends React.Component {
               )}
               {!v.revDone ? (
                 <div style={css("background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 14px;margin-bottom:10px")}>
-                  <div style={css("font-size:12px;font-weight:600;color:var(--sub)")}>ให้คะแนนร้านเราหน่อยครับ</div>
+                  <div style={css("font-size:12px;font-weight:600;color:var(--ink)")}>ให้คะแนนร้านเราหน่อยครับ</div>
                   <div style={css("margin-top:6px;display:flex;gap:4px")}>
                     {[1, 2, 3, 4, 5].map(n => <span key={n} onClick={v.setRevStars(n)} style={css("font-size:28px;line-height:1;cursor:pointer;color:" + (n <= v.revStars ? "#f5a623" : "var(--line)"))}>★</span>)}
                   </div>
@@ -3460,7 +3460,7 @@ class App extends React.Component {
                 <span style={css("background:var(--card);border:1px solid var(--line);border-radius:99px;padding:5px 11px;font-size:10.5px;font-weight:600;color:var(--sub)")}>🐘 ไฟล์ใหญ่ก็ส่งได้</span>
               </div>
             </div>
-            <div style={css("margin-top:-6px;font-size:11px;color:var(--sub);line-height:1.6")}><span style={css("display:inline-flex;vertical-align:-2px;margin-right:5px")}>{fi('upload', 12)}</span>ไฟล์ใหญ่กว่า 50MB (งานออกแบบ/สถาปัตย์) ส่งได้เลย — ระบบอัปโหลดให้อัตโนมัติพร้อมแถบ %</div>
+            <div style={css("margin-top:-6px;font-size:11px;color:var(--sub);line-height:1.6")}><span style={css("display:inline-flex;vertical-align:-2px;margin-right:5px")}>{fi('upload', 12)}</span>หากเป็นไฟล์ที่ไม่ใช่ PDF <a href={(window.MP_CONFIG || {}).LINE_OA_URL || 'https://line.me/R/ti/p/@346kifvy'} target="_blank" rel="noreferrer" style={css("color:#06C755;font-weight:700")}>ติดต่อทางไลน์ →</a></div>
             {v.files.map((f, i) => (
               <div key={i} style={css("background:var(--card);border:1px solid " + (f.big ? "#f0b429" : "var(--line)") + ";border-radius:12px;padding:10px 14px")}>
                 <div style={css("display:flex;align-items:center;gap:10px")}>
@@ -3500,7 +3500,7 @@ class App extends React.Component {
             ))}
             {/* เลือกระดับงาน: Standard (ของเดิม) / Pro (งานขั้นสูง A3-A1 ราคารอยืนยัน) */}
             <div style={css("background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px;display:flex;flex-direction:column;gap:8px;box-shadow:var(--shadow)")}>
-              <div style={css("font-size:12px;font-weight:600;color:var(--sub)")}>เลือกระดับงานปริ้น</div>
+              <div style={css("font-size:12px;font-weight:600;color:var(--ink)")}>เลือกระดับงานปริ้น</div>
               <div onClick={v.pickStandard} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '11px 12px', borderRadius: '12px', cursor: 'pointer',
                 border: !v.isPro ? '1.5px solid var(--acc)' : '1px solid var(--line)', background: !v.isPro ? 'var(--accSoft)' : 'var(--soft)' }}>
                 <div style={{ flex: 'none', lineHeight: 0, color: !v.isPro ? 'var(--acc)' : 'var(--sub)' }}>{ICON_PRINTER}</div>
@@ -3524,7 +3524,7 @@ class App extends React.Component {
             </div>
             <div style={css("background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px;display:flex;flex-direction:column;gap:12px;box-shadow:var(--shadow)")}>
               <div style={css("display:flex;flex-direction:column;gap:6px")}>
-                {!v.isPro && <div style={css("font-size:12px;font-weight:600;color:var(--sub)")}>ประเภทงานปริ้น</div>}
+                {!v.isPro && <div style={css("font-size:12px;font-weight:600;color:var(--ink)")}>ประเภทงานปริ้น</div>}
                 {!v.isPro && v.typeOpts.map((t, i) => (
                   <div key={i} onClick={t.pick} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '10px 12px', borderRadius: '12px', cursor: 'pointer',
                     border: t.on ? '1.5px solid var(--acc)' : '1px solid var(--line)',
@@ -3547,7 +3547,7 @@ class App extends React.Component {
                   ? <div style={css("background:#fff7e0;border:1.5px solid #f0c36d;border-radius:12px;padding:11px 14px;font-size:12px;font-weight:700;color:#8a6d1a;line-height:1.6")}><span style={css("display:inline-flex;vertical-align:-2px;margin-right:6px")}>{fi('clock', 14)}</span>สั่งได้เลยครับ — ออเดอร์จะเริ่มผลิตเวลา 08:30 น.</div>
                   : <div style={css("background:var(--accSoft);border:1px solid var(--acc);border-radius:12px;padding:9px 13px;font-size:11.5px;font-weight:700;color:var(--acc);line-height:1.65")}><span style={css("display:inline-flex;vertical-align:-2px;margin-right:6px")}>{fi('clock', 13)}</span>งาน Pro สั่งได้ตลอด 24 ชม.<span style={css("display:block")}>สั่งออเดอร์หลัง 17:00 น. เริ่มผลิตวันถัดไป 08:30 น.</span><span style={css("display:block")}>ร้านหยุดทุกวันอาทิตย์ (รับผลิตออเดอร์สุดท้ายก่อน 16.00 น. วันเสาร์)</span></div>)}
                 {/* ประเภทงาน Pro เป็นกริดการ์ด 2 คอลัมน์ (เจ้าของเลือกจาก prototype 2026-09-11): ไอคอนเดิม + ชื่ออย่างเดียว ไม่มีราคาบนการ์ด (ราคาไปอยู่ในบิล) · ใบสุดท้าย (แบบแปลน) เต็มแถว */}
-                {v.isPro && <div style={css("display:flex;flex-direction:column;gap:6px")}><div style={css("font-size:12px;font-weight:600;color:var(--sub)")}>ประเภทงาน Pro (ร้านอุดมสุขปริ้นติ้ง)</div><div style={css("display:grid;grid-template-columns:repeat(2, minmax(0, 1fr));gap:8px")}>{v.proTypeOpts.map((o, i) => (
+                {v.isPro && <div style={css("display:flex;flex-direction:column;gap:6px")}><div style={css("font-size:12px;font-weight:600;color:var(--ink)")}>ประเภทงาน Pro (ร้านอุดมสุขปริ้นติ้ง)</div><div style={css("display:grid;grid-template-columns:repeat(2, minmax(0, 1fr));gap:8px")}>{v.proTypeOpts.map((o, i) => (
                   <button key={i} onClick={o.pick} style={{ gridColumn: i === v.proTypeOpts.length - 1 ? '1 / -1' : 'auto', boxSizing: 'border-box', minHeight: '46px', border: o.on ? '1.5px solid var(--acc)' : '1px solid var(--line)', borderRadius: '12px', padding: o.on ? '10.5px 12.5px' : '11px 13px', background: o.on ? 'var(--accSoft)' : 'var(--card)', display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '6px', textAlign: 'left', cursor: 'pointer', fontFamily: 'inherit' }}>
                     <span style={{ flex: 'none', lineHeight: 0, color: o.on ? 'var(--acc)' : 'var(--ink)' }}>{o.svg}</span>
                     <span style={{ fontSize: '13px', fontWeight: 700, color: o.on ? 'var(--acc)' : 'var(--ink)', lineHeight: 1.35 }}>{o.label}</span>
@@ -3559,22 +3559,22 @@ class App extends React.Component {
                 ))}</div></div>}
                 {/* คำกำกับกระดาษ (โปสเตอร์/เพลท) — ข้อความเขียวสด หลังกดเลือกประเภท ก่อนตัวเลือกขนาด (เจ้าของสั่ง 2026-09-11) */}
                 {v.isPro && v.proPaperNote && <div style={css("font-size:13.5px;font-weight:700;color:var(--acc);line-height:1.6")}>{v.proPaperNote}</div>}
-                {v.isPro && v.proSizeOpts.length > 0 && <div style={css("display:flex;flex-direction:column;gap:6px")}><div style={css("font-size:12px;font-weight:600;color:var(--sub)")}>ขนาด</div><div style={css("display:flex;gap:8px;flex-wrap:wrap")}>{v.proSizeOpts.map((o, i) => <button key={i} onClick={o.pick} style={o.st}>{o.label}</button>)}</div></div>}
+                {v.isPro && v.proSizeOpts.length > 0 && <div style={css("display:flex;flex-direction:column;gap:6px")}><div style={css("font-size:12px;font-weight:600;color:var(--ink)")}>ขนาด</div><div style={css("display:flex;gap:8px;flex-wrap:wrap")}>{v.proSizeOpts.map((o, i) => <button key={i} onClick={o.pick} style={o.st}>{o.label}</button>)}</div></div>}
                 {/* แนวกระดาษ (ปริ้นสีขาวดำขนาดใหญ่ — 2026-09-11) */}
-                {v.isPro && v.proOrientOpts.length > 0 && <div style={css("display:flex;flex-direction:column;gap:6px")}><div style={css("font-size:12px;font-weight:600;color:var(--sub)")}>แนวของกระดาษ</div><div style={css("display:flex;gap:8px;flex-wrap:wrap")}>{v.proOrientOpts.map((o, i) => <button key={i} onClick={o.pick} style={{...o.st, flex:'1 1 45%'}}>{o.label}</button>)}</div></div>}
+                {v.isPro && v.proOrientOpts.length > 0 && <div style={css("display:flex;flex-direction:column;gap:6px")}><div style={css("font-size:12px;font-weight:600;color:var(--ink)")}>แนวของกระดาษ</div><div style={css("display:flex;gap:8px;flex-wrap:wrap")}>{v.proOrientOpts.map((o, i) => <button key={i} onClick={o.pick} style={{...o.st, flex:'1 1 45%'}}>{o.label}</button>)}</div></div>}
                 {/* โปสเตอร์: ประเภทกระดาษ — วางก่อนหัวข้อด้านที่พิมพ์ (เจ้าของสั่ง 2026-09-15) */}
-                {v.isPro && v.proPoPaperOpts.length > 0 && <div style={css("display:flex;flex-direction:column;gap:6px")}><div style={css("font-size:12px;font-weight:600;color:var(--sub)")}>ประเภทกระดาษ</div><div style={css("display:flex;gap:8px;flex-wrap:wrap")}>{v.proPoPaperOpts.map((o, i) => <button key={i} onClick={o.pick} style={{...o.st, flex:'1 1 45%'}}>{o.label}</button>)}</div></div>}
-                {v.isPro && v.proShowSides && <div style={css("display:flex;flex-direction:column;gap:6px")}><div style={css("font-size:12px;font-weight:600;color:var(--sub)")}>ด้านที่พิมพ์</div><div style={css("display:flex;gap:8px;flex-wrap:wrap")}>{v.proSidesOpts.map((o, i) => <button key={i} onClick={o.pick} style={{...o.st, flex:'1 1 45%'}}>{o.label}</button>)}</div></div>}
-                {v.isPro && v.proExtraOpts.length > 0 && <div style={css("display:flex;flex-direction:column;gap:6px")}><div style={css("font-size:12px;font-weight:600;color:var(--sub)")}>ตัวเลือกเสริม</div><div style={css("display:flex;gap:8px;flex-wrap:wrap")}>{v.proExtraOpts.map((o, i) => <button key={i} onClick={o.pick} style={{...o.st, flex:'1 1 45%'}}>{o.label}</button>)}</div></div>}
+                {v.isPro && v.proPoPaperOpts.length > 0 && <div style={css("display:flex;flex-direction:column;gap:6px")}><div style={css("font-size:12px;font-weight:600;color:var(--ink)")}>ประเภทกระดาษ</div><div style={css("display:flex;gap:8px;flex-wrap:wrap")}>{v.proPoPaperOpts.map((o, i) => <button key={i} onClick={o.pick} style={{...o.st, flex:'1 1 45%'}}>{o.label}</button>)}</div></div>}
+                {v.isPro && v.proShowSides && <div style={css("display:flex;flex-direction:column;gap:6px")}><div style={css("font-size:12px;font-weight:600;color:var(--ink)")}>ด้านที่พิมพ์</div><div style={css("display:flex;gap:8px;flex-wrap:wrap")}>{v.proSidesOpts.map((o, i) => <button key={i} onClick={o.pick} style={{...o.st, flex:'1 1 45%'}}>{o.label}</button>)}</div></div>}
+                {v.isPro && v.proExtraOpts.length > 0 && <div style={css("display:flex;flex-direction:column;gap:6px")}><div style={css("font-size:12px;font-weight:600;color:var(--ink)")}>ตัวเลือกเสริม</div><div style={css("display:flex;gap:8px;flex-wrap:wrap")}>{v.proExtraOpts.map((o, i) => <button key={i} onClick={o.pick} style={{...o.st, flex:'1 1 45%'}}>{o.label}</button>)}</div></div>}
                 {v.isPro && v.proBoardOpts.length > 0 && <div style={css("display:flex;flex-direction:column;gap:6px")}>
-                  <div style={css("font-size:12px;font-weight:600;color:var(--sub)")}>ประเภทบอร์ด (ไม่บวกราคาเพิ่ม)</div>
+                  <div style={css("font-size:12px;font-weight:600;color:var(--ink)")}>ประเภทบอร์ด (ไม่บวกราคาเพิ่ม)</div>
                   <div style={css("display:flex;gap:8px;flex-wrap:wrap")}>{v.proBoardOpts.map((o, i) => <button key={i} onClick={o.pick} style={{...o.st, flex:'1 1 45%'}}>{o.label}</button>)}</div>
                   {/* ข้อความเตือนแดง "เลือกบอร์ดก่อน" ถูกถอด (2026-09-11 เจ้าของบอกลูกค้ารำคาญ) — toDelivery ยังบล็อก+toast ถ้าไม่เลือกเหมือนเดิม */}
                 </div>}
-                {v.isPro && v.proGramOpts.length > 0 && <div style={css("display:flex;flex-direction:column;gap:6px")}><div style={css("font-size:12px;font-weight:600;color:var(--sub)")}>ความหนากระดาษ (ไม่บวกราคาเพิ่ม)</div><div style={css("display:flex;gap:8px;flex-wrap:wrap")}>{v.proGramOpts.map((o, i) => <button key={i} onClick={o.pick} style={{...o.st, flex:'1 1 30%'}}>{o.label}</button>)}</div></div>}
-                {v.isPro && v.proLamOpts.length > 0 && <div style={css("display:flex;flex-direction:column;gap:6px")}><div style={css("font-size:12px;font-weight:600;color:var(--sub)")}>{v.proLamHead}</div><div style={css("display:flex;gap:8px;flex-wrap:wrap")}>{v.proLamOpts.map((o, i) => <button key={i} onClick={o.pick} style={{...o.st, flex:'1 1 30%'}}>{o.label}</button>)}</div></div>}
+                {v.isPro && v.proGramOpts.length > 0 && <div style={css("display:flex;flex-direction:column;gap:6px")}><div style={css("font-size:12px;font-weight:600;color:var(--ink)")}>ความหนากระดาษ (ไม่บวกราคาเพิ่ม)</div><div style={css("display:flex;gap:8px;flex-wrap:wrap")}>{v.proGramOpts.map((o, i) => <button key={i} onClick={o.pick} style={{...o.st, flex:'1 1 30%'}}>{o.label}</button>)}</div></div>}
+                {v.isPro && v.proLamOpts.length > 0 && <div style={css("display:flex;flex-direction:column;gap:6px")}><div style={css("font-size:12px;font-weight:600;color:var(--ink)")}>{v.proLamHead}</div><div style={css("display:flex;gap:8px;flex-wrap:wrap")}>{v.proLamOpts.map((o, i) => <button key={i} onClick={o.pick} style={{...o.st, flex:'1 1 30%'}}>{o.label}</button>)}</div></div>}
                 {/* ตัวเลือกเคลือบ (โปสเตอร์): เลือกชนิดฟิล์ม — โผล่เฉพาะตอนกดเคลือบ · ฟิล์มแข็งมีเฉพาะเคลือบหน้า-หลัง */}
-                {v.isPro && v.proFilmOpts.length > 0 && <div style={css("display:flex;flex-direction:column;gap:6px")}><div style={css("font-size:12px;font-weight:600;color:var(--sub)")}>ตัวเลือกเคลือบ</div><div style={css("display:flex;gap:8px;flex-wrap:wrap")}>{v.proFilmOpts.map((o, i) => <button key={i} onClick={o.pick} style={{...o.st, flex:'1 1 100%'}}>{o.label}</button>)}</div></div>}
+                {v.isPro && v.proFilmOpts.length > 0 && <div style={css("display:flex;flex-direction:column;gap:6px")}><div style={css("font-size:12px;font-weight:600;color:var(--ink)")}>ตัวเลือกเคลือบ</div><div style={css("display:flex;gap:8px;flex-wrap:wrap")}>{v.proFilmOpts.map((o, i) => <button key={i} onClick={o.pick} style={{...o.st, flex:'1 1 100%'}}>{o.label}</button>)}</div></div>}
                 {v.isPro && v.proHint && <div style={css("font-size:11.5px;color:var(--acc);font-weight:600")}>{v.proHint}</div>}
                 {v.stkOn && <div style={css("font-size:11px;font-weight:700;color:var(--acc);line-height:1.6")}>💡 ถ้าสะดวกรบกวนคุณลูกค้าปรับขนาดสติ๊กเกอร์เป็น<b>ขนาดจริง</b>ลงในไฟล์มาเลยนะครับ จะช่วยให้ปริ้นและส่งมอบงานได้เร็วขึ้นมาก ๆ</div>}
                 {v.stkOn && <div style={css("display:flex;flex-direction:column;gap:6px")}>
@@ -3595,21 +3595,21 @@ class App extends React.Component {
                                 </div>
                               : <div key={i} style={css("margin-top:9px;border:1px solid var(--line);border-radius:10px;padding:10px 12px;background:var(--soft)")}>
                                   <div style={css("font-size:12px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap")}>ไฟล์ที่ {i + 1} · {f.name}</div>
-                                  <div style={css("margin-top:8px;font-size:10.5px;font-weight:600;color:var(--sub)")}>1. เลือกประเภทสติ๊กเกอร์</div>
+                                  <div style={css("margin-top:8px;font-size:10.5px;font-weight:600;color:var(--ink)")}>1. เลือกประเภทสติ๊กเกอร์</div>
                                   <div style={css("margin-top:4px;display:flex;gap:7px")}>
                                     {['pp', 'pvc'].map(k => (
                                       <button key={k} onClick={() => f.setStk(k)} style={css("flex:1;min-width:0;min-height:38px;padding:7px 4px;line-height:1.35;box-sizing:border-box;border-radius:9px;font-size:12.5px;font-weight:700;cursor:pointer;font-family:inherit;border:" + (f.t === k ? "1.5px solid var(--acc)" : "1px solid var(--line)") + ";background:" + (f.t === k ? "var(--accSoft)" : "var(--card)") + ";color:" + (f.t === k ? "var(--acc)" : "var(--ink)"))}>{k.toUpperCase()}{k === 'pp' ? ' (ติดฉลากสินค้า)' : ' (คุณภาพสูง)'}</button>
                                     ))}
                                   </div>
                                   {!f.t && <div style={css("margin-top:4px;font-size:10.5px;font-weight:700;color:#c92a2a")}>⚠️ กดเลือกแบบของลายนี้ก่อนครับ — PP หรือ PVC</div>}
-                                  <div style={css("margin-top:8px;font-size:10.5px;font-weight:600;color:var(--sub)")}>2. ขนาดชิ้นสติ๊กเกอร์ (เซนติเมตร)</div>
+                                  <div style={css("margin-top:8px;font-size:10.5px;font-weight:600;color:var(--ink)")}>2. ขนาดชิ้นสติ๊กเกอร์ (เซนติเมตร)</div>
                                   <div style={css("margin-top:4px;display:flex;align-items:center;gap:7px")}>
                                     <input value={f.valW} onChange={f.setW} inputMode="decimal" placeholder="กว้าง" style={css("flex:1;min-width:0;height:40px;border:1.5px solid var(--acc);border-radius:10px;background:var(--card);color:var(--ink);font-size:14px;font-weight:700;text-align:center;outline:none")}/>
                                     <span style={css("flex:none;font-size:13px;font-weight:700;color:var(--sub)")}>×</span>
                                     <input value={f.valH} onChange={f.setH} inputMode="decimal" placeholder="ยาว" style={css("flex:1;min-width:0;height:40px;border:1.5px solid var(--acc);border-radius:10px;background:var(--card);color:var(--ink);font-size:14px;font-weight:700;text-align:center;outline:none")}/>
                                     <span style={css("flex:none;font-size:11px;font-weight:600;color:var(--sub)")}>ซม.</span>
                                   </div>
-                                  <div style={css("margin-top:8px;font-size:10.5px;font-weight:600;color:var(--sub)")}>3. {f.t === 'pvc' ? 'จำนวนตารางเมตรที่ต้องการ (1 ตร.ม. = 100×100 ซม.)' : 'จำนวนแผ่นที่ต้องการ (แผ่นละ 13"×19" นิ้ว)'}</div>
+                                  <div style={css("margin-top:8px;font-size:10.5px;font-weight:600;color:var(--ink)")}>3. {f.t === 'pvc' ? 'จำนวนตารางเมตรที่ต้องการ (1 ตร.ม. = 100×100 ซม.)' : 'จำนวนแผ่นที่ต้องการ (แผ่นละ 13"×19" นิ้ว)'}</div>
                                   <div style={css("margin-top:4px;display:flex;align-items:center;gap:7px")}>
                                     <input value={f.valSh} onChange={f.setSh} inputMode="numeric" placeholder="เช่น 2" style={css("flex:1;min-width:0;height:40px;border:1.5px solid var(--acc);border-radius:10px;background:var(--card);color:var(--ink);font-size:14px;font-weight:700;text-align:center;outline:none")}/>
                                     <span style={css("flex:none;font-size:11px;font-weight:600;color:var(--sub)")}>{f.t === 'pvc' ? 'ตร.ม.' : 'แผ่น'}</span>
@@ -3636,9 +3636,9 @@ class App extends React.Component {
                         </React.Fragment>}
                   </div>
                 </div>}
-                {v.isPro && v.proShowBind && <div style={css("display:flex;flex-direction:column;gap:6px")}><div style={css("font-size:12px;font-weight:600;color:var(--sub)")}>ตัวเลือกเข้าเล่ม</div><div style={css("display:flex;flex-direction:column;gap:8px")}>{v.proBindOpts.map((o, i) => <button key={i} onClick={o.pick} style={{ ...o.st, width: '100%', boxSizing: 'border-box', minHeight: '44px', display: 'flex', alignItems: 'center', textAlign: 'left', fontSize: '13px' }}>{o.label}</button>)}</div></div>}
-                {v.isPro && v.proShowQty && <div style={css("display:flex;flex-direction:column;gap:6px")}><div style={css("font-size:12px;font-weight:600;color:var(--sub)")}>จำนวน</div><div style={css("display:flex;flex-direction:column;gap:8px")}>{v.proQtyOpts.map((o, i) => <button key={i} onClick={o.pick} style={{ ...o.st, width: '100%', boxSizing: 'border-box', minHeight: '44px', display: 'flex', alignItems: 'center', textAlign: 'left', fontSize: '13px' }}>{o.label}</button>)}</div></div>}
-                {v.isPro && <div style={css("display:flex;flex-direction:column;gap:6px")}><div style={css("font-size:12px;font-weight:600;color:var(--sub)")}>การรับงาน</div><div style={css("display:flex;flex-direction:column;gap:8px")}>
+                {v.isPro && v.proShowBind && <div style={css("display:flex;flex-direction:column;gap:6px")}><div style={css("font-size:12px;font-weight:600;color:var(--ink)")}>ตัวเลือกเข้าเล่ม</div><div style={css("display:flex;flex-direction:column;gap:8px")}>{v.proBindOpts.map((o, i) => <button key={i} onClick={o.pick} style={{ ...o.st, width: '100%', boxSizing: 'border-box', minHeight: '44px', display: 'flex', alignItems: 'center', textAlign: 'left', fontSize: '13px' }}>{o.label}</button>)}</div></div>}
+                {v.isPro && v.proShowQty && <div style={css("display:flex;flex-direction:column;gap:6px")}><div style={css("font-size:12px;font-weight:600;color:var(--ink)")}>จำนวน</div><div style={css("display:flex;flex-direction:column;gap:8px")}>{v.proQtyOpts.map((o, i) => <button key={i} onClick={o.pick} style={{ ...o.st, width: '100%', boxSizing: 'border-box', minHeight: '44px', display: 'flex', alignItems: 'center', textAlign: 'left', fontSize: '13px' }}>{o.label}</button>)}</div></div>}
+                {v.isPro && <div style={css("display:flex;flex-direction:column;gap:6px")}><div style={css("font-size:12px;font-weight:600;color:var(--ink)")}>การรับงาน</div><div style={css("display:flex;flex-direction:column;gap:8px")}>
                   {v.proPickupOpts.map((o, i) => (
                     <div key={i} onClick={o.pick} style={css("border:" + (o.on ? "1.5px solid var(--acc)" : "1px solid var(--line)") + ";border-radius:12px;padding:11px 14px;background:" + (o.on ? "var(--accSoft)" : "var(--card)") + ";display:flex;align-items:center;gap:11px;cursor:pointer")}>
                       <div style={{ flex: 'none', fontSize: '22px', lineHeight: o.svg ? 0 : 'normal', color: o.on ? 'var(--acc)' : 'var(--ink)' }}>{o.svg || o.icon}</div>
@@ -3650,17 +3650,17 @@ class App extends React.Component {
                     </div>
                   ))}
                 </div></div>}
-                {v.isPro && <div style={css("font-size:11.5px;font-weight:700;color:var(--acc)")}>✓ ที่เลือก: {v.proPicked}{v.proShowBind ? ' · ' + (v.bindLabel || '') : ''}</div>}
-                <div style={css("font-size:11.5px;color:var(--acc);font-weight:600")}>💡 {v.rateHint}</div>
+                {/* งาน Pro ไม่โชว์บรรทัด "ที่เลือก"/💡 สรุปเรทแล้ว (เจ้าของสั่ง 2026-09-17 — บิลท้ายหน้าโชว์ครบ รกซ้ำซ้อน) · Standard คงเรทไว้ */}
+                {!v.isPro && <div style={css("font-size:11.5px;color:var(--acc);font-weight:600")}>💡 {v.rateHint}</div>}
                 {v.colorNote && <div style={css("font-size:10.5px;color:var(--sub)")}>{v.colorNote}</div>}
               </div>
-              {v.showSize && <div style={css("display:flex;flex-direction:column;gap:6px")}><div style={css("font-size:12px;font-weight:600;color:var(--sub)")}>ขนาด</div><div style={css("display:flex;gap:8px;flex-wrap:wrap")}>{v.sizeOpts.map((o, i) => <button key={i} onClick={o.pick} style={o.st}>{o.label}</button>)}</div></div>}
-              {v.showSides && <div style={css("display:flex;flex-direction:column;gap:6px")}><div style={css("font-size:12px;font-weight:600;color:var(--sub)")}>ด้านที่พิมพ์</div><div style={css("display:flex;gap:8px")}>{v.sidesOpts.map((o, i) => <button key={i} onClick={o.pick} style={o.st}>{o.label}</button>)}</div></div>}
-              {v.showSides && <div style={css("display:flex;flex-direction:column;gap:6px")}><div style={css("font-size:12px;font-weight:600;color:var(--sub)")}>ทิศทางกระดาษ</div><div style={css("display:flex;gap:8px")}>{v.orientOpts.map((o, i) => <button key={i} onClick={o.pick} style={o.st}>{o.label}</button>)}</div></div>}
-              {v.showSides && <div style={css("display:flex;flex-direction:column;gap:6px")}><div style={css("font-size:12px;font-weight:600;color:var(--sub)")}>การกำหนดหน้า</div><div style={css("display:flex;gap:8px;flex-wrap:wrap")}>{v.nupOpts.map((o, i) => <button key={i} onClick={o.pick} style={{...o.st, flex:'1 1 40%'}}>{o.label}</button>)}</div></div>}
+              {v.showSize && <div style={css("display:flex;flex-direction:column;gap:6px")}><div style={css("font-size:12px;font-weight:600;color:var(--ink)")}>ขนาด</div><div style={css("display:flex;gap:8px;flex-wrap:wrap")}>{v.sizeOpts.map((o, i) => <button key={i} onClick={o.pick} style={o.st}>{o.label}</button>)}</div></div>}
+              {v.showSides && <div style={css("display:flex;flex-direction:column;gap:6px")}><div style={css("font-size:12px;font-weight:600;color:var(--ink)")}>ด้านที่พิมพ์</div><div style={css("display:flex;gap:8px")}>{v.sidesOpts.map((o, i) => <button key={i} onClick={o.pick} style={o.st}>{o.label}</button>)}</div></div>}
+              {v.showSides && <div style={css("display:flex;flex-direction:column;gap:6px")}><div style={css("font-size:12px;font-weight:600;color:var(--ink)")}>ทิศทางกระดาษ</div><div style={css("display:flex;gap:8px")}>{v.orientOpts.map((o, i) => <button key={i} onClick={o.pick} style={o.st}>{o.label}</button>)}</div></div>}
+              {v.showSides && <div style={css("display:flex;flex-direction:column;gap:6px")}><div style={css("font-size:12px;font-weight:600;color:var(--ink)")}>การกำหนดหน้า</div><div style={css("display:flex;gap:8px;flex-wrap:wrap")}>{v.nupOpts.map((o, i) => <button key={i} onClick={o.pick} style={{...o.st, flex:'1 1 40%'}}>{o.label}</button>)}</div></div>}
               {v.showBind && [['การเย็บมุม', v.cornerOpts], ...(v.bindOpen ? [['การเข้าเล่ม (+฿20/ชุด · รับ 09:00–22:00 น.)', v.bookOpts]] : [])].map(([head, opts]) => (
                 <div key={head} style={css("display:flex;flex-direction:column;gap:6px")}>
-                  <div style={css("font-size:12px;font-weight:600;color:var(--sub)")}>{head}</div>
+                  <div style={css("font-size:12px;font-weight:600;color:var(--ink)")}>{head}</div>
                   <div style={css("display:flex;flex-direction:column;gap:8px")}>
                     {opts.map((o) => (
                       <div key={o.k} onClick={o.pick} style={css("border:" + (o.on ? "1.5px solid var(--acc)" : "1px solid var(--line)") + ";border-radius:12px;padding:11px 14px;background:" + (o.on ? "var(--accSoft)" : "var(--card)") + ";display:flex;align-items:center;gap:11px;cursor:pointer")}>
@@ -3677,7 +3677,7 @@ class App extends React.Component {
               ))}
               {v.showBind && !v.bindOpen && <div style={css("font-size:11px;color:var(--sub);line-height:1.5")}><span style={css("display:inline-flex;vertical-align:-2px;margin-right:5px")}>{fi('clock', 12)}</span>บริการเข้าเล่ม (+฿20/ชุด) เปิดรับเฉพาะ 09:00–22:00 น. ครับ</div>}
               {/* สติ๊กเกอร์ไม่มีจำนวนชุด — ลูกค้ากำหนดขนาด+จำนวนชิ้นรายไฟล์เองอยู่แล้ว (เจ้าของสั่ง 2026-09-11, copies ถูกล็อก 1 ตอนเลือกประเภท) */}
-              {!v.stkOn && <div style={css("display:flex;justify-content:space-between;align-items:center")}><div style={css("font-size:12px;font-weight:600;color:var(--sub)")}>จำนวนชุด (สำเนา)</div>
+              {!v.stkOn && <div style={css("display:flex;justify-content:space-between;align-items:center")}><div style={css("font-size:12px;font-weight:600;color:var(--ink)")}>จำนวนชุด (สำเนา)</div>
                 <div style={css("display:flex;align-items:center;gap:10px")}>
                   <button onClick={v.copyDec} style={css("width:30px;height:30px;border:1px solid var(--line);background:var(--soft);color:var(--ink);border-radius:9px;font-size:15px;cursor:pointer")}>−</button>
                   <div style={css("font-family:'IBM Plex Mono',monospace;font-size:15px;font-weight:600;min-width:26px;text-align:center")}>{v.copies}</div>
@@ -3686,7 +3686,7 @@ class App extends React.Component {
               </div>}
             </div>
             <div style={css("background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px;display:flex;flex-direction:column;gap:8px")}>
-              <div style={css("font-size:12px;font-weight:600;color:var(--sub)")}>หมายเหตุ (รายละเอียดงาน) <span style={css("font-weight:400")}>— กรอกหรือไม่กรอกก็ได้</span></div>
+              <div style={css("font-size:12px;font-weight:600;color:var(--ink)")}>หมายเหตุ (รายละเอียดงาน) <span style={css("font-weight:400")}>— กรอกหรือไม่กรอกก็ได้</span></div>
               <textarea value={v.noteText} onChange={v.setNote} rows={2} maxLength={300}
                 style={css("width:100%;box-sizing:border-box;border:1px solid var(--line);border-radius:10px;background:var(--soft);color:var(--ink);padding:10px 12px;font-size:13px;outline:none;resize:none;font-family:inherit;line-height:1.5")}></textarea>
             </div>
@@ -3766,7 +3766,7 @@ class App extends React.Component {
               {/* ที่อยู่จัดส่งประจำ — เลือกปุ๊บ กรอกที่อยู่+ปักหมุด+เลือกรถให้ครบทันที */}
               {v.savedAddrs.length > 0 && (
                 <div style={css("margin-bottom:14px")}>
-                  <div style={css("font-size:12px;font-weight:600;color:var(--sub);margin-bottom:7px")}><span style={css("display:inline-flex;vertical-align:-2px;margin-right:5px")}>{fi('home', 13)}</span>ที่อยู่จัดส่งประจำ <span style={css("font-weight:400")}>— แตะเพื่อใช้เลย</span></div>
+                  <div style={css("font-size:12px;font-weight:600;color:var(--ink);margin-bottom:7px")}><span style={css("display:inline-flex;vertical-align:-2px;margin-right:5px")}>{fi('home', 13)}</span>ที่อยู่จัดส่งประจำ <span style={css("font-weight:400")}>— แตะเพื่อใช้เลย</span></div>
                   <div style={css("display:flex;flex-direction:column;gap:7px")}>
                     {v.savedAddrs.map((a, i) => (
                       <div key={i} onClick={a.pick} style={css("border:1px solid var(--line);border-radius:12px;padding:10px 13px;background:var(--card);display:flex;align-items:center;gap:10px;cursor:pointer")}>
@@ -3895,7 +3895,7 @@ class App extends React.Component {
               {v.pinModeMap && <div style={css("margin-top:4px;font-size:11px;color:var(--acc);font-weight:600;line-height:1.5")}>💡 ค้นหาชื่อหอไม่เจอ? ไม่เป็นไร — แตะปักหมุดเองตรงที่พักของคุณ แล้วพิมพ์ชื่อหอ + รายละเอียดในช่องด้านล่างได้เลย</div>}
               {v.mapLocked
                 ? <React.Fragment>
-                    <div style={css("margin-top:12px;font-size:12px;font-weight:600;color:var(--sub)")}>รายละเอียดที่อยู่ (หอ / คณะ / บ้านเลขที่ / ซอย / จุดนัด) <span style={css("color:#d9480f")}>*</span></div>
+                    <div style={css("margin-top:12px;font-size:12px;font-weight:600;color:var(--ink)")}>รายละเอียดที่อยู่ (หอ / คณะ / บ้านเลขที่ / ซอย / จุดนัด) <span style={css("color:#d9480f")}>*</span></div>
                     <input value={v.addr} onChange={v.setAddr} placeholder="เช่น หอ 9 ตึก B ชั้น 2, บ้านเลขที่ 123/4 ซอยมะลิวัลย์ 5" style={css("margin-top:6px;width:100%;box-sizing:border-box;height:42px;border:1px solid var(--line);border-radius:10px;background:var(--soft);color:var(--ink);padding:0 12px;font-size:13px;outline:none")}/>
                   </React.Fragment>
                 : v.pinSet
@@ -3904,7 +3904,7 @@ class App extends React.Component {
               </React.Fragment>)}
               </React.Fragment>)}
               </React.Fragment>}
-              <div style={css("margin-top:10px;font-size:12px;font-weight:600;color:var(--sub)")}>เบอร์โทรผู้รับ <span style={css("color:#d9480f")}>*</span></div>
+              <div style={css("margin-top:10px;font-size:12px;font-weight:600;color:var(--ink)")}>เบอร์โทรผู้รับ <span style={css("color:#d9480f")}>*</span></div>
               <input value={v.phone} onChange={v.setPhone} placeholder="08x-xxx-xxxx" inputMode="tel" maxLength={12} style={css("margin-top:6px;width:100%;box-sizing:border-box;height:42px;border:1px solid var(--line);border-radius:10px;background:var(--soft);color:var(--ink);padding:0 12px;font-size:13px;outline:none")}/>
             </div>
             {v.handoffOn && (
@@ -3979,7 +3979,7 @@ class App extends React.Component {
                   </div>
                 ))}
               </div>
-              <div style={css("margin-top:10px;border-top:1px dashed var(--acc);padding-top:8px;font-size:11.5px;color:var(--acc);font-weight:600")}>💡 {v.rateHint}</div>
+              {!v.isPro && <div style={css("margin-top:10px;border-top:1px dashed var(--acc);padding-top:8px;font-size:11.5px;color:var(--acc);font-weight:600")}>💡 {v.rateHint}</div>}
             </div>
 
             <div style={css("background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px;box-shadow:var(--shadow)")}>
