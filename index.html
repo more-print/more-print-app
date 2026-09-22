@@ -372,6 +372,7 @@ const FI = {
   rain: '<line x1="16" y1="13" x2="16" y2="21"/><line x1="8" y1="13" x2="8" y2="21"/><line x1="12" y1="15" x2="12" y2="23"/><path d="M20 16.58A5 5 0 0 0 18 7h-1.26A8 8 0 1 0 4 15.25"/>',
   alert: '<circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>',
   compass: '<circle cx="12" cy="12" r="10"/><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/>',
+  camera: '<path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/>',
   tool: '<path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>',
   target: '<circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/>',
   upload: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>',
@@ -456,6 +457,7 @@ class App extends React.Component {
       lat: null, lng: null, geoLabel: '', searchQ: '', searchResults: [], searching: false, locating: false,
       gmapLink: '', gmapBusy: false, pinSrc: '', pinMode: '', mapLocked: false, gpsAcc: null, gpsConfirm: false, geoHelp: '', // '' ยังไม่เลือก · 'link' วางลิงก์ · 'map' ปักหมุดเอง · mapLocked = ล็อกหมุดหลังวางลิงก์
       banners: [],
+      statDelivered: 0, // จำนวนออเดอร์ส่งสำเร็จจริงจาก RPC public_stats — 0 = ยังไม่รู้ ซ่อนการ์ดสถิติไว้
       order: null, trackStep: 1, cancelReason: '', toast: '', now: new Date(), reupIdx: null, reupBusy: false,
       selfCancelArm: false, selfCancelBusy: false,
       chat: null, chatText: '', chatBusy: false, chatOff: false, // แชทกับร้าน (ตาราง messages)
@@ -476,10 +478,16 @@ class App extends React.Component {
         { auth: { persistSession: false, autoRefreshToken: false, storageKey: 'mp-db' } });
       this.auth = window.supabase.createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY,
         { auth: { storageKey: 'mp-auth' } });
-      // โหลดแบนเนอร์โปรโมชั่นสำหรับหน้าแรก
-      this.db.from('banners').select('*').eq('active', true).order('created_at', { ascending: false }).limit(10)
+      // โหลดแบนเนอร์โปรโมชั่นสำหรับหน้าแรก (รวมแถว color='showcase' = รูปงานจริง — แยกไปแสดงเป็นแถบรูปใต้ปุ่มเริ่มสั่ง)
+      this.db.from('banners').select('*').eq('active', true).order('created_at', { ascending: false }).limit(30)
         .then(({ data }) => { if (data && data.length) this.setState({ banners: data }); })
         .catch(() => {});
+      // ตัวนับออเดอร์ส่งสำเร็จ (RPC public_stats) — ยังไม่ได้สร้างฟังก์ชันในฐานข้อมูล = การ์ดสถิติซ่อนเอง เว็บห้ามพัง
+      try {
+        this.db.rpc('public_stats').then(({ data, error }) => {
+          if (!error && data && +data.delivered > 0) this.setState({ statDelivered: +data.delivered });
+        }).catch(() => {});
+      } catch (e) {}
       this.loadReviews();
       // สถานะเปิด/ปิดรับออเดอร์ (ร้านกดจากหลังบ้าน) — เช็คตอนเปิดเว็บ + ทุก 60 วิ
       const chkShop = () => { try {
@@ -2221,7 +2229,9 @@ class App extends React.Component {
       userFirst: s.user ? s.user.fname : '',
       userPic: (s.user && s.user.picture) || '',
       userInitial: s.user ? ((s.user.fname || '?').trim().charAt(0) || '?') : '',
-      banners: s.banners,
+      banners: s.banners.filter(b => b.color !== 'showcase'), // แถวรูปงานจริงห้ามโผล่ในสไลด์แบนเนอร์
+      shots: s.banners.filter(b => b.color === 'showcase' && b.image_path), // รูปงานจริงจากร้าน (อัปโหลดในแท็บโปรโมชั่นของ admin)
+      statDelivered: s.statDelivered,
       isHome: s.screen === 'home', isOrder: s.screen === 'order', isDelivery: s.screen === 'delivery', isReview: s.screen === 'review', isPay: s.screen === 'pay', isTrack: s.screen === 'track', isAbout: s.screen === 'about', isChat: s.screen === 'chat', isProfile: s.screen === 'profile', isHistory: s.screen === 'history',
       showBack: s.screen === 'order' || s.screen === 'delivery' || s.screen === 'review' || s.screen === 'pay' || s.screen === 'chat' || s.screen === 'profile',
       goBack: () => {
@@ -3344,6 +3354,40 @@ class App extends React.Component {
               </div>
               <button onClick={v.startOrder} style={css("margin-top:12px;width:100%;height:50px;border:none;border-radius:14px;background:var(--acc);color:#fff;font-size:16px;font-weight:700;cursor:pointer")}>เริ่มสั่งปริ้น · คำนวณราคาทันที</button>
             </div>
+            {/* ── ตัวนับความน่าเชื่อถือ (เจ้าของสั่ง 2026-09-22): ตัวเลขจริงทั้งหมด — ออเดอร์ส่งสำเร็จจาก RPC public_stats (ต่ำกว่า 20 = ซ่อนการ์ดไว้ก่อน), ดาวจากตาราง reviews ── */}
+            <div style={css("padding:14px 20px 0;display:flex;gap:10px")}>
+              {v.statDelivered >= 20 && (
+                <div style={css("flex:1;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 8px;text-align:center;box-shadow:var(--shadow)")}>
+                  <div style={css("font-family:'IBM Plex Mono',monospace;font-size:19px;font-weight:600;color:var(--acc);line-height:1.1")}>{v.statDelivered.toLocaleString()}+</div>
+                  <div style={css("font-size:10.5px;color:var(--sub);margin-top:4px;line-height:1.35")}>ออเดอร์<br/>ส่งสำเร็จ</div>
+                </div>
+              )}
+              {v.revCount > 0 && (
+                <div style={css("flex:1;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 8px;text-align:center;box-shadow:var(--shadow)")}>
+                  <div style={css("font-size:19px;font-weight:600;line-height:1.1")}><span style={css("color:#f5a623")}>★</span> <span style={css("font-family:'IBM Plex Mono',monospace;color:var(--acc)")}>{v.revAvg}</span></div>
+                  <div style={css("font-size:10.5px;color:var(--sub);margin-top:4px;line-height:1.35")}>จาก {v.revCount}<br/>รีวิวจริง</div>
+                </div>
+              )}
+              <div style={css("flex:1;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 8px;text-align:center;box-shadow:var(--shadow)")}>
+                <div style={css("font-family:'IBM Plex Mono',monospace;font-size:19px;font-weight:600;color:var(--acc);line-height:1.1")}>24 ชม.</div>
+                <div style={css("font-size:10.5px;color:var(--sub);margin-top:4px;line-height:1.35")}>เปิดรับออเดอร์<br/>ทุกวัน</div>
+              </div>
+            </div>
+            {/* ── รูปงานจริงจากร้าน: แถว banners ที่ color='showcase' — เจ้าของอัปโหลด/ลบเองจากแท็บโปรโมชั่นของ admin ── */}
+            {v.shots.length > 0 && (
+              <React.Fragment>
+                <div style={css("padding:16px 20px 0;font-size:13px;font-weight:700;display:flex;align-items:center;gap:6px")}><span style={css("display:flex;color:var(--acc)")}>{fi('camera', 15)}</span>งานจริงจากร้าน</div>
+                <div style={css("padding:2px 20px 0;font-size:11px;color:var(--sub)")}>ตัวอย่างงานที่ลูกค้าสั่งจริง อัปเดตเรื่อย ๆ</div>
+                <div style={css("margin-top:10px;display:flex;gap:10px;overflow-x:auto;padding:0 20px 6px;scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch")}>
+                  {v.shots.map((b, i) => (
+                    <div key={b.id || i} style={css("flex:none;width:132px;aspect-ratio:4/5;border-radius:14px;overflow:hidden;position:relative;scroll-snap-align:start;box-shadow:var(--shadow);background:var(--soft)")}>
+                      <img src={FILE_BASE + b.image_path} alt={b.title || 'งานจริงจากร้าน'} loading="lazy" style={css("position:absolute;inset:0;width:100%;height:100%;object-fit:cover")}/>
+                      {b.title && <div style={css("position:absolute;left:0;right:0;bottom:0;padding:22px 9px 8px;background:linear-gradient(transparent,rgba(0,0,0,.72));color:#fff;font-size:10.5px;font-weight:600;line-height:1.4")}>{b.title}</div>}
+                    </div>
+                  ))}
+                </div>
+              </React.Fragment>
+            )}
             {HOME_CARDS.length > 0 && (
               <div style={css("padding:18px 20px 0;display:flex;gap:10px")}>
                 {HOME_CARDS.map((c, i) => (

@@ -990,6 +990,36 @@ function AdminApp(){
     else setBanners(l => l.filter(x => x.id !== b.id));
   };
 
+  // ── รูปงานจริงหน้าเว็บ (2026-09-22): แถวในตาราง banners ที่ color='showcase' — หน้าเว็บลูกค้าแยกไปโชว์เป็นแถบรูปใต้ปุ่มเริ่มสั่ง ไม่ปนกับสไลด์แบนเนอร์ ──
+  const bnOnly = banners.filter(b => b.color !== 'showcase'); // แบนเนอร์จริง (ลิสต์ล่างห้ามโชว์แถวรูปงาน)
+  const shots = banners.filter(b => b.color === 'showcase');
+  const [shFile, setShFile] = React.useState(null);
+  const [shCap, setShCap] = React.useState('');
+  const [shBusy, setShBusy] = React.useState(false);
+  const [shDelId, setShDelId] = React.useState(null); // กดลบครั้งแรก = ขอยืนยันก่อน กันมือลั่น
+  const shPreview = React.useMemo(() => shFile ? URL.createObjectURL(shFile) : null, [shFile]);
+  const addShot = async () => {
+    if (!shFile) return;
+    setShBusy(true);
+    if (DB) {
+      const safe = shFile.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+      const image_path = 'banners/showcase_' + Date.now() + '_' + safe; // โฟลเดอร์เดียวกับรูปแบนเนอร์ — ใช้สิทธิ์ storage เดิมได้เลย
+      const { error } = await DB.storage.from('uploads').upload(image_path, shFile);
+      if (error) { setShBusy(false); return alert('อัปโหลดรูปไม่สำเร็จ ลองอีกครั้งครับ: ' + error.message); }
+      const { error: ie } = await DB.from('banners').insert({ title: shCap.trim(), subtitle: '', emoji: '📸', color: 'showcase', image_path });
+      if (ie) { setShBusy(false); return alert('บันทึกรูปงานไม่สำเร็จ ลองอีกครั้งครับ: ' + ie.message); }
+      await loadBanners();
+    } else {
+      setBanners(l => [{ id: Date.now(), title: shCap.trim(), emoji: '📸', color: 'showcase', image_path: shPreview, active: true }, ...l]);
+    }
+    setShFile(null); setShCap(''); setShBusy(false);
+  };
+  const delShot = async (b) => {
+    if (shDelId !== b.id) { setShDelId(b.id); return; }
+    setShDelId(null);
+    await delBanner(b); // ลบทั้งแถวและไฟล์รูปใน storage (ใช้ตัวเดียวกับแบนเนอร์)
+  };
+
   // ── ประกาศแจ้งปัญหา/งานล่าช้า (แบนเนอร์ชนิด alert: ลูกค้าเจอป๊อปอัพเตือนก่อนสั่ง + แถบแดงบนเว็บ) ──
   const [alOpen, setAlOpen] = React.useState(false);
   const [alMsg, setAlMsg] = React.useState('');
@@ -1910,9 +1940,9 @@ function AdminApp(){
             </button>
           </div>
 
-          <div style={css("font-size:12px;font-weight:700;color:var(--sub)")}>แบนเนอร์ทั้งหมด ({banners.length})</div>
-          {banners.length === 0 && <div style={css("text-align:center;color:var(--sub);font-size:13px;padding:20px 0")}>ยังไม่มีแบนเนอร์ — เพิ่มอันแรกด้านบนเลยครับ</div>}
-          {banners.map(b => (
+          <div style={css("font-size:12px;font-weight:700;color:var(--sub)")}>แบนเนอร์ทั้งหมด ({bnOnly.length})</div>
+          {bnOnly.length === 0 && <div style={css("text-align:center;color:var(--sub);font-size:13px;padding:20px 0")}>ยังไม่มีแบนเนอร์ — เพิ่มอันแรกด้านบนเลยครับ</div>}
+          {bnOnly.map(b => (
             <div key={b.id} style={css("background:var(--card);border:1px solid var(--line);border-radius:14px;overflow:hidden;box-shadow:var(--shadow)" + (b.active ? "" : ";opacity:.5"))}>
               {b.image_path && fileUrl(b.image_path)
                 ? <img src={fileUrl(b.image_path)} alt="" style={css("width:100%;aspect-ratio:3/1;object-fit:cover;display:block")}/>
@@ -1930,6 +1960,35 @@ function AdminApp(){
               </div>
             </div>
           ))}
+
+          {/* ── รูปงานจริง: อัปโหลดแล้วขึ้นแถบรูปใต้ปุ่ม "เริ่มสั่งปริ้น" หน้าแรกลูกค้าทันที ── */}
+          <div style={css("background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px;box-shadow:var(--shadow);display:flex;flex-direction:column;gap:10px;margin-top:8px")}>
+            <div style={css("font-size:13px;font-weight:700")}>📸 รูปงานจริง (โชว์หน้าแรกลูกค้า ใต้ปุ่มเริ่มสั่งปริ้น)</div>
+            <div style={css("font-size:11px;color:var(--sub);line-height:1.6")}>ถ่ายรูปงานสวย ๆ จากร้านมาอัปโหลด ลูกค้าใหม่เห็นแล้วกล้าสั่งขึ้น · รูป<b>แนวตั้ง</b>สวยสุด · ⚠️ ระวังอย่าให้เห็นชื่อ/ข้อมูลส่วนตัวของลูกค้าในรูป</div>
+            <input type="file" accept="image/*" onChange={e => setShFile((e.target.files || [])[0] || null)} style={css("font-size:12px;width:100%")}/>
+            {shPreview && (
+              <div style={css("width:132px;aspect-ratio:4/5;border-radius:14px;overflow:hidden;position:relative;background:var(--soft)")}>
+                <img src={shPreview} alt="" style={css("position:absolute;inset:0;width:100%;height:100%;object-fit:cover")}/>
+                {shCap.trim() && <div style={css("position:absolute;left:0;right:0;bottom:0;padding:22px 9px 8px;background:linear-gradient(transparent,rgba(0,0,0,.72));color:#fff;font-size:10.5px;font-weight:600;line-height:1.4")}>{shCap.trim()}</div>}
+              </div>
+            )}
+            <input value={shCap} onChange={e => setShCap(e.target.value)} maxLength={60} placeholder="คำบรรยายสั้น ๆ เช่น เข้าเล่มรายงาน 40 เล่ม (ไม่บังคับ)" style={css("width:100%;box-sizing:border-box;height:40px;border:1px solid var(--line);border-radius:10px;background:var(--soft);color:var(--ink);padding:0 12px;font-size:13px;outline:none;font-family:inherit")}/>
+            <button onClick={addShot} disabled={shBusy || !shFile}
+              style={{ height: '44px', border: 'none', borderRadius: '12px', background: shFile ? 'var(--acc)' : '#9fd8bd', color: '#fff', fontSize: '14px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+              {shBusy ? 'กำลังอัปโหลด…' : '＋ เพิ่มรูปงาน'}
+            </button>
+            {shots.length > 0
+              ? <div style={css("display:flex;gap:10px;overflow-x:auto;padding-bottom:4px;-webkit-overflow-scrolling:touch")}>
+                  {shots.map(b => (
+                    <div key={b.id} style={css("flex:none;width:132px;aspect-ratio:4/5;border-radius:14px;overflow:hidden;position:relative;background:var(--soft)")}>
+                      <img src={fileUrl(b.image_path) || b.image_path} alt="" style={css("position:absolute;inset:0;width:100%;height:100%;object-fit:cover")}/>
+                      {b.title && <div style={css("position:absolute;left:0;right:0;bottom:0;padding:22px 9px 8px;background:linear-gradient(transparent,rgba(0,0,0,.72));color:#fff;font-size:10.5px;font-weight:600;line-height:1.4")}>{b.title}</div>}
+                      <span onClick={() => delShot(b)} style={css("position:absolute;top:6px;right:6px;font-size:10.5px;font-weight:800;cursor:pointer;border-radius:99px;padding:4px 10px;" + (shDelId === b.id ? "background:#c92a2a;color:#fff" : "background:rgba(0,0,0,.55);color:#ffa8a8"))}>{shDelId === b.id ? 'ยืนยันลบ?' : 'ลบ'}</span>
+                    </div>
+                  ))}
+                </div>
+              : <div style={css("font-size:12px;color:var(--sub)")}>ยังไม่มีรูปงาน — เพิ่มรูปแรกเลยครับ</div>}
+          </div>
 
           <div style={css("font-size:12px;font-weight:700;color:var(--sub);margin-top:8px")}>{FI.star(12)} รีวิวจากลูกค้า ({reviews.length})</div>
           {reviews.length === 0 && <div style={css("text-align:center;color:var(--sub);font-size:13px;padding:14px 0")}>ยังไม่มีรีวิว</div>}
