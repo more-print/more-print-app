@@ -542,9 +542,10 @@ class App extends React.Component {
     // นโยบายใหม่ (2026-09-02 จากรีวิวลูกค้า): ลูกค้าใหม่ชมหน้าเว็บได้เลยไม่ต้องล็อกอิน — ด่านล็อกอินอยู่ตอนกดสั่งปริ้น/ติดตาม
     // LINE Login (LIFF) — เชื่อมกับ LINE OA ของร้าน
     // ถ้าเปิดจากเบราว์เซอร์ในแอป LINE (ไม่ใช่ LIFF) → เด้งไปเปิดแบบ LIFF จะได้ล็อกอินอัตโนมัติ
+    // ⚠️ แอป LINE ไม่ได้นำทางจริง แต่ "เปิดหน้าต่าง LIFF ซ้อนทับ" — หน้าต่างเดิมยังค้างอยู่ข้างล่าง จึงห้าม return หยุดบูต:
+    // ต้องบูตต่อให้ครบ (liff.init โหมดนอก LIFF ก็ใช้ได้) ไม่งั้นหน้าต่างล่างเป็นเว็บครึ่งใบ กดล็อกอินแล้วขึ้น "กำลังเชื่อมต่อ…" ค้างตลอด (เจ้าของแจ้ง 2026-09-22)
     if (cfg.LIFF_ID && window.liff && /Line\//i.test(navigator.userAgent) && !window.liff.isInClient()) {
-      location.replace('https://liff.line.me/' + cfg.LIFF_ID);
-      return;
+      try { location.replace('https://liff.line.me/' + cfg.LIFF_ID); } catch (e) {}
     }
     if (cfg.LIFF_ID && window.liff) {
       window.liff.init({ liffId: cfg.LIFF_ID })
@@ -565,6 +566,21 @@ class App extends React.Component {
         this.setState({ user: u, phone: this.fmtPhone(u.phone || '') });
       } // ไม่มีบัญชี = ชมเว็บแบบแขกไปก่อน ล็อกอินตอนจะสั่งจริง
     } catch (e) {}
+    // หน้าต่างนี้อาจโดนหน้าต่าง LIFF เปิดทับ (เข้าจากแอป LINE) — พอโผล่กลับมาให้ดึงบัญชีที่หน้าต่างบนล็อกอินไว้จาก localStorage มาใช้ทันที ไม่ต้องล็อกอินซ้ำ (2026-09-22)
+    this._resyncUser = () => { try {
+      if (document.visibilityState === 'hidden') return;
+      const u = JSON.parse(localStorage.getItem('mp_user') || 'null');
+      if (u && u.fname) {
+        const cur = this.state.user || {};
+        if (!cur.fname || (u.line_uid || '') !== (cur.line_uid || '') || (u.email || '') !== (cur.email || '')) {
+          this.setState({ user: u, phone: this.fmtPhone(u.phone || '') });
+          if (this.db) setTimeout(() => this.syncMyOrders(), 600); // ดึงออเดอร์ของบัญชีนี้ตามมาด้วย
+        }
+      }
+    } catch (e) {} };
+    document.addEventListener('visibilitychange', this._resyncUser);
+    window.addEventListener('pageshow', this._resyncUser);
+    window.addEventListener('focus', this._resyncUser);
     // กู้คืนออเดอร์ล่าสุดที่จำไว้ในเครื่อง (เผื่อลูกค้าปิดเว็บแล้วกลับเข้ามา)
     try {
       const od = JSON.parse(localStorage.getItem('mp_order') || 'null');
@@ -2181,7 +2197,11 @@ class App extends React.Component {
       lineLogin: () => {
         const cfg = window.MP_CONFIG || {};
         if (!cfg.LIFF_ID || !window.liff) return this.showToast('LINE Login กำลังจะเปิดเร็ว ๆ นี้ 💬 ตอนนี้ใช้อีเมลก่อนนะครับ');
-        if (!this._liffReady) return this.showToast('กำลังเชื่อมต่อ LINE… ลองกดอีกครั้งครับ');
+        if (!this._liffReady) {
+          // ระบบ LINE ของหน้าต่างนี้ยังไม่พร้อม (เช่น หน้าต่างที่เคยโดน LIFF ทับ) — เด้งไปเปิดแบบ LIFF ตรง ๆ ดีกว่าให้ลูกค้ากดซ้ำวนไป
+          if (/Line\//i.test(navigator.userAgent)) { try { location.replace('https://liff.line.me/' + cfg.LIFF_ID); return; } catch (e) {} }
+          return this.showToast('กำลังเชื่อมต่อ LINE… ลองกดอีกครั้งครับ');
+        }
         if (window.liff.isLoggedIn()) return this.finishLineLogin();
         window.liff.login(); // ให้ LIFF พากลับมาที่ endpoint เอง (ตรงกับที่ลงทะเบียนแน่นอน)
       },
