@@ -405,8 +405,9 @@ function fi(name, size, color){
 function BillPrint({ v }){
   if (!v.billLines) return (
     <React.Fragment>
-      <div style={css("display:flex;justify-content:space-between")}><span style={css("color:var(--sub)")}>ค่าปริ้น {v.pageSummary}</span><span style={css("font-family:'IBM Plex Mono',monospace")}>฿{v.printCost}</span></div>
-      {v.nightCharged && <div style={css("font-size:10.5px;color:var(--warnInk);margin-top:-4px")}>🌙 รวมค่าบริการกลางคืน (22:00–06:00) +฿{v.nightFee} ในค่าปริ้นแล้ว</div>}
+      {/* เจ้าของสั่งจัดใหม่ 2026-09-22: ค่าปริ้นล้วน ๆ 1 บรรทัด + ค่ากลางคืนแยกบรรทัด +฿ ของตัวเอง — เลิกยัดรวมในบรรทัดเดียวแล้วเขียนหมายเหตุ (ลูกค้างง ยอดบรรทัดไม่ตรงยอดรวม) */}
+      <div style={css("display:flex;justify-content:space-between")}><span style={css("color:var(--sub)")}>ค่าปริ้น {v.pageSummary}</span><span style={css("font-family:'IBM Plex Mono',monospace")}>฿{v.printCostRaw}</span></div>
+      {v.nightCharged && <div style={css("display:flex;justify-content:space-between")}><span style={css("color:var(--warnInk)")}>🌙 ค่าบริการตอนกลางคืน (22:00–06:00)</span><span style={css("font-family:'IBM Plex Mono',monospace;color:var(--warnInk)")}>+฿{v.nightFee}</span></div>}
     </React.Fragment>
   );
   return (
@@ -1423,7 +1424,7 @@ class App extends React.Component {
       s.files.forEach((f, i) => lines.push({ name: 'ไฟล์ที่ ' + (i + 1) + ' · ' + f.name, desc: (f.pages * cp) + ' หน้า × ฿' + c.rate, amt: amts[i] }));
     }
     // ค่าบริการกลางคืนเป็นบรรทัดหนึ่งของค่าปริ้น (เจ้าของสั่ง 2026-09-17) — รวมแล้วเท่ากับ ค่าปริ้นรวมทุกไฟล์ ที่โชว์
-    if ((c.nightFee || 0) > 0) adjust.push({ label: '🌙 ค่าบริการกลางคืน (22:00–06:00)', amt: c.nightFee });
+    if ((c.nightFee || 0) > 0) adjust.push({ label: '🌙 ค่าบริการตอนกลางคืน (22:00–06:00)', amt: c.nightFee });
     return { lines, adjust };
   }
 
@@ -2606,7 +2607,8 @@ class App extends React.Component {
         })()
         : c.pages + ' หน้า × ' + s.copies + ' ชุด (' + (s.tier === 'pro' ? 'PRO ' + this.proLabel() : ((PRINT_TYPES.find(t => t.k === s.ptype) || {}).label || '') + ' ' + s.paper + ((s.nup || 1) > 1 ? ' · ' + s.nup + ' หน้า/แผ่น' : '')) + ')',
       // ค่าปริ้นที่โชว์ลูกค้ารวมค่าบริการกลางคืนแล้ว (เจ้าของสั่ง 2026-09-17: กลางคืนเป็นค่าปริ้นงาน ไม่ใช่ค่าส่ง) — ยอดบันทึกลงฐานข้อมูล (print_cost/night_fee) แยกคอลัมน์เหมือนเดิม
-      printCost: c.printCost + c.nightFee, bindCost: c.bindCost, printTotal: c.printTotal,
+      printCost: c.printCost + c.nightFee, printCostRaw: c.printCost, bindCost: c.bindCost, printTotal: c.printTotal,
+      printTotalAll: c.printTotal + c.nightFee, // ยอดบรรทัด "ทั้งหมด" ของกล่องราคาโดยประมาณ = ปริ้น + เข้าเล่ม + กลางคืน (เดิมโชว์ printTotal ที่ไม่รวมกลางคืน — ขัดกับบรรทัดบน ลูกค้างง)
       deliveryCost: c.deliveryCost, grandTotal: c.grandTotal,
       noteText: s.note, setNote: (e) => this.setState({ note: e.target.value }),
       // ตัวอย่างงานจริง: ป้ายเทา "ตัวอย่างงาน" ท้ายแถวเลือกประเภท (เฉพาะประเภทที่มีรูปจริง) · แตะป้าย = รูปขยายเต็มจอ
@@ -3842,7 +3844,7 @@ class App extends React.Component {
                 {v.colorBreak && <div style={css("font-size:10.5px;color:var(--sub);margin-top:-4px")}>{v.colorBreak}</div>}
                 {v.proNote && <div style={css("font-size:11px;color:#a16207;font-weight:700;line-height:1.5;margin-top:-2px")}>{v.proNote}</div>}
                 <div style={css("display:flex;justify-content:space-between")}><span style={css("color:var(--sub)")}>เข้าเล่ม</span><span style={css("font-family:'IBM Plex Mono',monospace")}>฿{v.bindCost}</span></div>
-                <div style={css("display:flex;justify-content:space-between;border-top:1px dashed var(--line);padding-top:6px;margin-top:2px;font-weight:700")}><span>รวมค่าปริ้น (ยังไม่รวมค่าส่ง)</span><span style={css("font-family:'IBM Plex Mono',monospace;color:var(--acc)")}>฿{v.printTotal}</span></div>
+                <div style={css("display:flex;justify-content:space-between;border-top:1px dashed var(--line);padding-top:6px;margin-top:2px;font-weight:700")}><span>ทั้งหมด (ยังไม่รวมค่าส่ง)</span><span style={css("font-family:'IBM Plex Mono',monospace;color:var(--acc)")}>฿{v.printTotalAll}</span></div>
               </div>
             </div>
             {v.bigUp && (
