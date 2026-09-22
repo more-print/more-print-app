@@ -6,10 +6,16 @@
 <title>MORE PRINT — ค่าคอมงาน PRO</title>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Montserrat:wght@700;800&display=swap" rel="stylesheet">
 <style>
-  body{margin:0;zoom:1.15;background:var(--bg);font-family:'IBM Plex Sans Thai',sans-serif;
+  /* ── ฟอนต์หลัก: Cloud Soft (Typomancer — รุ่นฟรี Light/Bold, EULA อนุญาตเชิงพาณิชย์+@font-face, ไฟล์+สัญญาอยู่ assets/fonts/) — Light รับ 400-500 · Bold รับ 600-800 ── */
+  @font-face{font-family:'Cloud Soft';src:url('assets/fonts/Cloud Soft-Light.ttf') format('truetype');font-weight:400;font-style:normal;font-display:swap}
+  @font-face{font-family:'Cloud Soft';src:url('assets/fonts/Cloud Soft-Light.ttf') format('truetype');font-weight:500;font-style:normal;font-display:swap}
+  @font-face{font-family:'Cloud Soft';src:url('assets/fonts/Cloud Soft-Bold.ttf') format('truetype');font-weight:600;font-style:normal;font-display:swap}
+  @font-face{font-family:'Cloud Soft';src:url('assets/fonts/Cloud Soft-Bold.ttf') format('truetype');font-weight:700;font-style:normal;font-display:swap}
+  @font-face{font-family:'Cloud Soft';src:url('assets/fonts/Cloud Soft-Bold.ttf') format('truetype');font-weight:800;font-style:normal;font-display:swap}
+  body{margin:0;zoom:1.15;background:var(--bg);font-family:'Cloud Soft','IBM Plex Sans Thai',sans-serif;
   --bg:#faf7f0;--card:#ffffff;--ink:#111111;--sub:#93876f;--line:#eee5d4;--soft:#f5efe2;
   --acc:#a16207;--accSoft:#fff3d6;--green:#00b368;--purple:#7048e8;--shadow:0 2px 10px rgba(0,0,0,.06)}
-  input,button{font-family:'IBM Plex Sans Thai',sans-serif}
+  input,button{font-family:'Cloud Soft','IBM Plex Sans Thai',sans-serif}
   table{border-collapse:collapse;width:100%}
   @media print{ .no-print{display:none!important} body{background:#fff} }
   .mp-side{position:fixed;top:0;left:0;bottom:0;width:212px;background:#2b2413;z-index:60;display:flex;flex-direction:column;padding:18px 12px 14px;box-sizing:border-box;transition:transform .22s ease;overflow-y:auto}

@@ -6,13 +6,21 @@
 <title>MORE PRINT — เว็บปริ้นเอกสาร มข.</title>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Montserrat:wght@700;800&display=swap" rel="stylesheet">
 <style>
-  body{margin:0;background:var(--bg);font-family:'IBM Plex Sans Thai',sans-serif;
+  /* ── ฟอนต์หลักทั้งเว็บ: Cloud Soft (Typomancer — รุ่นฟรี Light/Bold, EULA อนุญาตใช้เชิงพาณิชย์+@font-face ชัดเจน, ไฟล์+สัญญาอยู่ assets/fonts/) ──
+     มีแค่ 2 น้ำหนัก: Light รับช่วง 400-500 · Bold รับ 600-800 — แยกบล็อกทีละน้ำหนักกัน browser เก่าไม่รู้จัก weight range
+     ตัวเลขราคายังใช้ IBM Plex Mono และโลโก้ MORE PRINT ใช้ Montserrat เหมือนเดิม */
+  @font-face{font-family:'Cloud Soft';src:url('assets/fonts/Cloud Soft-Light.ttf') format('truetype');font-weight:400;font-style:normal;font-display:swap}
+  @font-face{font-family:'Cloud Soft';src:url('assets/fonts/Cloud Soft-Light.ttf') format('truetype');font-weight:500;font-style:normal;font-display:swap}
+  @font-face{font-family:'Cloud Soft';src:url('assets/fonts/Cloud Soft-Bold.ttf') format('truetype');font-weight:600;font-style:normal;font-display:swap}
+  @font-face{font-family:'Cloud Soft';src:url('assets/fonts/Cloud Soft-Bold.ttf') format('truetype');font-weight:700;font-style:normal;font-display:swap}
+  @font-face{font-family:'Cloud Soft';src:url('assets/fonts/Cloud Soft-Bold.ttf') format('truetype');font-weight:800;font-style:normal;font-display:swap}
+  body{margin:0;background:var(--bg);font-family:'Cloud Soft','IBM Plex Sans Thai',sans-serif;
   --bg:#f4f4f2;--card:#ffffff;--ink:#111111;--sub:#8a8a84;--line:#e4e4e0;--soft:#efefec;
   --acc:#00b368;--accBright:#00d97e;--accSoft:#e6f7ef;--head:#111111;--warnBg:#fff7e0;--warnLine:#f0dfa6;--warnInk:#8a6d1a;--shadow:0 2px 10px rgba(0,0,0,.06)}
   body.night{--bg:#0f0f0d;--card:#1a1a18;--ink:#f2f2ee;--sub:#96968c;--line:#2b2b27;--soft:#232320;
   --acc:#00d97e;--accBright:#00d97e;--accSoft:#123324;--head:#000000;--warnBg:#26200e;--warnLine:#4a3d16;--warnInk:#f0cd6e;--shadow:0 2px 12px rgba(0,0,0,.5)}
   a{color:#00b368}a:hover{color:#008a50}
-  input,button{font-family:'IBM Plex Sans Thai',sans-serif}
+  input,button{font-family:'Cloud Soft','IBM Plex Sans Thai',sans-serif}
   @keyframes mpPulse{0%,100%{opacity:1}50%{opacity:.35}}
   @keyframes mpFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
   @media print{

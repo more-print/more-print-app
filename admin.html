@@ -6,11 +6,17 @@
 <title>MORE PRINT — หลังบ้าน (Owner)</title>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Montserrat:wght@700;800&display=swap" rel="stylesheet">
 <style>
-  body{margin:0;background:var(--bg);font-family:'IBM Plex Sans Thai',sans-serif;
+  /* ── ฟอนต์หลัก: Cloud Soft (Typomancer — รุ่นฟรี Light/Bold, EULA อนุญาตเชิงพาณิชย์+@font-face, ไฟล์+สัญญาอยู่ assets/fonts/) — Light รับ 400-500 · Bold รับ 600-800 ── */
+  @font-face{font-family:'Cloud Soft';src:url('assets/fonts/Cloud Soft-Light.ttf') format('truetype');font-weight:400;font-style:normal;font-display:swap}
+  @font-face{font-family:'Cloud Soft';src:url('assets/fonts/Cloud Soft-Light.ttf') format('truetype');font-weight:500;font-style:normal;font-display:swap}
+  @font-face{font-family:'Cloud Soft';src:url('assets/fonts/Cloud Soft-Bold.ttf') format('truetype');font-weight:600;font-style:normal;font-display:swap}
+  @font-face{font-family:'Cloud Soft';src:url('assets/fonts/Cloud Soft-Bold.ttf') format('truetype');font-weight:700;font-style:normal;font-display:swap}
+  @font-face{font-family:'Cloud Soft';src:url('assets/fonts/Cloud Soft-Bold.ttf') format('truetype');font-weight:800;font-style:normal;font-display:swap}
+  body{margin:0;background:var(--bg);font-family:'Cloud Soft','IBM Plex Sans Thai',sans-serif;
   --bg:#f4f4f2;--card:#ffffff;--ink:#111111;--sub:#8a8a84;--line:#e4e4e0;--soft:#efefec;
   --acc:#00b368;--accBright:#00d97e;--accSoft:#e6f7ef;--head:#111111;--warnBg:#fff7e0;--warnLine:#f0dfa6;--warnInk:#8a6d1a;--shadow:0 2px 10px rgba(0,0,0,.06)}
   a{color:#00b368}a:hover{color:#008a50}
-  input,button,select{font-family:'IBM Plex Sans Thai',sans-serif}
+  input,button,select{font-family:'Cloud Soft','IBM Plex Sans Thai',sans-serif}
   @keyframes mpPulse{0%,100%{opacity:1}50%{opacity:.35}}
   .mp-side{position:fixed;top:0;left:0;bottom:0;width:212px;background:#161612;z-index:60;display:flex;flex-direction:column;padding:18px 12px 14px;box-sizing:border-box;transition:transform .22s ease;overflow-y:auto}
   .mp-scrim{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:55;display:none}
@@ -698,7 +704,7 @@ function OrderCard({ o, idx, onAdvance, onRetreat, onApplyEdits, onCancel, onRem
                 ))}
               </div>
               <textarea value={reason} onChange={e => setReason(e.target.value)} placeholder="หรือพิมพ์เหตุผลเอง / เพิ่มรายละเอียด เช่น โอนขาด 20 บาท" rows={2}
-                style={css("width:100%;box-sizing:border-box;border:1px solid var(--line);border-radius:10px;background:var(--card);color:var(--ink);padding:8px 10px;font-size:12.5px;outline:none;resize:vertical;font-family:'IBM Plex Sans Thai',sans-serif")}></textarea>
+                style={css("width:100%;box-sizing:border-box;border:1px solid var(--line);border-radius:10px;background:var(--card);color:var(--ink);padding:8px 10px;font-size:12.5px;outline:none;resize:vertical;font-family:'Cloud Soft','IBM Plex Sans Thai',sans-serif")}></textarea>
               <div style={css("display:flex;gap:8px")}>
                 <button disabled={busy || !reason.trim()} onClick={() => onCancel(o, reason.trim())}
                   style={{ flex: 1, height: '40px', border: 'none', borderRadius: '10px', background: reason.trim() ? '#c92a2a' : '#e9a1a1', color: '#fff', fontSize: '13px', fontWeight: 700, cursor: 'pointer' }}>
@@ -1441,11 +1447,11 @@ function AdminApp(){
               {rainBusy ? '⏳' : shopRain ? 'ปิดโหมดฝนตก' : 'เปิดโหมดฝนตก'}</button>
           </div>
 
-          {/* บังคับปิดโหมดกลางคืนหน้าเว็บ — ไว้แคปหน้าจอทำสื่อตอนกลางดึก (2026-09-12): ธีมมืด/ป้าย/ค่าบริการกลางคืน +฿10 หายหมด เว็บเหมือนกลางวันปกติ */}
+          {/* บังคับปิดโหมดกลางคืนหน้าเว็บ — ไว้แคปหน้าจอทำสื่อตอนกลางดึก (2026-09-12): ธีมมืด/ป้าย/ค่าบริการกลางคืน (CONFIG.nightFee ของ index) หายหมด เว็บเหมือนกลางวันปกติ */}
           <div style={css("background:" + (shopNightOff ? "#fff7e0" : "var(--card)") + ";border:1.5px solid " + (shopNightOff ? "#f0c36d" : "var(--line)") + ";border-radius:14px;padding:13px 15px;box-shadow:var(--shadow);display:flex;align-items:center;gap:12px")}>
             <div style={css("font-size:20px;flex:none")}>{shopNightOff ? '☀️' : '🌙'}</div>
             <div style={css("flex:1;min-width:0")}>
-              <div style={css("font-size:13.5px;font-weight:800;" + (shopNightOff ? "color:#8a6d1a" : ""))}>โหมดกลางคืนหน้าเว็บ: {shopNightOff ? 'ถูกปิดชั่วคราว — เว็บเป็นกลางวันปกติ' : 'อัตโนมัติ (22:00–06:00 +฿10)'}</div>
+              <div style={css("font-size:13.5px;font-weight:800;" + (shopNightOff ? "color:#8a6d1a" : ""))}>โหมดกลางคืนหน้าเว็บ: {shopNightOff ? 'ถูกปิดชั่วคราว — เว็บเป็นกลางวันปกติ' : 'อัตโนมัติ (22:00–06:00 +฿19)'}</div>
               <div style={css("margin-top:1px;font-size:10.5px;color:var(--sub)")}>{shopNightOff ? 'ตอนนี้ลูกค้าไม่โดนคิดค่าบริการกลางคืนด้วยนะ — แคปจอเสร็จแล้วอย่าลืมกดเปิดคืน' : 'กดปิดชั่วคราวตอนแคปหน้าเว็บทำสื่อกลางดึก — ธีมมืด ป้าย และค่าบริการกลางคืนจะหายหมด เว็บเหมือนช่วงกลางวันเป๊ะ'}</div>
             </div>
             <button onClick={toggleNightOff} disabled={nightBusy}
