@@ -2777,6 +2777,14 @@ class App extends React.Component {
       destLabel: s.addr + (this.handoffLabel() ? ' · ' + this.handoffLabel() : ''),
       // ที่อยู่บนหน้าติดตาม: ใช้ของออเดอร์จริงก่อน (อยู่รอดหลังรีเฟรช + อัปเดตเมื่อร้านเปลี่ยนเป็นจัดส่ง 2026-09-15) — ไม่มีค่อยถอยไปใช้ค่าฟอร์ม
       trackDest: (s.order && s.order.addr) ? s.order.addr : (s.addr + (this.handoffLabel() ? ' · ' + this.handoffLabel() : '')),
+      // มารับเอง: แยกชื่อสถานที่ไปบรรทัด 2 + บรรทัด 3 ลิงก์แมพร้าน (เจ้าของสั่ง 2026-09-22 — ประโยคยาวขึ้นบรรทัดใหม่กลางคำแล้วอ่านขาด)
+      // ⚠️ ห้ามใช้ชื่อ trackPickup — มี key boolean ชื่อนั้นอยู่แล้ว (ประกาศทีหลัง จะทับตัวนี้)
+      trackPickupInfo: (() => {
+        const a = (s.order && s.order.addr) ? String(s.order.addr) : '';
+        if (a.indexOf('รับหน้าร้าน MORE PRINT') >= 0) return { l1: '🏪 รับหน้าร้าน MORE PRINT', l2: '(หอพักบริบูรณ์เพลส)', url: 'https://maps.app.goo.gl/NeVkZbtj6soQpwFx7' };
+        if (a.indexOf('มารับเอง') >= 0 && a.indexOf('อุดมสุข') >= 0) return { l1: '🏪 มารับเอง', l2: '(ร้านอุดมสุขปริ้นติ้ง)', url: 'https://maps.app.goo.gl/SshjXkvaCxvKPugL7' };
+        return null;
+      })(),
       timeLabel: (this.isExpress() ? 'งานด่วน (เร่งผลิต)' : s.time + ' น.'),
       deliveryLabel: this.isExpress() ? '(ด่วน)' : '',
       slipName: s.slip ? s.slip.name : '',
@@ -4304,7 +4312,9 @@ class App extends React.Component {
                       )}
                     </div>
                     <div style={css("background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px;font-size:12.5px;display:flex;flex-direction:column;gap:5px")}>
-                      <div style={css("display:flex;justify-content:space-between")}><span style={css("color:var(--sub)")}>ส่งที่</span><span style={css("text-align:right;max-width:60%")}>{v.trackDest}</span></div>
+                      <div style={css("display:flex;justify-content:space-between")}><span style={css("color:var(--sub)")}>ส่งที่</span>{v.trackPickupInfo
+                        ? <span style={css("text-align:right;max-width:60%;line-height:1.6")}>{v.trackPickupInfo.l1}<br/>{v.trackPickupInfo.l2}<br/><a href={v.trackPickupInfo.url} target="_blank" rel="noreferrer" style={css("color:var(--acc);font-weight:700;text-decoration:underline")}>คลิกเพื่อดูแมพ</a></span>
+                        : <span style={css("text-align:right;max-width:60%")}>{v.trackDest}</span>}</div>
                       {/* ร้านปรับรายการภายหลัง (เพิ่ม/ลด) — โชว์ทีละบรรทัด แล้วยอดรวมด้านล่างเป็นยอดล่าสุด */}
                       {v.orderAdjs.map((a, i) => (
                         <div key={i} style={css("display:flex;justify-content:space-between")}><span style={css("color:var(--sub)")}>🛠️ {a.amt > 0 ? 'เพิ่ม' : 'ลด'} {a.label}</span><span style={css("font-family:'IBM Plex Mono',monospace;font-weight:600;color:" + (a.amt > 0 ? "var(--warnInk)" : "#22c55e"))}>{a.amt > 0 ? '+' : '−'}฿{Math.abs(a.amt)}</span></div>
