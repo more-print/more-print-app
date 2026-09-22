@@ -466,6 +466,7 @@ class App extends React.Component {
       gmapLink: '', gmapBusy: false, pinSrc: '', pinMode: '', mapLocked: false, gpsAcc: null, gpsConfirm: false, geoHelp: '', // '' ยังไม่เลือก · 'link' วางลิงก์ · 'map' ปักหมุดเอง · mapLocked = ล็อกหมุดหลังวางลิงก์
       banners: [],
       statDelivered: 0, // จำนวนออเดอร์ส่งสำเร็จจริงจาก RPC public_stats — 0 = ยังไม่รู้ ซ่อนการ์ดสถิติไว้
+      clipIdx: null, clipMuted: true, // ฟีดคลิปร้านสไตล์ TikTok: index คลิปที่เปิดดูเต็มจอ (null = ปิด) + สถานะปิดเสียง (มือถือบังคับเริ่มแบบเงียบ ไม่งั้น autoplay ไม่ติด)
       order: null, trackStep: 1, cancelReason: '', toast: '', now: new Date(), reupIdx: null, reupBusy: false,
       selfCancelArm: false, selfCancelBusy: false,
       chat: null, chatText: '', chatBusy: false, chatOff: false, // แชทกับร้าน (ตาราง messages)
@@ -2115,6 +2116,38 @@ class App extends React.Component {
     });
   }
 
+  // ── ฟีดคลิปร้านสไตล์ TikTok: คุมเล่น/หยุด/เสียงของวิดีโอทุกตัวใน overlay ผ่าน refs (this.clipVids) ──
+  syncClips(){
+    const idx = this.state.clipIdx;
+    Object.entries(this.clipVids || {}).forEach(([k, el]) => {
+      if (!el) return;
+      el.muted = this.state.clipMuted;
+      if (+k === idx) { try { const p = el.play(); if (p && p.catch) p.catch(() => {}); } catch (e) {} }
+      else { try { el.pause(); } catch (e) {} }
+    });
+  }
+  clipOpen(i){
+    this.clipVids = {};
+    this.setState({ clipIdx: i, clipMuted: true }, () => {
+      const c = this.clipBox;
+      if (c) c.scrollTop = i * c.clientHeight; // เด้งไปคลิปที่แตะทันที ไม่เริ่มจากคลิปแรกเสมอ
+      setTimeout(() => this.syncClips(), 80);
+    });
+  }
+  clipClose(){
+    Object.values(this.clipVids || {}).forEach(el => { try { el && el.pause(); } catch (e) {} });
+    this.clipVids = {};
+    this.setState({ clipIdx: null });
+  }
+  clipOnScroll(e){
+    const c = e.target;
+    clearTimeout(this._clipT);
+    this._clipT = setTimeout(() => {
+      const i = Math.max(0, Math.round(c.scrollTop / Math.max(1, c.clientHeight)));
+      if (i !== this.state.clipIdx) this.setState({ clipIdx: i }, () => this.syncClips());
+    }, 120);
+  }
+
   vals(){
     const s = this.state, c = this.calc(), night = this.isNight();
     const set = (k) => (v) => this.setState({ [k]: v });
@@ -2237,8 +2270,15 @@ class App extends React.Component {
       userFirst: s.user ? s.user.fname : '',
       userPic: (s.user && s.user.picture) || '',
       userInitial: s.user ? ((s.user.fname || '?').trim().charAt(0) || '?') : '',
-      banners: s.banners.filter(b => b.color !== 'showcase'), // แถวรูปงานจริงห้ามโผล่ในสไลด์แบนเนอร์
+      banners: s.banners.filter(b => b.color !== 'showcase' && b.color !== 'clip'), // แถวรูปงานจริง/คลิปห้ามโผล่ในสไลด์แบนเนอร์
       shots: s.banners.filter(b => b.color === 'showcase' && b.image_path), // รูปงานจริงจากร้าน (อัปโหลดในแท็บโปรโมชั่นของ admin)
+      clips: s.banners.filter(b => b.color === 'clip' && b.image_path), // คลิปคอนเทนต์ร้าน (ไฟล์วิดีโอใน storage — อัปโหลดใน admin เหมือนรูปงาน)
+      clipIdx: s.clipIdx, clipMuted: s.clipMuted,
+      clipOpen: (i) => () => this.clipOpen(i),
+      clipClose: () => this.clipClose(),
+      clipMuteToggle: () => this.setState({ clipMuted: !s.clipMuted }, () => this.syncClips()),
+      clipScroll: (e) => this.clipOnScroll(e),
+      clipTap: () => { const el = (this.clipVids || {})[this.state.clipIdx]; if (!el) return; if (el.paused) { try { const p = el.play(); if (p && p.catch) p.catch(() => {}); } catch (e) {} } else { try { el.pause(); } catch (e) {} } }, // แตะวิดีโอ = หยุด/เล่น เหมือน TikTok
       statDelivered: s.statDelivered,
       isHome: s.screen === 'home', isOrder: s.screen === 'order', isDelivery: s.screen === 'delivery', isReview: s.screen === 'review', isPay: s.screen === 'pay', isTrack: s.screen === 'track', isAbout: s.screen === 'about', isChat: s.screen === 'chat', isProfile: s.screen === 'profile', isHistory: s.screen === 'history',
       showBack: s.screen === 'order' || s.screen === 'delivery' || s.screen === 'review' || s.screen === 'pay' || s.screen === 'chat' || s.screen === 'profile',
@@ -3391,6 +3431,22 @@ class App extends React.Component {
                     <div key={b.id || i} style={css("flex:none;width:132px;aspect-ratio:4/5;border-radius:14px;overflow:hidden;position:relative;scroll-snap-align:start;box-shadow:var(--shadow);background:var(--soft)")}>
                       <img src={FILE_BASE + b.image_path} alt={b.title || 'งานจริงจากร้าน'} loading="lazy" style={css("position:absolute;inset:0;width:100%;height:100%;object-fit:cover")}/>
                       {b.title && <div style={css("position:absolute;left:0;right:0;bottom:0;padding:22px 9px 8px;background:linear-gradient(transparent,rgba(0,0,0,.72));color:#fff;font-size:10.5px;font-weight:600;line-height:1.4")}>{b.title}</div>}
+                    </div>
+                  ))}
+                </div>
+              </React.Fragment>
+            )}
+            {/* ── คลิปจากร้าน (สไตล์ TikTok มินิ): แถว banners ที่ color='clip' — แตะการ์ดเปิดดูเต็มจอ ปัดขึ้น-ลงเปลี่ยนคลิป ── */}
+            {v.clips.length > 0 && (
+              <React.Fragment>
+                <div style={css("padding:16px 20px 0;font-size:13px;font-weight:700;display:flex;align-items:center;gap:6px")}><span style={css("font-size:14px")}>🎬</span>คลิปจากร้าน</div>
+                <div style={css("padding:2px 20px 0;font-size:11px;color:var(--sub)")}>แตะเพื่อดูเต็มจอ · ปัดขึ้นดูคลิปถัดไป</div>
+                <div style={css("margin-top:10px;display:flex;gap:10px;overflow-x:auto;padding:0 20px 6px;scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch")}>
+                  {v.clips.map((b, i) => (
+                    <div key={b.id || i} onClick={v.clipOpen(i)} style={css("flex:none;width:118px;aspect-ratio:9/16;border-radius:14px;overflow:hidden;position:relative;scroll-snap-align:start;box-shadow:var(--shadow);background:#000;cursor:pointer")}>
+                      <video src={FILE_BASE + b.image_path + '#t=0.1'} preload="metadata" muted playsInline style={css("position:absolute;inset:0;width:100%;height:100%;object-fit:cover")}/>
+                      <div style={css("position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:38px;height:38px;border-radius:50%;background:rgba(0,0,0,.45);color:#fff;display:flex;align-items:center;justify-content:center;font-size:15px;padding-left:3px;box-sizing:border-box")}>▶</div>
+                      {b.title && <div style={css("position:absolute;left:0;right:0;bottom:0;padding:20px 8px 7px;background:linear-gradient(transparent,rgba(0,0,0,.75));color:#fff;font-size:10px;font-weight:600;line-height:1.4")}>{b.title}</div>}
                     </div>
                   ))}
                 </div>
@@ -4691,6 +4747,25 @@ class App extends React.Component {
               <button onClick={v.revAskSend} style={css("margin-top:10px;width:100%;height:46px;border:none;border-radius:12px;background:var(--acc);color:#fff;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit")}>ส่งรีวิว 💚</button>
               <div onClick={v.revAskClose} style={css("margin-top:8px;text-align:center;font-size:12px;color:var(--sub);font-weight:600;cursor:pointer;padding:6px")}>ไว้ทีหลัง</div>
             </div>
+          </div>
+        )}
+        {/* ── ฟีดคลิปเต็มจอสไตล์ TikTok: ปัดขึ้น-ลงเปลี่ยนคลิป (scroll-snap) · แตะวิดีโอ = หยุด/เล่น · เริ่มแบบปิดเสียงเสมอ (มือถือไม่ยอม autoplay แบบมีเสียง) ── */}
+        {v.clipIdx !== null && v.clips.length > 0 && (
+          <div style={css("position:fixed;inset:0;background:#000;z-index:1300")}>
+            <div ref={el => { this.clipBox = el; }} onScroll={v.clipScroll} style={css("height:100%;overflow-y:auto;scroll-snap-type:y mandatory;-webkit-overflow-scrolling:touch")}>
+              {v.clips.map((b, i) => (
+                <div key={b.id || i} style={css("height:100%;scroll-snap-align:start;scroll-snap-stop:always;position:relative;display:flex;align-items:center;justify-content:center")}>
+                  <video ref={el => { this.clipVids = this.clipVids || {}; this.clipVids[i] = el; }} src={FILE_BASE + b.image_path} loop playsInline muted onClick={v.clipTap} style={css("width:100%;height:100%;object-fit:contain;display:block")}/>
+                  <div style={css("position:absolute;left:0;right:0;bottom:0;padding:46px 16px 26px;background:linear-gradient(transparent,rgba(0,0,0,.72));color:#fff;pointer-events:none")}>
+                    <div style={css("font-size:13px;font-weight:800")}>MORE PRINT <span style={css("color:#00d97e")}>✔</span></div>
+                    {b.title && <div style={css("margin-top:4px;font-size:12.5px;line-height:1.5")}>{b.title}</div>}
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div onClick={v.clipClose} style={css("position:absolute;top:16px;right:16px;width:40px;height:40px;border-radius:50%;background:rgba(255,255,255,.16);color:#fff;display:flex;align-items:center;justify-content:center;font-size:17px;cursor:pointer")}>✕</div>
+            <div style={css("position:absolute;top:24px;left:16px;color:#fff;font-size:12px;font-weight:700;background:rgba(255,255,255,.16);border-radius:99px;padding:6px 13px")}>{(v.clipIdx + 1)} / {v.clips.length}</div>
+            <div onClick={v.clipMuteToggle} style={css("position:absolute;bottom:26px;right:16px;color:#fff;font-size:12px;font-weight:700;background:rgba(255,255,255,.2);border-radius:99px;padding:9px 15px;cursor:pointer")}>{v.clipMuted ? '🔇 แตะเปิดเสียง' : '🔊'}</div>
           </div>
         )}
         {v.toast && (

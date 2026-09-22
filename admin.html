@@ -997,7 +997,7 @@ function AdminApp(){
   };
 
   // ── รูปงานจริงหน้าเว็บ (2026-09-22): แถวในตาราง banners ที่ color='showcase' — หน้าเว็บลูกค้าแยกไปโชว์เป็นแถบรูปใต้ปุ่มเริ่มสั่ง ไม่ปนกับสไลด์แบนเนอร์ ──
-  const bnOnly = banners.filter(b => b.color !== 'showcase'); // แบนเนอร์จริง (ลิสต์ล่างห้ามโชว์แถวรูปงาน)
+  const bnOnly = banners.filter(b => b.color !== 'showcase' && b.color !== 'clip'); // แบนเนอร์จริง (ลิสต์ล่างห้ามโชว์แถวรูปงาน/คลิป)
   const shots = banners.filter(b => b.color === 'showcase');
   const [shFile, setShFile] = React.useState(null);
   const [shCap, setShCap] = React.useState('');
@@ -1024,6 +1024,37 @@ function AdminApp(){
     if (shDelId !== b.id) { setShDelId(b.id); return; }
     setShDelId(null);
     await delBanner(b); // ลบทั้งแถวและไฟล์รูปใน storage (ใช้ตัวเดียวกับแบนเนอร์)
+  };
+
+  // ── คลิปคอนเทนต์ร้าน (2026-09-22): แถว banners ที่ color='clip', image_path = ไฟล์วิดีโอใน storage — หน้าเว็บลูกค้าโชว์เป็นฟีดสไตล์ TikTok ──
+  const CLIP_MAX_MB = 30; // กันกินโควตา storage/แบนด์วิดท์ของ Supabase ฟรี — คลิปควรสั้น 15-60 วิ บีบอัดมาก่อน
+  const clips = banners.filter(b => b.color === 'clip');
+  const [clFile, setClFile] = React.useState(null);
+  const [clCap, setClCap] = React.useState('');
+  const [clBusy, setClBusy] = React.useState(false);
+  const [clDelId, setClDelId] = React.useState(null);
+  const clPreview = React.useMemo(() => clFile ? URL.createObjectURL(clFile) : null, [clFile]);
+  const addClip = async () => {
+    if (!clFile) return;
+    if (clFile.size > CLIP_MAX_MB * 1024 * 1024) return alert('ไฟล์คลิปใหญ่เกิน ' + CLIP_MAX_MB + 'MB ครับ — แนะนำคลิปสั้น 15-60 วินาที ความละเอียด 720p (ตอน export จากแอปตัดต่อเลือก 720p ไฟล์จะเล็กลงมาก)');
+    setClBusy(true);
+    if (DB) {
+      const safe = clFile.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+      const image_path = 'banners/clip_' + Date.now() + '_' + safe; // โฟลเดอร์เดียวกับแบนเนอร์ — สิทธิ์ storage เดิม
+      const { error } = await DB.storage.from('uploads').upload(image_path, clFile);
+      if (error) { setClBusy(false); return alert('อัปโหลดคลิปไม่สำเร็จ ลองอีกครั้งครับ: ' + error.message); }
+      const { error: ie } = await DB.from('banners').insert({ title: clCap.trim(), subtitle: '', emoji: '🎬', color: 'clip', image_path });
+      if (ie) { setClBusy(false); return alert('บันทึกคลิปไม่สำเร็จ ลองอีกครั้งครับ: ' + ie.message); }
+      await loadBanners();
+    } else {
+      setBanners(l => [{ id: Date.now(), title: clCap.trim(), emoji: '🎬', color: 'clip', image_path: clPreview, active: true }, ...l]);
+    }
+    setClFile(null); setClCap(''); setClBusy(false);
+  };
+  const delClip = async (b) => {
+    if (clDelId !== b.id) { setClDelId(b.id); return; }
+    setClDelId(null);
+    await delBanner(b);
   };
 
   // ── ประกาศแจ้งปัญหา/งานล่าช้า (แบนเนอร์ชนิด alert: ลูกค้าเจอป๊อปอัพเตือนก่อนสั่ง + แถบแดงบนเว็บ) ──
@@ -1994,6 +2025,33 @@ function AdminApp(){
                   ))}
                 </div>
               : <div style={css("font-size:12px;color:var(--sub)")}>ยังไม่มีรูปงาน — เพิ่มรูปแรกเลยครับ</div>}
+          </div>
+
+          {/* ── คลิปคอนเทนต์ร้าน: อัปโหลดแล้วขึ้นแถบ "🎬 คลิปจากร้าน" หน้าแรกลูกค้า — กดดูเต็มจอปัดขึ้นลงแบบ TikTok ── */}
+          <div style={css("background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px;box-shadow:var(--shadow);display:flex;flex-direction:column;gap:10px;margin-top:8px")}>
+            <div style={css("font-size:13px;font-weight:700")}>🎬 คลิปจากร้าน (ฟีดสไตล์ TikTok บนหน้าแรกลูกค้า)</div>
+            <div style={css("font-size:11px;color:var(--sub);line-height:1.6")}>อัปโหลดคลิปโฆษณา/คอนเทนต์ของร้าน ลูกค้าแตะดูเต็มจอ ปัดขึ้น-ลงเปลี่ยนคลิปได้เหมือน TikTok · <b>คลิปแนวตั้ง 15-60 วิ ไฟล์ MP4 ไม่เกิน {CLIP_MAX_MB}MB</b> (export 720p จากแอปตัดต่อ ไฟล์จะเล็กพอ) · เอาคลิปที่ลงติ๊กต่อกอยู่แล้วมาลงซ้ำได้เลย</div>
+            <input type="file" accept="video/mp4,video/quicktime,video/webm" onChange={e => setClFile((e.target.files || [])[0] || null)} style={css("font-size:12px;width:100%")}/>
+            {clFile && <div style={css("font-size:11px;color:" + (clFile.size > CLIP_MAX_MB * 1024 * 1024 ? "#c92a2a" : "var(--acc)") + ";font-weight:600")}>{clFile.size > CLIP_MAX_MB * 1024 * 1024 ? '✕' : '✓'} {clFile.name} — {(clFile.size / 1024 / 1024).toFixed(1)}MB{clFile.size > CLIP_MAX_MB * 1024 * 1024 ? ' (ใหญ่เกิน ' + CLIP_MAX_MB + 'MB)' : ''}</div>}
+            {clPreview && (
+              <video src={clPreview} controls playsInline style={css("width:150px;aspect-ratio:9/16;border-radius:14px;background:#000;object-fit:contain")}/>
+            )}
+            <input value={clCap} onChange={e => setClCap(e.target.value)} maxLength={80} placeholder="คำบรรยายใต้คลิป เช่น ปริ้นด่วนส่งไวใน 45 นาที (ไม่บังคับ)" style={css("width:100%;box-sizing:border-box;height:40px;border:1px solid var(--line);border-radius:10px;background:var(--soft);color:var(--ink);padding:0 12px;font-size:13px;outline:none;font-family:inherit")}/>
+            <button onClick={addClip} disabled={clBusy || !clFile}
+              style={{ height: '44px', border: 'none', borderRadius: '12px', background: clFile ? 'var(--acc)' : '#9fd8bd', color: '#fff', fontSize: '14px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+              {clBusy ? 'กำลังอัปโหลดคลิป… (ไฟล์วิดีโอใช้เวลาหน่อยครับ)' : '＋ เพิ่มคลิป'}
+            </button>
+            {clips.length > 0
+              ? <div style={css("display:flex;gap:10px;overflow-x:auto;padding-bottom:4px;-webkit-overflow-scrolling:touch")}>
+                  {clips.map(b => (
+                    <div key={b.id} style={css("flex:none;width:118px;aspect-ratio:9/16;border-radius:14px;overflow:hidden;position:relative;background:#000")}>
+                      <video src={(fileUrl(b.image_path) || b.image_path) + '#t=0.1'} preload="metadata" muted playsInline style={css("position:absolute;inset:0;width:100%;height:100%;object-fit:cover")}/>
+                      {b.title && <div style={css("position:absolute;left:0;right:0;bottom:0;padding:20px 8px 7px;background:linear-gradient(transparent,rgba(0,0,0,.75));color:#fff;font-size:10px;font-weight:600;line-height:1.4")}>{b.title}</div>}
+                      <span onClick={() => delClip(b)} style={css("position:absolute;top:6px;right:6px;font-size:10.5px;font-weight:800;cursor:pointer;border-radius:99px;padding:4px 10px;" + (clDelId === b.id ? "background:#c92a2a;color:#fff" : "background:rgba(0,0,0,.55);color:#ffa8a8"))}>{clDelId === b.id ? 'ยืนยันลบ?' : 'ลบ'}</span>
+                    </div>
+                  ))}
+                </div>
+              : <div style={css("font-size:12px;color:var(--sub)")}>ยังไม่มีคลิป — เพิ่มคลิปแรกเลยครับ</div>}
           </div>
 
           <div style={css("font-size:12px;font-weight:700;color:var(--sub);margin-top:8px")}>{FI.star(12)} รีวิวจากลูกค้า ({reviews.length})</div>
