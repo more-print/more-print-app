@@ -259,7 +259,7 @@ const PRO_TYPES = [
   { k: 'blueprint', icon: '📐', label: 'ปริ้นสีขาวดำขนาดใหญ่ (แบบแปลน,เอกสาร)', sizes: ['A3', 'A2', 'A1'] } // ชื่อใหม่ตามเจ้าของ 2026-09-11 · กระดาษ 80 แกรมทุกขนาด (คำกำกับอยู่ที่ปุ่มขนาด)
 ];
 const PRO_BINDS = ['ไสกาว', 'ปกแข็ง', 'สันห่วงพลาสติก', 'ขาตะเกียบ', 'เย็บมุงหลังคา', 'ห่วงเกลียว', 'ห่วงคู่', 'เย็บเล่ม', 'เทปปิด', 'สันกาวปกแข็ง'];
-// เข้าเล่มงาน Standard 3 แบบ +฿20/ชุด (นโยบาย 2026-09-08): เลือกได้เฉพาะ 09:00-21:59 (svcHoursOpen) นอกช่วง = ซ่อนตัวเลือก
+// เข้าเล่มงาน Standard 3 แบบ +฿20/ชุด (นโยบาย 2026-09-08): เลือกได้เฉพาะ 09:00-21:29 (bindHoursOpen — เจ้าของขยับปิดจาก 22:00 เป็น 21:30 เมื่อ 2026-09-22) นอกช่วง = ซ่อนตัวเลือก
 // key บันทึกลงคอลัมน์ orders.bind ตรง ๆ — เพิ่ม/แก้ต้องแก้ป้ายใน admin.html (optionsLabel + CSV) คู่กันเสมอ
 const STD_BINDS = [
   { k: 'coil', ic: 'bindCoil', name: 'เข้าเล่มสันห่วงกระดูกงู / สันเกลียว', sub: 'เจาะรูใส่สันห่วงพลาสติก เปิดกางได้สุด', price: 20 },
@@ -1152,10 +1152,16 @@ class App extends React.Component {
     return CONFIG.expressEnabled !== false && !!s.express && s.tier !== 'pro' && !s.stdPickup && !!s.mapLocked && this.svcHoursOpen();
   }
 
-  // ช่วงเวลาเปิดรับบริการเสริม 09:00–21:59 (นโยบาย 2026-09-08) — ใช้ร่วมทั้งงานด่วน (Express) และเข้าเล่มแบบเสียเงิน: นอกช่วงนี้ซ่อน UI และไม่คิดค่าธรรมเนียม
+  // ช่วงเวลาเปิดรับบริการเสริม 09:00–21:59 (นโยบาย 2026-09-08) — งานด่วน (Express): นอกช่วงนี้ซ่อน UI และไม่คิดค่าธรรมเนียม
   svcHoursOpen(){
     const h = new Date().getHours();
     return h >= 9 && h < 22;
+  }
+
+  // เข้าเล่มแบบเสียเงินปิดเร็วกว่า: 09:00–21:29 (เจ้าของขยับจาก 22:00 เป็น 21:30 — 2026-09-22) · Express ยังใช้ svcHoursOpen ถึง 22:00 เหมือนเดิม
+  bindHoursOpen(){
+    const d = new Date(), m = d.getHours() * 60 + d.getMinutes();
+    return m >= 9 * 60 && m < 21 * 60 + 30;
   }
 
   // นาทีที่งานด่วนเสร็จไวกว่าปกติ ตามจำนวนหน้ารวมทั้งงาน (เกณฑ์เจ้าของ 2026-09-08): 1–150 หน้า = 15 · 151–300 = 30 · 301 ขึ้นไป = 45 (เพดาน)
@@ -2541,8 +2547,8 @@ class App extends React.Component {
       // เข้าเล่มทำได้เฉพาะช่วงเช้า — งดรับ 22:00-08:00 (นโยบายเจ้าของ 2026-08-24)
       noBindNow: (() => { const h = s.now.getHours(); return h >= 22 || h < 8; })(),
       // เย็บมุมกับเข้าเล่มแยกคนละช่อง (2026-09-08 เจ้าของสั่ง — รวมช่องเดียวลูกค้างง) แต่ยังเป็นค่าเดียวในคอลัมน์ bind: เลือกอย่างใดอย่างหนึ่ง เลือกเข้าเล่มแล้วเย็บมุมดับเอง (และกลับกัน)
-      // ช่องเข้าเล่ม (STD_BINDS ฿20/ชุด) โชว์เฉพาะ 09:00-22:00 นอกช่วงซ่อนทั้งช่อง (ค้างเลือกไว้ toPay บล็อก + เลือกเย็บมุม/ไม่เย็บมุมทับได้เสมอ ไม่มีทางค้าง) — ปุ่มเข้าเล่ม ฿40 เดิม (bindBookOn) ถูกแทนที่แล้ว
-      bindOpen: this.svcHoursOpen(),
+      // ช่องเข้าเล่ม (STD_BINDS ฿20/ชุด) โชว์เฉพาะ 09:00-21:30 นอกช่วงซ่อนทั้งช่อง (ค้างเลือกไว้ toPay บล็อก + เลือกเย็บมุม/ไม่เย็บมุมทับได้เสมอ ไม่มีทางค้าง) — ปุ่มเข้าเล่ม ฿40 เดิม (bindBookOn) ถูกแทนที่แล้ว
+      bindOpen: this.bindHoursOpen(),
       cornerOpts: [
         { k: 'none', ic: 'slash', name: 'ไม่เย็บมุม', sub: 'รับงานเป็นแผ่น ไม่เย็บ · ฟรี', price: 0, on: s.bind !== 'corner' && !STD_BINDS.some(b => b.k === s.bind), pick: () => this.setState({ bind: 'none' }) },
         { k: 'corner', ic: 'paperclip', name: 'เย็บมุม', sub: 'เย็บลวดที่มุมซ้ายบน · ฟรี', price: 0, on: s.bind === 'corner', pick: () => this.setState({ bind: 'corner' }) }
@@ -2712,7 +2718,7 @@ class App extends React.Component {
       toPay: () => {
         if (s.tier !== 'pro' && s.bind === 'book') { const h = s.now.getHours(); if (h >= 22 || h < 8) return this.showToast('บริการเข้าเล่มรับเฉพาะ 08:00–22:00 น. ครับ 🙏 กลับไปเปลี่ยนเป็นเย็บมุม (ฟรี) หรือไม่เข้าเล่มก่อนนะครับ'); }
         // เข้าเล่ม 3 แบบใหม่: ลูกค้าเลือกค้างไว้ก่อน 22:00 แล้วมากดจ่ายทีหลัง — บล็อกให้กลับไปเปลี่ยน (ช่องเย็บมุมยังโชว์อยู่เสมอ กดทับแล้วค่าเข้าเล่มหลุดเอง)
-        if (s.tier !== 'pro' && STD_BINDS.some(b => b.k === s.bind) && !this.svcHoursOpen()) return this.showToast('บริการเข้าเล่มรับเฉพาะ 09:00–22:00 น. ครับ 🙏 กลับไปเลือกเย็บมุมหรือไม่เย็บมุม (ฟรี) แทนก่อนนะครับ');
+        if (s.tier !== 'pro' && STD_BINDS.some(b => b.k === s.bind) && !this.bindHoursOpen()) return this.showToast('บริการเข้าเล่มรับเฉพาะ 09:00–21:30 น. ครับ 🙏 กลับไปเลือกเย็บมุมหรือไม่เย็บมุม (ฟรี) แทนก่อนนะครับ');
         if (!c.proPickupOn) { // มารับเองไม่ต้องปักหมุด/กรอกที่อยู่
           if (s.lat == null) return this.showToast('ปักหมุดตำแหน่งส่งบนแผนที่ก่อนนะครับ 📍');
           if (c.deliveryPending) return this.showToast('กำลังวัดระยะทางจากร้าน รอสักครู่นะครับ ⏳ (ค่าส่งจะอัปเดตเอง)');
@@ -3797,7 +3803,7 @@ class App extends React.Component {
               {v.showSides && <div style={css("display:flex;flex-direction:column;gap:6px")}><div style={css("font-size:12px;font-weight:600;color:var(--ink)")}>ด้านที่พิมพ์</div><div style={css("display:flex;gap:8px")}>{v.sidesOpts.map((o, i) => <button key={i} onClick={o.pick} style={o.st}>{o.label}</button>)}</div></div>}
               {v.showSides && <div style={css("display:flex;flex-direction:column;gap:6px")}><div style={css("font-size:12px;font-weight:600;color:var(--ink)")}>ทิศทางกระดาษ</div><div style={css("display:flex;gap:8px")}>{v.orientOpts.map((o, i) => <button key={i} onClick={o.pick} style={o.st}>{o.label}</button>)}</div></div>}
               {v.showSides && <div style={css("display:flex;flex-direction:column;gap:6px")}><div style={css("font-size:12px;font-weight:600;color:var(--ink)")}>การกำหนดหน้า</div><div style={css("display:flex;gap:8px;flex-wrap:wrap")}>{v.nupOpts.map((o, i) => <button key={i} onClick={o.pick} style={{...o.st, flex:'1 1 40%'}}>{o.label}</button>)}</div></div>}
-              {v.showBind && [['การเย็บมุม', v.cornerOpts], ...(v.bindOpen ? [['การเข้าเล่ม (+฿20/ชุด · รับ 09:00–22:00 น.)', v.bookOpts]] : [])].map(([head, opts]) => (
+              {v.showBind && [['การเย็บมุม', v.cornerOpts], ...(v.bindOpen ? [['การเข้าเล่ม (+฿20/ชุด · รับ 09:00–21:30 น.)', v.bookOpts]] : [])].map(([head, opts]) => (
                 <div key={head} style={css("display:flex;flex-direction:column;gap:6px")}>
                   <div style={css("font-size:12px;font-weight:600;color:var(--ink)")}>{head}</div>
                   <div style={css("display:flex;flex-direction:column;gap:8px")}>
@@ -3814,7 +3820,7 @@ class App extends React.Component {
                   </div>
                 </div>
               ))}
-              {v.showBind && !v.bindOpen && <div style={css("font-size:11px;color:var(--sub);line-height:1.5")}><span style={css("display:inline-flex;vertical-align:-2px;margin-right:5px")}>{fi('clock', 12)}</span>บริการเข้าเล่ม (+฿20/ชุด) เปิดรับเฉพาะ 09:00–22:00 น. ครับ</div>}
+              {v.showBind && !v.bindOpen && <div style={css("font-size:11px;color:var(--sub);line-height:1.5")}><span style={css("display:inline-flex;vertical-align:-2px;margin-right:5px")}>{fi('clock', 12)}</span>บริการเข้าเล่ม (+฿20/ชุด) เปิดรับเฉพาะ 09:00–21:30 น. ครับ</div>}
               {/* สติ๊กเกอร์ไม่มีจำนวนชุด — ลูกค้ากำหนดขนาด+จำนวนชิ้นรายไฟล์เองอยู่แล้ว (เจ้าของสั่ง 2026-09-11, copies ถูกล็อก 1 ตอนเลือกประเภท) */}
               {!v.stkOn && <div style={css("display:flex;justify-content:space-between;align-items:center")}><div style={css("font-size:12px;font-weight:600;color:var(--ink)")}>จำนวนชุด (สำเนา)</div>
                 <div style={css("display:flex;align-items:center;gap:10px")}>
