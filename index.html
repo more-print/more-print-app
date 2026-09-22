@@ -2117,12 +2117,13 @@ class App extends React.Component {
   }
 
   // ── ฟีดคลิปร้านสไตล์ TikTok: คุมเล่น/หยุด/เสียงของวิดีโอทุกตัวใน overlay ผ่าน refs (this.clipVids) ──
-  syncClips(){
+  // restart = true ให้คลิปที่กำลังโชว์เริ่มใหม่ตั้งแต่ต้น (ตอนเปิดเต็มจอ/ปัดเปลี่ยนคลิป) — แต่แตะหยุด-เล่นต่อ กับปุ่มเสียง ห้ามรีเซ็ต
+  syncClips(restart){
     const idx = this.state.clipIdx;
     Object.entries(this.clipVids || {}).forEach(([k, el]) => {
       if (!el) return;
       el.muted = this.state.clipMuted;
-      if (+k === idx) { try { const p = el.play(); if (p && p.catch) p.catch(() => {}); } catch (e) {} }
+      if (+k === idx) { try { if (restart) el.currentTime = 0; const p = el.play(); if (p && p.catch) p.catch(() => {}); } catch (e) {} }
       else { try { el.pause(); } catch (e) {} }
     });
   }
@@ -2131,7 +2132,7 @@ class App extends React.Component {
     this.setState({ clipIdx: i, clipMuted: true }, () => {
       const c = this.clipBox;
       if (c) c.scrollTop = i * c.clientHeight; // เด้งไปคลิปที่แตะทันที ไม่เริ่มจากคลิปแรกเสมอ
-      setTimeout(() => this.syncClips(), 80);
+      setTimeout(() => this.syncClips(true), 80);
     });
   }
   clipClose(){
@@ -2144,7 +2145,7 @@ class App extends React.Component {
     clearTimeout(this._clipT);
     this._clipT = setTimeout(() => {
       const i = Math.max(0, Math.round(c.scrollTop / Math.max(1, c.clientHeight)));
-      if (i !== this.state.clipIdx) this.setState({ clipIdx: i }, () => this.syncClips());
+      if (i !== this.state.clipIdx) this.setState({ clipIdx: i }, () => this.syncClips(true)); // ปัดมาคลิปไหน คลิปนั้นเริ่มใหม่ตั้งแต่ต้นเหมือน TikTok
     }, 120);
   }
 
@@ -3392,6 +3393,24 @@ class App extends React.Component {
                 ))}
               </div>
             )}
+            {/* ── คลิปจากร้าน (สไตล์ TikTok มินิ): อยู่ใต้แบนเนอร์ ก่อนหัวข้อใหญ่ (เจ้าของสั่งย้าย 2026-09-22) — การ์ดเล่นเองแบบไม่มีเสียงทุกใบเหมือนวิดีโอพื้นหลัง แตะแล้วเปิดเต็มจอเริ่มเล่นใหม่ตั้งแต่ต้น ── */}
+            {v.clips.length > 0 && (
+              <React.Fragment>
+                <div style={css("padding:16px 20px 0;font-size:13px;font-weight:700;display:flex;align-items:center;gap:6px")}><span style={css("font-size:14px")}>🎬</span>คลิปจากร้าน</div>
+                <div style={css("padding:2px 20px 0;font-size:11px;color:var(--sub)")}>แตะเพื่อดูเต็มจอ · ปัดขึ้นดูคลิปถัดไป</div>
+                <div style={css("margin-top:10px;display:flex;gap:10px;overflow-x:auto;padding:0 20px 6px;scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch")}>
+                  {v.clips.map((b, i) => (
+                    <div key={b.id || i} onClick={v.clipOpen(i)} style={css("flex:none;width:118px;aspect-ratio:9/16;border-radius:14px;overflow:hidden;position:relative;scroll-snap-align:start;box-shadow:var(--shadow);background:#000;cursor:pointer")}>
+                      <video src={FILE_BASE + b.image_path} autoPlay loop muted playsInline preload="metadata"
+                        ref={el => { if (el) { el.muted = true; try { const p = el.play(); if (p && p.catch) p.catch(() => {}); } catch (e) {} } }}
+                        onCanPlay={e => { const el = e.target; if (el.paused) { el.muted = true; try { const p = el.play(); if (p && p.catch) p.catch(() => {}); } catch (err) {} } }} // เล่นตอน mount อาจแพ้จังหวะโหลด (AbortError) — สั่งซ้ำเมื่อวิดีโอพร้อมจริง
+                        style={css("position:absolute;inset:0;width:100%;height:100%;object-fit:cover;pointer-events:none")}/>
+                      {b.title && <div style={css("position:absolute;left:0;right:0;bottom:0;padding:20px 8px 7px;background:linear-gradient(transparent,rgba(0,0,0,.75));color:#fff;font-size:10px;font-weight:600;line-height:1.4")}>{b.title}</div>}
+                    </div>
+                  ))}
+                </div>
+              </React.Fragment>
+            )}
             <div style={css("padding:20px 20px 0")}>
               <div style={css("font-size:23px;font-weight:700;line-height:1.35;text-wrap:pretty")}>ส่งไฟล์ตอนนี้<br/>เอกสารถึงมือ ทุกที่รอบ มข.</div>
               <div style={css("margin-top:6px;font-size:12px;color:var(--sub)")}>ปริ้นขาวดำ 1 บาท · ปริ้นสี 5 บาท · ส่งเริ่มต้น {v.deliveryBase} บาท</div>
@@ -3431,22 +3450,6 @@ class App extends React.Component {
                     <div key={b.id || i} style={css("flex:none;width:132px;aspect-ratio:4/5;border-radius:14px;overflow:hidden;position:relative;scroll-snap-align:start;box-shadow:var(--shadow);background:var(--soft)")}>
                       <img src={FILE_BASE + b.image_path} alt={b.title || 'งานจริงจากร้าน'} loading="lazy" style={css("position:absolute;inset:0;width:100%;height:100%;object-fit:cover")}/>
                       {b.title && <div style={css("position:absolute;left:0;right:0;bottom:0;padding:22px 9px 8px;background:linear-gradient(transparent,rgba(0,0,0,.72));color:#fff;font-size:10.5px;font-weight:600;line-height:1.4")}>{b.title}</div>}
-                    </div>
-                  ))}
-                </div>
-              </React.Fragment>
-            )}
-            {/* ── คลิปจากร้าน (สไตล์ TikTok มินิ): แถว banners ที่ color='clip' — แตะการ์ดเปิดดูเต็มจอ ปัดขึ้น-ลงเปลี่ยนคลิป ── */}
-            {v.clips.length > 0 && (
-              <React.Fragment>
-                <div style={css("padding:16px 20px 0;font-size:13px;font-weight:700;display:flex;align-items:center;gap:6px")}><span style={css("font-size:14px")}>🎬</span>คลิปจากร้าน</div>
-                <div style={css("padding:2px 20px 0;font-size:11px;color:var(--sub)")}>แตะเพื่อดูเต็มจอ · ปัดขึ้นดูคลิปถัดไป</div>
-                <div style={css("margin-top:10px;display:flex;gap:10px;overflow-x:auto;padding:0 20px 6px;scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch")}>
-                  {v.clips.map((b, i) => (
-                    <div key={b.id || i} onClick={v.clipOpen(i)} style={css("flex:none;width:118px;aspect-ratio:9/16;border-radius:14px;overflow:hidden;position:relative;scroll-snap-align:start;box-shadow:var(--shadow);background:#000;cursor:pointer")}>
-                      <video src={FILE_BASE + b.image_path + '#t=0.1'} preload="metadata" muted playsInline style={css("position:absolute;inset:0;width:100%;height:100%;object-fit:cover")}/>
-                      <div style={css("position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:38px;height:38px;border-radius:50%;background:rgba(0,0,0,.45);color:#fff;display:flex;align-items:center;justify-content:center;font-size:15px;padding-left:3px;box-sizing:border-box")}>▶</div>
-                      {b.title && <div style={css("position:absolute;left:0;right:0;bottom:0;padding:20px 8px 7px;background:linear-gradient(transparent,rgba(0,0,0,.75));color:#fff;font-size:10px;font-weight:600;line-height:1.4")}>{b.title}</div>}
                     </div>
                   ))}
                 </div>
