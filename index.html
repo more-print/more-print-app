@@ -424,7 +424,7 @@ function BillPrint({ v }){
         <div key={i} style={css("display:flex;justify-content:space-between;gap:10px")}>
           <span style={css("flex:1;min-width:0;color:var(--sub)")}>
             <span style={css("display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap")}>{l.name}</span>
-            <span style={css("display:block;font-size:10.5px;opacity:.85")}>{l.desc}</span>
+            <span style={css("display:block;font-size:11.5px;opacity:.85")}>{l.desc}</span>
           </span>
           <span style={css("font-family:'IBM Plex Mono',monospace;flex:none")}>฿{l.amt}</span>
         </div>
@@ -2429,9 +2429,9 @@ class App extends React.Component {
         const p = s.proType === 'blueprint' ? BLUEPRINT_PRICE[sz] : s.proType === 'plate' ? PLATE_SHEET[sz] : s.proType === 'poster' ? POSTER_SHEET[sz] : null;
         // แบบแปลน: กระดาษ 80 แกรมแยกบรรทัดล่าง (2026-09-11) · พับครึ่ง: ปุ่มเป็นขนาดเล่มสำเร็จ + เรทต่อหน้า (2026-09-13)
         const lbl = s.proType === 'blueprint'
-          ? <span>{sz + (p ? ' ฿' + p : '')}<span style={{ display: 'block', fontSize: '10.5px', fontWeight: 600, opacity: .8, marginTop: '2px' }}>80 แกรม</span></span>
+          ? <span>{sz + (p ? ' ฿' + p : '')}<span style={{ display: 'block', fontSize: '11.5px', fontWeight: 600, opacity: .8, marginTop: '2px' }}>80 แกรม</span></span>
           : s.proType === 'foldbook'
-          ? <span>{'เล่ม ' + ((FOLDBOOK_BOOK[sz] || {}).book || sz) + ' ฿' + ((FOLDBOOK_BOOK[sz] || {}).perPage || 0) + '/หน้า'}<span style={{ display: 'block', fontSize: '10.5px', fontWeight: 600, opacity: .8, marginTop: '2px' }}>{'พับจากกระดาษ ' + sz}</span></span>
+          ? <span>{'เล่ม ' + ((FOLDBOOK_BOOK[sz] || {}).book || sz) + ' ฿' + ((FOLDBOOK_BOOK[sz] || {}).perPage || 0) + '/หน้า'}<span style={{ display: 'block', fontSize: '11.5px', fontWeight: 600, opacity: .8, marginTop: '2px' }}>{'พับจากกระดาษ ' + sz}</span></span>
           : sz + (p ? ' ฿' + p : '');
         // โปสเตอร์/เพลทขนาดใหญ่ (A2-A0) ไม่มีบริการเคลือบ — สลับไปขนาดใหญ่ต้องล้างค่าเคลือบทิ้ง กันค่าธรรมเนียมค้าง (2026-09-13)
         return this.seg(lbl, s.proSize === sz, () => this.setState(st => ({ proSize: sz,
@@ -2477,7 +2477,7 @@ class App extends React.Component {
         : s.proType === 'plate' ? '🪧 เพลท (กระดาษอาร์ตมัน 250 แกรม)'
         : s.proType === 'foldbook' ? '📖 พับครึ่ง (กระดาษอาร์ตมัน 250 แกรม)'
         : s.proType === 'portfolio' ? '📁 Portfolio เข้าเล่มเย็บมุงหลังคา'
-        : s.proType === 'namecard' ? <React.Fragment>💳 ขนาดนามบัตร ไซส์มาตรฐาน 5.5*8.8 ซม.<span style={{ display: 'block', fontSize: '11.5px', fontWeight: 600, marginTop: '2px' }}>(หากอยากได้ไซส์อื่นให้แจ้งในหมายเหตุครับ)</span></React.Fragment>
+        : s.proType === 'namecard' ? <React.Fragment>💳 ขนาดนามบัตร ไซส์มาตรฐาน 5.5*8.8 ซม.<span style={{ display: 'block', fontSize: '12.5px', fontWeight: 600, marginTop: '2px' }}>(หากอยากได้ไซส์อื่นให้แจ้งในหมายเหตุครับ)</span></React.Fragment>
         : s.proType === 'blueprint' ? '📐 กระดาษขนาด 80 แกรม' : '',
       proLamHead: s.proType === 'foldbook' ? 'การเคลือบ (ฟิล์มลามิเนต)' : 'การเคลือบ', // พับครึ่งระบุชนิดฟิล์มที่หัวข้อ (เจ้าของสั่ง 2026-09-11)
       // เคลือบมีเฉพาะขนาดเล็ก A4/A3 (โปสเตอร์+เพลท — เจ้าของสั่ง 2026-09-13) ขนาดใหญ่กว่านั้นไม่มีบริการเคลือบ · พับครึ่งมีทุกขนาด
@@ -2988,7 +2988,7 @@ class App extends React.Component {
       unarmSelfCancel: () => this.setState({ selfCancelArm: false }),
       doSelfCancel: () => this.selfCancel(),
       trackLabel: s.order ? (cancelled ? 'ยกเลิกแล้ว' : (stepsFor(s.order) || STEPS)[Math.min(step, 4) - 1]) : '',
-      trackBadgeSt: { fontFamily: "'IBM Plex Mono',monospace", fontSize: '11px', fontWeight: 600, padding: '3px 8px', borderRadius: '99px',
+      trackBadgeSt: { fontFamily: "'IBM Plex Mono',monospace", fontSize: '12px', fontWeight: 600, padding: '3px 8px', borderRadius: '99px',
         color: cancelled ? '#c92a2a' : 'var(--acc)', background: cancelled ? '#ffe3e3' : 'var(--accSoft)' },
       trackBarSt: { height: '100%', background: 'var(--acc)', borderRadius: '99px', width: (step / 4 * 100) + '%' },
       etaLabel: (() => {
@@ -3039,7 +3039,7 @@ class App extends React.Component {
         return {
           label, mark: done ? '✓' : String(i + 1),
           time: s.order && s.order.times[i] ? s.order.times[i] + ' น.' : '',
-          dot: { width: '26px', height: '26px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', fontWeight: 700, flex: 'none', background: done ? 'var(--acc)' : 'var(--soft)', color: done ? '#fff' : 'var(--sub)', border: active ? '2px solid var(--acc)' : '2px solid transparent', animation: active ? 'mpPulse 1.6s infinite' : 'none' },
+          dot: { width: '26px', height: '26px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '13px', fontWeight: 700, flex: 'none', background: done ? 'var(--acc)' : 'var(--soft)', color: done ? '#fff' : 'var(--sub)', border: active ? '2px solid var(--acc)' : '2px solid transparent', animation: active ? 'mpPulse 1.6s infinite' : 'none' },
           bar: { width: '3px', flex: '1', minHeight: last ? '0' : '18px', background: step > i + 1 ? 'var(--acc)' : 'var(--line)', display: last ? 'none' : 'block' },
           tt: { fontSize: '13px', fontWeight: done || active ? 700 : 500, color: done || active ? 'var(--ink)' : 'var(--sub)' }
         };
@@ -3308,10 +3308,10 @@ class App extends React.Component {
                 {v.userPic
                   ? <img src={v.userPic} alt="" referrerPolicy="no-referrer" style={css("width:26px;height:26px;border-radius:50%;object-fit:cover;display:block;flex:none;background:#444")}/>
                   : <div style={css("width:26px;height:26px;border-radius:50%;background:var(--acc);color:#fff;display:flex;align-items:center;justify-content:center;font-size:12.5px;font-weight:700;flex:none")}>{v.userInitial}</div>}
-                <span style={css("font-size:11.5px;font-weight:600;color:#fff;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0")}>{v.userFirst}</span>
+                <span style={css("font-size:12.5px;font-weight:600;color:#fff;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0")}>{v.userFirst}</span>
                 <span style={css("width:7px;height:7px;border-radius:50%;background:var(--accBright);flex:none")}></span>
               </div>
-            : <div onClick={v.goLogin} style={css("flex:none;background:var(--acc);color:#fff;font-size:11.5px;font-weight:700;padding:7px 14px;border-radius:99px;cursor:pointer")}>เข้าสู่ระบบ</div>}
+            : <div onClick={v.goLogin} style={css("flex:none;background:var(--acc);color:#fff;font-size:12.5px;font-weight:700;padding:7px 14px;border-radius:99px;cursor:pointer")}>เข้าสู่ระบบ</div>}
         </div>
 
         {/* ── ป้ายร้านปิดรับออเดอร์ชั่วคราว (ร้านกดปิดจากหลังบ้าน) ── */}
@@ -3319,7 +3319,7 @@ class App extends React.Component {
           <div style={css("margin:14px 20px 0;background:#ffe3e3;border:1.5px solid #ffa8a8;border-radius:12px;padding:11px 14px;display:flex;gap:10px;align-items:center")}>
             <span style={css("flex:none;display:flex;color:#c92a2a")}>{fi('alert', 17)}</span><div style={css("min-width:0")}>
               <div style={css("font-size:12.5px;color:#c92a2a;font-weight:800;line-height:1.5")}>ขออภัยครับ ตอนนี้ร้านปิดรับออเดอร์ชั่วคราว</div>
-              <div style={css("margin-top:2px;font-size:11.5px;color:#c92a2a;font-weight:600;line-height:1.5")}>เปิดรับอีกครั้งเร็วๆ นี้ · ออเดอร์เดิมใช้ได้ปกติครับ</div>
+              <div style={css("margin-top:2px;font-size:12.5px;color:#c92a2a;font-weight:600;line-height:1.5")}>เปิดรับอีกครั้งเร็วๆ นี้ · ออเดอร์เดิมใช้ได้ปกติครับ</div>
             </div>
           </div>
         )}
@@ -3329,7 +3329,7 @@ class App extends React.Component {
           <div style={css("margin:14px 20px 0;background:#e7f5ff;border:1.5px solid #74c0fc;border-radius:12px;padding:11px 14px;display:flex;gap:10px;align-items:center")}>
             <span style={css("flex:none;display:flex;color:#1971c2")}>{fi('rain', 17)}</span><div style={css("min-width:0")}>
               <div style={css("font-size:12.5px;color:#1971c2;font-weight:800;line-height:1.5")}>วันนี้ฝนตกหนัก — งานทุกรูปแบบจัดส่งด้วยรถยนต์เท่านั้นครับ</div>
-              <div style={css("margin-top:2px;font-size:11.5px;color:#1971c2;font-weight:600;line-height:1.5")}>เพื่อป้องกันงานเปียกและเสียหาย ขออภัยจากใจจริงนะครับ</div>
+              <div style={css("margin-top:2px;font-size:12.5px;color:#1971c2;font-weight:600;line-height:1.5")}>เพื่อป้องกันงานเปียกและเสียหาย ขออภัยจากใจจริงนะครับ</div>
             </div>
           </div>
         )}
@@ -3339,8 +3339,8 @@ class App extends React.Component {
           <div style={css("margin:14px 20px 0;background:var(--warnBg);border:1px solid var(--warnLine);border-radius:12px;padding:10px 14px;display:flex;gap:10px;align-items:center")}>
             <span style={css("flex:none;display:flex;color:var(--warnInk)")}>{fi('moon', 17)}</span><div style={css("min-width:0")}>
               <div style={css("font-size:12.5px;color:var(--warnInk);font-weight:800;line-height:1.5")}>ตอนนี้ {v.clock} เป็นช่วงกลางคืน (22:00–06:00)</div>
-              <div style={css("margin-top:2px;font-size:11.5px;color:var(--warnInk);font-weight:600;line-height:1.5")}>งาน Standard มีค่าบริการกลางคืน +฿{v.nightFee}</div>
-              <div style={css("font-size:11.5px;color:var(--warnInk);font-weight:600;line-height:1.5")}>ส่วนงาน Pro ราคาปกติไม่บวกเพิ่มครับ</div>
+              <div style={css("margin-top:2px;font-size:12.5px;color:var(--warnInk);font-weight:600;line-height:1.5")}>งาน Standard มีค่าบริการกลางคืน +฿{v.nightFee}</div>
+              <div style={css("font-size:12.5px;color:var(--warnInk);font-weight:600;line-height:1.5")}>ส่วนงาน Pro ราคาปกติไม่บวกเพิ่มครับ</div>
             </div>
           </div>
         )}
@@ -3348,7 +3348,7 @@ class App extends React.Component {
         {/* ── Login / Register ── */}
         {v.isLogin && (
           <div style={css("padding:28px 24px;display:flex;flex-direction:column;gap:14px;align-items:stretch")}>
-            <div onClick={v.backToHome} style={css("align-self:flex-start;font-size:12px;color:var(--sub);cursor:pointer;font-weight:600")}>← กลับไปชมหน้าเว็บก่อน</div>
+            <div onClick={v.backToHome} style={css("align-self:flex-start;font-size:13px;color:var(--sub);cursor:pointer;font-weight:600")}>← กลับไปชมหน้าเว็บก่อน</div>
             <div style={css("display:flex;flex-direction:column;align-items:center;gap:10px;margin-bottom:2px")}>
               <div className="mp-glassB"><div className="mp-glass">
                 <img src="assets/logo-icon-t.png" alt="MORE PRINT" style={css("width:84px;height:auto;display:block")}/>
@@ -3358,11 +3358,11 @@ class App extends React.Component {
             </div>
 
             <button onClick={v.lineLogin} style={css("height:50px;border:none;border-radius:14px;background:#06c755;color:#fff;font-size:15px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:10px")}>
-              <span style={css("background:#fff;color:#06c755;font-size:11px;font-weight:800;padding:3px 6px;border-radius:6px")}>LINE</span>
+              <span style={css("background:#fff;color:#06c755;font-size:12px;font-weight:800;padding:3px 6px;border-radius:6px")}>LINE</span>
               เข้าสู่ระบบด้วย LINE
             </button>
 
-            <div style={css("display:flex;align-items:center;gap:10px;color:var(--sub);font-size:12px")}>
+            <div style={css("display:flex;align-items:center;gap:10px;color:var(--sub);font-size:13px")}>
               <div style={css("flex:1;height:1px;background:var(--line)")}></div>หรือใช้อีเมล<div style={css("flex:1;height:1px;background:var(--line)")}></div>
             </div>
 
@@ -3377,9 +3377,9 @@ class App extends React.Component {
 
             {v.authMode === 'login' && (
               <div style={css("background:var(--card);border:1px solid var(--line);border-radius:16px;padding:18px 16px;display:flex;flex-direction:column;gap:12px;box-shadow:var(--shadow)")}>
-                <div><div style={css("font-size:12px;font-weight:600;color:var(--ink)")}>อีเมล</div>
+                <div><div style={css("font-size:13px;font-weight:600;color:var(--ink)")}>อีเมล</div>
                 <input value={v.emailIn} onChange={v.setEmailIn} placeholder="you@email.com" inputMode="email" autoComplete="email" style={css("margin-top:6px;width:100%;box-sizing:border-box;height:44px;border:1px solid var(--line);border-radius:10px;background:var(--soft);color:var(--ink);padding:0 12px;font-size:14px;outline:none")}/></div>
-                <div><div style={css("font-size:12px;font-weight:600;color:var(--ink)")}>รหัสผ่าน</div>
+                <div><div style={css("font-size:13px;font-weight:600;color:var(--ink)")}>รหัสผ่าน</div>
                 <input type="password" value={v.passIn} onChange={v.setPassIn} placeholder="••••••••" autoComplete="current-password" style={css("margin-top:6px;width:100%;box-sizing:border-box;height:44px;border:1px solid var(--line);border-radius:10px;background:var(--soft);color:var(--ink);padding:0 12px;font-size:14px;outline:none")}/></div>
                 <button onClick={v.doEmailLogin} disabled={v.authBusy} style={css("margin-top:4px;height:50px;border:none;border-radius:14px;background:var(--acc);color:#fff;font-size:15px;font-weight:700;cursor:pointer" + (v.authBusy ? ";opacity:.6" : ""))}>{v.authBusy ? 'กำลังเข้าสู่ระบบ…' : 'เข้าสู่ระบบ →'}</button>
               </div>
@@ -3388,25 +3388,25 @@ class App extends React.Component {
             {v.authMode === 'register' && (
               <div style={css("background:var(--card);border:1px solid var(--line);border-radius:16px;padding:18px 16px;display:flex;flex-direction:column;gap:12px;box-shadow:var(--shadow)")}>
                 <div style={css("display:flex;gap:10px")}>
-                  <div style={css("flex:1")}><div style={css("font-size:12px;font-weight:600;color:var(--ink)")}>ชื่อจริง</div>
+                  <div style={css("flex:1")}><div style={css("font-size:13px;font-weight:600;color:var(--ink)")}>ชื่อจริง</div>
                   <input value={v.regFname} onChange={v.setRegFname} placeholder="เช่น สมชาย" style={css("margin-top:6px;width:100%;box-sizing:border-box;height:44px;border:1px solid var(--line);border-radius:10px;background:var(--soft);color:var(--ink);padding:0 12px;font-size:14px;outline:none")}/></div>
-                  <div style={css("flex:1")}><div style={css("font-size:12px;font-weight:600;color:var(--ink)")}>นามสกุล</div>
+                  <div style={css("flex:1")}><div style={css("font-size:13px;font-weight:600;color:var(--ink)")}>นามสกุล</div>
                   <input value={v.regLname} onChange={v.setRegLname} placeholder="เช่น ใจดี" style={css("margin-top:6px;width:100%;box-sizing:border-box;height:44px;border:1px solid var(--line);border-radius:10px;background:var(--soft);color:var(--ink);padding:0 12px;font-size:14px;outline:none")}/></div>
                 </div>
-                <div><div style={css("font-size:12px;font-weight:600;color:var(--ink)")}>อีเมล</div>
+                <div><div style={css("font-size:13px;font-weight:600;color:var(--ink)")}>อีเมล</div>
                 <input value={v.regEmail} onChange={v.setRegEmail} placeholder="you@email.com" inputMode="email" autoComplete="email" style={css("margin-top:6px;width:100%;box-sizing:border-box;height:44px;border:1px solid " + (v.regEmailBad ? "#e03131" : "var(--line)") + ";border-radius:10px;background:var(--soft);color:var(--ink);padding:0 12px;font-size:14px;outline:none")}/>
-                {v.regEmailBad && <div style={css("margin-top:4px;font-size:11.5px;color:#e03131;font-weight:600")}>❌ รูปแบบอีเมลไม่ถูกต้อง เช่น somchai@gmail.com</div>}</div>
-                <div><div style={css("font-size:12px;font-weight:600;color:var(--ink)")}>รหัสผ่าน (อย่างน้อย 6 ตัวอักษร)</div>
+                {v.regEmailBad && <div style={css("margin-top:4px;font-size:12.5px;color:#e03131;font-weight:600")}>❌ รูปแบบอีเมลไม่ถูกต้อง เช่น somchai@gmail.com</div>}</div>
+                <div><div style={css("font-size:13px;font-weight:600;color:var(--ink)")}>รหัสผ่าน (อย่างน้อย 6 ตัวอักษร)</div>
                 <input type="password" value={v.regPass1} onChange={v.setRegPass1} placeholder="••••••••" autoComplete="new-password" style={css("margin-top:6px;width:100%;box-sizing:border-box;height:44px;border:1px solid " + (v.passShort ? "#e03131" : "var(--line)") + ";border-radius:10px;background:var(--soft);color:var(--ink);padding:0 12px;font-size:14px;outline:none")}/>
-                {v.passShort && <div style={css("margin-top:4px;font-size:11.5px;color:#e03131;font-weight:600")}>❌ รหัสผ่านสั้นเกินไป ต้องอย่างน้อย 6 ตัวอักษร</div>}</div>
-                <div><div style={css("font-size:12px;font-weight:600;color:var(--ink)")}>ยืนยันรหัสผ่าน (กรอกซ้ำอีกครั้ง)</div>
+                {v.passShort && <div style={css("margin-top:4px;font-size:12.5px;color:#e03131;font-weight:600")}>❌ รหัสผ่านสั้นเกินไป ต้องอย่างน้อย 6 ตัวอักษร</div>}</div>
+                <div><div style={css("font-size:13px;font-weight:600;color:var(--ink)")}>ยืนยันรหัสผ่าน (กรอกซ้ำอีกครั้ง)</div>
                 <input type="password" value={v.regPass2} onChange={v.setRegPass2} placeholder="••••••••" autoComplete="new-password" style={css("margin-top:6px;width:100%;box-sizing:border-box;height:44px;border:1px solid " + (v.passMismatch ? "#e03131" : "var(--line)") + ";border-radius:10px;background:var(--soft);color:var(--ink);padding:0 12px;font-size:14px;outline:none")}/>
-                {v.passMismatch && <div style={css("margin-top:4px;font-size:11.5px;color:#e03131;font-weight:600")}>❌ รหัสผ่านไม่เหมือนกัน — กรอกให้ตรงกับช่องบน</div>}</div>
+                {v.passMismatch && <div style={css("margin-top:4px;font-size:12.5px;color:#e03131;font-weight:600")}>❌ รหัสผ่านไม่เหมือนกัน — กรอกให้ตรงกับช่องบน</div>}</div>
                 <button onClick={v.doRegister} disabled={v.authBusy} style={css("margin-top:4px;height:50px;border:none;border-radius:14px;background:var(--acc);color:#fff;font-size:15px;font-weight:700;cursor:pointer" + (v.authBusy ? ";opacity:.6" : ""))}>{v.authBusy ? 'กำลังสมัคร…' : '✓ สมัครสมาชิก'}</button>
               </div>
             )}
 
-            <div style={css("font-size:11.5px;color:var(--sub);text-align:center")}>ข้อมูลใช้สำหรับติดต่อรับ–ส่งเอกสารเท่านั้น</div>
+            <div style={css("font-size:12.5px;color:var(--sub);text-align:center")}>ข้อมูลใช้สำหรับติดต่อรับ–ส่งเอกสารเท่านั้น</div>
           </div>
         )}
 
@@ -3416,11 +3416,11 @@ class App extends React.Component {
             {v.userName
               ? <div style={css("margin:14px 20px 0;display:flex;justify-content:space-between;align-items:center")}>
                   <div style={css("font-size:13px;color:var(--sub)")}>สวัสดี, <b style={css("color:var(--ink)")}>คุณ {v.userName}</b> 👋</div>
-                  <button onClick={v.doLogout} style={css("border:none;background:none;font-size:11px;text-decoration:underline;cursor:pointer;color:" + (v.logoutArm ? "#c92a2a" : "var(--sub)") + (v.logoutArm ? ";font-weight:700" : ""))}>{v.logoutArm ? 'แตะอีกครั้งเพื่อยืนยัน' : 'เปลี่ยนบัญชี'}</button>
+                  <button onClick={v.doLogout} style={css("border:none;background:none;font-size:12px;text-decoration:underline;cursor:pointer;color:" + (v.logoutArm ? "#c92a2a" : "var(--sub)") + (v.logoutArm ? ";font-weight:700" : ""))}>{v.logoutArm ? 'แตะอีกครั้งเพื่อยืนยัน' : 'เปลี่ยนบัญชี'}</button>
                 </div>
               : <div style={css("margin:14px 20px 0;display:flex;justify-content:space-between;align-items:center")}>
                   <div style={css("font-size:12.5px;color:var(--sub)")}>ชมเว็บได้เลยครับ · ล็อกอินตอนกดสั่งปริ้น</div>
-                  <button onClick={v.goLogin} style={css("border:none;background:none;font-size:11.5px;font-weight:700;text-decoration:underline;cursor:pointer;color:var(--acc)")}>เข้าสู่ระบบ / สมัคร</button>
+                  <button onClick={v.goLogin} style={css("border:none;background:none;font-size:12.5px;font-weight:700;text-decoration:underline;cursor:pointer;color:var(--acc)")}>เข้าสู่ระบบ / สมัคร</button>
                 </div>}
             {v.banners.length > 0 && (
               <div style={css("margin-top:14px;display:flex;gap:10px;overflow-x:auto;padding:0 20px 4px;scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch")}>
@@ -3432,7 +3432,7 @@ class App extends React.Component {
                           <div style={{ fontSize: '34px', flex: 'none' }}>{b.emoji || '🎉'}</div>
                           <div style={{ minWidth: 0 }}>
                             <div style={{ fontSize: '15.5px', fontWeight: 700, lineHeight: 1.35 }}>{b.title}</div>
-                            {b.subtitle && <div style={{ fontSize: '11.5px', opacity: .88, marginTop: '3px', lineHeight: 1.4 }}>{b.subtitle}</div>}
+                            {b.subtitle && <div style={{ fontSize: '12.5px', opacity: .88, marginTop: '3px', lineHeight: 1.4 }}>{b.subtitle}</div>}
                           </div>
                         </div>}
                   </div>
@@ -3443,7 +3443,7 @@ class App extends React.Component {
             {v.clips.length > 0 && (
               <React.Fragment>
                 <div style={css("padding:16px 20px 0;font-size:13px;font-weight:700;display:flex;align-items:center;gap:6px")}><span style={css("font-size:14px")}>🎬</span>คลิปจากร้าน</div>
-                <div style={css("padding:2px 20px 0;font-size:11px;color:var(--sub)")}>แตะเพื่อดูเต็มจอ · ปัดขึ้นดูคลิปถัดไป</div>
+                <div style={css("padding:2px 20px 0;font-size:12px;color:var(--sub)")}>แตะเพื่อดูเต็มจอ · ปัดขึ้นดูคลิปถัดไป</div>
                 <div style={css("margin-top:10px;display:flex;gap:10px;overflow-x:auto;padding:0 20px 6px;scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch")}>
                   {v.clips.map((b, i) => (
                     <div key={b.id || i} onClick={v.clipOpen(i)} style={css("flex:none;width:118px;aspect-ratio:9/16;border-radius:14px;overflow:hidden;position:relative;scroll-snap-align:start;box-shadow:var(--shadow);background:#000;cursor:pointer")}>
@@ -3451,7 +3451,7 @@ class App extends React.Component {
                         ref={el => { if (el) { el.muted = true; try { const p = el.play(); if (p && p.catch) p.catch(() => {}); } catch (e) {} } }}
                         onCanPlay={e => { const el = e.target; if (el.paused) { el.muted = true; try { const p = el.play(); if (p && p.catch) p.catch(() => {}); } catch (err) {} } }} // เล่นตอน mount อาจแพ้จังหวะโหลด (AbortError) — สั่งซ้ำเมื่อวิดีโอพร้อมจริง
                         style={css("position:absolute;inset:0;width:100%;height:100%;object-fit:cover;pointer-events:none")}/>
-                      {b.title && <div style={css("position:absolute;left:0;right:0;bottom:0;padding:20px 8px 7px;background:linear-gradient(transparent,rgba(0,0,0,.75));color:#fff;font-size:10px;font-weight:600;line-height:1.4")}>{b.title}</div>}
+                      {b.title && <div style={css("position:absolute;left:0;right:0;bottom:0;padding:20px 8px 7px;background:linear-gradient(transparent,rgba(0,0,0,.75));color:#fff;font-size:11px;font-weight:600;line-height:1.4")}>{b.title}</div>}
                     </div>
                   ))}
                 </div>
@@ -3459,11 +3459,11 @@ class App extends React.Component {
             )}
             <div style={css("padding:20px 20px 0")}>
               <div style={css("font-size:23px;font-weight:700;line-height:1.35;text-wrap:pretty")}>ส่งไฟล์ตอนนี้<br/>เอกสารถึงมือ ทุกที่รอบ มข.</div>
-              <div style={css("margin-top:6px;font-size:12px;color:var(--sub)")}>ปริ้นขาวดำ 1 บาท · ปริ้นสี 5 บาท · ส่งเริ่มต้น {v.deliveryBase} บาท</div>
+              <div style={css("margin-top:6px;font-size:13px;color:var(--sub)")}>ปริ้นขาวดำ 1 บาท · ปริ้นสี 5 บาท · ส่งเริ่มต้น {v.deliveryBase} บาท</div>
               <div onClick={v.startOrder} style={css("margin-top:16px;border:2px dashed var(--line);border-radius:16px;background:var(--card);padding:22px 16px;display:flex;flex-direction:column;align-items:center;gap:8px;cursor:pointer;box-shadow:var(--shadow)")}>
                 <div style={css("width:56px;height:56px;border-radius:14px;background:#fff;border:1px solid var(--line);display:flex;align-items:center;justify-content:center;overflow:hidden")}><img src="assets/logo-icon.png" alt="MORE PRINT" style={css("width:46px;height:auto;display:block")}/></div>
                 <div style={css("font-weight:600;font-size:14px;color:var(--acc)")}>แตะเพื่ออัปโหลดไฟล์</div>
-                <div style={css("font-size:11.5px;color:var(--sub)")}>ไฟล์ PDF · นับหน้าให้อัตโนมัติ</div>
+                <div style={css("font-size:12.5px;color:var(--sub)")}>ไฟล์ PDF · นับหน้าให้อัตโนมัติ</div>
               </div>
               <button onClick={v.startOrder} style={css("margin-top:12px;width:100%;height:50px;border:none;border-radius:14px;background:var(--acc);color:#fff;font-size:16px;font-weight:700;cursor:pointer")}>เริ่มสั่งปริ้น · คำนวณราคาทันที</button>
             </div>
@@ -3472,30 +3472,30 @@ class App extends React.Component {
               {v.statDelivered >= 20 && (
                 <div style={css("flex:1;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 8px;text-align:center;box-shadow:var(--shadow)")}>
                   <div style={css("font-family:'IBM Plex Mono',monospace;font-size:19px;font-weight:600;color:var(--acc);line-height:1.1")}>{v.statDelivered.toLocaleString()}+</div>
-                  <div style={css("font-size:10.5px;color:var(--sub);margin-top:4px;line-height:1.35")}>ออเดอร์<br/>ส่งสำเร็จ</div>
+                  <div style={css("font-size:11.5px;color:var(--sub);margin-top:4px;line-height:1.35")}>ออเดอร์<br/>ส่งสำเร็จ</div>
                 </div>
               )}
               {v.revCount > 0 && (
                 <div style={css("flex:1;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 8px;text-align:center;box-shadow:var(--shadow)")}>
                   <div style={css("font-size:19px;font-weight:600;line-height:1.1")}><span style={css("color:#f5a623")}>★</span> <span style={css("font-family:'IBM Plex Mono',monospace;color:var(--acc)")}>{v.revAvg}</span></div>
-                  <div style={css("font-size:10.5px;color:var(--sub);margin-top:4px;line-height:1.35")}>จาก {v.revCount}<br/>รีวิวจริง</div>
+                  <div style={css("font-size:11.5px;color:var(--sub);margin-top:4px;line-height:1.35")}>จาก {v.revCount}<br/>รีวิวจริง</div>
                 </div>
               )}
               <div style={css("flex:1;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 8px;text-align:center;box-shadow:var(--shadow)")}>
                 <div style={css("font-family:'IBM Plex Mono',monospace;font-size:19px;font-weight:600;color:var(--acc);line-height:1.1")}>24 ชม.</div>
-                <div style={css("font-size:10.5px;color:var(--sub);margin-top:4px;line-height:1.35")}>เปิดรับออเดอร์<br/>ทุกวัน</div>
+                <div style={css("font-size:11.5px;color:var(--sub);margin-top:4px;line-height:1.35")}>เปิดรับออเดอร์<br/>ทุกวัน</div>
               </div>
             </div>
             {/* ── รูปงานจริงจากร้าน: แถว banners ที่ color='showcase' — เจ้าของอัปโหลด/ลบเองจากแท็บโปรโมชั่นของ admin ── */}
             {v.shots.length > 0 && (
               <React.Fragment>
                 <div style={css("padding:16px 20px 0;font-size:13px;font-weight:700;display:flex;align-items:center;gap:6px")}><span style={css("display:flex;color:var(--acc)")}>{fi('camera', 15)}</span>งานจริงจากร้าน</div>
-                <div style={css("padding:2px 20px 0;font-size:11px;color:var(--sub)")}>ตัวอย่างงานที่ลูกค้าสั่งจริง อัปเดตเรื่อย ๆ</div>
+                <div style={css("padding:2px 20px 0;font-size:12px;color:var(--sub)")}>ตัวอย่างงานที่ลูกค้าสั่งจริง อัปเดตเรื่อย ๆ</div>
                 <div style={css("margin-top:10px;display:flex;gap:10px;overflow-x:auto;padding:0 20px 6px;scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch")}>
                   {v.shots.map((b, i) => (
                     <div key={b.id || i} style={css("flex:none;width:132px;aspect-ratio:4/5;border-radius:14px;overflow:hidden;position:relative;scroll-snap-align:start;box-shadow:var(--shadow);background:var(--soft)")}>
                       <img src={FILE_BASE + b.image_path} alt={b.title || 'งานจริงจากร้าน'} loading="lazy" style={css("position:absolute;inset:0;width:100%;height:100%;object-fit:cover")}/>
-                      {b.title && <div style={css("position:absolute;left:0;right:0;bottom:0;padding:22px 9px 8px;background:linear-gradient(transparent,rgba(0,0,0,.72));color:#fff;font-size:10.5px;font-weight:600;line-height:1.4")}>{b.title}</div>}
+                      {b.title && <div style={css("position:absolute;left:0;right:0;bottom:0;padding:22px 9px 8px;background:linear-gradient(transparent,rgba(0,0,0,.72));color:#fff;font-size:11.5px;font-weight:600;line-height:1.4")}>{b.title}</div>}
                     </div>
                   ))}
                 </div>
@@ -3506,7 +3506,7 @@ class App extends React.Component {
                 {HOME_CARDS.map((c, i) => (
                   <div key={i} style={css("flex:1;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 14px")}>
                     <div style={css("font-family:'IBM Plex Mono',monospace;font-size:18px;font-weight:600;color:var(--acc)")}>{c.big}</div>
-                    <div style={css("font-size:11px;color:var(--sub);margin-top:2px")}>{c.sub}</div>
+                    <div style={css("font-size:12px;color:var(--sub);margin-top:2px")}>{c.sub}</div>
                   </div>
                 ))}
               </div>
@@ -3515,7 +3515,7 @@ class App extends React.Component {
               <div onClick={v.goTrack} style={css("margin:16px 20px 0;background:var(--card);border:1px solid var(--line);border-radius:16px;padding:14px 16px;cursor:pointer;box-shadow:var(--shadow)")}>
                 <div style={css("display:flex;justify-content:space-between;align-items:center")}><div style={css("font-size:13px;font-weight:700")}>ออเดอร์ล่าสุด {v.orderId}</div><div style={v.trackBadgeSt}>{v.trackLabel}</div></div>
                 <div style={css("margin-top:8px;height:6px;background:var(--soft);border-radius:99px;overflow:hidden")}><div style={v.trackBarSt}></div></div>
-                <div style={css("margin-top:6px;font-size:11px;color:var(--sub)")}>แตะเพื่อดูสถานะจัดส่ง →</div>
+                <div style={css("margin-top:6px;font-size:12px;color:var(--sub)")}>แตะเพื่อดูสถานะจัดส่ง →</div>
               </div>
             )}
             {/* วิธีสั่งปริ้น 4 ขั้นตอน — ลูกค้าใหม่เห็นภาพรวมการใช้งานทันที (จากรีวิวลูกค้า 2026-09-02) */}
@@ -3527,10 +3527,10 @@ class App extends React.Component {
                   ['3', 'pin', 'เลือกวิธีรับงาน', 'ปักหมุดให้ไปส่ง หรือมารับหน้าร้าน (ฟรี)'],
                   ['4', 'card', 'สแกนจ่าย แนบสลิป', 'ติดตามสถานะสด ๆ จนของถึงมือ']].map((st, i) => (
                   <div key={i} style={css("display:flex;align-items:flex-start;gap:11px")}>
-                    <div style={css("width:22px;height:22px;border-radius:50%;background:var(--accSoft);color:var(--acc);font-size:11.5px;font-weight:800;display:flex;align-items:center;justify-content:center;flex:none;margin-top:1px")}>{st[0]}</div>
+                    <div style={css("width:22px;height:22px;border-radius:50%;background:var(--accSoft);color:var(--acc);font-size:12.5px;font-weight:800;display:flex;align-items:center;justify-content:center;flex:none;margin-top:1px")}>{st[0]}</div>
                     <div style={css("min-width:0")}>
                       <div style={css("font-size:12.5px;font-weight:700;display:flex;align-items:center;gap:6px")}><span style={css("display:flex;color:var(--acc)")}>{fi(st[1], 14)}</span>{st[2]}</div>
-                      <div style={css("font-size:11px;color:var(--sub);line-height:1.5")}>{st[3]}</div>
+                      <div style={css("font-size:12px;color:var(--sub);line-height:1.5")}>{st[3]}</div>
                     </div>
                   </div>
                 ))}
@@ -3543,17 +3543,17 @@ class App extends React.Component {
                 <div style={css("background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px;margin-bottom:10px;display:flex;align-items:center;gap:16px;box-shadow:var(--shadow)")}>
                   <div style={css("text-align:center;flex:none")}>
                     <div style={css("font-size:36px;font-weight:800;line-height:1")}>{v.revAvg}</div>
-                    <div style={css("font-size:10.5px;color:var(--sub);margin-top:3px")}>จาก 5</div>
+                    <div style={css("font-size:11.5px;color:var(--sub);margin-top:3px")}>จาก 5</div>
                   </div>
                   <div style={css("flex:1;min-width:0")}>
                     <div style={css("color:#f5a623;font-size:17px;letter-spacing:2px;line-height:1")}>{'★'.repeat(Math.round(+v.revAvg))}<span style={css("color:var(--line)")}>{'★'.repeat(5 - Math.round(+v.revAvg))}</span></div>
-                    <div style={css("font-size:11px;color:var(--sub);margin-top:5px")}>คะแนนเฉลี่ยจากลูกค้า · ทั้งหมด {v.revCount} รีวิว</div>
+                    <div style={css("font-size:12px;color:var(--sub);margin-top:5px")}>คะแนนเฉลี่ยจากลูกค้า · ทั้งหมด {v.revCount} รีวิว</div>
                   </div>
                 </div>
               )}
               {!v.revDone ? (
                 <div style={css("background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 14px;margin-bottom:10px")}>
-                  <div style={css("font-size:12px;font-weight:600;color:var(--ink)")}>ให้คะแนนร้านเราหน่อยครับ</div>
+                  <div style={css("font-size:13px;font-weight:600;color:var(--ink)")}>ให้คะแนนร้านเราหน่อยครับ</div>
                   <div style={css("margin-top:6px;display:flex;gap:4px")}>
                     {[1, 2, 3, 4, 5].map(n => <span key={n} onClick={v.setRevStars(n)} style={css("font-size:28px;line-height:1;cursor:pointer;color:" + (n <= v.revStars ? "#f5a623" : "var(--line)"))}>★</span>)}
                   </div>
@@ -3567,22 +3567,22 @@ class App extends React.Component {
                 <div style={css("display:flex;flex-direction:column;gap:8px")}>
                   {/* แท็บแยกหมวด: งานจริง (สั่งออเดอร์แล้วรีวิว — โชว์ประเภทงาน) vs ทั่วไป (ฟอร์มหน้าแรก) */}
                   <div style={css("display:flex;gap:7px")}>
-                    <span onClick={v.setRevTab('real')} style={css("flex:1;text-align:center;padding:9px 8px;border-radius:99px;font-size:11.5px;font-weight:700;cursor:pointer;" + (v.revTab === 'real' ? "border:1.5px solid var(--acc);background:var(--accSoft);color:var(--acc)" : "border:1px solid var(--line);background:var(--card);color:var(--sub)"))}>✓ ออเดอร์รีวิว ({v.revReal.length})</span>
-                    <span onClick={v.setRevTab('gen')} style={css("flex:1;text-align:center;padding:9px 8px;border-radius:99px;font-size:11.5px;font-weight:700;cursor:pointer;" + (v.revTab === 'gen' ? "border:1.5px solid var(--acc);background:var(--accSoft);color:var(--acc)" : "border:1px solid var(--line);background:var(--card);color:var(--sub)"))}>รีวิว ({v.revGen.length})</span>
+                    <span onClick={v.setRevTab('real')} style={css("flex:1;text-align:center;padding:9px 8px;border-radius:99px;font-size:12.5px;font-weight:700;cursor:pointer;" + (v.revTab === 'real' ? "border:1.5px solid var(--acc);background:var(--accSoft);color:var(--acc)" : "border:1px solid var(--line);background:var(--card);color:var(--sub)"))}>✓ ออเดอร์รีวิว ({v.revReal.length})</span>
+                    <span onClick={v.setRevTab('gen')} style={css("flex:1;text-align:center;padding:9px 8px;border-radius:99px;font-size:12.5px;font-weight:700;cursor:pointer;" + (v.revTab === 'gen' ? "border:1.5px solid var(--acc);background:var(--accSoft);color:var(--acc)" : "border:1px solid var(--line);background:var(--card);color:var(--sub)"))}>รีวิว ({v.revGen.length})</span>
                   </div>
                   {v.revShown.length === 0 && (
-                    <div style={css("background:var(--soft);border:1px dashed var(--line);border-radius:12px;padding:14px;text-align:center;font-size:12px;color:var(--sub)")}>ยังไม่มีรีวิวในหมวดนี้ครับ</div>
+                    <div style={css("background:var(--soft);border:1px dashed var(--line);border-radius:12px;padding:14px;text-align:center;font-size:13px;color:var(--sub)")}>ยังไม่มีรีวิวในหมวดนี้ครับ</div>
                   )}
                   {(v.revAll ? v.revShown : v.revShown.slice(0, 3)).map((r, i) => (
                     <div key={i} style={css("background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px 14px")}>
                       <div style={css("display:flex;align-items:center;gap:8px")}>
                         <div style={css("color:#f5a623;font-size:13px;letter-spacing:1px")}>{'★'.repeat(r.stars)}<span style={css("color:var(--line)")}>{'★'.repeat(5 - r.stars)}</span></div>
-                        {r.real && <span style={css("font-size:9.5px;font-weight:700;color:var(--acc);background:var(--accSoft);border:1px solid var(--acc);padding:2px 8px;border-radius:99px;flex:none")}>✓ ออเดอร์จริง</span>}
+                        {r.real && <span style={css("font-size:10.5px;font-weight:700;color:var(--acc);background:var(--accSoft);border:1px solid var(--acc);padding:2px 8px;border-radius:99px;flex:none")}>✓ ออเดอร์จริง</span>}
                         <div style={css("flex:1")}></div>
-                        <div style={css("font-size:10.5px;color:var(--sub)")}>{r.date}</div>
+                        <div style={css("font-size:11.5px;color:var(--sub)")}>{r.date}</div>
                       </div>
                       {r.comment && <div style={css("margin-top:5px;font-size:12.5px;line-height:1.55")}>{r.comment}</div>}
-                      <div style={css("margin-top:5px;font-size:11px;color:var(--sub)")}>คุณ{r.name}{r.real && r.ptype ? <span> · สั่ง<span style={css("color:var(--acc);font-weight:700")}>งาน{r.ptype}</span></span> : null}</div>
+                      <div style={css("margin-top:5px;font-size:12px;color:var(--sub)")}>คุณ{r.name}{r.real && r.ptype ? <span> · สั่ง<span style={css("color:var(--acc);font-weight:700")}>งาน{r.ptype}</span></span> : null}</div>
                     </div>
                   ))}
                   {v.revShown.length > 3 && (
@@ -3592,8 +3592,8 @@ class App extends React.Component {
               )}
             </div>}
             <div onClick={() => window.open((window.MP_CONFIG || {}).LINE_OA_URL || 'https://line.me/R/ti/p/@346kifvy', '_blank')} style={css("margin:18px 20px 20px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 16px;display:flex;align-items:center;gap:12px;cursor:pointer")}>
-              <div style={css("width:38px;height:38px;border-radius:10px;background:#06c755;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12px")}>LINE</div>
-              <div style={css("flex:1")}><div style={css("font-size:13px;font-weight:600")}>ติดต่อสอบถามทาง LINE</div><div style={css("font-size:11px;color:var(--sub)")}>LINE OA: @346kifvy — แตะเพื่อแชทกับร้าน</div></div>
+              <div style={css("width:38px;height:38px;border-radius:10px;background:#06c755;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px")}>LINE</div>
+              <div style={css("flex:1")}><div style={css("font-size:13px;font-weight:600")}>ติดต่อสอบถามทาง LINE</div><div style={css("font-size:12px;color:var(--sub)")}>LINE OA: @346kifvy — แตะเพื่อแชทกับร้าน</div></div>
               <div style={css("color:var(--sub)")}>›</div>
             </div>
           </React.Fragment>
@@ -3602,33 +3602,33 @@ class App extends React.Component {
         {/* ── Order (Step 1) ── */}
         {v.isOrder && (
           <div style={css("padding:18px 20px 110px;display:flex;flex-direction:column;gap:14px")}>
-            <div style={css("font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:var(--sub);letter-spacing:1px")}>STEP 01 / 04 — อัปโหลด &amp; ตัวเลือก</div>
-            {v.alertBn && <div style={css("background:#fff0f0;border:1px solid #ffa8a8;border-radius:12px;padding:10px 14px;font-size:12px;color:#c92a2a;font-weight:700;line-height:1.5")}>⚠️ {v.alertBn.title}</div>}
+            <div style={css("font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:var(--sub);letter-spacing:1px")}>STEP 01 / 04 — อัปโหลด &amp; ตัวเลือก</div>
+            {v.alertBn && <div style={css("background:#fff0f0;border:1px solid #ffa8a8;border-radius:12px;padding:10px 14px;font-size:13px;color:#c92a2a;font-weight:700;line-height:1.5")}>⚠️ {v.alertBn.title}</div>}
             <input type="file" multiple accept=".pdf,application/pdf" ref={this.fileRef} onChange={v.onFiles} style={css("display:none")}/>
             {/* กล่องดรอปไฟล์: แตะได้ทั้งกล่อง + รองรับลากไฟล์มาวางจริง (desktop) */}
             <div onClick={v.pickFiles} onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); v.onFiles({ target: { files: e.dataTransfer.files, value: '' } }); }}
               style={css("border:2.5px dashed var(--acc);border-radius:18px;background:var(--accSoft);padding:26px 16px 18px;text-align:center;cursor:pointer")}>
               <div style={css("width:64px;height:64px;border-radius:50%;background:var(--card);margin:0 auto;display:flex;align-items:center;justify-content:center;font-size:29px;box-shadow:var(--shadow);animation:mpFloat 2.6s ease-in-out infinite;color:var(--acc)")}>{ICON_PDF}</div>
               <div style={css("margin-top:12px;font-size:16.5px;font-weight:800;color:var(--acc)")}>+ แตะเพื่อเพิ่มไฟล์</div>
-              <div style={css("margin-top:4px;font-size:12px;color:var(--sub)")}>หรือลากไฟล์มาวางตรงนี้ · เพิ่มได้หลายไฟล์</div>
+              <div style={css("margin-top:4px;font-size:13px;color:var(--sub)")}>หรือลากไฟล์มาวางตรงนี้ · เพิ่มได้หลายไฟล์</div>
               <div style={css("margin-top:13px;display:flex;justify-content:center;gap:6px;flex-wrap:wrap")}>
-                <span style={css("background:var(--card);border:1px solid var(--line);border-radius:99px;padding:5px 11px;font-size:10.5px;font-weight:600;color:var(--sub)")}>📄 PDF เท่านั้น</span>
-                <span style={css("background:var(--card);border:1px solid var(--line);border-radius:99px;padding:5px 11px;font-size:10.5px;font-weight:600;color:var(--sub)")}>🔢 นับหน้าให้อัตโนมัติ</span>
-                <span style={css("background:var(--card);border:1px solid var(--line);border-radius:99px;padding:5px 11px;font-size:10.5px;font-weight:600;color:var(--sub)")}>🐘 ไฟล์ใหญ่ก็ส่งได้</span>
+                <span style={css("background:var(--card);border:1px solid var(--line);border-radius:99px;padding:5px 11px;font-size:11.5px;font-weight:600;color:var(--sub)")}>📄 PDF เท่านั้น</span>
+                <span style={css("background:var(--card);border:1px solid var(--line);border-radius:99px;padding:5px 11px;font-size:11.5px;font-weight:600;color:var(--sub)")}>🔢 นับหน้าให้อัตโนมัติ</span>
+                <span style={css("background:var(--card);border:1px solid var(--line);border-radius:99px;padding:5px 11px;font-size:11.5px;font-weight:600;color:var(--sub)")}>🐘 ไฟล์ใหญ่ก็ส่งได้</span>
               </div>
             </div>
-            <div style={css("margin-top:-6px;font-size:11px;color:var(--sub);line-height:1.6")}><span style={css("display:inline-flex;vertical-align:-2px;margin-right:5px")}>{fi('upload', 12)}</span>หากเป็นไฟล์ที่ไม่ใช่ PDF <a href={(window.MP_CONFIG || {}).LINE_OA_URL || 'https://line.me/R/ti/p/@346kifvy'} target="_blank" rel="noreferrer" style={css("color:#06C755;font-weight:700")}>ติดต่อทางไลน์ →</a></div>
+            <div style={css("margin-top:-6px;font-size:12px;color:var(--sub);line-height:1.6")}><span style={css("display:inline-flex;vertical-align:-2px;margin-right:5px")}>{fi('upload', 12)}</span>หากเป็นไฟล์ที่ไม่ใช่ PDF <a href={(window.MP_CONFIG || {}).LINE_OA_URL || 'https://line.me/R/ti/p/@346kifvy'} target="_blank" rel="noreferrer" style={css("color:#06C755;font-weight:700")}>ติดต่อทางไลน์ →</a></div>
             {v.files.map((f, i) => (
               <div key={i} style={css("background:var(--card);border:1px solid " + (f.big ? "#f0b429" : "var(--line)") + ";border-radius:12px;padding:10px 14px")}>
                 <div style={css("display:flex;align-items:center;gap:10px")}>
                   {f.thumb
                     ? <img src={f.thumb} alt="" style={css("width:30px;height:40px;object-fit:cover;object-position:top;border:1px solid var(--line);border-radius:5px;background:#fff;flex:none")}/>
                     : <div style={css("font-size:18px")}>{f.big ? '🗂️' : '📄'}</div>}
-                  <div style={css("flex:1;min-width:0")}><div style={css("font-size:12.5px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap")}>{f.name}{f.sizeMB ? ' · ' + f.sizeMB + 'MB' : ''}</div><div style={css("font-size:10.5px;color:var(--sub)")}>{f.sub}</div></div>
+                  <div style={css("flex:1;min-width:0")}><div style={css("font-size:12.5px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap")}>{f.name}{f.sizeMB ? ' · ' + f.sizeMB + 'MB' : ''}</div><div style={css("font-size:11.5px;color:var(--sub)")}>{f.sub}</div></div>
                   {f.stMode
                     ? <div style={css("flex:none;display:flex;align-items:center;gap:5px;background:var(--accSoft);border:1px solid var(--acc);border-radius:9px;padding:5px 10px")}><span style={css("font-family:'IBM Plex Mono',monospace;font-size:13px;font-weight:700;color:var(--acc)")}>{f.qty || '–'} ชิ้น</span></div>
                     : f.auto && !f.counting
-                    ? <div style={css("flex:none;display:flex;align-items:center;gap:5px;background:var(--accSoft);border:1px solid var(--acc);border-radius:9px;padding:5px 10px")}><span style={css("font-size:11px")}>🔒</span><span style={css("font-family:'IBM Plex Mono',monospace;font-size:13px;font-weight:700;color:var(--acc)")}>{f.pages} หน้า</span></div>
+                    ? <div style={css("flex:none;display:flex;align-items:center;gap:5px;background:var(--accSoft);border:1px solid var(--acc);border-radius:9px;padding:5px 10px")}><span style={css("font-size:12px")}>🔒</span><span style={css("font-family:'IBM Plex Mono',monospace;font-size:13px;font-weight:700;color:var(--acc)")}>{f.pages} หน้า</span></div>
                     : <div style={css("display:flex;align-items:center;gap:8px")}>
                         <button onClick={f.dec} style={css("width:26px;height:26px;border:1px solid var(--line);background:var(--soft);color:var(--ink);border-radius:8px;cursor:pointer")}>−</button>
                         <div style={css("font-family:'IBM Plex Mono',monospace;font-size:13px;font-weight:600;min-width:34px;text-align:center")}>{f.pages} หน้า</div>
@@ -3639,15 +3639,15 @@ class App extends React.Component {
                 {f.big && (
                   <div style={css("margin-top:8px;padding-top:8px;border-top:1px dashed var(--line)")}>
                     {f.upDone ? (
-                      <div style={css("font-size:11.5px;font-weight:700;color:var(--acc)")}>✓ อัปโหลดไฟล์ใหญ่สำเร็จ ({f.sizeMB}MB)</div>
+                      <div style={css("font-size:12.5px;font-weight:700;color:var(--acc)")}>✓ อัปโหลดไฟล์ใหญ่สำเร็จ ({f.sizeMB}MB)</div>
                     ) : f.upErr ? (
                       <div style={css("display:flex;align-items:center;gap:10px")}>
-                        <div style={css("flex:1;font-size:11.5px;font-weight:700;color:#c92a2a;line-height:1.5")}>❌ อัปโหลดไม่สำเร็จ (เน็ตหลุดหรือระบบไม่พร้อม)</div>
-                        <button onClick={f.retryUp} style={css("height:32px;padding:0 14px;border:none;border-radius:9px;background:var(--acc);color:#fff;font-size:11.5px;font-weight:700;cursor:pointer")}>🔁 ลองใหม่</button>
+                        <div style={css("flex:1;font-size:12.5px;font-weight:700;color:#c92a2a;line-height:1.5")}>❌ อัปโหลดไม่สำเร็จ (เน็ตหลุดหรือระบบไม่พร้อม)</div>
+                        <button onClick={f.retryUp} style={css("height:32px;padding:0 14px;border:none;border-radius:9px;background:var(--acc);color:#fff;font-size:12.5px;font-weight:700;cursor:pointer")}>🔁 ลองใหม่</button>
                       </div>
                     ) : (
                       <React.Fragment>
-                        <div style={css("font-size:11px;font-weight:700;color:#a16207")}>⏫ กำลังอัปโหลดไฟล์ใหญ่… {f.up}% — อยู่ในหน้านี้จนเสร็จนะครับ</div>
+                        <div style={css("font-size:12px;font-weight:700;color:#a16207")}>⏫ กำลังอัปโหลดไฟล์ใหญ่… {f.up}% — อยู่ในหน้านี้จนเสร็จนะครับ</div>
                         <div style={css("margin-top:5px;height:6px;background:var(--soft);border-radius:99px;overflow:hidden")}><div style={{ height: '100%', width: f.up + '%', background: 'var(--acc)', borderRadius: '99px', transition: 'width .3s' }}></div></div>
                       </React.Fragment>
                     )}
@@ -3657,13 +3657,13 @@ class App extends React.Component {
             ))}
             {/* เลือกระดับงาน: Standard (ของเดิม) / Pro (งานขั้นสูง A3-A1 ราคารอยืนยัน) */}
             <div style={css("background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px;display:flex;flex-direction:column;gap:8px;box-shadow:var(--shadow)")}>
-              <div style={css("font-size:12px;font-weight:600;color:var(--ink)")}>เลือกระดับงานปริ้น</div>
+              <div style={css("font-size:13px;font-weight:600;color:var(--ink)")}>เลือกระดับงานปริ้น</div>
               <div onClick={v.pickStandard} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '11px 12px', borderRadius: '12px', cursor: 'pointer',
                 border: !v.isPro ? '1.5px solid var(--acc)' : '1px solid var(--line)', background: !v.isPro ? 'var(--accSoft)' : 'var(--soft)' }}>
                 <div style={{ flex: 'none', lineHeight: 0, color: !v.isPro ? 'var(--acc)' : 'var(--sub)' }}>{ICON_PRINTER}</div>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: '13.5px', fontWeight: 700, color: !v.isPro ? 'var(--acc)' : 'var(--ink)' }}>Standard — งานปริ้นเอกสารทั่วไป</div>
-                  <div style={{ fontSize: '11px', color: 'var(--sub)', marginTop: '1px' }}>ขาวดำ · สี · A4 ราคาปกติ</div>
+                  <div style={{ fontSize: '12px', color: 'var(--sub)', marginTop: '1px' }}>ขาวดำ · สี · A4 ราคาปกติ</div>
                 </div>
                 <div style={{ width: '20px', height: '20px', borderRadius: '50%', flex: 'none', boxSizing: 'border-box',
                   border: !v.isPro ? '6px solid var(--acc)' : '2px solid var(--line)', background: '#fff' }}></div>
@@ -3673,7 +3673,7 @@ class App extends React.Component {
                 <div style={{ flex: 'none', lineHeight: 0 }}>{ICON_CMYK}</div>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: '13.5px', fontWeight: 700, color: v.isPro ? 'var(--acc)' : 'var(--ink)' }}>Pro — งานพิมพ์พิเศษ (ร้านอุดมสุขปริ้นติ้ง)</div>
-                  <div style={{ fontSize: '11px', color: 'var(--sub)', marginTop: '1px', lineHeight: 1.55 }}>งานใหญ่ถึง A0 · สั่งได้ 24 ชม.<span style={{ display: 'block' }}>(สั่งหลัง 17.00 น. เริ่มผลิต 8.30 น. วันถัดไป - หยุดทุกวันอาทิตย์ครับ)</span></div>
+                  <div style={{ fontSize: '12px', color: 'var(--sub)', marginTop: '1px', lineHeight: 1.55 }}>งานใหญ่ถึง A0 · สั่งได้ 24 ชม.<span style={{ display: 'block' }}>(สั่งหลัง 17.00 น. เริ่มผลิต 8.30 น. วันถัดไป - หยุดทุกวันอาทิตย์ครับ)</span></div>
                 </div>
                 <div style={{ width: '20px', height: '20px', borderRadius: '50%', flex: 'none', boxSizing: 'border-box',
                   border: v.isPro ? '6px solid var(--acc)' : '2px solid var(--line)', background: '#fff' }}></div>
@@ -3681,7 +3681,7 @@ class App extends React.Component {
             </div>
             <div style={css("background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px;display:flex;flex-direction:column;gap:12px;box-shadow:var(--shadow)")}>
               <div style={css("display:flex;flex-direction:column;gap:6px")}>
-                {!v.isPro && <div style={css("font-size:12px;font-weight:600;color:var(--ink)")}>ประเภทงานปริ้น</div>}
+                {!v.isPro && <div style={css("font-size:13px;font-weight:600;color:var(--ink)")}>ประเภทงานปริ้น</div>}
                 {!v.isPro && v.typeOpts.map((t, i) => (
                   <div key={i} onClick={t.pick} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '10px 12px', borderRadius: '12px', cursor: 'pointer',
                     border: t.on ? '1.5px solid var(--acc)' : '1px solid var(--line)',
@@ -3689,7 +3689,7 @@ class App extends React.Component {
                     <div style={{ fontSize: '22px', flex: 'none', lineHeight: typeof t.icon === 'string' ? 'normal' : 0 }}>{t.icon}</div>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontSize: '13.5px', fontWeight: 700, color: t.on ? 'var(--acc)' : 'var(--ink)' }}>{t.label}</div>
-                      <div style={{ fontSize: '11px', color: 'var(--sub)', marginTop: '1px' }}>{t.desc}</div>
+                      <div style={{ fontSize: '12px', color: 'var(--sub)', marginTop: '1px' }}>{t.desc}</div>
                     </div>
                     <div style={{ width: '20px', height: '20px', borderRadius: '50%', flex: 'none', boxSizing: 'border-box',
                       border: t.on ? '6px solid var(--acc)' : '2px solid var(--line)', background: '#fff' }}></div>
@@ -3698,80 +3698,80 @@ class App extends React.Component {
                 {v.isPro && (v.proWeekendHold
                   ? <div style={css("background:#fff7e0;border:1.5px solid #f0c36d;border-radius:12px;padding:11px 14px;color:#8a6d1a")}>
                       <div style={css("font-size:12.5px;font-weight:800;line-height:1.5;display:flex;align-items:center;gap:6px")}><span style={css("display:flex")}>{fi('clock', 14)}</span>วันหยุดยังรับออเดอร์ตามปกติครับ</div>
-                      <div style={css("margin-top:3px;font-size:12px;font-weight:600;line-height:1.5")}>งานเริ่มผลิตวันจันทร์ที่ {v.proMonDate} เวลา 08:30 น.</div>
+                      <div style={css("margin-top:3px;font-size:13px;font-weight:600;line-height:1.5")}>งานเริ่มผลิตวันจันทร์ที่ {v.proMonDate} เวลา 08:30 น.</div>
                     </div>
                   : v.proAfterCut
-                  ? <div style={css("background:#fff7e0;border:1.5px solid #f0c36d;border-radius:12px;padding:11px 14px;font-size:12px;font-weight:700;color:#8a6d1a;line-height:1.6")}><span style={css("display:inline-flex;vertical-align:-2px;margin-right:6px")}>{fi('clock', 14)}</span>สั่งได้เลยครับ — ออเดอร์จะเริ่มผลิตเวลา 08:30 น.</div>
-                  : <div style={css("background:var(--accSoft);border:1px solid var(--acc);border-radius:12px;padding:9px 13px;font-size:11.5px;font-weight:700;color:var(--acc);line-height:1.65")}><span style={css("display:inline-flex;vertical-align:-2px;margin-right:6px")}>{fi('clock', 13)}</span>งาน Pro สั่งได้ตลอด 24 ชม.<span style={css("display:block")}>สั่งออเดอร์หลัง 17:00 น. เริ่มผลิตวันถัดไป 08:30 น.</span><span style={css("display:block")}>ร้านหยุดทุกวันอาทิตย์ (รับผลิตออเดอร์สุดท้ายก่อน 16.00 น. วันเสาร์)</span></div>)}
+                  ? <div style={css("background:#fff7e0;border:1.5px solid #f0c36d;border-radius:12px;padding:11px 14px;font-size:13px;font-weight:700;color:#8a6d1a;line-height:1.6")}><span style={css("display:inline-flex;vertical-align:-2px;margin-right:6px")}>{fi('clock', 14)}</span>สั่งได้เลยครับ — ออเดอร์จะเริ่มผลิตเวลา 08:30 น.</div>
+                  : <div style={css("background:var(--accSoft);border:1px solid var(--acc);border-radius:12px;padding:9px 13px;font-size:12.5px;font-weight:700;color:var(--acc);line-height:1.65")}><span style={css("display:inline-flex;vertical-align:-2px;margin-right:6px")}>{fi('clock', 13)}</span>งาน Pro สั่งได้ตลอด 24 ชม.<span style={css("display:block")}>สั่งออเดอร์หลัง 17:00 น. เริ่มผลิตวันถัดไป 08:30 น.</span><span style={css("display:block")}>ร้านหยุดทุกวันอาทิตย์ (รับผลิตออเดอร์สุดท้ายก่อน 16.00 น. วันเสาร์)</span></div>)}
                 {/* ประเภทงาน Pro เป็นกริดการ์ด 2 คอลัมน์ (เจ้าของเลือกจาก prototype 2026-09-11): ไอคอนเดิม + ชื่ออย่างเดียว ไม่มีราคาบนการ์ด (ราคาไปอยู่ในบิล) · ใบสุดท้าย (แบบแปลน) เต็มแถว */}
-                {v.isPro && <div style={css("display:flex;flex-direction:column;gap:6px")}><div style={css("font-size:12px;font-weight:600;color:var(--ink)")}>ประเภทงาน Pro (ร้านอุดมสุขปริ้นติ้ง)</div><div style={css("display:grid;grid-template-columns:repeat(2, minmax(0, 1fr));gap:8px")}>{v.proTypeOpts.map((o, i) => (
+                {v.isPro && <div style={css("display:flex;flex-direction:column;gap:6px")}><div style={css("font-size:13px;font-weight:600;color:var(--ink)")}>ประเภทงาน Pro (ร้านอุดมสุขปริ้นติ้ง)</div><div style={css("display:grid;grid-template-columns:repeat(2, minmax(0, 1fr));gap:8px")}>{v.proTypeOpts.map((o, i) => (
                   <button key={i} onClick={o.pick} style={{ gridColumn: i === v.proTypeOpts.length - 1 ? '1 / -1' : 'auto', boxSizing: 'border-box', minHeight: '46px', border: o.on ? '1.5px solid var(--acc)' : '1px solid var(--line)', borderRadius: '12px', padding: o.on ? '10.5px 12.5px' : '11px 13px', background: o.on ? 'var(--accSoft)' : 'var(--card)', display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '6px', textAlign: 'left', cursor: 'pointer', fontFamily: 'inherit' }}>
                     <span style={{ flex: 'none', lineHeight: 0, color: o.on ? 'var(--acc)' : 'var(--ink)' }}>{o.svg}</span>
                     <span style={{ fontSize: '13px', fontWeight: 700, color: o.on ? 'var(--acc)' : 'var(--ink)', lineHeight: 1.35 }}>{o.label}</span>
                     {v.prevOk[o.k] && (
                       <span onClick={(e) => { e.stopPropagation(); v.openPrev(o.k); }} title="ดูตัวอย่างงานจริง"
-                        style={{ fontSize: '10px', fontWeight: 700, color: 'var(--sub)', background: 'var(--soft)', border: '1px solid var(--line)', borderRadius: '99px', padding: '3px 9px', lineHeight: 1.4, cursor: 'zoom-in' }}>กดดูตัวอย่างงาน</span>
+                        style={{ fontSize: '11px', fontWeight: 700, color: 'var(--sub)', background: 'var(--soft)', border: '1px solid var(--line)', borderRadius: '99px', padding: '3px 9px', lineHeight: 1.4, cursor: 'zoom-in' }}>กดดูตัวอย่างงาน</span>
                     )}
                   </button>
                 ))}</div></div>}
                 {/* คำกำกับกระดาษ (โปสเตอร์/เพลท) — ข้อความเขียวสด หลังกดเลือกประเภท ก่อนตัวเลือกขนาด (เจ้าของสั่ง 2026-09-11) */}
                 {v.isPro && v.proPaperNote && <div style={css("font-size:13.5px;font-weight:700;color:var(--acc);line-height:1.6")}>{v.proPaperNote}</div>}
-                {v.isPro && v.proSizeOpts.length > 0 && <div style={css("display:flex;flex-direction:column;gap:6px")}><div style={css("font-size:12px;font-weight:600;color:var(--ink)")}>ขนาด</div><div style={css("display:flex;gap:8px;flex-wrap:wrap")}>{v.proSizeOpts.map((o, i) => <button key={i} onClick={o.pick} style={o.st}>{o.label}</button>)}</div></div>}
+                {v.isPro && v.proSizeOpts.length > 0 && <div style={css("display:flex;flex-direction:column;gap:6px")}><div style={css("font-size:13px;font-weight:600;color:var(--ink)")}>ขนาด</div><div style={css("display:flex;gap:8px;flex-wrap:wrap")}>{v.proSizeOpts.map((o, i) => <button key={i} onClick={o.pick} style={o.st}>{o.label}</button>)}</div></div>}
                 {/* แนวกระดาษ (ปริ้นสีขาวดำขนาดใหญ่ — 2026-09-11) */}
-                {v.isPro && v.proOrientOpts.length > 0 && <div style={css("display:flex;flex-direction:column;gap:6px")}><div style={css("font-size:12px;font-weight:600;color:var(--ink)")}>แนวของกระดาษ</div><div style={css("display:flex;gap:8px;flex-wrap:wrap")}>{v.proOrientOpts.map((o, i) => <button key={i} onClick={o.pick} style={{...o.st, flex:'1 1 45%'}}>{o.label}</button>)}</div></div>}
+                {v.isPro && v.proOrientOpts.length > 0 && <div style={css("display:flex;flex-direction:column;gap:6px")}><div style={css("font-size:13px;font-weight:600;color:var(--ink)")}>แนวของกระดาษ</div><div style={css("display:flex;gap:8px;flex-wrap:wrap")}>{v.proOrientOpts.map((o, i) => <button key={i} onClick={o.pick} style={{...o.st, flex:'1 1 45%'}}>{o.label}</button>)}</div></div>}
                 {/* โปสเตอร์: ประเภทกระดาษ — วางก่อนหัวข้อด้านที่พิมพ์ (เจ้าของสั่ง 2026-09-15) */}
-                {v.isPro && v.proPoPaperOpts.length > 0 && <div style={css("display:flex;flex-direction:column;gap:6px")}><div style={css("font-size:12px;font-weight:600;color:var(--ink)")}>ประเภทกระดาษ</div><div style={css("display:flex;gap:8px;flex-wrap:wrap")}>{v.proPoPaperOpts.map((o, i) => <button key={i} onClick={o.pick} style={{...o.st, flex:'1 1 45%'}}>{o.label}</button>)}</div></div>}
-                {v.isPro && v.proShowSides && <div style={css("display:flex;flex-direction:column;gap:6px")}><div style={css("font-size:12px;font-weight:600;color:var(--ink)")}>ด้านที่พิมพ์</div><div style={css("display:flex;gap:8px;flex-wrap:wrap")}>{v.proSidesOpts.map((o, i) => <button key={i} onClick={o.pick} style={{...o.st, flex:'1 1 45%'}}>{o.label}</button>)}</div></div>}
-                {v.isPro && v.proExtraOpts.length > 0 && <div style={css("display:flex;flex-direction:column;gap:6px")}><div style={css("font-size:12px;font-weight:600;color:var(--ink)")}>ตัวเลือกเสริม</div><div style={css("display:flex;gap:8px;flex-wrap:wrap")}>{v.proExtraOpts.map((o, i) => <button key={i} onClick={o.pick} style={{...o.st, flex:'1 1 45%'}}>{o.label}</button>)}</div></div>}
+                {v.isPro && v.proPoPaperOpts.length > 0 && <div style={css("display:flex;flex-direction:column;gap:6px")}><div style={css("font-size:13px;font-weight:600;color:var(--ink)")}>ประเภทกระดาษ</div><div style={css("display:flex;gap:8px;flex-wrap:wrap")}>{v.proPoPaperOpts.map((o, i) => <button key={i} onClick={o.pick} style={{...o.st, flex:'1 1 45%'}}>{o.label}</button>)}</div></div>}
+                {v.isPro && v.proShowSides && <div style={css("display:flex;flex-direction:column;gap:6px")}><div style={css("font-size:13px;font-weight:600;color:var(--ink)")}>ด้านที่พิมพ์</div><div style={css("display:flex;gap:8px;flex-wrap:wrap")}>{v.proSidesOpts.map((o, i) => <button key={i} onClick={o.pick} style={{...o.st, flex:'1 1 45%'}}>{o.label}</button>)}</div></div>}
+                {v.isPro && v.proExtraOpts.length > 0 && <div style={css("display:flex;flex-direction:column;gap:6px")}><div style={css("font-size:13px;font-weight:600;color:var(--ink)")}>ตัวเลือกเสริม</div><div style={css("display:flex;gap:8px;flex-wrap:wrap")}>{v.proExtraOpts.map((o, i) => <button key={i} onClick={o.pick} style={{...o.st, flex:'1 1 45%'}}>{o.label}</button>)}</div></div>}
                 {v.isPro && v.proBoardOpts.length > 0 && <div style={css("display:flex;flex-direction:column;gap:6px")}>
-                  <div style={css("font-size:12px;font-weight:600;color:var(--ink)")}>ประเภทบอร์ด (ไม่บวกราคาเพิ่ม)</div>
+                  <div style={css("font-size:13px;font-weight:600;color:var(--ink)")}>ประเภทบอร์ด (ไม่บวกราคาเพิ่ม)</div>
                   <div style={css("display:flex;gap:8px;flex-wrap:wrap")}>{v.proBoardOpts.map((o, i) => <button key={i} onClick={o.pick} style={{...o.st, flex:'1 1 45%'}}>{o.label}</button>)}</div>
                   {/* ข้อความเตือนแดง "เลือกบอร์ดก่อน" ถูกถอด (2026-09-11 เจ้าของบอกลูกค้ารำคาญ) — toDelivery ยังบล็อก+toast ถ้าไม่เลือกเหมือนเดิม */}
                 </div>}
-                {v.isPro && v.proGramOpts.length > 0 && <div style={css("display:flex;flex-direction:column;gap:6px")}><div style={css("font-size:12px;font-weight:600;color:var(--ink)")}>ความหนากระดาษ (ไม่บวกราคาเพิ่ม)</div><div style={css("display:flex;gap:8px;flex-wrap:wrap")}>{v.proGramOpts.map((o, i) => <button key={i} onClick={o.pick} style={{...o.st, flex:'1 1 30%'}}>{o.label}</button>)}</div></div>}
-                {v.isPro && v.proLamOpts.length > 0 && <div style={css("display:flex;flex-direction:column;gap:6px")}><div style={css("font-size:12px;font-weight:600;color:var(--ink)")}>{v.proLamHead}</div><div style={css("display:flex;gap:8px;flex-wrap:wrap")}>{v.proLamOpts.map((o, i) => <button key={i} onClick={o.pick} style={{...o.st, flex:'1 1 30%'}}>{o.label}</button>)}</div></div>}
+                {v.isPro && v.proGramOpts.length > 0 && <div style={css("display:flex;flex-direction:column;gap:6px")}><div style={css("font-size:13px;font-weight:600;color:var(--ink)")}>ความหนากระดาษ (ไม่บวกราคาเพิ่ม)</div><div style={css("display:flex;gap:8px;flex-wrap:wrap")}>{v.proGramOpts.map((o, i) => <button key={i} onClick={o.pick} style={{...o.st, flex:'1 1 30%'}}>{o.label}</button>)}</div></div>}
+                {v.isPro && v.proLamOpts.length > 0 && <div style={css("display:flex;flex-direction:column;gap:6px")}><div style={css("font-size:13px;font-weight:600;color:var(--ink)")}>{v.proLamHead}</div><div style={css("display:flex;gap:8px;flex-wrap:wrap")}>{v.proLamOpts.map((o, i) => <button key={i} onClick={o.pick} style={{...o.st, flex:'1 1 30%'}}>{o.label}</button>)}</div></div>}
                 {/* ตัวเลือกเคลือบ (โปสเตอร์): เลือกชนิดฟิล์ม — โผล่เฉพาะตอนกดเคลือบ · ฟิล์มแข็งมีเฉพาะเคลือบหน้า-หลัง */}
-                {v.isPro && v.proFilmOpts.length > 0 && <div style={css("display:flex;flex-direction:column;gap:6px")}><div style={css("font-size:12px;font-weight:600;color:var(--ink)")}>ตัวเลือกเคลือบ</div><div style={css("display:flex;gap:8px;flex-wrap:wrap")}>{v.proFilmOpts.map((o, i) => <button key={i} onClick={o.pick} style={{...o.st, flex:'1 1 100%'}}>{o.label}</button>)}</div></div>}
-                {v.isPro && v.proHint && <div style={css("font-size:11.5px;color:var(--acc);font-weight:600")}>{v.proHint}</div>}
-                {v.stkOn && <div style={css("font-size:11px;font-weight:700;color:var(--acc);line-height:1.6")}>💡 ทำไฟล์มาเป็น<b>ขนาดจริง</b> — งานเสร็จไวขึ้นมากครับ</div>}
+                {v.isPro && v.proFilmOpts.length > 0 && <div style={css("display:flex;flex-direction:column;gap:6px")}><div style={css("font-size:13px;font-weight:600;color:var(--ink)")}>ตัวเลือกเคลือบ</div><div style={css("display:flex;gap:8px;flex-wrap:wrap")}>{v.proFilmOpts.map((o, i) => <button key={i} onClick={o.pick} style={{...o.st, flex:'1 1 100%'}}>{o.label}</button>)}</div></div>}
+                {v.isPro && v.proHint && <div style={css("font-size:12.5px;color:var(--acc);font-weight:600")}>{v.proHint}</div>}
+                {v.stkOn && <div style={css("font-size:12px;font-weight:700;color:var(--acc);line-height:1.6")}>💡 ทำไฟล์มาเป็น<b>ขนาดจริง</b> — งานเสร็จไวขึ้นมากครับ</div>}
                 {v.stkOn && <div style={css("display:flex;flex-direction:column;gap:6px")}>
                   {/* ข้อความเตือนแดง "เลือก PP/PVC ก่อน" ถูกถอด (2026-09-11) — toDelivery ยังบล็อก+toast รายไฟล์ถ้าไม่เลือกเหมือนเดิม */}
                   <div style={css("margin-top:2px;background:var(--card);border:1.5px solid var(--acc);border-radius:12px;padding:12px 14px")}>
                     <div style={css("font-size:12.5px;font-weight:700;color:var(--acc)")}>🏷️ เลือกเนื้อ · ขนาด · จำนวนแผ่น — ระบบคิดจำนวนชิ้นให้เอง</div>
                     {v.stkFiles.length === 0
-                      ? <div style={css("margin-top:7px;font-size:11.5px;color:var(--sub);line-height:1.6")}>อัปโหลดไฟล์ลายด้านบนก่อน แล้วช่องกรอกจะขึ้นตรงนี้ครับ</div>
+                      ? <div style={css("margin-top:7px;font-size:12.5px;color:var(--sub);line-height:1.6")}>อัปโหลดไฟล์ลายด้านบนก่อน แล้วช่องกรอกจะขึ้นตรงนี้ครับ</div>
                       : <React.Fragment>
                           {v.stkFiles.map((f, i) => (
                             f.multi
                               ? <div key={i} style={css("margin-top:9px;background:#fff0f0;border:1.5px solid #ffa8a8;border-radius:10px;padding:9px 12px;display:flex;align-items:center;gap:9px")}>
                                   <div style={css("flex:1;min-width:0")}>
-                                    <div style={css("font-size:12px;font-weight:700;color:#c92a2a;overflow:hidden;text-overflow:ellipsis;white-space:nowrap")}>⚠️ {f.name} มี {f.pages} หน้า</div>
-                                    <div style={css("margin-top:2px;font-size:10.5px;color:#c92a2a;line-height:1.5")}>ใช้ได้เฉพาะไฟล์ 1 หน้า (1 ลาย) ครับ</div>
+                                    <div style={css("font-size:13px;font-weight:700;color:#c92a2a;overflow:hidden;text-overflow:ellipsis;white-space:nowrap")}>⚠️ {f.name} มี {f.pages} หน้า</div>
+                                    <div style={css("margin-top:2px;font-size:11.5px;color:#c92a2a;line-height:1.5")}>ใช้ได้เฉพาะไฟล์ 1 หน้า (1 ลาย) ครับ</div>
                                   </div>
-                                  <button onClick={f.del} style={css("flex:none;height:34px;padding:0 12px;border:none;border-radius:9px;background:#c92a2a;color:#fff;font-size:11.5px;font-weight:700;cursor:pointer;font-family:inherit")}>ลบไฟล์นี้</button>
+                                  <button onClick={f.del} style={css("flex:none;height:34px;padding:0 12px;border:none;border-radius:9px;background:#c92a2a;color:#fff;font-size:12.5px;font-weight:700;cursor:pointer;font-family:inherit")}>ลบไฟล์นี้</button>
                                 </div>
                               : <div key={i} style={css("margin-top:9px;border:1px solid var(--line);border-radius:10px;padding:10px 12px;background:var(--soft)")}>
-                                  <div style={css("font-size:12px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap")}>ไฟล์ที่ {i + 1} · {f.name}</div>
-                                  <div style={css("margin-top:8px;font-size:10.5px;font-weight:600;color:var(--ink)")}>1. เลือกประเภทสติ๊กเกอร์</div>
+                                  <div style={css("font-size:13px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap")}>ไฟล์ที่ {i + 1} · {f.name}</div>
+                                  <div style={css("margin-top:8px;font-size:11.5px;font-weight:600;color:var(--ink)")}>1. เลือกประเภทสติ๊กเกอร์</div>
                                   <div style={css("margin-top:4px;display:flex;gap:7px")}>
                                     {['pp', 'pvc'].map(k => (
                                       <button key={k} onClick={() => f.setStk(k)} style={css("flex:1;min-width:0;min-height:38px;padding:7px 4px;line-height:1.35;box-sizing:border-box;border-radius:9px;font-size:12.5px;font-weight:700;cursor:pointer;font-family:inherit;border:" + (f.t === k ? "1.5px solid var(--acc)" : "1px solid var(--line)") + ";background:" + (f.t === k ? "var(--accSoft)" : "var(--card)") + ";color:" + (f.t === k ? "var(--acc)" : "var(--ink)"))}>{k.toUpperCase()}{k === 'pp' ? ' (ติดฉลากสินค้า)' : ' (คุณภาพสูง)'}</button>
                                     ))}
                                   </div>
-                                  {!f.t && <div style={css("margin-top:4px;font-size:10.5px;font-weight:700;color:#c92a2a")}>⚠️ กดเลือกแบบของลายนี้ก่อนครับ — PP หรือ PVC</div>}
-                                  <div style={css("margin-top:8px;font-size:10.5px;font-weight:600;color:var(--ink)")}>2. ขนาดชิ้นสติ๊กเกอร์ (เซนติเมตร)</div>
+                                  {!f.t && <div style={css("margin-top:4px;font-size:11.5px;font-weight:700;color:#c92a2a")}>⚠️ กดเลือกแบบของลายนี้ก่อนครับ — PP หรือ PVC</div>}
+                                  <div style={css("margin-top:8px;font-size:11.5px;font-weight:600;color:var(--ink)")}>2. ขนาดชิ้นสติ๊กเกอร์ (เซนติเมตร)</div>
                                   <div style={css("margin-top:4px;display:flex;align-items:center;gap:7px")}>
                                     <input value={f.valW} onChange={f.setW} inputMode="decimal" placeholder="กว้าง" style={css("flex:1;min-width:0;height:40px;border:1.5px solid var(--acc);border-radius:10px;background:var(--card);color:var(--ink);font-size:14px;font-weight:700;text-align:center;outline:none")}/>
                                     <span style={css("flex:none;font-size:13px;font-weight:700;color:var(--sub)")}>×</span>
                                     <input value={f.valH} onChange={f.setH} inputMode="decimal" placeholder="ยาว" style={css("flex:1;min-width:0;height:40px;border:1.5px solid var(--acc);border-radius:10px;background:var(--card);color:var(--ink);font-size:14px;font-weight:700;text-align:center;outline:none")}/>
-                                    <span style={css("flex:none;font-size:11px;font-weight:600;color:var(--sub)")}>ซม.</span>
+                                    <span style={css("flex:none;font-size:12px;font-weight:600;color:var(--sub)")}>ซม.</span>
                                   </div>
-                                  <div style={css("margin-top:8px;font-size:10.5px;font-weight:600;color:var(--ink)")}>3. {f.t === 'pvc' ? 'จำนวนตารางเมตรที่ต้องการ (1 ตร.ม. = 100×100 ซม.)' : 'จำนวนแผ่นที่ต้องการ (แผ่นละ 13"×19" นิ้ว)'}</div>
+                                  <div style={css("margin-top:8px;font-size:11.5px;font-weight:600;color:var(--ink)")}>3. {f.t === 'pvc' ? 'จำนวนตารางเมตรที่ต้องการ (1 ตร.ม. = 100×100 ซม.)' : 'จำนวนแผ่นที่ต้องการ (แผ่นละ 13"×19" นิ้ว)'}</div>
                                   <div style={css("margin-top:4px;display:flex;align-items:center;gap:7px")}>
                                     <input value={f.valSh} onChange={f.setSh} inputMode="numeric" placeholder="เช่น 2" style={css("flex:1;min-width:0;height:40px;border:1.5px solid var(--acc);border-radius:10px;background:var(--card);color:var(--ink);font-size:14px;font-weight:700;text-align:center;outline:none")}/>
-                                    <span style={css("flex:none;font-size:11px;font-weight:600;color:var(--sub)")}>{f.t === 'pvc' ? 'ตร.ม.' : 'แผ่น'}</span>
+                                    <span style={css("flex:none;font-size:12px;font-weight:600;color:var(--sub)")}>{f.t === 'pvc' ? 'ตร.ม.' : 'แผ่น'}</span>
                                   </div>
-                                  <div style={css("margin-top:7px;font-size:10.5px;line-height:1.5;" + (f.info && f.info.over ? "font-weight:700;color:#c92a2a" : "color:var(--sub)"))}>
+                                  <div style={css("margin-top:7px;font-size:11.5px;line-height:1.5;" + (f.info && f.info.over ? "font-weight:700;color:#c92a2a" : "color:var(--sub)"))}>
                                     {f.info && f.info.over
                                       ? (() => { const shp = STK_SHEET[f.t] || STK_SHEET.pp; return '⚠️ ขนาดใหญ่เกิน' + (f.t === 'pvc' ? 'พื้นที่ 1 ตร.ม.' : 'แผ่น 13"×19"') + ' (พิมพ์ได้ไม่เกิน ' + (shp.w - STK_MARGIN * 2) + '×' + (shp.h - STK_MARGIN * 2) + ' ซม.) — ลดขนาดลงหรือทักไลน์ร้านครับ'; })()
                                       : f.info && f.info.cap > 0 && f.info.ok
@@ -3782,49 +3782,49 @@ class App extends React.Component {
                                   </div>
                                 </div>
                           ))}
-                          {v.stkMulti && <div style={css("margin-top:10px;background:#fff0f0;border:1px solid #ffa8a8;border-radius:10px;padding:8px 11px;font-size:11.5px;font-weight:700;color:#c92a2a;line-height:1.5")}>⚠️ ลบไฟล์ที่เกิน 1 หน้าออกก่อนครับ</div>}
+                          {v.stkMulti && <div style={css("margin-top:10px;background:#fff0f0;border:1px solid #ffa8a8;border-radius:10px;padding:8px 11px;font-size:12.5px;font-weight:700;color:#c92a2a;line-height:1.5")}>⚠️ ลบไฟล์ที่เกิน 1 หน้าออกก่อนครับ</div>}
                           {v.stkSum && !v.stkMulti && (v.stkSum.ready
-                            ? <div style={css("margin-top:10px;background:var(--accSoft);border:1px solid var(--acc);border-radius:10px;padding:8px 11px;font-size:12px;font-weight:700;color:var(--acc)")}>
+                            ? <div style={css("margin-top:10px;background:var(--accSoft);border:1px solid var(--acc);border-radius:10px;padding:8px 11px;font-size:13px;font-weight:700;color:var(--acc)")}>
                                 <div style={css("display:flex;justify-content:space-between;gap:8px")}><span>สติ๊กเกอร์รวมทั้งหมด {v.stkSum.pcs} ชิ้น ({v.stkSum.units})</span><span>฿{v.stkSum.cost}</span></div>
-                                {v.stkSum.brk && <div style={css("margin-top:2px;font-size:11px")}>{v.stkSum.brk}</div>}
-                                {v.stkSum.tierNote && <div style={css("margin-top:2px;font-size:11px")}>{v.stkSum.tierNote}</div>}
+                                {v.stkSum.brk && <div style={css("margin-top:2px;font-size:12px")}>{v.stkSum.brk}</div>}
+                                {v.stkSum.tierNote && <div style={css("margin-top:2px;font-size:12px")}>{v.stkSum.tierNote}</div>}
                               </div>
-                            : <div style={css("margin-top:10px;background:#fff7e0;border:1px solid #f0c36d;border-radius:10px;padding:8px 11px;font-size:11.5px;font-weight:700;color:#8a6d1a;line-height:1.5")}>เลือกประเภทสติ๊กเกอร์ + ขนาดชิ้น + จำนวนแผ่นให้ครบทุกลาย แล้วระบบจะคำนวณจำนวนชิ้นและราคาให้ตรงนี้ครับ</div>)}
+                            : <div style={css("margin-top:10px;background:#fff7e0;border:1px solid #f0c36d;border-radius:10px;padding:8px 11px;font-size:12.5px;font-weight:700;color:#8a6d1a;line-height:1.5")}>กรอกให้ครบทุกลาย แล้วราคาจะขึ้นตรงนี้ครับ</div>)}
                         </React.Fragment>}
                   </div>
                 </div>}
-                {v.isPro && v.proShowBind && <div style={css("display:flex;flex-direction:column;gap:6px")}><div style={css("font-size:12px;font-weight:600;color:var(--ink)")}>ตัวเลือกเข้าเล่ม</div><div style={css("display:flex;flex-direction:column;gap:8px")}>{v.proBindOpts.map((o, i) => <button key={i} onClick={o.pick} style={{ ...o.st, width: '100%', boxSizing: 'border-box', minHeight: '44px', display: 'flex', alignItems: 'center', textAlign: 'left', fontSize: '13px' }}>{o.label}</button>)}</div></div>}
-                {v.isPro && v.proShowQty && <div style={css("display:flex;flex-direction:column;gap:6px")}><div style={css("font-size:12px;font-weight:600;color:var(--ink)")}>จำนวน</div><div style={css("display:flex;flex-direction:column;gap:8px")}>{v.proQtyOpts.map((o, i) => <button key={i} onClick={o.pick} style={{ ...o.st, width: '100%', boxSizing: 'border-box', minHeight: '44px', display: 'flex', alignItems: 'center', textAlign: 'left', fontSize: '13px' }}>{o.label}</button>)}</div></div>}
-                {v.isPro && <div style={css("display:flex;flex-direction:column;gap:6px")}><div style={css("font-size:12px;font-weight:600;color:var(--ink)")}>การรับงาน</div><div style={css("display:flex;flex-direction:column;gap:8px")}>
+                {v.isPro && v.proShowBind && <div style={css("display:flex;flex-direction:column;gap:6px")}><div style={css("font-size:13px;font-weight:600;color:var(--ink)")}>ตัวเลือกเข้าเล่ม</div><div style={css("display:flex;flex-direction:column;gap:8px")}>{v.proBindOpts.map((o, i) => <button key={i} onClick={o.pick} style={{ ...o.st, width: '100%', boxSizing: 'border-box', minHeight: '44px', display: 'flex', alignItems: 'center', textAlign: 'left', fontSize: '13px' }}>{o.label}</button>)}</div></div>}
+                {v.isPro && v.proShowQty && <div style={css("display:flex;flex-direction:column;gap:6px")}><div style={css("font-size:13px;font-weight:600;color:var(--ink)")}>จำนวน</div><div style={css("display:flex;flex-direction:column;gap:8px")}>{v.proQtyOpts.map((o, i) => <button key={i} onClick={o.pick} style={{ ...o.st, width: '100%', boxSizing: 'border-box', minHeight: '44px', display: 'flex', alignItems: 'center', textAlign: 'left', fontSize: '13px' }}>{o.label}</button>)}</div></div>}
+                {v.isPro && <div style={css("display:flex;flex-direction:column;gap:6px")}><div style={css("font-size:13px;font-weight:600;color:var(--ink)")}>การรับงาน</div><div style={css("display:flex;flex-direction:column;gap:8px")}>
                   {v.proPickupOpts.map((o, i) => (
                     <div key={i} onClick={o.pick} style={css("border:" + (o.on ? "1.5px solid var(--acc)" : "1px solid var(--line)") + ";border-radius:12px;padding:11px 14px;background:" + (o.on ? "var(--accSoft)" : "var(--card)") + ";display:flex;align-items:center;gap:11px;cursor:pointer")}>
                       <div style={{ flex: 'none', fontSize: '22px', lineHeight: o.svg ? 0 : 'normal', color: o.on ? 'var(--acc)' : 'var(--ink)' }}>{o.svg || o.icon}</div>
                       <div style={css("flex:1;min-width:0")}>
                         <div style={css("font-size:13.5px;font-weight:700;color:" + (o.on ? "var(--acc)" : "var(--ink)"))}>{o.name}</div>
-                        <div style={css("margin-top:1px;font-size:11px;color:var(--sub);line-height:1.5")}>{o.sub}</div>
+                        <div style={css("margin-top:1px;font-size:12px;color:var(--sub);line-height:1.5")}>{o.sub}</div>
                       </div>
                       <div style={css("width:20px;height:20px;border-radius:50%;flex:none;border:2px solid " + (o.on ? "var(--acc)" : "var(--line)") + ";display:flex;align-items:center;justify-content:center")}>{o.on && <div style={css("width:10px;height:10px;border-radius:50%;background:var(--acc)")}></div>}</div>
                     </div>
                   ))}
                 </div></div>}
                 {/* งาน Pro ไม่โชว์บรรทัด "ที่เลือก"/💡 สรุปเรทแล้ว (เจ้าของสั่ง 2026-09-17 — บิลท้ายหน้าโชว์ครบ รกซ้ำซ้อน) · Standard คงเรทไว้ */}
-                {!v.isPro && <div style={css("font-size:11.5px;color:var(--acc);font-weight:600")}>💡 {v.rateHint}</div>}
-                {v.colorNote && <div style={css("font-size:10.5px;color:var(--sub)")}>{v.colorNote}</div>}
+                {!v.isPro && <div style={css("font-size:12.5px;color:var(--acc);font-weight:600")}>💡 {v.rateHint}</div>}
+                {v.colorNote && <div style={css("font-size:11.5px;color:var(--sub)")}>{v.colorNote}</div>}
               </div>
-              {v.showSize && <div style={css("display:flex;flex-direction:column;gap:6px")}><div style={css("font-size:12px;font-weight:600;color:var(--ink)")}>ขนาด</div><div style={css("display:flex;gap:8px;flex-wrap:wrap")}>{v.sizeOpts.map((o, i) => <button key={i} onClick={o.pick} style={o.st}>{o.label}</button>)}</div></div>}
-              {v.showSides && <div style={css("display:flex;flex-direction:column;gap:6px")}><div style={css("font-size:12px;font-weight:600;color:var(--ink)")}>ด้านที่พิมพ์</div><div style={css("display:flex;gap:8px")}>{v.sidesOpts.map((o, i) => <button key={i} onClick={o.pick} style={o.st}>{o.label}</button>)}</div></div>}
-              {v.showSides && <div style={css("display:flex;flex-direction:column;gap:6px")}><div style={css("font-size:12px;font-weight:600;color:var(--ink)")}>ทิศทางกระดาษ</div><div style={css("display:flex;gap:8px")}>{v.orientOpts.map((o, i) => <button key={i} onClick={o.pick} style={o.st}>{o.label}</button>)}</div></div>}
-              {v.showSides && <div style={css("display:flex;flex-direction:column;gap:6px")}><div style={css("font-size:12px;font-weight:600;color:var(--ink)")}>การกำหนดหน้า</div><div style={css("display:flex;gap:8px;flex-wrap:wrap")}>{v.nupOpts.map((o, i) => <button key={i} onClick={o.pick} style={{...o.st, flex:'1 1 40%'}}>{o.label}</button>)}</div></div>}
+              {v.showSize && <div style={css("display:flex;flex-direction:column;gap:6px")}><div style={css("font-size:13px;font-weight:600;color:var(--ink)")}>ขนาด</div><div style={css("display:flex;gap:8px;flex-wrap:wrap")}>{v.sizeOpts.map((o, i) => <button key={i} onClick={o.pick} style={o.st}>{o.label}</button>)}</div></div>}
+              {v.showSides && <div style={css("display:flex;flex-direction:column;gap:6px")}><div style={css("font-size:13px;font-weight:600;color:var(--ink)")}>ด้านที่พิมพ์</div><div style={css("display:flex;gap:8px")}>{v.sidesOpts.map((o, i) => <button key={i} onClick={o.pick} style={o.st}>{o.label}</button>)}</div></div>}
+              {v.showSides && <div style={css("display:flex;flex-direction:column;gap:6px")}><div style={css("font-size:13px;font-weight:600;color:var(--ink)")}>ทิศทางกระดาษ</div><div style={css("display:flex;gap:8px")}>{v.orientOpts.map((o, i) => <button key={i} onClick={o.pick} style={o.st}>{o.label}</button>)}</div></div>}
+              {v.showSides && <div style={css("display:flex;flex-direction:column;gap:6px")}><div style={css("font-size:13px;font-weight:600;color:var(--ink)")}>การกำหนดหน้า</div><div style={css("display:flex;gap:8px;flex-wrap:wrap")}>{v.nupOpts.map((o, i) => <button key={i} onClick={o.pick} style={{...o.st, flex:'1 1 40%'}}>{o.label}</button>)}</div></div>}
               {v.showBind && [['การเย็บมุม', v.cornerOpts], ...(v.bindOpen ? [['การเข้าเล่ม (+฿20/ชุด · รับ 09:00–21:30 น.)', v.bookOpts]] : [])].map(([head, opts]) => (
                 <div key={head} style={css("display:flex;flex-direction:column;gap:6px")}>
-                  <div style={css("font-size:12px;font-weight:600;color:var(--ink)")}>{head}</div>
+                  <div style={css("font-size:13px;font-weight:600;color:var(--ink)")}>{head}</div>
                   <div style={css("display:flex;flex-direction:column;gap:8px")}>
                     {opts.map((o) => (
                       <div key={o.k} onClick={o.pick} style={css("border:" + (o.on ? "1.5px solid var(--acc)" : "1px solid var(--line)") + ";border-radius:12px;padding:11px 14px;background:" + (o.on ? "var(--accSoft)" : "var(--card)") + ";display:flex;align-items:center;gap:11px;cursor:pointer")}>
                         <div style={css("flex:none;display:flex;color:" + (o.on ? "var(--acc)" : "var(--sub)"))}>{fi(o.ic, 20)}</div>
                         <div style={css("flex:1;min-width:0")}>
-                          <div style={css("font-size:13px;font-weight:700;color:" + (o.on ? "var(--acc)" : "var(--ink)"))}>{o.name}{o.price > 0 && <span style={css("margin-left:6px;font-family:'IBM Plex Mono',monospace;font-size:12px;font-weight:600")}>+฿{o.price}/ชุด</span>}</div>
-                          <div style={css("margin-top:1px;font-size:11px;color:var(--sub);line-height:1.5")}>{o.sub}</div>
+                          <div style={css("font-size:13px;font-weight:700;color:" + (o.on ? "var(--acc)" : "var(--ink)"))}>{o.name}{o.price > 0 && <span style={css("margin-left:6px;font-family:'IBM Plex Mono',monospace;font-size:13px;font-weight:600")}>+฿{o.price}/ชุด</span>}</div>
+                          <div style={css("margin-top:1px;font-size:12px;color:var(--sub);line-height:1.5")}>{o.sub}</div>
                         </div>
                         <div style={css("width:20px;height:20px;border-radius:50%;flex:none;border:2px solid " + (o.on ? "var(--acc)" : "var(--line)") + ";display:flex;align-items:center;justify-content:center")}>{o.on && <div style={css("width:10px;height:10px;border-radius:50%;background:var(--acc)")}></div>}</div>
                       </div>
@@ -3832,9 +3832,9 @@ class App extends React.Component {
                   </div>
                 </div>
               ))}
-              {v.showBind && !v.bindOpen && <div style={css("font-size:11px;color:var(--sub);line-height:1.5")}><span style={css("display:inline-flex;vertical-align:-2px;margin-right:5px")}>{fi('clock', 12)}</span>บริการเข้าเล่ม (+฿20/ชุด) เปิดรับเฉพาะ 09:00–21:30 น. ครับ</div>}
+              {v.showBind && !v.bindOpen && <div style={css("font-size:12px;color:var(--sub);line-height:1.5")}><span style={css("display:inline-flex;vertical-align:-2px;margin-right:5px")}>{fi('clock', 12)}</span>บริการเข้าเล่ม (+฿20/ชุด) เปิดรับเฉพาะ 09:00–21:30 น. ครับ</div>}
               {/* สติ๊กเกอร์ไม่มีจำนวนชุด — ลูกค้ากำหนดขนาด+จำนวนชิ้นรายไฟล์เองอยู่แล้ว (เจ้าของสั่ง 2026-09-11, copies ถูกล็อก 1 ตอนเลือกประเภท) */}
-              {!v.stkOn && <div style={css("display:flex;justify-content:space-between;align-items:center")}><div style={css("font-size:12px;font-weight:600;color:var(--ink)")}>จำนวนชุด (สำเนา)</div>
+              {!v.stkOn && <div style={css("display:flex;justify-content:space-between;align-items:center")}><div style={css("font-size:13px;font-weight:600;color:var(--ink)")}>จำนวนชุด (สำเนา)</div>
                 <div style={css("display:flex;align-items:center;gap:10px")}>
                   <button onClick={v.copyDec} style={css("width:30px;height:30px;border:1px solid var(--line);background:var(--soft);color:var(--ink);border-radius:9px;font-size:15px;cursor:pointer")}>−</button>
                   <div style={css("font-family:'IBM Plex Mono',monospace;font-size:15px;font-weight:600;min-width:26px;text-align:center")}>{v.copies}</div>
@@ -3843,16 +3843,16 @@ class App extends React.Component {
               </div>}
             </div>
             <div style={css("background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px;display:flex;flex-direction:column;gap:8px")}>
-              <div style={css("font-size:12px;font-weight:600;color:var(--ink)")}>หมายเหตุ (รายละเอียดงาน) <span style={css("font-weight:400")}>— กรอกหรือไม่กรอกก็ได้</span></div>
+              <div style={css("font-size:13px;font-weight:600;color:var(--ink)")}>หมายเหตุ (รายละเอียดงาน) <span style={css("font-weight:400")}>— กรอกหรือไม่กรอกก็ได้</span></div>
               <textarea value={v.noteText} onChange={v.setNote} rows={2} maxLength={300}
                 style={css("width:100%;box-sizing:border-box;border:1px solid var(--line);border-radius:10px;background:var(--soft);color:var(--ink);padding:10px 12px;font-size:13px;outline:none;resize:none;font-family:inherit;line-height:1.5")}></textarea>
             </div>
             <div style={css("background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px")}>
-              <div style={css("font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:var(--sub);letter-spacing:1px")}>ราคาโดยประมาณ</div>
+              <div style={css("font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:var(--sub);letter-spacing:1px")}>ราคาโดยประมาณ</div>
               <div style={css("margin-top:8px;display:flex;flex-direction:column;gap:5px;font-size:12.5px")}>
                 <BillPrint v={v}/>
-                {v.colorBreak && <div style={css("font-size:10.5px;color:var(--sub);margin-top:-4px")}>{v.colorBreak}</div>}
-                {v.proNote && <div style={css("font-size:11px;color:#a16207;font-weight:700;line-height:1.5;margin-top:-2px")}>{v.proNote}</div>}
+                {v.colorBreak && <div style={css("font-size:11.5px;color:var(--sub);margin-top:-4px")}>{v.colorBreak}</div>}
+                {v.proNote && <div style={css("font-size:12px;color:#a16207;font-weight:700;line-height:1.5;margin-top:-2px")}>{v.proNote}</div>}
                 <div style={css("display:flex;justify-content:space-between")}><span style={css("color:var(--sub)")}>เข้าเล่ม</span><span style={css("font-family:'IBM Plex Mono',monospace")}>฿{v.bindCost}</span></div>
                 <div style={css("display:flex;justify-content:space-between;border-top:1px dashed var(--line);padding-top:6px;margin-top:2px;font-weight:700")}><span>ทั้งหมด (ยังไม่รวมค่าส่ง)</span><span style={css("font-family:'IBM Plex Mono',monospace;color:var(--acc)")}>฿{v.printTotalAll}</span></div>
               </div>
@@ -3862,7 +3862,7 @@ class App extends React.Component {
                 <span style={css("flex:none;display:flex;color:#8a6d1a;animation:mpPulse 1.5s infinite")}>{fi('upload', 17)}</span>
                 <div style={css("flex:1;min-width:0")}>
                   <div style={css("font-size:12.5px;font-weight:800;color:#8a6d1a")}>กำลังอัปโหลดไฟล์ใหญ่… {v.bigUp.pct}%</div>
-                  <div style={css("margin-top:2px;font-size:11px;color:#8a6d1a;line-height:1.55")}>รอสักครู่ครับ ไม่ต้องกดอะไรเพิ่ม — อัปโหลดเสร็จปุ๊บกด "ต่อไป" ได้ทันที (อย่าเพิ่งปิดหน้านี้)</div>
+                  <div style={css("margin-top:2px;font-size:12px;color:#8a6d1a;line-height:1.55")}>อัปโหลดอยู่ อย่าเพิ่งปิดหน้านี้ครับ — เสร็จแล้วกด "ต่อไป" ได้เลย</div>
                   <div style={css("margin-top:6px;height:6px;border-radius:99px;background:#f1e3b8;overflow:hidden")}><div style={{ height: '100%', width: v.bigUp.pct + '%', background: '#e8a413', borderRadius: '99px', transition: 'width .4s' }}></div></div>
                 </div>
               </div>
@@ -3874,7 +3874,7 @@ class App extends React.Component {
         {/* ── Delivery (Step 2) ── */}
         {v.isDelivery && (
           <div style={css("padding:18px 20px 110px;display:flex;flex-direction:column;gap:14px")}>
-            <div style={css("font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:var(--sub);letter-spacing:1px")}>STEP 02 / 04 — จุดส่ง</div>
+            <div style={css("font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:var(--sub);letter-spacing:1px")}>STEP 02 / 04 — จุดส่ง</div>
             <div style={css("background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px;box-shadow:var(--shadow)")}>
               {!v.isPro && <div style={css("margin-bottom:14px")}>
                 <div style={css("font-size:12.5px;font-weight:700;margin-bottom:7px")}><span style={css("color:var(--acc)")}>ขั้นที่ 1</span> · การรับงาน <span style={css("color:#d9480f")}>*</span></div>
@@ -3884,7 +3884,7 @@ class App extends React.Component {
                       <div style={{ flex: 'none', fontSize: '22px', lineHeight: o.svg ? 0 : 'normal', color: o.on ? 'var(--acc)' : 'var(--ink)' }}>{o.svg || o.icon}</div>
                       <div style={css("flex:1;min-width:0")}>
                         <div style={css("font-size:13.5px;font-weight:700;color:" + (o.on ? "var(--acc)" : "var(--ink)"))}>{o.name}</div>
-                        <div style={css("margin-top:1px;font-size:11px;color:var(--sub);line-height:1.5")}>{o.sub}</div>
+                        <div style={css("margin-top:1px;font-size:12px;color:var(--sub);line-height:1.5")}>{o.sub}</div>
                       </div>
                       <div style={css("width:20px;height:20px;border-radius:50%;flex:none;border:2px solid " + (o.on ? "var(--acc)" : "var(--line)") + ";display:flex;align-items:center;justify-content:center")}>{o.on && <div style={css("width:10px;height:10px;border-radius:50%;background:var(--acc)")}></div>}</div>
                     </div>
@@ -3894,12 +3894,12 @@ class App extends React.Component {
               {v.proPickupOn && (
                 <div style={css("border:1.5px solid var(--acc);border-radius:12px;padding:12px 14px;background:var(--accSoft)")}>
                   <div style={css("font-size:13.5px;font-weight:800;color:var(--acc)")}>🏪 {v.isPro ? 'มารับเองที่ร้านอุดมสุขปริ้นติ้ง (กังสดาล)' : 'รับหน้าร้าน MORE PRINT (หอพักบริบูรณ์เพลส)'}</div>
-                  <div style={css("margin-top:4px;font-size:11.5px;color:var(--sub);line-height:1.6")}>ไม่มีค่าส่ง · ไม่ต้องปักหมุด — เมื่อสินค้าเสร็จ สถานะจะขึ้น "เสร็จแล้ว มารับได้เลยครับ" ·<a href={v.isPro ? 'https://maps.app.goo.gl/SshjXkvaCxvKPugL7' : 'https://maps.app.goo.gl/NeVkZbtj6soQpwFx7'} target="_blank" rel="noreferrer" style={css("color:var(--acc);font-weight:700")}><span style={css("display:inline-flex;vertical-align:-2px;margin-right:4px")}>{fi('nav', 12)}</span>เปิดแผนที่ร้าน</a></div>
+                  <div style={css("margin-top:4px;font-size:12.5px;color:var(--sub);line-height:1.6")}>ไม่มีค่าส่ง ไม่ต้องปักหมุด — เสร็จแล้วระบบแจ้งให้มารับครับ ·<a href={v.isPro ? 'https://maps.app.goo.gl/SshjXkvaCxvKPugL7' : 'https://maps.app.goo.gl/NeVkZbtj6soQpwFx7'} target="_blank" rel="noreferrer" style={css("color:var(--acc);font-weight:700")}><span style={css("display:inline-flex;vertical-align:-2px;margin-right:4px")}>{fi('nav', 12)}</span>เปิดแผนที่ร้าน</a></div>
                 </div>
               )}
               {!v.proPickupOn && <React.Fragment>
               {!(v.isPro || v.recvSel) ? (
-                <div style={css("background:var(--soft);border:1px dashed var(--line);border-radius:11px;padding:12px 14px;font-size:11.5px;color:var(--sub);line-height:1.6")}>เลือก "การรับงาน" ด้านบนก่อนครับ — ขั้นตอนถัดไปจะแสดงขึ้นเอง</div>
+                <div style={css("background:var(--soft);border:1px dashed var(--line);border-radius:11px;padding:12px 14px;font-size:12.5px;color:var(--sub);line-height:1.6")}>เลือก "การรับงาน" ด้านบนก่อนครับ — ขั้นตอนถัดไปจะแสดงขึ้นเอง</div>
               ) : (<React.Fragment>
               {/* ขั้น 2: เลือกพาหนะส่งเอง — ราคาเปลี่ยนทันทีตามที่เลือก */}
               <div style={css("font-size:12.5px;font-weight:700;margin-bottom:8px")}><span style={css("color:var(--acc)")}>ขั้นที่ 2</span> · <span style={css("display:inline-flex;vertical-align:-2px;margin-right:2px")}>{fi('truck', 13)}</span> เลือกวิธีจัดส่ง <span style={css("color:#d9480f")}>*</span></div>
@@ -3909,34 +3909,34 @@ class App extends React.Component {
                     <div style={css("font-size:22px;flex:none")}>{o.icon}</div>
                     <div style={css("flex:1;min-width:0")}>
                       <div style={css("font-size:13.5px;font-weight:700;color:" + (o.on ? "var(--acc)" : "var(--ink)"))}>{o.name}</div>
-                      <div style={css("margin-top:1px;font-size:11px;color:var(--sub);line-height:1.5")}>{o.desc}</div>
+                      <div style={css("margin-top:1px;font-size:12px;color:var(--sub);line-height:1.5")}>{o.desc}</div>
                     </div>
                     <div style={css("width:20px;height:20px;border-radius:50%;flex:none;border:2px solid " + (o.on ? "var(--acc)" : "var(--line)") + ";display:flex;align-items:center;justify-content:center")}>{o.on && <div style={css("width:10px;height:10px;border-radius:50%;background:var(--acc)")}></div>}</div>
                   </div>
                 ))}
-                {v.vehicleHint && <div style={css("font-size:11px;color:var(--acc);font-weight:600;line-height:1.5")}>{v.vehicleHint}</div>}
+                {v.vehicleHint && <div style={css("font-size:12px;color:var(--acc);font-weight:600;line-height:1.5")}>{v.vehicleHint}</div>}
               </div>
               {!v.vehSel ? (
-                <div style={css("background:var(--soft);border:1px dashed var(--line);border-radius:11px;padding:12px 14px;font-size:11.5px;color:var(--sub);line-height:1.6")}>เลือกวิธีจัดส่งก่อนครับ — แล้วค่อยบอกจุดส่งในขั้นถัดไป</div>
+                <div style={css("background:var(--soft);border:1px dashed var(--line);border-radius:11px;padding:12px 14px;font-size:12.5px;color:var(--sub);line-height:1.6")}>เลือกวิธีจัดส่งก่อนครับ — แล้วค่อยบอกจุดส่งในขั้นถัดไป</div>
               ) : (<React.Fragment>
               <div style={css("font-size:12.5px;font-weight:700;margin-bottom:8px")}><span style={css("color:var(--acc)")}>ขั้นที่ 3</span> · <span style={css("display:inline-flex;vertical-align:-2px;margin-right:2px")}>{fi('pin', 13)}</span> บอกจุดส่งเอกสารด้วยวิธีไหนดีครับ? <span style={css("color:#d9480f")}>*</span></div>
               {/* ที่อยู่จัดส่งประจำ — เลือกปุ๊บ กรอกที่อยู่+ปักหมุด+เลือกรถให้ครบทันที */}
               {v.savedAddrs.length > 0 && (
                 <div style={css("margin-bottom:14px")}>
-                  <div style={css("font-size:12px;font-weight:600;color:var(--ink);margin-bottom:7px")}><span style={css("display:inline-flex;vertical-align:-2px;margin-right:5px")}>{fi('home', 13)}</span>ที่อยู่จัดส่งประจำ <span style={css("font-weight:400")}>— แตะเพื่อใช้เลย</span></div>
+                  <div style={css("font-size:13px;font-weight:600;color:var(--ink);margin-bottom:7px")}><span style={css("display:inline-flex;vertical-align:-2px;margin-right:5px")}>{fi('home', 13)}</span>ที่อยู่จัดส่งประจำ <span style={css("font-weight:400")}>— แตะเพื่อใช้เลย</span></div>
                   <div style={css("display:flex;flex-direction:column;gap:7px")}>
                     {v.savedAddrs.map((a, i) => (
                       <div key={i} onClick={a.pick} style={css("border:1px solid var(--line);border-radius:12px;padding:10px 13px;background:var(--card);display:flex;align-items:center;gap:10px;cursor:pointer")}>
                         <span style={css("flex:none;display:flex;color:" + (i === 0 ? "#f5a623" : "var(--sub)"))}>{i === 0 ? fi('star', 17) : fi('home', 17)}</span>
                         <div style={css("flex:1;min-width:0")}>
                           <div style={css("font-size:12.5px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap")}>{a.addr}</div>
-                          <div style={css("margin-top:1px;font-size:10px;color:var(--sub)")}>{a.veh === 'car' ? '🚗 รถยนต์' : '🏍️ มอเตอร์ไซค์'}{i === 0 ? ' · ใช้ล่าสุด' : ''}</div>
+                          <div style={css("margin-top:1px;font-size:11px;color:var(--sub)")}>{a.veh === 'car' ? '🚗 รถยนต์' : '🏍️ มอเตอร์ไซค์'}{i === 0 ? ' · ใช้ล่าสุด' : ''}</div>
                         </div>
                         <span onClick={a.del} style={css("flex:none;color:var(--sub);font-size:13px;padding:4px 6px;cursor:pointer")}>✕</span>
                       </div>
                     ))}
                   </div>
-                  <div style={css("display:flex;align-items:center;gap:10px;color:var(--sub);font-size:11px;margin:10px 0 0")}>
+                  <div style={css("display:flex;align-items:center;gap:10px;color:var(--sub);font-size:12px;margin:10px 0 0")}>
                     <div style={css("flex:1;height:1px;background:var(--line)")}></div>หรือกรอกที่อยู่ใหม่<div style={css("flex:1;height:1px;background:var(--line)")}></div>
                   </div>
                 </div>
@@ -3949,7 +3949,7 @@ class App extends React.Component {
                     <div style={css("font-size:21px;flex:none")}>{o.icon}</div>
                     <div style={css("flex:1;min-width:0")}>
                       <div style={css("font-size:13px;font-weight:700;color:" + (o.on ? "var(--acc)" : "var(--ink)"))}>{o.name}</div>
-                      <div style={css("margin-top:1px;font-size:11px;color:var(--sub);line-height:1.5")}>{o.sub}</div>
+                      <div style={css("margin-top:1px;font-size:12px;color:var(--sub);line-height:1.5")}>{o.sub}</div>
                     </div>
                     <div style={css("width:20px;height:20px;border-radius:50%;flex:none;border:2px solid " + (o.on ? "var(--acc)" : "var(--line)") + ";display:flex;align-items:center;justify-content:center")}>{o.on && <div style={css("width:10px;height:10px;border-radius:50%;background:var(--acc)")}></div>}</div>
                   </div>
@@ -3957,24 +3957,24 @@ class App extends React.Component {
               </div>
               {v.pinMode === 'spots' && v.popSpots.length > 0 && (
                 <div style={css("margin-bottom:12px;border:1.5px solid var(--acc);border-radius:12px;padding:11px 13px;background:var(--accSoft)")}>
-                  <div style={css("font-size:11.5px;font-weight:700;color:var(--acc);margin-bottom:8px")}>แตะจุดที่จะให้ไปส่ง — ระบบปักหมุดและล็อกให้ทันทีครับ</div>
+                  <div style={css("font-size:12.5px;font-weight:700;color:var(--acc);margin-bottom:8px")}>แตะจุดที่จะให้ไปส่ง — ระบบปักหมุดและล็อกให้ทันทีครับ</div>
                   <div style={css("display:flex;gap:7px;flex-wrap:wrap")}>
                     {v.popSpots.map((sp, i) => (
-                      <span key={i} onClick={() => v.popPick(sp)} style={css("background:var(--card);border:1px solid var(--acc);color:var(--acc);font-size:11.5px;font-weight:700;padding:8px 13px;border-radius:99px;cursor:pointer")}>{sp.name}</span>
+                      <span key={i} onClick={() => v.popPick(sp)} style={css("background:var(--card);border:1px solid var(--acc);color:var(--acc);font-size:12.5px;font-weight:700;padding:8px 13px;border-radius:99px;cursor:pointer")}>{sp.name}</span>
                     ))}
                   </div>
                 </div>
               )}
               {v.pinModeLink && <React.Fragment>
               <div style={css("border:1.5px solid var(--acc);border-radius:12px;padding:10px 12px;background:var(--accSoft)")}>
-                <div style={css("font-size:12px;font-weight:700;color:var(--acc)")}>🗺️ วางลิงก์จาก Google Maps</div>
-                <div style={css("margin-top:2px;font-size:10.5px;color:var(--sub)")}>เปิดแอป Google Maps → หาที่อยู่ของคุณ → กดแชร์ → คัดลอกลิงก์ → มาวางตรงนี้</div>
+                <div style={css("font-size:13px;font-weight:700;color:var(--acc)")}>🗺️ วางลิงก์จาก Google Maps</div>
+                <div style={css("margin-top:2px;font-size:11.5px;color:var(--sub)")}>เปิดแอป Google Maps → หาที่อยู่ของคุณ → กดแชร์ → คัดลอกลิงก์ → มาวางตรงนี้</div>
                 <div style={css("margin-top:6px;display:flex;gap:8px")}>
                   <input value={v.gmapLink} onChange={v.setGmapLink} onKeyDown={v.onGmapKey} placeholder="https://maps.app.goo.gl/…" inputMode="url" style={css("flex:1;min-width:0;box-sizing:border-box;height:40px;border:1px solid var(--line);border-radius:10px;background:var(--card);color:var(--ink);padding:0 12px;font-size:12.5px;outline:none")}/>
                   <button onClick={v.useGmapLink} disabled={v.gmapBusy} style={css("flex:none;height:40px;padding:0 14px;border:none;border-radius:10px;background:var(--acc);color:#fff;font-size:13px;font-weight:700;cursor:pointer" + (v.gmapBusy ? ";opacity:.6" : ""))}>{v.gmapBusy ? '⏳' : 'ตกลง'}</button>
                 </div>
                 {v.gmapWrongApp && (
-                  <div style={css("margin-top:8px;background:#fff3bf;border:1.5px solid #f59f00;border-radius:10px;padding:10px 12px;font-size:11px;color:#7a4d00;line-height:1.8")}>
+                  <div style={css("margin-top:8px;background:#fff3bf;border:1.5px solid #f59f00;border-radius:10px;padding:10px 12px;font-size:12px;color:#7a4d00;line-height:1.8")}>
                     ⚠️ <b>ลิงก์นี้มาจากแอป Google ไม่ใช่แอป Google Maps</b> — ระบบจะพยายามอ่านให้ แต่บางลิงก์หาพิกัดไม่เจอ<br/>
                     ✅ วิธีที่ชัวร์: เปิดแอป <b>Google Maps</b> → <b>กดค้าง</b>ตรงจุดส่งให้ขึ้นหมุด → กด <b>แชร์</b> → <b>คัดลอกลิงก์</b> (ลิงก์จะขึ้นต้นด้วย maps.app.goo.gl) แล้วมาวางแทนครับ
                   </div>
@@ -3991,18 +3991,18 @@ class App extends React.Component {
                       <div style={css("font-size:12.5px;font-weight:700;color:#c92a2a")}>{v.geoHelpTitle}</div>
                       <div style={css("margin-top:6px;display:flex;flex-direction:column;gap:5px")}>
                         {v.geoHelpSteps.map((st, i) => (
-                          <div key={i} style={css("display:flex;gap:7px;font-size:11px;line-height:1.6;color:#a61e1e")}>
+                          <div key={i} style={css("display:flex;gap:7px;font-size:12px;line-height:1.6;color:#a61e1e")}>
                             <span style={css("flex:none;font-weight:700")}>{i + 1}.</span><span>{st}</span>
                           </div>
                         ))}
                       </div>
-                      <div style={css("margin-top:7px;font-size:10.5px;color:var(--sub);line-height:1.6")}>ไม่อยากตั้งค่า? ใช้ช่องค้นหาชื่อหอ หรือเลื่อนแผนที่ปักหมุดเองด้านล่างได้เลยครับ</div>
+                      <div style={css("margin-top:7px;font-size:11.5px;color:var(--sub);line-height:1.6")}>ไม่อยากตั้งค่า? ใช้ช่องค้นหาชื่อหอ หรือเลื่อนแผนที่ปักหมุดเองด้านล่างได้เลยครับ</div>
                     </div>
                     <span onClick={v.geoHelpClose} style={css("flex:none;color:#c92a2a;font-size:14px;cursor:pointer;font-weight:700")}>✕</span>
                   </div>
                 </div>
               )}
-              <div style={css("display:flex;align-items:center;gap:10px;color:var(--sub);font-size:11px;margin:0 0 8px")}>
+              <div style={css("display:flex;align-items:center;gap:10px;color:var(--sub);font-size:12px;margin:0 0 8px")}>
                 <div style={css("flex:1;height:1px;background:var(--line)")}></div>หรือค้นหาชื่อสถานที่<div style={css("flex:1;height:1px;background:var(--line)")}></div>
               </div>
               <div style={css("display:flex;gap:8px")}>
@@ -4017,14 +4017,14 @@ class App extends React.Component {
                 </div>
               )}
               </React.Fragment>}
-              {v.pinModeLink && !v.showMap && <div style={css("margin-top:10px;background:var(--soft);border:1px dashed var(--line);border-radius:12px;padding:16px;text-align:center;font-size:11.5px;color:var(--sub);line-height:1.7")}>🔗 วางลิงก์แล้วกด "ตกลง"<br/>ระบบจะปักหมุดให้อัตโนมัติแล้วโชว์แผนที่ยืนยัน<br/>💡 แชร์แบบ "ปักหมุด" (กดค้างบนแผนที่ก่อนแชร์) แม่นยำสุด</div>}
+              {v.pinModeLink && !v.showMap && <div style={css("margin-top:10px;background:var(--soft);border:1px dashed var(--line);border-radius:12px;padding:16px;text-align:center;font-size:12.5px;color:var(--sub);line-height:1.7")}>🔗 วางลิงก์แล้วกด "ตกลง"<br/>ระบบจะปักหมุดให้อัตโนมัติแล้วโชว์แผนที่ยืนยัน<br/>💡 แชร์แบบ "ปักหมุด" (กดค้างบนแผนที่ก่อนแชร์) แม่นยำสุด</div>}
               {v.showMap && <div style={css("margin-top:10px;position:relative;border-radius:14px;overflow:hidden;border:1px solid " + (v.mapLocked ? "var(--acc)" : "var(--line)") + ";box-shadow:var(--shadow)")}>
                 <div id="mpMap" style={css("height:300px;position:relative;z-index:0")}></div>
                 {/* หมุดกลางจอ (แบบแอปเรียกรถ) — ไม่รับการแตะ ให้แผนที่ข้างใต้รับแทน */}
                 <div style={css("position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:10px;height:4px;background:rgba(0,0,0,.28);border-radius:50%;z-index:900;pointer-events:none")}></div>
                 <div id="mpPin" style={css("position:absolute;left:50%;top:50%;transform:translate(-50%,-100%);z-index:901;pointer-events:none;font-size:40px;line-height:1;transition:transform .18s ease;filter:drop-shadow(0 4px 4px rgba(0,0,0,.35))")}>📍</div>
                 {!v.mapLocked && <button onClick={v.locateMe} title="ใช้ตำแหน่งปัจจุบันของฉัน" style={css("position:absolute;right:12px;bottom:12px;z-index:902;width:46px;height:46px;border-radius:50%;border:none;background:#fff;box-shadow:0 2px 10px rgba(0,0,0,.3);font-size:21px;cursor:pointer;display:flex;align-items:center;justify-content:center")}>{v.locating ? <span style={css("font-size:14px")}>…</span> : <span style={css("display:flex;color:var(--acc)")}>{fi('target', 22)}</span>}</button>}
-                {v.mapLocked && <div style={css("position:absolute;left:0;right:0;bottom:0;z-index:903;background:rgba(0,0,0,.62);color:#fff;padding:8px 12px;font-size:11.5px;font-weight:600;text-align:center")}>🔒 ล็อกหมุดไว้แล้ว — กันเลื่อนพลาด</div>}
+                {v.mapLocked && <div style={css("position:absolute;left:0;right:0;bottom:0;z-index:903;background:rgba(0,0,0,.62);color:#fff;padding:8px 12px;font-size:12.5px;font-weight:600;text-align:center")}>🔒 ล็อกหมุดไว้แล้ว — กันเลื่อนพลาด</div>}
               </div>}
               {v.showMap && !v.mapLocked && !v.gpsConfirm && v.pinSet && (
                 <button onClick={v.lockMap} style={css("margin-top:8px;width:100%;height:46px;border:none;border-radius:12px;background:var(--acc);color:#fff;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;display:flex;align-items:center;justify-content:center;gap:7px")}>{fi('pin', 15)} ยืนยันตำแหน่งนี้ — ล็อกหมุด</button>
@@ -4034,9 +4034,9 @@ class App extends React.Component {
                   <div style={css("font-size:12.5px;font-weight:700;color:" + (v.gpsRough ? "#a16207" : "var(--acc)"))}>
                     🎯 ได้ตำแหน่งของคุณแล้ว {v.gpsAccText && '(คลาดเคลื่อน ' + v.gpsAccText + ')'}
                   </div>
-                  <div style={css("margin-top:3px;font-size:11px;line-height:1.6;color:" + (v.gpsRough ? "#a16207" : "var(--sub)"))}>
+                  <div style={css("margin-top:3px;font-size:12px;line-height:1.6;color:" + (v.gpsRough ? "#a16207" : "var(--sub)"))}>
                     {v.gpsRough
-                      ? 'สั่งจากคอมพิวเตอร์ตำแหน่งมักไม่แม่น — ดูบนแผนที่แล้วเลื่อนหมุดให้ตรงจุดส่งจริงก่อนยืนยันนะครับ'
+                      ? 'จากคอมตำแหน่งมักคลาดเคลื่อน — เลื่อนหมุดให้ตรงก่อนยืนยันครับ'
                       : 'ตรวจดูบนแผนที่ว่าหมุดตรงจุดส่งจริงไหม เลื่อนปรับได้'}
                   </div>
                   <button onClick={v.gpsOk} style={css("margin-top:9px;width:100%;height:38px;border:none;border-radius:10px;background:" + (v.gpsRough ? "#a16207" : "var(--acc)") + ";color:#fff;font-size:12.5px;font-weight:700;cursor:pointer;font-family:inherit")}>✓ ยืนยันว่าหมุดตรงจุดส่งแล้ว</button>
@@ -4044,24 +4044,24 @@ class App extends React.Component {
               )}
               {v.mapLocked
                 ? <div style={css("margin-top:7px;display:flex;gap:7px")}>
-                    <button onClick={v.unlockMap} style={css("flex:1;height:38px;border:1px solid var(--line);border-radius:10px;background:var(--card);color:var(--ink);font-size:11.5px;font-weight:700;cursor:pointer;font-family:inherit")}>🔓 ปลดล็อก — ย้ายหมุด</button>
-                    {v.pinModeLink && <button onClick={v.relinkMap} style={css("flex:1;height:38px;border:1px solid var(--line);border-radius:10px;background:var(--card);color:var(--ink);font-size:11.5px;font-weight:700;cursor:pointer;font-family:inherit")}>🔗 วางลิงก์ใหม่</button>}
+                    <button onClick={v.unlockMap} style={css("flex:1;height:38px;border:1px solid var(--line);border-radius:10px;background:var(--card);color:var(--ink);font-size:12.5px;font-weight:700;cursor:pointer;font-family:inherit")}>🔓 ปลดล็อก — ย้ายหมุด</button>
+                    {v.pinModeLink && <button onClick={v.relinkMap} style={css("flex:1;height:38px;border:1px solid var(--line);border-radius:10px;background:var(--card);color:var(--ink);font-size:12.5px;font-weight:700;cursor:pointer;font-family:inherit")}>🔗 วางลิงก์ใหม่</button>}
                   </div>
-                : v.showMap && <div style={css("margin-top:6px;font-size:11px;color:#a16207;font-weight:600;line-height:1.6")}>⚠️ ค่าส่งคิดตามตำแหน่งหมุดนะครับ — {v.pinModeLink ? 'ตรวจดูว่าหมุดตรงจุดส่งจริงไหม เลื่อนแผนที่แก้ได้' : 'เลื่อนแผนที่ให้หมุด 📍 ชี้ตรงจุดส่งจริง (แตะจุดไหนหมุดวิ่งไปให้)'} แล้วกดปุ่ม "ยืนยันตำแหน่ง" เพื่อล็อกหมุด กันมือลั่นเลื่อนแล้วค่าส่งเพี้ยนครับ</div>}
-              {v.distLine && <div style={css("margin-top:7px;border-radius:11px;padding:9px 12px;font-size:12px;font-weight:700;line-height:1.55;" + (v.distOut ? "background:#fff0f0;border:1px solid #ffa8a8;color:#c92a2a" : "background:var(--accSoft);border:1px solid var(--acc);color:var(--acc)"))}>{v.distLine}</div>}
-              {v.pinModeMap && <div style={css("margin-top:4px;font-size:11px;color:var(--acc);font-weight:600;line-height:1.5")}>💡 ค้นหาชื่อหอไม่เจอ? ไม่เป็นไร — แตะปักหมุดเองตรงที่พักของคุณ แล้วพิมพ์ชื่อหอ + รายละเอียดในช่องด้านล่างได้เลย</div>}
+                : v.showMap && <div style={css("margin-top:6px;font-size:12px;color:#a16207;font-weight:600;line-height:1.6")}>⚠️ ค่าส่งคิดตามตำแหน่งหมุดนะครับ — {v.pinModeLink ? 'ตรวจดูว่าหมุดตรงจุดส่งจริงไหม เลื่อนแผนที่แก้ได้' : 'เลื่อนแผนที่ให้หมุด 📍 ชี้ตรงจุดส่งจริง (แตะจุดไหนหมุดวิ่งไปให้)'} แล้วกดปุ่ม "ยืนยันตำแหน่ง" เพื่อล็อกหมุด กันมือลั่นเลื่อนแล้วค่าส่งเพี้ยนครับ</div>}
+              {v.distLine && <div style={css("margin-top:7px;border-radius:11px;padding:9px 12px;font-size:13px;font-weight:700;line-height:1.55;" + (v.distOut ? "background:#fff0f0;border:1px solid #ffa8a8;color:#c92a2a" : "background:var(--accSoft);border:1px solid var(--acc);color:var(--acc)"))}>{v.distLine}</div>}
+              {v.pinModeMap && <div style={css("margin-top:4px;font-size:12px;color:var(--acc);font-weight:600;line-height:1.5")}>💡 หาชื่อหอไม่เจอ — แตะปักหมุดเอง แล้วพิมพ์รายละเอียดช่องล่างครับ</div>}
               {v.mapLocked
                 ? <React.Fragment>
-                    <div style={css("margin-top:12px;font-size:12px;font-weight:600;color:var(--ink)")}>รายละเอียดที่อยู่ (หอ / คณะ / บ้านเลขที่ / ซอย / จุดนัด) <span style={css("color:#d9480f")}>*</span></div>
+                    <div style={css("margin-top:12px;font-size:13px;font-weight:600;color:var(--ink)")}>รายละเอียดที่อยู่ (หอ / คณะ / บ้านเลขที่ / ซอย / จุดนัด) <span style={css("color:#d9480f")}>*</span></div>
                     <input value={v.addr} onChange={v.setAddr} placeholder="เช่น หอ 9 ตึก B ชั้น 2, บ้านเลขที่ 123/4 ซอยมะลิวัลย์ 5" style={css("margin-top:6px;width:100%;box-sizing:border-box;height:42px;border:1px solid var(--line);border-radius:10px;background:var(--soft);color:var(--ink);padding:0 12px;font-size:13px;outline:none")}/>
                   </React.Fragment>
                 : v.pinSet
-                ? <div style={css("margin-top:12px;background:var(--soft);border:1px dashed var(--line);border-radius:11px;padding:11px 13px;font-size:11.5px;color:var(--sub);line-height:1.6")}>🔒 กดปุ่ม "ยืนยันตำแหน่ง" ด้านบนก่อน — แล้วช่องกรอกรายละเอียดที่อยู่จะเปิดให้กรอกครับ (กันมือลั่นเลื่อนหมุดแล้วค่าส่ง/จุดส่งผิด)</div>
+                ? <div style={css("margin-top:12px;background:var(--soft);border:1px dashed var(--line);border-radius:11px;padding:11px 13px;font-size:12.5px;color:var(--sub);line-height:1.6")}>🔒 กด "ยืนยันตำแหน่ง" ก่อน แล้วช่องที่อยู่จะเปิดครับ</div>
                 : null}
               </React.Fragment>)}
               </React.Fragment>)}
               </React.Fragment>}
-              <div style={css("margin-top:10px;font-size:12px;font-weight:600;color:var(--ink)")}>เบอร์โทรผู้รับ <span style={css("color:#d9480f")}>*</span></div>
+              <div style={css("margin-top:10px;font-size:13px;font-weight:600;color:var(--ink)")}>เบอร์โทรผู้รับ <span style={css("color:#d9480f")}>*</span></div>
               <input value={v.phone} onChange={v.setPhone} placeholder="08x-xxx-xxxx" inputMode="tel" maxLength={12} style={css("margin-top:6px;width:100%;box-sizing:border-box;height:42px;border:1px solid var(--line);border-radius:10px;background:var(--soft);color:var(--ink);padding:0 12px;font-size:13px;outline:none")}/>
             </div>
             {v.handoffOn && (
@@ -4073,7 +4073,7 @@ class App extends React.Component {
                       <div style={css("flex:none;display:flex;color:" + (v.handoff === o.k ? "var(--acc)" : "var(--sub)"))}>{fi(o.ic, 20)}</div>
                       <div style={css("flex:1;min-width:0")}>
                         <div style={css("font-size:13.5px;font-weight:700;color:" + (v.handoff === o.k ? "var(--acc)" : "var(--ink)"))}>{o.name}</div>
-                        <div style={css("margin-top:1px;font-size:11px;color:var(--sub);line-height:1.5")}>{o.sub}</div>
+                        <div style={css("margin-top:1px;font-size:12px;color:var(--sub);line-height:1.5")}>{o.sub}</div>
                       </div>
                       <div style={css("width:20px;height:20px;border-radius:50%;flex:none;border:2px solid " + (v.handoff === o.k ? "var(--acc)" : "var(--line)") + ";display:flex;align-items:center;justify-content:center")}>{v.handoff === o.k && <div style={css("width:10px;height:10px;border-radius:50%;background:var(--acc)")}></div>}</div>
                     </div>
@@ -4086,9 +4086,9 @@ class App extends React.Component {
                 <div style={css("font-size:12.5px;font-weight:700;margin-bottom:9px")}><span style={css("color:var(--acc)")}>ขั้นสุดท้าย</span> · อยากได้งานด่วนไหมครับ? <span style={css("font-weight:400;color:var(--sub)")}>(ไม่บังคับ)</span></div>
                 <div onClick={v.toggleExpress} style={css("display:flex;align-items:center;gap:12px;cursor:pointer")}>
                   <div style={v.expressTrack}><div style={v.expressKnob}></div></div>
-                  <div style={css("flex:1")}><div style={css("font-size:13px;font-weight:700")}><span style={css("display:inline-flex;vertical-align:-3px;margin-right:6px")}>{fi('express', 16)}</span>งานด่วน (Express) +฿{v.expressFee}</div><div style={css("margin-top:1px;font-size:11px;color:var(--sub);line-height:1.5")}>งานของคุณแซงขึ้นคิวแรก ร้านหยิบทำทันที — เสร็จไวกว่าปกติ ~{v.expressSaveMin} นาทีครับ</div></div>
+                  <div style={css("flex:1")}><div style={css("font-size:13px;font-weight:700")}><span style={css("display:inline-flex;vertical-align:-3px;margin-right:6px")}>{fi('express', 16)}</span>งานด่วน (Express) +฿{v.expressFee}</div><div style={css("margin-top:1px;font-size:12px;color:var(--sub);line-height:1.5")}>งานของคุณแซงขึ้นคิวแรก ร้านหยิบทำทันที — เสร็จไวกว่าปกติ ~{v.expressSaveMin} นาทีครับ</div></div>
                 </div>
-                {v.express && <div style={css("margin-top:9px;background:var(--accSoft);border:1px solid var(--acc);border-radius:10px;padding:8px 11px;font-size:11.5px;color:var(--acc);font-weight:600;line-height:1.5")}><span style={css("display:inline-flex;vertical-align:-3px;margin-right:5px")}>{fi('express', 14)}</span>เปิดงานด่วนแล้ว — ร้านจะเร่งผลิตงานของคุณเป็นคิวแรก เสร็จไวกว่าปกติ ~{v.expressSaveMin} นาทีครับ</div>}
+                {v.express && <div style={css("margin-top:9px;background:var(--accSoft);border:1px solid var(--acc);border-radius:10px;padding:8px 11px;font-size:12.5px;color:var(--acc);font-weight:600;line-height:1.5")}><span style={css("display:inline-flex;vertical-align:-3px;margin-right:5px")}>{fi('express', 14)}</span>เปิดงานด่วนแล้ว — ร้านจะเร่งผลิตงานของคุณเป็นคิวแรก เสร็จไวกว่าปกติ ~{v.expressSaveMin} นาทีครับ</div>}
               </div>
             )}
             <div style={css("background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px")}>
@@ -4098,7 +4098,7 @@ class App extends React.Component {
                 <div style={css("display:flex;justify-content:space-between;border-top:1px dashed var(--line);padding-top:6px;margin-top:2px;font-weight:700")}><span>รวมทั้งหมด</span><span style={css("font-family:'IBM Plex Mono',monospace;color:var(--acc)")}>฿{v.grandTotal}</span></div>
               </div>
             </div>
-            {v.deliveryWarn && <div style={css("font-size:12px;color:#d9480f")}>{v.deliveryWarn}</div>}
+            {v.deliveryWarn && <div style={css("font-size:13px;color:#d9480f")}>{v.deliveryWarn}</div>}
             <button onClick={v.toPay} style={css("width:100%;height:50px;border:none;border-radius:14px;background:var(--acc);color:#fff;font-size:15px;font-weight:700;cursor:pointer" + (v.measuring ? ";opacity:.55" : ""))}>{v.measuring ? '⏳ กำลังวัดระยะทาง…' : 'ต่อไป: ตรวจสอบออเดอร์ →'}</button>
           </div>
         )}
@@ -4106,11 +4106,11 @@ class App extends React.Component {
         {/* ── Review (Step 3) — ตรวจสอบสเปกก่อนจ่าย ลดออเดอร์ผิด ── */}
         {v.isReview && (
           <div style={css("padding:18px 20px 110px;display:flex;flex-direction:column;gap:14px")}>
-            <div style={css("font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:var(--sub);letter-spacing:1px")}>STEP 03 / 04 — ตรวจสอบออเดอร์</div>
+            <div style={css("font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:var(--sub);letter-spacing:1px")}>STEP 03 / 04 — ตรวจสอบออเดอร์</div>
             <div style={css("background:var(--accSoft);border:1px solid var(--acc);border-radius:12px;padding:10px 14px;font-size:12.5px;color:var(--acc);font-weight:600;line-height:1.5")}>🔎 เช็คให้ชัวร์ก่อนจ่ายเงิน — ถ้าไม่ตรงกดแก้ไขได้เลย ยังไม่เสียเงินนะครับ</div>
 
             <div style={css("background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px;box-shadow:var(--shadow)")}>
-              <div style={css("font-size:11px;font-weight:700;color:var(--sub);letter-spacing:.5px")}>📄 ไฟล์ที่จะปริ้น ({v.files.length})</div>
+              <div style={css("font-size:12px;font-weight:700;color:var(--sub);letter-spacing:.5px")}>📄 ไฟล์ที่จะปริ้น ({v.files.length})</div>
               {v.files.map((f, i) => (
                 <div key={i} style={css("display:flex;align-items:center;gap:12px;padding:10px 0" + (i < v.files.length - 1 ? ";border-bottom:1px dashed var(--line)" : ""))}>
                   {f.thumb
@@ -4118,29 +4118,29 @@ class App extends React.Component {
                     : <div style={css("width:46px;height:62px;border:1px solid var(--line);border-radius:6px;background:var(--soft);display:flex;align-items:center;justify-content:center;font-size:22px;flex:none")}>{f.big ? '🗂️' : '📄'}</div>}
                   <div style={css("flex:1;min-width:0")}>
                     <div style={css("font-size:13px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap")}>{f.name}</div>
-                    <div style={css("font-size:11px;color:var(--sub);margin-top:2px")}>{f.stMode ? '🏷️ ' + (f.stText || f.qty + ' ชิ้น') : f.pages + ' หน้า'}{v.isColorType && f.scanned ? ' · 🎨 สีเยอะ ' + f.heavy + ' หน้า' : ''}{f.big ? ' · ส่งผ่าน Google Drive' : ''}</div>
-                    {f.thumb && <div style={css("font-size:10px;color:var(--sub)")}>↑ รูปตัวอย่างหน้าแรกจากไฟล์จริง</div>}
+                    <div style={css("font-size:12px;color:var(--sub);margin-top:2px")}>{f.stMode ? '🏷️ ' + (f.stText || f.qty + ' ชิ้น') : f.pages + ' หน้า'}{v.isColorType && f.scanned ? ' · 🎨 สีเยอะ ' + f.heavy + ' หน้า' : ''}{f.big ? ' · ส่งผ่าน Google Drive' : ''}</div>
+                    {f.thumb && <div style={css("font-size:11px;color:var(--sub)")}>↑ รูปตัวอย่างหน้าแรกจากไฟล์จริง</div>}
                   </div>
                 </div>
               ))}
             </div>
 
             <div style={css("background:var(--accSoft);border:1.5px solid var(--acc);border-radius:14px;padding:14px 16px;box-shadow:var(--shadow)")}>
-              <div style={css("font-size:11px;font-weight:700;color:var(--acc);letter-spacing:.5px")}>🖨️ สเปกงานปริ้นที่คุณเลือก</div>
+              <div style={css("font-size:12px;font-weight:700;color:var(--acc);letter-spacing:.5px")}>🖨️ สเปกงานปริ้นที่คุณเลือก</div>
               <div style={css("margin-top:10px;display:flex;flex-direction:column;gap:9px")}>
                 {[['ประเภทงาน', v.typeLabel], ['ขนาดกระดาษ', v.paperLabel], ['ด้านที่พิมพ์', v.sidesLabel], ...(v.isPro ? [] : [['ทิศทางกระดาษ', v.orientLabel], ['การกำหนดหน้า', v.nupLabel]]), ...(v.isPro ? [['การเข้าเล่ม', v.bindLabel]] : [['การเย็บมุม', v.cornerLabel], ['การเข้าเล่ม', v.bookLabel]]), ['จำนวน', v.copies + ' ชุด']].map((p, i) => (
                   <div key={i} style={css("display:flex;align-items:center;gap:10px")}>
-                    <div style={css("width:20px;height:20px;border-radius:50%;background:var(--acc);color:#fff;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex:none")}>✓</div>
+                    <div style={css("width:20px;height:20px;border-radius:50%;background:var(--acc);color:#fff;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;flex:none")}>✓</div>
                     <span style={css("font-size:12.5px;color:var(--sub);min-width:88px")}>{p[0]}</span>
                     <span style={css("font-size:13.5px;font-weight:700")}>{p[1]}</span>
                   </div>
                 ))}
               </div>
-              {!v.isPro && <div style={css("margin-top:10px;border-top:1px dashed var(--acc);padding-top:8px;font-size:11.5px;color:var(--acc);font-weight:600")}>💡 {v.rateHint}</div>}
+              {!v.isPro && <div style={css("margin-top:10px;border-top:1px dashed var(--acc);padding-top:8px;font-size:12.5px;color:var(--acc);font-weight:600")}>💡 {v.rateHint}</div>}
             </div>
 
             <div style={css("background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px;box-shadow:var(--shadow)")}>
-              <div style={css("font-size:11px;font-weight:700;color:var(--sub);letter-spacing:.5px")}>📍 จัดส่ง</div>
+              <div style={css("font-size:12px;font-weight:700;color:var(--sub);letter-spacing:.5px")}>📍 จัดส่ง</div>
               <div style={css("margin-top:8px;display:flex;flex-direction:column;gap:5px;font-size:12.5px")}>
                 {!v.proPickupOn && <div><span style={css("color:var(--sub)")}>ส่งด้วย: </span>{v.vehicleLabel}</div>}
                 <div><span style={css("color:var(--sub)")}>ที่อยู่: </span>{v.destLabel}</div>
@@ -4151,8 +4151,8 @@ class App extends React.Component {
             <div style={css("background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px;box-shadow:var(--shadow)")}>
               <div style={css("display:flex;flex-direction:column;gap:6px;font-size:12.5px")}>
                 <BillPrint v={v}/>
-                {v.colorBreak && <div style={css("font-size:10.5px;color:var(--sub);margin-top:-4px")}>{v.colorBreak}</div>}
-                {v.proNote && <div style={css("font-size:11px;color:#a16207;font-weight:700;line-height:1.5;margin-top:-2px")}>{v.proNote}</div>}
+                {v.colorBreak && <div style={css("font-size:11.5px;color:var(--sub);margin-top:-4px")}>{v.colorBreak}</div>}
+                {v.proNote && <div style={css("font-size:12px;color:#a16207;font-weight:700;line-height:1.5;margin-top:-2px")}>{v.proNote}</div>}
                 <div style={css("display:flex;justify-content:space-between")}><span style={css("color:var(--sub)")}>เข้าเล่ม</span><span style={css("font-family:'IBM Plex Mono',monospace")}>฿{v.bindCost}</span></div>
                 <div style={css("display:flex;justify-content:space-between")}><span style={css("color:var(--sub)")}>ค่าส่ง {v.deliveryLabel}</span><span style={css("font-family:'IBM Plex Mono',monospace")}>฿{v.deliveryCost}</span></div>
               </div>
@@ -4170,17 +4170,17 @@ class App extends React.Component {
         {/* ── Pay (Step 4) ── */}
         {v.isPay && (
           <div style={css("padding:18px 20px 110px;display:flex;flex-direction:column;gap:14px")}>
-            <div style={css("font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:var(--sub);letter-spacing:1px")}>STEP 04 / 04 — ชำระเงิน PROMPTPAY</div>
+            <div style={css("font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:var(--sub);letter-spacing:1px")}>STEP 04 / 04 — ชำระเงิน PROMPTPAY</div>
             <div style={css("background:var(--card);border-radius:4px;box-shadow:var(--shadow);padding:16px;position:relative")}>
-              <div style={css("font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--sub);text-align:center;letter-spacing:2px")}>*** MORE PRINT — ORDER SUMMARY ***</div>
+              <div style={css("font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--sub);text-align:center;letter-spacing:2px")}>*** MORE PRINT — ORDER SUMMARY ***</div>
               <div style={css("margin-top:12px;display:flex;flex-direction:column;gap:6px;font-size:12.5px")}>
                 <BillPrint v={v}/>
-                {v.colorBreak && <div style={css("font-size:10.5px;color:var(--sub);margin-top:-4px")}>{v.colorBreak}</div>}
-                {v.proNote && <div style={css("font-size:11px;color:#a16207;font-weight:700;line-height:1.5;margin-top:-2px")}>{v.proNote}</div>}
+                {v.colorBreak && <div style={css("font-size:11.5px;color:var(--sub);margin-top:-4px")}>{v.colorBreak}</div>}
+                {v.proNote && <div style={css("font-size:12px;color:#a16207;font-weight:700;line-height:1.5;margin-top:-2px")}>{v.proNote}</div>}
                 <div style={css("display:flex;justify-content:space-between")}><span style={css("color:var(--sub)")}>เข้าเล่ม</span><span style={css("font-family:'IBM Plex Mono',monospace")}>฿{v.bindCost}</span></div>
                 <div style={css("display:flex;justify-content:space-between")}><span style={css("color:var(--sub)")}>ค่าส่ง {v.deliveryLabel}</span><span style={css("font-family:'IBM Plex Mono',monospace")}>฿{v.deliveryCost}</span></div>
                 {v.discount > 0 && <div style={css("display:flex;justify-content:space-between")}><span style={css("color:var(--acc);font-weight:700")}>🎟️ ส่วนลด ({v.couponOk.code})</span><span style={css("font-family:'IBM Plex Mono',monospace;color:var(--acc);font-weight:700")}>−฿{v.discount}</span></div>}
-                <div style={css("display:flex;justify-content:space-between;font-size:12px")}><span style={css("color:var(--sub)")}>ส่งที่</span><span style={css("text-align:right;max-width:60%")}>{v.destLabel}</span></div>
+                <div style={css("display:flex;justify-content:space-between;font-size:13px")}><span style={css("color:var(--sub)")}>ส่งที่</span><span style={css("text-align:right;max-width:60%")}>{v.destLabel}</span></div>
               </div>
               <div style={css("margin-top:12px;border-top:2px dashed var(--line);padding-top:10px;display:flex;justify-content:space-between;align-items:baseline")}><span style={css("font-weight:700;font-size:14px")}>ยอดชำระ</span><span style={css("font-family:'IBM Plex Mono',monospace;font-size:26px;font-weight:600;color:var(--acc)")}>฿{v.grandTotal}</span></div>
             </div>
@@ -4192,12 +4192,12 @@ class App extends React.Component {
                     <span style={css("flex:none;display:flex;color:var(--acc)")}>{fi('tag', 17)}</span>
                     <div style={css("flex:1;min-width:0")}>
                       <div style={css("font-size:12.5px;font-weight:700;color:var(--acc)")}>ใช้โค้ด {v.couponOk.code} แล้ว</div>
-                      <div style={css("font-size:11px;color:var(--sub)")}>{v.discount > 0 ? 'ลดไป ฿' + v.discount : (v.couponOk.kind === 'freeship' ? 'ออเดอร์นี้ไม่มีค่าส่ง (รับหน้าร้าน) — โค้ดส่งฟรีจึงไม่ลด และสิทธิ์ยังไม่ถูกนับครับ' : 'ยอดยังไม่ถึงขั้นต่ำของโค้ดนี้')}</div>
+                      <div style={css("font-size:12px;color:var(--sub)")}>{v.discount > 0 ? 'ลดไป ฿' + v.discount : (v.couponOk.kind === 'freeship' ? 'ออเดอร์นี้ไม่มีค่าส่ง (รับหน้าร้าน) — โค้ดส่งฟรีจึงไม่ลด และสิทธิ์ยังไม่ถูกนับครับ' : 'ยอดยังไม่ถึงขั้นต่ำของโค้ดนี้')}</div>
                     </div>
-                    <span onClick={v.clearCoupon} style={css("flex:none;font-size:11.5px;color:#c92a2a;font-weight:700;cursor:pointer")}>ยกเลิกโค้ด</span>
+                    <span onClick={v.clearCoupon} style={css("flex:none;font-size:12.5px;color:#c92a2a;font-weight:700;cursor:pointer")}>ยกเลิกโค้ด</span>
                   </div>
                 : <React.Fragment>
-                    <div style={css("font-size:12px;font-weight:700;display:flex;align-items:center;gap:6px")}><span style={css("display:flex;color:var(--acc)")}>{fi('tag', 14)}</span>มีโค้ดส่วนลด?</div>
+                    <div style={css("font-size:13px;font-weight:700;display:flex;align-items:center;gap:6px")}><span style={css("display:flex;color:var(--acc)")}>{fi('tag', 14)}</span>มีโค้ดส่วนลด?</div>
                     <div style={css("margin-top:8px;display:flex;gap:8px")}>
                       <input value={v.couponCode} onChange={v.setCouponCode} placeholder="กรอกโค้ดส่วนลดตรงนี้เลย" maxLength={20}
                         style={css("flex:1;min-width:0;box-sizing:border-box;height:42px;border:1px solid var(--line);border-radius:10px;background:var(--soft);color:var(--ink);padding:0 12px;font-size:13px;outline:none;text-transform:uppercase;font-family:'IBM Plex Mono',monospace")}/>
@@ -4207,7 +4207,7 @@ class App extends React.Component {
             </div>
             {/* ใบเสร็จรับเงิน (ออนไลน์ — ลูกค้าเปิดปริ้นเองได้จากหน้าติดตาม) */}
             <div style={css("background:var(--card);border:1px solid var(--line);border-radius:14px;padding:13px 16px")}>
-              <div style={css("font-size:12px;font-weight:700;display:flex;align-items:center;gap:6px")}><span style={css("display:flex;color:var(--acc)")}>{fi('receipt', 14)}</span>ใบเสร็จรับเงิน</div>
+              <div style={css("font-size:13px;font-weight:700;display:flex;align-items:center;gap:6px")}><span style={css("display:flex;color:var(--acc)")}>{fi('receipt', 14)}</span>ใบเสร็จรับเงิน</div>
               <div style={css("margin-top:8px;display:flex;gap:8px")}>
                 <button onClick={v.rcToggle(false)} style={css("flex:1;height:40px;border-radius:10px;font-size:12.5px;font-weight:700;cursor:pointer;font-family:inherit;" + (!v.rcOn ? "border:1.5px solid var(--acc);background:var(--accSoft);color:var(--acc)" : "border:1px solid var(--line);background:var(--soft);color:var(--sub)"))}>ไม่รับใบเสร็จ</button>
                 <button onClick={v.rcToggle(true)} style={css("flex:1;height:40px;border-radius:10px;font-size:12.5px;font-weight:700;cursor:pointer;font-family:inherit;" + (v.rcOn ? "border:1.5px solid var(--acc);background:var(--accSoft);color:var(--acc)" : "border:1px solid var(--line);background:var(--soft);color:var(--sub)"))}>ขอใบเสร็จรับเงิน</button>
@@ -4218,14 +4218,14 @@ class App extends React.Component {
                   <textarea value={v.rcAddr} onChange={v.setRc('rcAddr')} placeholder="ที่อยู่ *" rows={2} maxLength={300} style={css("width:100%;box-sizing:border-box;border:1px solid var(--line);border-radius:10px;background:var(--soft);color:var(--ink);padding:10px 12px;font-size:13px;outline:none;resize:none;font-family:inherit;line-height:1.5")}></textarea>
                   <input value={v.rcTax} onChange={v.setRc('rcTax')} placeholder="เลขประจำตัวผู้เสียภาษี (13 หลัก) *" inputMode="numeric" maxLength={17} style={css("width:100%;box-sizing:border-box;height:42px;border:1px solid var(--line);border-radius:10px;background:var(--soft);color:var(--ink);padding:0 12px;font-size:13px;outline:none;font-family:'IBM Plex Mono',monospace")}/>
                   <input value={v.rcPhone} onChange={v.setRc('rcPhone')} placeholder="โทรศัพท์ *" inputMode="tel" maxLength={12} style={css("width:100%;box-sizing:border-box;height:42px;border:1px solid var(--line);border-radius:10px;background:var(--soft);color:var(--ink);padding:0 12px;font-size:13px;outline:none;font-family:'IBM Plex Mono',monospace")}/>
-                  <div style={css("font-size:10.5px;color:var(--sub);line-height:1.6")}>ข้อมูลนี้จะขึ้นในใบเสร็จอัตโนมัติ · หลังยืนยันออเดอร์ เปิดดู/สั่งพิมพ์ใบเสร็จได้ที่หน้า "ติดตาม" ครับ</div>
+                  <div style={css("font-size:11.5px;color:var(--sub);line-height:1.6")}>ใบเสร็จเปิดดู/พิมพ์ได้ที่หน้า "ติดตาม" หลังยืนยันออเดอร์ครับ</div>
                 </div>
               )}
             </div>
             <div style={css("background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px;display:flex;flex-direction:column;align-items:center;gap:10px")}>
               {/* QR พร้อมเพย์จริงของร้าน (Make by KBank) — กดค้างที่รูปเพื่อบันทึก/สแกนจากอัลบั้มได้ */}
               <img src="assets/promptpay-qr.jpg" alt="PromptPay QR ของร้าน MORE PRINT" style={css("width:250px;max-width:100%;border-radius:12px;border:1px solid var(--line);display:block")} onError={(e) => { e.target.style.display = 'none'; }}/>
-              <div style={css("font-size:12px;color:var(--sub);text-align:center;line-height:1.6")}>สแกนด้วยแอปธนาคารไหนก็ได้ · โอนตามยอดด้านบน<br/>แล้วแนบสลิปด้านล่างเพื่อยืนยัน</div>
+              <div style={css("font-size:13px;color:var(--sub);text-align:center;line-height:1.6")}>สแกนด้วยแอปธนาคารไหนก็ได้ · โอนตามยอดด้านบน<br/>แล้วแนบสลิปด้านล่างเพื่อยืนยัน</div>
             </div>
             <input type="file" accept="image/*" ref={this.slipRef} onChange={v.onSlip} style={css("display:none")}/>
             <div onClick={v.pickSlip} style={css("border:2px dashed " + (v.slipName ? "var(--acc)" : "var(--line)") + ";border-radius:14px;background:var(--card);padding:14px 16px;display:flex;align-items:center;gap:12px;cursor:pointer")}>
@@ -4233,8 +4233,8 @@ class App extends React.Component {
               {v.slipChecking
                 ? <div style={css("flex:1;min-width:0")}><div style={css("font-weight:600;font-size:13.5px;color:var(--sub)")}>⏳ กำลังตรวจสลิป…</div></div>
                 : v.slipName
-                ? <div style={css("flex:1;min-width:0")}><div style={css("font-weight:600;font-size:13.5px;color:var(--acc);overflow:hidden;text-overflow:ellipsis;white-space:nowrap")}>✓ แนบแล้ว: {v.slipName}</div><div style={css("font-size:11px;color:var(--sub)")}>แตะเพื่อเปลี่ยนรูป</div></div>
-                : <div><div style={css("font-weight:600;font-size:14px;color:var(--acc)")}>แนบสลิปโอนเงิน *</div><div style={css("font-size:11px;color:var(--sub)")}>ถ่ายรูป / เลือกรูปสลิปจากแอปธนาคาร</div></div>}
+                ? <div style={css("flex:1;min-width:0")}><div style={css("font-weight:600;font-size:13.5px;color:var(--acc);overflow:hidden;text-overflow:ellipsis;white-space:nowrap")}>✓ แนบแล้ว: {v.slipName}</div><div style={css("font-size:12px;color:var(--sub)")}>แตะเพื่อเปลี่ยนรูป</div></div>
+                : <div><div style={css("font-weight:600;font-size:14px;color:var(--acc)")}>แนบสลิปโอนเงิน *</div><div style={css("font-size:12px;color:var(--sub)")}>ถ่ายรูป / เลือกรูปสลิปจากแอปธนาคาร</div></div>}
             </div>
             <button onClick={v.confirmPay} style={css("width:100%;height:50px;border:none;border-radius:14px;background:var(--acc);color:#fff;font-size:15px;font-weight:700;cursor:pointer")}>✓ โอนแล้ว — ยืนยันออเดอร์</button>
           </div>
@@ -4246,16 +4246,16 @@ class App extends React.Component {
             {/* ลูกค้าสั่งหลายใบไล่เลี่ยกัน — ลิสต์ทุกออเดอร์ แตะใบไหนก็สลับไปดูใบนั้น */}
             {v.otherOrders.length > 0 && (
               <div style={css("display:flex;flex-direction:column;gap:8px")}>
-                <div style={css("font-size:12px;font-weight:700;color:var(--sub)")}>📋 ออเดอร์อื่นของคุณ ({v.otherOrders.length})</div>
+                <div style={css("font-size:13px;font-weight:700;color:var(--sub)")}>📋 ออเดอร์อื่นของคุณ ({v.otherOrders.length})</div>
                 {v.otherOrders.map(o => (
                   <div key={o.id} onClick={() => v.pickOrder(o)} style={css("background:var(--card);border:1px solid var(--line);border-radius:13px;padding:12px 15px;display:flex;align-items:center;gap:10px;cursor:pointer;box-shadow:var(--shadow)")}>
                     <span style={css("font-size:18px;flex:none")}>{o.step === 0 ? '❌' : '🖨️'}</span>
                     <div style={css("flex:1;min-width:0")}>
                       <div style={css("font-family:'IBM Plex Mono',monospace;font-size:12.5px;font-weight:700")}>{o.id}</div>
-                      <div style={css("margin-top:2px;font-size:10.5px;color:var(--sub);overflow:hidden;text-overflow:ellipsis;white-space:nowrap")}>{o.plabel || 'งานปริ้น'} · แตะเพื่อดู</div>
+                      <div style={css("margin-top:2px;font-size:11.5px;color:var(--sub);overflow:hidden;text-overflow:ellipsis;white-space:nowrap")}>{o.plabel || 'งานปริ้น'} · แตะเพื่อดู</div>
                     </div>
-                    <span style={css("flex:none;font-size:10.5px;font-weight:700;padding:3px 9px;border-radius:99px;" + (o.step === 0 ? "color:#c92a2a;background:#ffe3e3" : "color:var(--acc);background:var(--accSoft)"))}>{o.statusLabel}</span>
-                    <span style={css("color:var(--sub);font-size:12px;flex:none")}>▼</span>
+                    <span style={css("flex:none;font-size:11.5px;font-weight:700;padding:3px 9px;border-radius:99px;" + (o.step === 0 ? "color:#c92a2a;background:#ffe3e3" : "color:var(--acc);background:var(--accSoft)"))}>{o.statusLabel}</span>
+                    <span style={css("color:var(--sub);font-size:13px;flex:none")}>▼</span>
                   </div>
                 ))}
               </div>
@@ -4266,29 +4266,29 @@ class App extends React.Component {
                   <div onClick={v.trackToggle} style={css("background:#fff0f0;border:1px solid #ffc9c9;border-radius:14px;padding:14px 16px;cursor:pointer")}>
                     <div style={css("display:flex;justify-content:space-between;align-items:center;gap:8px")}>
                       <div style={css("font-size:14.5px;font-weight:700;color:#c92a2a")}>{v.selfCancelled ? '↩️ คุณยกเลิกออเดอร์นี้แล้ว' : '❌ ออเดอร์ถูกยกเลิกโดยร้าน'}</div>
-                      <span style={css("color:#c92a2a;font-size:12px;flex:none")}>ย่อ ▲</span>
+                      <span style={css("color:#c92a2a;font-size:13px;flex:none")}>ย่อ ▲</span>
                     </div>
                     {!v.selfCancelled && v.cancelReason && <div style={css("margin-top:6px;font-size:13px;color:#a61e1e;line-height:1.5")}><b>เหตุผล:</b> {v.cancelReason}</div>}
-                    <div style={css("margin-top:8px;font-size:11.5px;color:#a61e1e")}>โอนเงินแล้ว? ติดต่อขอคืนเงิน/สั่งใหม่ทาง LINE OA @346kifvy 💬</div>
+                    <div style={css("margin-top:8px;font-size:12.5px;color:#a61e1e")}>โอนเงินแล้ว? ติดต่อขอคืนเงิน/สั่งใหม่ทาง LINE OA @346kifvy 💬</div>
                   </div>
                 )}
                 {/* ออเดอร์ยังส่งไม่ถึงร้าน (เน็ตสะดุดตอนกดยืนยัน) — บอกตรง ๆ + ปุ่มส่งซ้ำ (ระบบก็วนส่งซ้ำเองทุก 8 วิ) — 2026-09-14 */}
                 {v.trackUnsaved && (
                   <div style={css("background:#fff0f0;border:1.5px solid #c92a2a;border-radius:14px;padding:13px 15px")}>
                     <div style={css("font-size:13.5px;font-weight:800;color:#c92a2a")}>⚠️ ออเดอร์ยังส่งไม่ถึงร้าน</div>
-                    <div style={css("margin-top:4px;font-size:12px;color:#c92a2a;line-height:1.6")}>สัญญาณเน็ตสะดุดตอนกดยืนยัน — ระบบกำลังส่งซ้ำให้อัตโนมัติ เปิดหน้านี้ทิ้งไว้สักครู่ หรือกดปุ่มด้านล่างได้เลยครับ (ยอดที่โอนแล้วไม่หาย)</div>
+                    <div style={css("margin-top:4px;font-size:13px;color:#c92a2a;line-height:1.6")}>สัญญาณเน็ตสะดุดตอนกดยืนยัน — ระบบกำลังส่งซ้ำให้อัตโนมัติ เปิดหน้านี้ทิ้งไว้สักครู่ หรือกดปุ่มด้านล่างได้เลยครับ (ยอดที่โอนแล้วไม่หาย)</div>
                     <button onClick={v.retryNow} style={css("margin-top:9px;width:100%;height:42px;border:none;border-radius:10px;background:#c92a2a;color:#fff;font-size:13.5px;font-weight:700;cursor:pointer;font-family:inherit")}>📤 ส่งออเดอร์ไปที่ร้านอีกครั้ง</button>
                   </div>
                 )}
                 {v.trackFails.length > 0 && (
                   <div style={css("background:#fff0f0;border:1.5px solid #ffc9c9;border-radius:14px;padding:13px 15px")}>
                     <div style={css("font-size:13.5px;font-weight:800;color:#c92a2a")}>⚠️ ไฟล์แนบอัปโหลดไม่สำเร็จ {v.trackFails.length} ไฟล์</div>
-                    <div style={css("margin-top:3px;font-size:11.5px;color:#a61e1e;line-height:1.6")}>แตะส่งไฟล์เดิมอีกครั้ง ร้านจะได้เริ่มงานให้เร็วที่สุดครับ</div>
+                    <div style={css("margin-top:3px;font-size:12.5px;color:#a61e1e;line-height:1.6")}>แตะส่งไฟล์เดิมอีกครั้ง ร้านจะได้เริ่มงานให้เร็วที่สุดครับ</div>
                     <div style={css("margin-top:9px;display:flex;flex-direction:column;gap:7px")}>
                       {v.trackFails.map(x => (
                         <div key={x.i} style={css("display:flex;align-items:center;gap:9px;background:#fff;border-radius:10px;padding:8px 11px")}>
-                          <span style={css("flex:1;min-width:0;font-size:12px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap")}>📄 {x.name}</span>
-                          <button onClick={() => v.reupPick(x.i)} disabled={v.reupBusy} style={css("flex:none;height:34px;padding:0 13px;border:none;border-radius:9px;background:#c92a2a;color:#fff;font-size:12px;font-weight:700;cursor:pointer" + (v.reupBusy ? ";opacity:.6" : ""))}>{v.reupBusy ? '⏳ กำลังส่ง…' : '📎 ส่งไฟล์นี้ใหม่'}</button>
+                          <span style={css("flex:1;min-width:0;font-size:13px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap")}>📄 {x.name}</span>
+                          <button onClick={() => v.reupPick(x.i)} disabled={v.reupBusy} style={css("flex:none;height:34px;padding:0 13px;border:none;border-radius:9px;background:#c92a2a;color:#fff;font-size:13px;font-weight:700;cursor:pointer" + (v.reupBusy ? ";opacity:.6" : ""))}>{v.reupBusy ? '⏳ กำลังส่ง…' : '📎 ส่งไฟล์นี้ใหม่'}</button>
                         </div>
                       ))}
                     </div>
@@ -4299,7 +4299,7 @@ class App extends React.Component {
                 {v.trackSlipFail && (
                   <div style={css("background:#fff0f0;border:1.5px solid #ffc9c9;border-radius:14px;padding:13px 15px")}>
                     <div style={css("font-size:13.5px;font-weight:800;color:#c92a2a")}>⚠️ สลิปโอนเงินอัปโหลดไม่สำเร็จ</div>
-                    <div style={css("margin-top:3px;font-size:11.5px;color:#a61e1e;line-height:1.6")}>เน็ตสะดุดตอนแนบสลิป — แตะส่งรูปสลิปเดิมอีกครั้ง ร้านจะได้ตรวจยอดและเริ่มงานให้เร็วที่สุดครับ</div>
+                    <div style={css("margin-top:3px;font-size:12.5px;color:#a61e1e;line-height:1.6")}>เน็ตสะดุดตอนแนบสลิป — แตะส่งรูปสลิปเดิมอีกครั้ง ร้านจะได้ตรวจยอดและเริ่มงานให้เร็วที่สุดครับ</div>
                     <button onClick={v.slipRePick} disabled={v.reupBusy} style={css("margin-top:9px;width:100%;height:42px;border:none;border-radius:10px;background:#c92a2a;color:#fff;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit" + (v.reupBusy ? ";opacity:.6" : ""))}>{v.reupBusy ? '⏳ กำลังส่ง…' : '🧾 ส่งสลิปใหม่อีกครั้ง'}</button>
                     <input ref={this.slipReRef} type="file" accept="image/*" onChange={v.onSlipReFile} style={{ display: 'none' }}/>
                   </div>
@@ -4309,28 +4309,28 @@ class App extends React.Component {
                     <span style={css("font-size:20px")}>{v.cancelled ? (v.selfCancelled ? '↩️' : '❌') : v.trackDelivered ? '✅' : '🖨️'}</span>
                     <div style={css("flex:1;min-width:0")}>
                       <div style={css("font-family:'IBM Plex Mono',monospace;font-size:13.5px;font-weight:700")}>{v.orderId}</div>
-                      <div style={css("margin-top:2px;font-size:11px;color:var(--sub)")}>{v.chatUnread > 0 ? 'ร้านส่งข้อความมา · แตะเพื่ออ่าน' : (v.cancelled ? 'ออเดอร์ถูกยกเลิก' : v.trackDelivered ? (v.trackPickup ? 'รับสินค้าแล้ว' : 'ส่งเรียบร้อยแล้ว') : 'กำลังดำเนินการ') + ' · แตะเพื่อดูรายละเอียด'}</div>
+                      <div style={css("margin-top:2px;font-size:12px;color:var(--sub)")}>{v.chatUnread > 0 ? 'ร้านส่งข้อความมา · แตะเพื่ออ่าน' : (v.cancelled ? 'ออเดอร์ถูกยกเลิก' : v.trackDelivered ? (v.trackPickup ? 'รับสินค้าแล้ว' : 'ส่งเรียบร้อยแล้ว') : 'กำลังดำเนินการ') + ' · แตะเพื่อดูรายละเอียด'}</div>
                     </div>
-                    {v.chatUnread > 0 && <span style={css("flex:none;font-size:10.5px;font-weight:700;color:#fff;background:#c92a2a;border-radius:99px;padding:3px 9px")}>💬 {v.chatUnread}</span>}
+                    {v.chatUnread > 0 && <span style={css("flex:none;font-size:11.5px;font-weight:700;color:#fff;background:#c92a2a;border-radius:99px;padding:3px 9px")}>💬 {v.chatUnread}</span>}
                     <div style={v.trackBadgeSt}>{v.trackLabel}</div>
-                    <span style={css("color:var(--sub);font-size:12px")}>▼</span>
+                    <span style={css("color:var(--sub);font-size:13px")}>▼</span>
                   </div>
                 ) : (
                   <React.Fragment>
                     <div style={css("background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px;box-shadow:var(--shadow)")}>
                       {/* แตะหัวการ์ดเพื่อย่อเป็นแถบเล็ก (ได้ทุกสถานะ) */}
                       <div onClick={v.trackToggle} style={css("display:flex;justify-content:space-between;align-items:center;gap:8px;cursor:pointer")}>
-                        <div style={css("font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--sub)")}>ORDER {v.orderId}</div>
+                        <div style={css("font-family:'IBM Plex Mono',monospace;font-size:13px;color:var(--sub)")}>ORDER {v.orderId}</div>
                         <div style={css("display:flex;align-items:center;gap:8px")}>
                           <div style={v.trackBadgeSt}>{v.trackLabel}</div>
-                          <span style={css("color:var(--sub);font-size:12px")}>▲</span>
+                          <span style={css("color:var(--sub);font-size:13px")}>▲</span>
                         </div>
                       </div>
                       <div style={css("margin-top:6px;font-size:13px;font-weight:600")}>{v.etaLabel}</div>
                       <div style={css("margin-top:14px;display:flex;flex-direction:column;gap:0")}>{v.trackSteps.map((sv, i) => (
                         <div key={i} style={css("display:flex;gap:12px")}>
                           <div style={css("display:flex;flex-direction:column;align-items:center")}><div style={sv.dot}>{sv.mark}</div><div style={sv.bar}></div></div>
-                          <div style={css("padding-bottom:16px")}><div style={sv.tt}>{sv.label}</div><div style={css("font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:var(--sub)")}>{sv.time}</div></div>
+                          <div style={css("padding-bottom:16px")}><div style={sv.tt}>{sv.label}</div><div style={css("font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:var(--sub)")}>{sv.time}</div></div>
                         </div>
                       ))}</div>
                       {/* ── ปุ่มเข้าห้องแชทของออเดอร์นี้ ── */}
@@ -4342,9 +4342,9 @@ class App extends React.Component {
                               <span style={css("font-family:'Montserrat',sans-serif;font-size:14px;font-weight:800;color:#fff;letter-spacing:.3px")}>LIVE CHAT</span>
                               <span style={css("width:7px;height:7px;border-radius:50%;background:#fff;animation:mpPulse 1.6s infinite;flex:none")}></span>
                             </div>
-                            <div style={css("margin-top:1px;font-size:11px;color:rgba(255,255,255,.85);overflow:hidden;text-overflow:ellipsis;white-space:nowrap")}>{v.chatPreview}</div>
+                            <div style={css("margin-top:1px;font-size:12px;color:rgba(255,255,255,.85);overflow:hidden;text-overflow:ellipsis;white-space:nowrap")}>{v.chatPreview}</div>
                           </div>
-                          {v.chatUnread > 0 && <span style={css("flex:none;font-size:10.5px;font-weight:700;color:var(--acc);background:#fff;border-radius:99px;padding:3px 9px")}>{v.chatUnread}</span>}
+                          {v.chatUnread > 0 && <span style={css("flex:none;font-size:11.5px;font-weight:700;color:var(--acc);background:#fff;border-radius:99px;padding:3px 9px")}>{v.chatUnread}</span>}
                           <span style={css("color:#fff;font-size:16px;flex:none;font-weight:700")}>›</span>
                         </div>
                       )}
@@ -4358,9 +4358,9 @@ class App extends React.Component {
                         <div key={i} style={css("display:flex;justify-content:space-between")}><span style={css("color:var(--sub)")}>🛠️ {a.amt > 0 ? 'เพิ่ม' : 'ลด'} {a.label}</span><span style={css("font-family:'IBM Plex Mono',monospace;font-weight:600;color:" + (a.amt > 0 ? "var(--warnInk)" : "#22c55e"))}>{a.amt > 0 ? '+' : '−'}฿{Math.abs(a.amt)}</span></div>
                       ))}
                       <div style={css("display:flex;justify-content:space-between;font-weight:700;border-top:1px dashed var(--line);padding-top:6px")}><span>{v.orderAdjs.length ? 'ยอดรวมล่าสุด' : 'ชำระแล้ว'}</span><span style={css("font-family:'IBM Plex Mono',monospace;color:var(--acc)")}>฿{v.paidTotal}</span></div>
-                      {v.orderAdjs.length > 0 && <div style={css("font-size:10.5px;color:var(--sub);line-height:1.5")}>ร้านปรับรายการตามที่คุยกันในแชท — รายละเอียดการชำระเพิ่ม/รับเงินคืนอยู่ใน Live Chat ครับ</div>}
+                      {v.orderAdjs.length > 0 && <div style={css("font-size:11.5px;color:var(--sub);line-height:1.5")}>ร้านปรับรายการตามที่คุยกันในแชท — รายละเอียดการชำระเพิ่ม/รับเงินคืนอยู่ใน Live Chat ครับ</div>}
                     </div>
-                    {v.trackDelivered && <div onClick={v.trackToggle} style={css("text-align:center;font-size:12px;color:var(--acc);font-weight:700;cursor:pointer;padding:2px 0")}>▲ ย่อรายละเอียด</div>}
+                    {v.trackDelivered && <div onClick={v.trackToggle} style={css("text-align:center;font-size:13px;color:var(--acc);font-weight:700;cursor:pointer;padding:2px 0")}>▲ ย่อรายละเอียด</div>}
                   </React.Fragment>
                 )}
                 {/* ── ยกเลิกออเดอร์เอง: เห็นเฉพาะช่วงร้านยังไม่เริ่มปริ้น และไม่เกิน cancelWindowMin นาทีหลังชำระ ── */}
@@ -4369,12 +4369,12 @@ class App extends React.Component {
                     {!v.selfCancelArm ? (
                       <React.Fragment>
                         <button onClick={v.armSelfCancel} style={css("width:100%;height:42px;border:1px solid #ffa8a8;border-radius:10px;background:none;color:#c92a2a;font-size:13px;font-weight:700;cursor:pointer")}>↩️ ยกเลิกออเดอร์นี้</button>
-                        <div style={css("margin-top:6px;font-size:10.5px;color:var(--sub);text-align:center")}>เปลี่ยนใจได้ภายใน {v.cancelWindowMin} นาทีหลังชำระ · เหลืออีก ~{v.cancelLeftMin} นาที</div>
+                        <div style={css("margin-top:6px;font-size:11.5px;color:var(--sub);text-align:center")}>เปลี่ยนใจได้ภายใน {v.cancelWindowMin} นาทีหลังชำระ · เหลืออีก ~{v.cancelLeftMin} นาที</div>
                       </React.Fragment>
                     ) : (
                       <React.Fragment>
                         <div style={css("font-size:12.5px;font-weight:700;color:#c92a2a;text-align:center")}>ยืนยันยกเลิกออเดอร์นี้ใช่ไหมครับ?</div>
-                        <div style={css("margin-top:4px;font-size:11px;color:var(--sub);text-align:center;line-height:1.5")}>ถ้าโอนเงินไปแล้ว ทักแชท LINE OA @346kifvy เพื่อรับเงินคืนได้เลยครับ</div>
+                        <div style={css("margin-top:4px;font-size:12px;color:var(--sub);text-align:center;line-height:1.5")}>ถ้าโอนเงินไปแล้ว ทักแชท LINE OA @346kifvy เพื่อรับเงินคืนได้เลยครับ</div>
                         <div style={css("margin-top:10px;display:flex;gap:8px")}>
                           <button onClick={v.unarmSelfCancel} disabled={v.selfCancelBusy} style={css("flex:1;height:42px;border:1px solid var(--line);border-radius:10px;background:var(--soft);color:var(--ink);font-size:12.5px;font-weight:700;cursor:pointer")}>ไม่ยกเลิกแล้ว</button>
                           <button onClick={v.doSelfCancel} disabled={v.selfCancelBusy} style={css("flex:1;height:42px;border:none;border-radius:10px;background:#c92a2a;color:#fff;font-size:12.5px;font-weight:700;cursor:pointer;opacity:" + (v.selfCancelBusy ? ".6" : "1"))}>{v.selfCancelBusy ? 'กำลังยกเลิก…' : '✔ ยืนยันยกเลิก'}</button>
@@ -4387,7 +4387,7 @@ class App extends React.Component {
                   ? <div style={css("background:var(--accSoft);border:1px solid var(--acc);border-radius:14px;padding:12px 16px;font-size:12.5px;color:var(--acc);font-weight:600")}>🙏 ขอบคุณสำหรับรีวิวครับ — ดูได้ที่หน้าแรกเลย</div>
                   : <div style={css("background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px;box-shadow:var(--shadow)")}>
                       <div style={css("font-size:13.5px;font-weight:700")}>ได้รับงานแล้ว ให้คะแนนหน่อยครับ ⭐</div>
-                      <div style={css("margin-top:4px;font-size:11px;color:var(--sub);line-height:1.5")}>ระบบให้ 5 ดาวไว้ให้แล้ว — ปรับดาวหรือเขียนคอมเมนต์เพิ่มได้เลยครับ</div>
+                      <div style={css("margin-top:4px;font-size:12px;color:var(--sub);line-height:1.5")}>ระบบให้ 5 ดาวไว้ให้แล้ว — ปรับดาวหรือเขียนคอมเมนต์เพิ่มได้เลยครับ</div>
                       <div style={css("margin-top:8px;display:flex;gap:5px")}>
                         {[1, 2, 3, 4, 5].map(n => <span key={n} onClick={v.setTrackStars(n)} style={css("font-size:30px;line-height:1;cursor:pointer;color:" + (n <= v.trackStars ? "#f5a623" : "var(--line)"))}>★</span>)}
                       </div>
@@ -4404,7 +4404,7 @@ class App extends React.Component {
                 {/* กู้คืนการติดตามด้วยรหัสออเดอร์ — เคสสั่งในเบราว์เซอร์อื่น/เปิดผ่านแอป LINE แล้วออเดอร์ไม่ขึ้น (2026-09-17) */}
                 <div style={css("margin:22px auto 0;max-width:330px;text-align:left;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 14px")}>
                   <div style={css("font-size:12.5px;font-weight:700;color:var(--ink)")}>🔎 เคยสั่งไว้แต่ออเดอร์ไม่ขึ้นในเครื่องนี้?</div>
-                  <div style={css("margin-top:3px;font-size:11px;color:var(--sub);line-height:1.6")}>กรอกรหัสออเดอร์ (ดูจากหน้าสรุปตอนสั่ง หรือทักถามร้านทาง LINE) แล้วระบบจะดึงสถานะมาให้ครับ</div>
+                  <div style={css("margin-top:3px;font-size:12px;color:var(--sub);line-height:1.6")}>กรอกรหัสออเดอร์ (ถามร้านทาง LINE ได้) แล้วระบบดึงสถานะให้ครับ</div>
                   <div style={css("margin-top:8px;display:flex;gap:7px")}>
                     <input value={v.trkCode} onChange={v.setTrkCode} onKeyDown={e => e.key === 'Enter' && v.trkGo()} placeholder="MP-XXXXXXXX" style={css("flex:1;min-width:0;box-sizing:border-box;height:42px;border:1.5px solid var(--acc);border-radius:10px;background:var(--soft);color:var(--ink);padding:0 12px;font-size:13px;font-family:'IBM Plex Mono',monospace;outline:none")}/>
                     <button onClick={v.trkGo} style={css("flex:none;height:42px;padding:0 16px;border:none;border-radius:10px;background:var(--acc);color:#fff;font-size:13px;font-weight:700;cursor:pointer")}>ติดตาม</button>
@@ -4421,8 +4421,8 @@ class App extends React.Component {
             <div style={css("padding:12px 20px;border-bottom:1px solid var(--line);background:var(--card);display:flex;align-items:center;gap:9px")}>
               <div style={css("width:34px;height:34px;border-radius:50%;background:#fff;border:1px solid var(--line);display:flex;align-items:center;justify-content:center;flex:none;overflow:hidden")}><img src="assets/logo-icon.png" alt="MORE PRINT" style={css("width:24px;height:auto;display:block")}/></div>
               <div style={css("flex:1;min-width:0")}>
-                <div style={css("font-size:13.5px;font-weight:700")}>MORE PRINT · <span style={css("font-family:'Montserrat',sans-serif;font-size:11.5px;font-weight:800;color:var(--acc)")}>LIVE CHAT</span></div>
-                <div style={css("font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--sub)")}>ออเดอร์ {v.orderId} · {v.trackLabel}</div>
+                <div style={css("font-size:13.5px;font-weight:700")}>MORE PRINT · <span style={css("font-family:'Montserrat',sans-serif;font-size:12.5px;font-weight:800;color:var(--acc)")}>LIVE CHAT</span></div>
+                <div style={css("font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--sub)")}>ออเดอร์ {v.orderId} · {v.trackLabel}</div>
               </div>
             </div>
             <div style={css("flex:1;overflow-y:auto;padding:16px 20px;display:flex;flex-direction:column;gap:9px;min-height:0")}>
@@ -4434,11 +4434,11 @@ class App extends React.Component {
                     <div style={css("width:46px;height:46px;border-radius:11px;background:var(--accSoft);display:flex;align-items:center;justify-content:center;font-size:22px;flex:none")}>🖨️</div>
                     <div style={css("flex:1;min-width:0")}>
                       <div style={css("font-size:13px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap")}>{v.chatOrder.job}</div>
-                      <div style={css("margin-top:2px;font-size:11.5px;color:var(--sub)")}>{v.chatOrder.qty}{v.chatOrder.qty ? ' · ' : ''}<b style={css("color:var(--acc);font-family:'IBM Plex Mono',monospace")}>฿{v.chatOrder.total}</b></div>
+                      <div style={css("margin-top:2px;font-size:12.5px;color:var(--sub)")}>{v.chatOrder.qty}{v.chatOrder.qty ? ' · ' : ''}<b style={css("color:var(--acc);font-family:'IBM Plex Mono',monospace")}>฿{v.chatOrder.total}</b></div>
                     </div>
                     <span style={v.trackBadgeSt}>{v.chatOrder.status}</span>
                   </div>
-                  <div style={css("margin-top:11px;display:flex;flex-direction:column;gap:6px;font-size:11.5px")}>
+                  <div style={css("margin-top:11px;display:flex;flex-direction:column;gap:6px;font-size:12.5px")}>
                     <div style={css("display:flex;gap:10px")}><span style={css("color:var(--sub);flex:none;white-space:nowrap")}>หมายเลขออเดอร์</span><span style={css("flex:1;text-align:right;font-family:'IBM Plex Mono',monospace;font-weight:600")}>{v.chatOrder.id}</span></div>
                     {v.chatOrder.phone && <div style={css("display:flex;gap:10px")}><span style={css("color:var(--sub);flex:none;white-space:nowrap")}>เบอร์ผู้รับ</span><span style={css("flex:1;text-align:right;font-family:'IBM Plex Mono',monospace")}>{v.chatOrder.phone}</span></div>}
                     {v.chatOrder.veh && <div style={css("display:flex;gap:10px")}><span style={css("color:var(--sub);flex:none;white-space:nowrap")}>จัดส่งโดย</span><span style={css("flex:1;text-align:right")}>{v.chatOrder.veh}</span></div>}
@@ -4461,7 +4461,7 @@ class App extends React.Component {
                       </a>
                     )}
                     {m.body}
-                    <div style={{ marginTop: '3px', fontSize: '9.5px', opacity: .75, fontFamily: "'IBM Plex Mono',monospace" }}>{m.time}</div>
+                    <div style={{ marginTop: '3px', fontSize: '10.5px', opacity: .75, fontFamily: "'IBM Plex Mono',monospace" }}>{m.time}</div>
                   </div>
                 </div>
               ))}
@@ -4474,19 +4474,19 @@ class App extends React.Component {
                     <button onClick={v.chAdClose} style={css("flex:none;width:28px;height:28px;border:1px solid var(--line);border-radius:8px;background:var(--soft);color:var(--sub);cursor:pointer;font-size:13px")}>✕</button>
                   </div>
                   <div style={css("margin-top:8px;display:flex;gap:7px")}>
-                    <button onClick={() => v.chAdSetMode('link')} style={css("flex:1;height:36px;border-radius:10px;font-size:11.5px;font-weight:700;cursor:pointer;font-family:inherit;border:" + (v.chAdMode === 'link' ? "1.5px solid var(--acc)" : "1px solid var(--line)") + ";background:" + (v.chAdMode === 'link' ? "var(--accSoft)" : "var(--soft)") + ";color:" + (v.chAdMode === 'link' ? "var(--acc)" : "var(--ink)"))}>🔗 ลิงก์ Google Maps</button>
-                    <button onClick={() => { v.chAdSetMode('gps'); v.chAdGoGps(); }} style={css("flex:1;height:36px;border-radius:10px;font-size:11.5px;font-weight:700;cursor:pointer;font-family:inherit;border:" + (v.chAdMode === 'gps' ? "1.5px solid var(--acc)" : "1px solid var(--line)") + ";background:" + (v.chAdMode === 'gps' ? "var(--accSoft)" : "var(--soft)") + ";color:" + (v.chAdMode === 'gps' ? "var(--acc)" : "var(--ink)"))}>🎯 ตำแหน่งปัจจุบัน</button>
+                    <button onClick={() => v.chAdSetMode('link')} style={css("flex:1;height:36px;border-radius:10px;font-size:12.5px;font-weight:700;cursor:pointer;font-family:inherit;border:" + (v.chAdMode === 'link' ? "1.5px solid var(--acc)" : "1px solid var(--line)") + ";background:" + (v.chAdMode === 'link' ? "var(--accSoft)" : "var(--soft)") + ";color:" + (v.chAdMode === 'link' ? "var(--acc)" : "var(--ink)"))}>🔗 ลิงก์ Google Maps</button>
+                    <button onClick={() => { v.chAdSetMode('gps'); v.chAdGoGps(); }} style={css("flex:1;height:36px;border-radius:10px;font-size:12.5px;font-weight:700;cursor:pointer;font-family:inherit;border:" + (v.chAdMode === 'gps' ? "1.5px solid var(--acc)" : "1px solid var(--line)") + ";background:" + (v.chAdMode === 'gps' ? "var(--accSoft)" : "var(--soft)") + ";color:" + (v.chAdMode === 'gps' ? "var(--acc)" : "var(--ink)"))}>🎯 ตำแหน่งปัจจุบัน</button>
                   </div>
                   {v.chAdMode === 'link' && (
                     <div style={css("margin-top:8px;display:flex;gap:7px")}>
                       <input value={v.chAdLink} onChange={v.chAdSetLink} placeholder="วางลิงก์ Google Maps ที่นี่" inputMode="url"
-                        style={css("flex:1;min-width:0;box-sizing:border-box;height:38px;border:1px solid var(--line);border-radius:10px;background:var(--soft);color:var(--ink);padding:0 11px;font-size:12px;outline:none")}/>
-                      <button onClick={v.chAdGoLink} disabled={v.chAdBusy} style={css("flex:none;height:38px;padding:0 13px;border:none;border-radius:10px;background:var(--acc);color:#fff;font-size:12px;font-weight:700;cursor:pointer" + (v.chAdBusy ? ";opacity:.6" : ""))}>{v.chAdBusy ? '⏳' : 'ตกลง'}</button>
+                        style={css("flex:1;min-width:0;box-sizing:border-box;height:38px;border:1px solid var(--line);border-radius:10px;background:var(--soft);color:var(--ink);padding:0 11px;font-size:13px;outline:none")}/>
+                      <button onClick={v.chAdGoLink} disabled={v.chAdBusy} style={css("flex:none;height:38px;padding:0 13px;border:none;border-radius:10px;background:var(--acc);color:#fff;font-size:13px;font-weight:700;cursor:pointer" + (v.chAdBusy ? ";opacity:.6" : ""))}>{v.chAdBusy ? '⏳' : 'ตกลง'}</button>
                     </div>
                   )}
-                  {v.chAdBusy && v.chAdMode === 'gps' && <div style={css("margin-top:7px;font-size:11.5px;color:var(--sub)")}>⏳ กำลังหาตำแหน่งและวัดระยะ…</div>}
+                  {v.chAdBusy && v.chAdMode === 'gps' && <div style={css("margin-top:7px;font-size:12.5px;color:var(--sub)")}>⏳ กำลังหาตำแหน่งและวัดระยะ…</div>}
                   {v.chAdPt && (
-                    <div style={css("margin-top:8px;background:var(--accSoft);border-radius:10px;padding:8px 11px;font-size:11.5px;font-weight:700;color:var(--acc)")}>✓ ได้จุดใหม่แล้ว · ~{v.chAdPt.km} กม. · ค่าส่งใหม่ ฿{v.chAdPt.fee} <span style={css("font-weight:400;color:var(--sub)")}>(ถ้าแพงกว่าเดิม ร้านจะแจ้งส่วนต่างในแชท)</span></div>
+                    <div style={css("margin-top:8px;background:var(--accSoft);border-radius:10px;padding:8px 11px;font-size:12.5px;font-weight:700;color:var(--acc)")}>✓ ได้จุดใหม่แล้ว · ~{v.chAdPt.km} กม. · ค่าส่งใหม่ ฿{v.chAdPt.fee} <span style={css("font-weight:400;color:var(--sub)")}>(ถ้าแพงกว่าเดิม ร้านจะแจ้งส่วนต่างในแชท)</span></div>
                   )}
                   <textarea value={v.chAdText} onChange={v.chAdSetText} placeholder="รายละเอียดที่อยู่ใหม่: หอ/ตึก/ชั้น/ห้อง/จุดสังเกต *"
                     style={css("margin-top:8px;width:100%;box-sizing:border-box;min-height:48px;border:1px solid var(--line);border-radius:10px;background:var(--soft);color:var(--ink);padding:8px 11px;font-size:12.5px;outline:none;resize:vertical;font-family:inherit")}/>
@@ -4494,7 +4494,7 @@ class App extends React.Component {
                 </div>
               )}
               {v.chatQuick.map((q, i) => (
-                <button key={i} onClick={q.pick} disabled={v.chatBusy} style={css("flex:none;height:32px;padding:0 12px;border:1px solid var(--line);border-radius:99px;background:var(--soft);color:var(--ink);font-size:11.5px;font-weight:600;cursor:pointer;white-space:nowrap;font-family:inherit")}>{q.icon} {q.label}</button>
+                <button key={i} onClick={q.pick} disabled={v.chatBusy} style={css("flex:none;height:32px;padding:0 12px;border:1px solid var(--line);border-radius:99px;background:var(--soft);color:var(--ink);font-size:12.5px;font-weight:600;cursor:pointer;white-space:nowrap;font-family:inherit")}>{q.icon} {q.label}</button>
               ))}
             </div>
             <div style={css("padding:10px 16px 14px;background:var(--card);display:flex;gap:8px")}>
@@ -4516,7 +4516,7 @@ class App extends React.Component {
                 : <div style={css("width:52px;height:52px;border-radius:50%;background:var(--accSoft);color:var(--acc);display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:800;flex:none")}>{(v.userName || '?').charAt(0)}</div>}
               <div style={css("flex:1;min-width:0")}>
                 <div style={css("font-size:15.5px;font-weight:800")}>คุณ {v.userName}</div>
-                <div style={css("margin-top:2px;font-size:11px;color:var(--sub);display:flex;align-items:center;gap:4px")}>{v.profLineOn ? <React.Fragment>{fi('check', 12, '#06C755')}<span>เชื่อมต่อกับ LINE แล้ว</span></React.Fragment> : 'สมาชิก MORE PRINT'}</div>
+                <div style={css("margin-top:2px;font-size:12px;color:var(--sub);display:flex;align-items:center;gap:4px")}>{v.profLineOn ? <React.Fragment>{fi('check', 12, '#06C755')}<span>เชื่อมต่อกับ LINE แล้ว</span></React.Fragment> : 'สมาชิก MORE PRINT'}</div>
               </div>
             </div>
 
@@ -4543,7 +4543,7 @@ class App extends React.Component {
                           <input value={v.profLname} onChange={v.setProfLname} placeholder="นามสกุล" style={css("flex:1;min-width:0;box-sizing:border-box;height:42px;border:1px solid var(--line);border-radius:10px;background:var(--soft);color:var(--ink);padding:0 12px;font-size:13px;outline:none")}/>
                         </div>
                         <input value={v.profPhone} onChange={v.setProfPhone} placeholder="เบอร์โทร 08x-xxx-xxxx" inputMode="tel" maxLength={12} style={css("width:100%;box-sizing:border-box;height:42px;border:1px solid var(--line);border-radius:10px;background:var(--soft);color:var(--ink);padding:0 12px;font-size:13px;outline:none")}/>
-                        <div style={css("font-size:11px;color:var(--sub);display:flex;align-items:flex-start;gap:5px")}>{v.profLineOn ? <React.Fragment><span style={css("flex:none;padding-top:2px")}>{fi('check', 13, '#06C755')}</span><span>บัญชีนี้เชื่อมกับ LINE — รับแจ้งเตือนออเดอร์ทาง LINE อัตโนมัติ</span></React.Fragment> : <React.Fragment><span style={css("flex:none;padding-top:2px")}>{fi('chat', 13)}</span><span>อยากรับแจ้งเตือนทาง LINE? ออกจากระบบแล้วเข้าใหม่ด้วยปุ่ม LINE ได้ครับ</span></React.Fragment>}</div>
+                        <div style={css("font-size:12px;color:var(--sub);display:flex;align-items:flex-start;gap:5px")}>{v.profLineOn ? <React.Fragment><span style={css("flex:none;padding-top:2px")}>{fi('check', 13, '#06C755')}</span><span>บัญชีนี้เชื่อมกับ LINE — รับแจ้งเตือนออเดอร์ทาง LINE อัตโนมัติ</span></React.Fragment> : <React.Fragment><span style={css("flex:none;padding-top:2px")}>{fi('chat', 13)}</span><span>อยากรับแจ้งเตือนทาง LINE? ออกจากระบบแล้วเข้าใหม่ด้วยปุ่ม LINE ได้ครับ</span></React.Fragment>}</div>
                         <button onClick={v.profSave} style={css("height:42px;border:none;border-radius:10px;background:var(--acc);color:#fff;font-size:13px;font-weight:700;cursor:pointer")}>บันทึก</button>
                       </div>
                     )}
@@ -4551,7 +4551,7 @@ class App extends React.Component {
                       <div style={css("display:flex;flex-direction:column;gap:8px")}>
                         {v.hasOrder
                           ? <div style={css("font-size:12.5px;line-height:1.6")}>ออเดอร์ล่าสุด: <b style={css("font-family:'IBM Plex Mono',monospace")}>{v.orderId}</b> · {v.trackLabel}</div>
-                          : <div style={css("font-size:12px;color:var(--sub)")}>ยังไม่มีออเดอร์ในเครื่องนี้</div>}
+                          : <div style={css("font-size:13px;color:var(--sub)")}>ยังไม่มีออเดอร์ในเครื่องนี้</div>}
                         <button onClick={v.profGoTrack} style={css("height:42px;border:1px solid var(--acc);border-radius:10px;background:var(--accSoft);color:var(--acc);font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:7px")}>{fi('truck', 15)} ไปหน้าติดตามออเดอร์</button>
                       </div>
                     )}
@@ -4559,39 +4559,39 @@ class App extends React.Component {
                       <div style={css("display:flex;flex-direction:column;gap:8px")}>
                         <div style={css("border:1px solid var(--line);border-radius:11px;padding:11px 13px;display:flex;align-items:center;gap:10px")}>
                           <span style={css("flex:none;display:flex;color:var(--acc)")}>{fi('printer', 18)}</span>
-                          <div style={css("flex:1;min-width:0")}><div style={css("font-size:12.5px;font-weight:700")}>MORE PRINT</div><div style={css("font-size:10.5px;color:var(--sub)")}>ปริ้นเอกสารพร้อมส่ง 24 ชม. รอบ มข.</div></div>
-                          <a href={(window.MP_CONFIG || {}).LINE_OA_URL || 'https://line.me/R/ti/p/@346kifvy'} target="_blank" rel="noreferrer" style={css("flex:none;font-size:11px;font-weight:700;background:#06C755;color:#fff;padding:6px 11px;border-radius:9px;text-decoration:none")}>LINE</a>
+                          <div style={css("flex:1;min-width:0")}><div style={css("font-size:12.5px;font-weight:700")}>MORE PRINT</div><div style={css("font-size:11.5px;color:var(--sub)")}>ปริ้นเอกสารพร้อมส่ง 24 ชม. รอบ มข.</div></div>
+                          <a href={(window.MP_CONFIG || {}).LINE_OA_URL || 'https://line.me/R/ti/p/@346kifvy'} target="_blank" rel="noreferrer" style={css("flex:none;font-size:12px;font-weight:700;background:#06C755;color:#fff;padding:6px 11px;border-radius:9px;text-decoration:none")}>LINE</a>
                         </div>
                         <div style={css("border:1px solid var(--line);border-radius:11px;padding:11px 13px;display:flex;align-items:center;gap:10px")}>
                           <span style={css("flex:none;display:flex;color:var(--acc)")}>{fi('star', 18)}</span>
-                          <div style={css("flex:1;min-width:0")}><div style={css("font-size:12.5px;font-weight:700")}>ร้านอุดมสุขปริ้นติ้ง</div><div style={css("font-size:10.5px;color:var(--sub)")}>งานปริ้นพรีเมียม / งานใหญ่ (Pro)</div></div>
-                          <a href="https://maps.app.goo.gl/SshjXkvaCxvKPugL7" target="_blank" rel="noreferrer" style={css("flex:none;font-size:11px;font-weight:700;background:var(--accSoft);color:var(--acc);border:1px solid var(--acc);padding:6px 11px;border-radius:9px;text-decoration:none;display:flex;align-items:center;gap:4px")}>{fi('nav', 12)} แผนที่</a>
+                          <div style={css("flex:1;min-width:0")}><div style={css("font-size:12.5px;font-weight:700")}>ร้านอุดมสุขปริ้นติ้ง</div><div style={css("font-size:11.5px;color:var(--sub)")}>งานปริ้นพรีเมียม / งานใหญ่ (Pro)</div></div>
+                          <a href="https://maps.app.goo.gl/SshjXkvaCxvKPugL7" target="_blank" rel="noreferrer" style={css("flex:none;font-size:12px;font-weight:700;background:var(--accSoft);color:var(--acc);border:1px solid var(--acc);padding:6px 11px;border-radius:9px;text-decoration:none;display:flex;align-items:center;gap:4px")}>{fi('nav', 12)} แผนที่</a>
                         </div>
                       </div>
                     )}
                     {k === 'addr' && (
                       <div style={css("display:flex;flex-direction:column;gap:8px")}>
-                        <div style={css("font-size:11.5px;font-weight:700;color:var(--sub)")}>ที่อยู่จัดส่งประจำ (จำจากออเดอร์ที่เคยสั่ง)</div>
-                        {v.savedAddrs.length === 0 && <div style={css("font-size:12px;color:var(--sub)")}>ยังไม่มี — สั่งปริ้นครั้งแรกแล้วระบบจะจำให้อัตโนมัติ</div>}
+                        <div style={css("font-size:12.5px;font-weight:700;color:var(--sub)")}>ที่อยู่จัดส่งประจำ (จำจากออเดอร์ที่เคยสั่ง)</div>
+                        {v.savedAddrs.length === 0 && <div style={css("font-size:13px;color:var(--sub)")}>ยังไม่มี — สั่งปริ้นครั้งแรกแล้วระบบจะจำให้อัตโนมัติ</div>}
                         {v.savedAddrs.map((a, i) => (
                           <div key={i} style={css("border:1px solid var(--line);border-radius:11px;padding:10px 13px;display:flex;align-items:center;gap:10px")}>
                             <span style={css("flex:none;display:flex")}>{i === 0 ? fi('star', 16, 'var(--acc)') : fi('home', 16, 'var(--sub)')}</span>
-                            <div style={css("flex:1;min-width:0;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap")}>{a.addr}</div>
-                            <span onClick={a.del} style={css("flex:none;color:#c92a2a;font-size:12px;font-weight:700;cursor:pointer")}>ลบ</span>
+                            <div style={css("flex:1;min-width:0;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap")}>{a.addr}</div>
+                            <span onClick={a.del} style={css("flex:none;color:#c92a2a;font-size:13px;font-weight:700;cursor:pointer")}>ลบ</span>
                           </div>
                         ))}
-                        <div style={css("border-top:1px dashed var(--line);padding-top:9px;font-size:11.5px;line-height:1.6;color:var(--sub);display:flex;align-items:flex-start;gap:6px")}><span style={css("flex:none;padding-top:2px")}>{fi('shop', 14)}</span><span><b style={css("color:var(--ink)")}>จุดรับงานด้วยตัวเอง (งาน Pro):</b> ร้านอุดมสุขปริ้นติ้ง (กังสดาล) · <a href="https://maps.app.goo.gl/SshjXkvaCxvKPugL7" target="_blank" rel="noreferrer" style={css("color:var(--acc);font-weight:700")}>เปิดแผนที่</a></span></div>
+                        <div style={css("border-top:1px dashed var(--line);padding-top:9px;font-size:12.5px;line-height:1.6;color:var(--sub);display:flex;align-items:flex-start;gap:6px")}><span style={css("flex:none;padding-top:2px")}>{fi('shop', 14)}</span><span><b style={css("color:var(--ink)")}>จุดรับงานด้วยตัวเอง (งาน Pro):</b> ร้านอุดมสุขปริ้นติ้ง (กังสดาล) · <a href="https://maps.app.goo.gl/SshjXkvaCxvKPugL7" target="_blank" rel="noreferrer" style={css("color:var(--acc);font-weight:700")}>เปิดแผนที่</a></span></div>
                       </div>
                     )}
                     {k === 'pay' && (
-                      <div style={css("display:flex;flex-direction:column;gap:8px;font-size:12px;line-height:1.7")}>
+                      <div style={css("display:flex;flex-direction:column;gap:8px;font-size:13px;line-height:1.7")}>
                         <div>ชำระด้วย <b>PromptPay QR</b> — สแกนจ่ายตอนยืนยันออเดอร์ แล้วแนบสลิปในหน้าเดียวกัน</div>
                         <img src="assets/promptpay-qr.jpg" alt="PromptPay" onError={(e) => { e.target.style.display = 'none'; }} style={css("max-width:180px;border-radius:10px;border:1px solid var(--line)")}/>
-                        <div style={css("color:var(--sub);font-size:11px")}>งาน Pro ทุกประเภทคิดราคาอัตโนมัติ รวมในยอดชำระแล้ว</div>
+                        <div style={css("color:var(--sub);font-size:12px")}>งาน Pro ทุกประเภทคิดราคาอัตโนมัติ รวมในยอดชำระแล้ว</div>
                       </div>
                     )}
                     {k === 'coupon' && (
-                      <div style={css("font-size:12px;line-height:1.7;color:var(--sub);display:flex;align-items:flex-start;gap:6px")}><span style={css("flex:none;padding-top:3px")}>{fi('tag', 14)}</span><span>มีโค้ดส่วนลด? <b style={css("color:var(--ink)")}>ใส่ได้ที่หน้าชำระเงินตอนสั่งปริ้น</b><br/>ติดตามโค้ดแจกในกลุ่ม/เพจของร้าน — ระบบสะสมคะแนนกำลังจะตามมาเร็วๆ นี้ครับ</span></div>
+                      <div style={css("font-size:13px;line-height:1.7;color:var(--sub);display:flex;align-items:flex-start;gap:6px")}><span style={css("flex:none;padding-top:3px")}>{fi('tag', 14)}</span><span>มีโค้ดส่วนลด? <b style={css("color:var(--ink)")}>ใส่ได้ที่หน้าชำระเงินตอนสั่งปริ้น</b><br/>ติดตามโค้ดแจกในกลุ่ม/เพจของร้าน — ระบบสะสมคะแนนกำลังจะตามมาเร็วๆ นี้ครับ</span></div>
                     )}
                   </div>
                 )}
@@ -4606,7 +4606,7 @@ class App extends React.Component {
           <div style={css("padding:18px 20px 110px;display:flex;flex-direction:column;gap:10px")}>
             <div>
               <div style={css("font-size:17px;font-weight:800;display:flex;align-items:center;gap:7px")}><span style={css("display:flex;color:var(--acc)")}>{fi('clock', 17)}</span>ประวัติการสั่ง</div>
-              <div style={css("margin-top:3px;font-size:11.5px;color:var(--sub);line-height:1.6")}>ออเดอร์ที่ผลิต/จัดส่งสำเร็จแล้วถูกเก็บไว้ที่นี่อัตโนมัติ — แตะเพื่อดูรายละเอียดและแชทของออเดอร์นั้น</div>
+              <div style={css("margin-top:3px;font-size:12.5px;color:var(--sub);line-height:1.6")}>งานที่สำเร็จแล้วเก็บไว้ที่นี่อัตโนมัติ — แตะดูรายละเอียด/แชทครับ</div>
             </div>
             {v.history.length === 0 && (
               <div style={css("background:var(--card);border:1px dashed var(--line);border-radius:14px;padding:26px 16px;text-align:center;color:var(--sub);font-size:12.5px;line-height:1.7")}>ยังไม่มีประวัติครับ<br/>เมื่อออเดอร์จัดส่งสำเร็จหรือรับสินค้าแล้ว จะมาเก็บไว้ที่นี่เอง</div>
@@ -4617,14 +4617,14 @@ class App extends React.Component {
                   <span style={css("flex:none;display:flex;color:var(--acc)")}>{h.pickup ? fi('shop', 18) : fi('check', 18)}</span>
                   <div style={css("flex:1;min-width:0")}>
                     <div style={css("font-family:'IBM Plex Mono',monospace;font-size:13px;font-weight:700")}>{h.id}</div>
-                    <div style={css("margin-top:2px;font-size:11px;color:var(--sub);overflow:hidden;text-overflow:ellipsis;white-space:nowrap")}>{v.histWhen(h.ts)} · {h.plabel}</div>
+                    <div style={css("margin-top:2px;font-size:12px;color:var(--sub);overflow:hidden;text-overflow:ellipsis;white-space:nowrap")}>{v.histWhen(h.ts)} · {h.plabel}</div>
                   </div>
                   <span style={css("flex:none;font-family:'IBM Plex Mono',monospace;font-size:12.5px;font-weight:700;color:var(--acc)")}>฿{h.total}</span>
-                  <span style={css("color:var(--sub);font-size:12px;flex:none")}>{v.histOpen === h.id ? '▲' : '▼'}</span>
+                  <span style={css("color:var(--sub);font-size:13px;flex:none")}>{v.histOpen === h.id ? '▲' : '▼'}</span>
                 </div>
                 {v.histOpen === h.id && (
                   <div style={css("padding:0 15px 13px")}>
-                    <div style={css("border-top:1px solid var(--line);padding-top:10px;display:flex;flex-direction:column;gap:6px;font-size:12px")}>
+                    <div style={css("border-top:1px solid var(--line);padding-top:10px;display:flex;flex-direction:column;gap:6px;font-size:13px")}>
                       <div style={css("display:flex;justify-content:space-between")}><span style={css("color:var(--sub)")}>สถานะ</span><b style={css("color:var(--acc)")}>{h.pickup ? 'รับสินค้าแล้ว ✓' : 'จัดส่งสำเร็จ ✓'}</b></div>
                       <div style={css("display:flex;justify-content:space-between;gap:12px")}><span style={css("color:var(--sub);flex:none")}>ประเภทงาน</span><span style={css("text-align:right")}>{h.plabel}</span></div>
                       {(h.pages || (h.copies || 1) > 1) ? <div style={css("display:flex;justify-content:space-between")}><span style={css("color:var(--sub)")}>จำนวน</span><span>{h.pages ? h.pages + ' หน้า · ' : ''}{h.copies || 1} ชุด</span></div> : null}
@@ -4640,11 +4640,11 @@ class App extends React.Component {
                       <span style={css("display:flex;color:#fff")}>{fi('chat', 17)}</span>
                       <div style={css("flex:1;color:#fff")}>
                         <div style={css("font-size:12.5px;font-weight:800;letter-spacing:.5px")}>LIVE CHAT</div>
-                        <div style={css("font-size:10.5px;opacity:.9")}>แชทกับร้านเรื่องออเดอร์นี้ — ประวัติแชทยังอยู่ครบ</div>
+                        <div style={css("font-size:11.5px;opacity:.9")}>แชทกับร้านเรื่องออเดอร์นี้ — ประวัติแชทยังอยู่ครบ</div>
                       </div>
                       <span style={css("color:#fff")}>›</span>
                     </div>
-                    <div onClick={() => v.histDel(h.id)} style={css("margin-top:9px;text-align:center;font-size:11.5px;color:#c92a2a;font-weight:700;cursor:pointer;padding:6px")}>ลบรายการนี้ออกจากประวัติในเครื่อง</div>
+                    <div onClick={() => v.histDel(h.id)} style={css("margin-top:9px;text-align:center;font-size:12.5px;color:#c92a2a;font-weight:700;cursor:pointer;padding:6px")}>ลบรายการนี้ออกจากประวัติในเครื่อง</div>
                   </div>
                 )}
               </div>
@@ -4659,20 +4659,20 @@ class App extends React.Component {
               <div style={css("width:66px;height:66px;border-radius:50%;background:#fff;margin:0 auto;display:flex;align-items:center;justify-content:center;box-shadow:0 0 0 3px var(--accSoft)")}><img src="assets/logo-icon.png" alt="" style={css("width:46px;height:auto;display:block")}/></div>
               <div style={css("margin-top:12px;font-family:'Montserrat',sans-serif;font-weight:800;font-size:21px;letter-spacing:1.5px")}><span style={css("color:var(--acc)")}>MORE</span> <span>PRINT</span></div>
               <div style={css("margin-top:6px;font-size:12.5px;color:var(--sub);line-height:1.65")}>เว็บปริ้นเอกสารออนไลน์ พร้อมส่งถึงที่ 24 ชม.<br/>รอบมหาวิทยาลัยขอนแก่น (มข.)</div>
-              {v.revCount > 0 && <div style={css("margin-top:12px;display:inline-flex;align-items:center;gap:6px;background:var(--accSoft);border-radius:99px;padding:6px 15px;font-size:12px;font-weight:700;color:var(--acc)")}>⭐ {v.revAvg} · {v.revCount} รีวิวจากลูกค้าจริง</div>}
-              <div style={css("margin-top:14px;display:flex;justify-content:center;gap:8px;flex-wrap:wrap;font-size:11px;color:var(--sub)")}>
+              {v.revCount > 0 && <div style={css("margin-top:12px;display:inline-flex;align-items:center;gap:6px;background:var(--accSoft);border-radius:99px;padding:6px 15px;font-size:13px;font-weight:700;color:var(--acc)")}>⭐ {v.revAvg} · {v.revCount} รีวิวจากลูกค้าจริง</div>}
+              <div style={css("margin-top:14px;display:flex;justify-content:center;gap:8px;flex-wrap:wrap;font-size:12px;color:var(--sub)")}>
                 <span style={css("background:var(--soft);border-radius:99px;padding:5px 11px")}>🕐 เปิด 24 ชม.</span>
                 <span style={css("background:var(--soft);border-radius:99px;padding:5px 11px")}>🛵 ส่งถึงหอ</span>
                 <span style={css("background:var(--soft);border-radius:99px;padding:5px 11px")}>🏪 มารับเองได้</span>
               </div>
             </div>
-            <div style={css("margin:6px 2px -4px;font-size:12px;font-weight:700;color:var(--sub)")}>ติดต่อ & ติดตามเรา 👇</div>
+            <div style={css("margin:6px 2px -4px;font-size:13px;font-weight:700;color:var(--sub)")}>ติดต่อ & ติดตามเรา 👇</div>
             {v.aboutLinks.map((l, i) => (
               <div key={i} onClick={l.go} style={css("background:var(--card);border:1px solid var(--line);border-radius:14px;padding:13px 16px;display:flex;align-items:center;gap:13px;cursor:pointer;box-shadow:var(--shadow)")}>
                 <div style={css("width:42px;height:42px;flex:none;line-height:0")}>{l.logo}</div>
                 <div style={css("flex:1;min-width:0")}>
                   <div style={css("font-size:13.5px;font-weight:700")}>{l.name}</div>
-                  <div style={css("margin-top:2px;font-size:11px;color:var(--sub);line-height:1.45")}>{l.sub}</div>
+                  <div style={css("margin-top:2px;font-size:12px;color:var(--sub);line-height:1.45")}>{l.sub}</div>
                 </div>
                 <span style={css("color:var(--sub);font-size:15px")}>›</span>
               </div>
@@ -4687,7 +4687,7 @@ class App extends React.Component {
               <div style={css("font-size:36px;text-align:center")}>⚠️</div>
               <div style={css("margin-top:8px;font-size:15px;font-weight:800;text-align:center")}>แจ้งจากทางร้าน</div>
               <div style={css("margin-top:8px;font-size:13.5px;font-weight:600;line-height:1.6;text-align:center;color:#c92a2a")}>{v.alertBn.title}</div>
-              {v.alertBn.subtitle && <div style={css("margin-top:4px;font-size:12px;color:var(--sub);line-height:1.55;text-align:center")}>{v.alertBn.subtitle}</div>}
+              {v.alertBn.subtitle && <div style={css("margin-top:4px;font-size:13px;color:var(--sub);line-height:1.55;text-align:center")}>{v.alertBn.subtitle}</div>}
               <div style={css("margin-top:10px;font-size:12.5px;color:var(--sub);text-align:center")}>ยังต้องการสั่งปริ้นต่อไหมครับ?</div>
               <div style={css("margin-top:14px;display:flex;gap:10px")}>
                 <button onClick={v.alertStay} style={css("flex:1;height:44px;border:1px solid var(--line);border-radius:12px;background:var(--soft);color:var(--ink);font-size:13.5px;font-weight:700;cursor:pointer")}>ไว้ทีหลัง</button>
@@ -4765,7 +4765,7 @@ class App extends React.Component {
                       </tr>
                     </tbody>
                   </table>
-                  <div style={{ marginTop: '10px', fontSize: '11px', color: '#555' }}>หน่วยเงิน: บาท · ใบเสร็จออนไลน์ ออกโดยระบบ MORE PRINT — ลูกค้าสั่งพิมพ์ได้เอง</div>
+                  <div style={{ marginTop: '10px', fontSize: '12px', color: '#555' }}>หน่วยเงิน: บาท · ใบเสร็จออนไลน์ ออกโดยระบบ MORE PRINT — ลูกค้าสั่งพิมพ์ได้เอง</div>
                 </div>
                 <div style={css("margin-top:12px;display:flex;gap:8px")}>
                   <button onClick={v.printRc} style={css("flex:1;height:46px;border:none;border-radius:12px;background:var(--acc);color:#fff;font-size:14px;font-weight:700;cursor:pointer")}>🖨️ พิมพ์ / บันทึก PDF</button>
@@ -4790,13 +4790,13 @@ class App extends React.Component {
           <div style={css("position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:1200;display:flex;align-items:center;justify-content:center;padding:22px")} onClick={v.revAskClose}>
             <div style={css("width:100%;max-width:360px;background:var(--card);border-radius:18px;padding:20px 18px;box-shadow:0 10px 40px rgba(0,0,0,.3)")} onClick={(e) => e.stopPropagation()}>
               <div style={css("font-size:16px;font-weight:800")}>⭐ รีวิวงานของคุณหน่อยครับ</div>
-              <div style={css("margin-top:6px;font-size:12.5px;color:var(--sub);line-height:1.6")}>งานส่งสำเร็จแล้ว: <b style={css("color:var(--ink)")}>{v.revAsk.plabel || 'งานปริ้น'}</b><span style={css("display:block;font-family:'IBM Plex Mono',monospace;font-size:11px")}>{v.revAsk.id}</span></div>
+              <div style={css("margin-top:6px;font-size:12.5px;color:var(--sub);line-height:1.6")}>งานส่งสำเร็จแล้ว: <b style={css("color:var(--ink)")}>{v.revAsk.plabel || 'งานปริ้น'}</b><span style={css("display:block;font-family:'IBM Plex Mono',monospace;font-size:12px")}>{v.revAsk.id}</span></div>
               <div style={css("margin-top:10px;display:flex;gap:6px;justify-content:center")}>
                 {[1, 2, 3, 4, 5].map(n => <span key={n} onClick={v.setRevAskStars(n)} style={css("font-size:34px;line-height:1;cursor:pointer;color:" + (n <= v.revAskStars ? "#f5a623" : "var(--line)"))}>★</span>)}
               </div>
               <textarea value={v.revAskText} onChange={v.setRevAskText} placeholder="ชื่นชมหรือแนะนำให้ร้านปรับปรุง (ไม่บังคับ)" style={css("margin-top:10px;width:100%;box-sizing:border-box;min-height:60px;border:1px solid var(--line);border-radius:10px;background:var(--soft);color:var(--ink);padding:9px 11px;font-size:12.5px;outline:none;resize:vertical;font-family:inherit")}/>
               <button onClick={v.revAskSend} style={css("margin-top:10px;width:100%;height:46px;border:none;border-radius:12px;background:var(--acc);color:#fff;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit")}>ส่งรีวิว 💚</button>
-              <div onClick={v.revAskClose} style={css("margin-top:8px;text-align:center;font-size:12px;color:var(--sub);font-weight:600;cursor:pointer;padding:6px")}>ไว้ทีหลัง</div>
+              <div onClick={v.revAskClose} style={css("margin-top:8px;text-align:center;font-size:13px;color:var(--sub);font-weight:600;cursor:pointer;padding:6px")}>ไว้ทีหลัง</div>
             </div>
           </div>
         )}
@@ -4815,8 +4815,8 @@ class App extends React.Component {
               ))}
             </div>
             <div onClick={v.clipClose} style={css("position:absolute;top:16px;right:16px;width:40px;height:40px;border-radius:50%;background:rgba(255,255,255,.16);color:#fff;display:flex;align-items:center;justify-content:center;font-size:17px;cursor:pointer")}>✕</div>
-            <div style={css("position:absolute;top:24px;left:16px;color:#fff;font-size:12px;font-weight:700;background:rgba(255,255,255,.16);border-radius:99px;padding:6px 13px")}>{(v.clipIdx + 1)} / {v.clips.length}</div>
-            <div onClick={v.clipMuteToggle} style={css("position:absolute;bottom:26px;right:16px;color:#fff;font-size:12px;font-weight:700;background:rgba(255,255,255,.2);border-radius:99px;padding:9px 15px;cursor:pointer")}>{v.clipMuted ? '🔇 แตะเปิดเสียง' : '🔊'}</div>
+            <div style={css("position:absolute;top:24px;left:16px;color:#fff;font-size:13px;font-weight:700;background:rgba(255,255,255,.16);border-radius:99px;padding:6px 13px")}>{(v.clipIdx + 1)} / {v.clips.length}</div>
+            <div onClick={v.clipMuteToggle} style={css("position:absolute;bottom:26px;right:16px;color:#fff;font-size:13px;font-weight:700;background:rgba(255,255,255,.2);border-radius:99px;padding:9px 15px;cursor:pointer")}>{v.clipMuted ? '🔇 แตะเปิดเสียง' : '🔊'}</div>
           </div>
         )}
         {v.toast && (
@@ -4843,7 +4843,7 @@ class App extends React.Component {
                           )}/>
                         : NAV_ICON[n.k]}
                     </div>}
-                <div style={css("font-size:10px;font-weight:600;margin-top:3px")}>{n.label}</div>
+                <div style={css("font-size:11px;font-weight:600;margin-top:3px")}>{n.label}</div>
               </div>
             ))}
           </div>
