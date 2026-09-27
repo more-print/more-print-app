@@ -2375,7 +2375,7 @@ class App extends React.Component {
         sub: stOn
           ? (si.list[i] && si.list[i].ok && !si.list[i].over
               ? '🏷️ ลายนี้ ' + si.list[i].w + '×' + si.list[i].h + ' ซม. · ' + si.list[i].sheets + ' ' + stkUnit(si.list[i].t) + ' × ' + si.list[i].cap + ' ชิ้น/' + stkUnit(si.list[i].t) + ' = ' + si.list[i].q + ' ชิ้น'
-              : '🏷️ เลือกเนื้อ + กรอกขนาด (กว้าง×ยาว ซม.) และจำนวนแผ่นของลายนี้ที่ช่องด้านล่าง')
+              : '🏷️ กรอกเนื้อ/ขนาด/จำนวนแผ่นที่ช่องด้านล่าง')
           : f.counting ? '⏳ กำลังอ่านไฟล์ (นับหน้า + สแกนปริมาณสี)…' : ((f.auto ? '🔒 นับหน้าจากไฟล์จริงแล้ว — ล็อกจำนวน' : '✏️ ระบุจำนวนหน้าเองด้วยปุ่ม + / − (ร้านเปิดไฟล์เช็คก่อนปริ้นเสมอ)') + (s.ptype === 'color' && f.scanned ? ' · 🎨 สีเยอะ ' + (f.heavy || 0) + ' หน้า' : '')),
         // ไฟล์ที่ระบบอ่านนับหน้าได้เอง = ล็อกจำนวนตามไฟล์จริง แก้ไม่ได้ (กันกดลดหน้าให้ราคาถูกกว่าความจริง) — แก้ได้เฉพาะไฟล์ที่เว็บนับไม่ได้ (เช่น DOCX)
         inc: () => { if (f.auto) return this.showToast('ไฟล์นี้ระบบนับหน้าจากตัวไฟล์จริงแล้ว ล็อกจำนวนไว้ครับ 🔒'); this.setState(st => ({ files: st.files.map((x, j) => j === i ? { ...x, pages: x.pages + 1 } : x) })); },
@@ -2499,7 +2499,7 @@ class App extends React.Component {
       proHint: s.proType === 'foldbook' ? '📖 เข้าเล่มทุกแบบ +฿' + PRO_FOLDBOOK_BIND + '/เล่ม · พิมพ์หน้า-หลังทั้งเล่ม'
         : s.proType === 'plate' ? '🪧 เพลทรวมติดบอร์ดแล้ว · พิมพ์ด้านหน้าอย่างเดียว'
         : s.proType === 'postcard' ? <React.Fragment>ขนาด 4*6 ซม. (กว้าง * ยาว)<span style={{ display: 'block' }}>💌 1 แผ่น A3 = 9 ใบ · ฿{PRO_POSTCARD_SHEET}/แผ่น</span></React.Fragment>
-        : s.proType === 'sticker' ? '🏷️ ส่ง 1 ไฟล์ต่อ 1 ลาย (รูปเดียว) · เลือกจำนวนแผ่นแล้วระบบคำนวณจำนวนชิ้นสูงสุดให้อัตโนมัติครับ (PP = แผ่น 13"×19" · PVC = ตร.ม.)'
+        : s.proType === 'sticker' ? '🏷️ 1 ไฟล์ = 1 ลาย (รูปเดียว)'
         : s.proType === 'namecard' ? '💳 ราคาต่อ 100 ใบ (A3 4 แผ่น)'
         : s.proType === 'standee' ? '🧍 ขนาดกว้าง 60 × สูง 120 ซม.'
         : '',
@@ -2573,7 +2573,7 @@ class App extends React.Component {
             ? '✨ ' + this.proLabel() + ' หน้าละ ฿' + c.rate + (c.pages > 0 ? ' × ' + c.pages + ' หน้า × ' + s.copies + ' เล่ม + เข้าเล่ม ฿' + PRO_FOLDBOOK_BIND + '/เล่ม = ฿' + c.printCost : ' + เข้าเล่ม ฿' + PRO_FOLDBOOK_BIND + '/เล่ม — อัปโหลดไฟล์แล้วคำนวณให้ทันที')
             : s.proType === 'namecard' ? '✨ ' + this.proLabel() + ' = ฿' + c.printCost
             : s.proType === 'sticker' ? (() => { const si = this.stickerInfo(); if (!si.ready)
-                  return '✨ เลือกเนื้อ กรอกขนาดชิ้น และจำนวนแผ่น — ระบบคำนวณจำนวนชิ้นสูงสุดต่อแผ่นและราคาให้ทันที (PP แผ่น 13"×19" ฿' + STK_PP_SHEET + ' · PVC ตร.ม. ละ ฿' + STK_PVC_SQM + ')';
+                  return '✨ PP แผ่น 13"×19" ฿' + STK_PP_SHEET + ' · PVC ตร.ม. ละ ฿' + STK_PVC_SQM;
                 const parts = [];
                 if (si.pp.sheets > 0) parts.push('PP ฿' + si.pp.rate + '/แผ่น × ' + si.pp.sheets + ' แผ่น');
                 if (si.pvc.sheets > 0) parts.push('PVC ฿' + STK_PVC_SQM + '/ตร.ม. × ' + si.pvc.sheets + ' ตร.ม.');
@@ -2606,7 +2606,7 @@ class App extends React.Component {
       // สติ๊กเกอร์ไม่นับเป็น "หน้า" — บิลสรุปเป็นชิ้น/แผ่น A3 แทน กันลูกค้างง (เจ้าของสั่ง 2026-09-09)
       pageSummary: (s.tier === 'pro' && s.proType === 'sticker') ? (() => {
           const si = this.stickerInfo();
-          if (!si.ready) return 'สติ๊กเกอร์ — เลือกเนื้อ + ขนาด + จำนวนแผ่นให้ครบ แล้วยอดขึ้นตรงนี้ครับ';
+          if (!si.ready) return 'สติ๊กเกอร์ — กรอกให้ครบ แล้วยอดขึ้นตรงนี้ครับ';
           const parts = [];
           if (si.pp.sheets > 0) parts.push('PP ' + si.pp.sheets + ' แผ่น 13"×19"');
           if (si.pvc.sheets > 0) parts.push('PVC ' + si.pvc.sheets + ' ตร.ม.');
@@ -2654,7 +2654,7 @@ class App extends React.Component {
           return this.showToast('🪧 เลือกประเภทบอร์ดก่อนนะครับ — ฟิวเจอร์บอร์ด หรือ โฟมบอร์ด (ไม่บวกราคาเพิ่ม)');
         // งานสติ๊กเกอร์รับไฟล์ลายละ "1 หน้า (รูปเดียว)" เท่านั้น — ไฟล์หลายหน้าห้ามไปต่อ (นโยบาย 2026-09-09)
         if (s.tier === 'pro' && s.proType === 'sticker' && s.files.some(f => (f.pages || 1) > 1))
-          return this.showToast('🏷️ ไฟล์สติ๊กเกอร์ต้องมีรูปเดียว (1 หน้า) ต่อ 1 ลายเท่านั้นครับ — ที่เหลือทางร้านจัดการให้เอง ลบไฟล์หลายหน้าแล้วส่งใหม่นะครับ 🙏');
+          return this.showToast('🏷️ ไฟล์สติ๊กเกอร์ใช้ได้ 1 หน้าต่อ 1 ลายครับ 🙏');
         // สติ๊กเกอร์ v3: ต้องเลือกเนื้อ (PP/PVC รายลาย) + กรอกขนาด/จำนวนแผ่นครบทุกลาย + ชิ้นไม่ใหญ่เกินแผ่นของเนื้อนั้น
         if (s.tier === 'pro' && s.proType === 'sticker') {
           const si = this.stickerInfo();
@@ -3733,20 +3733,20 @@ class App extends React.Component {
                 {/* ตัวเลือกเคลือบ (โปสเตอร์): เลือกชนิดฟิล์ม — โผล่เฉพาะตอนกดเคลือบ · ฟิล์มแข็งมีเฉพาะเคลือบหน้า-หลัง */}
                 {v.isPro && v.proFilmOpts.length > 0 && <div style={css("display:flex;flex-direction:column;gap:6px")}><div style={css("font-size:12px;font-weight:600;color:var(--ink)")}>ตัวเลือกเคลือบ</div><div style={css("display:flex;gap:8px;flex-wrap:wrap")}>{v.proFilmOpts.map((o, i) => <button key={i} onClick={o.pick} style={{...o.st, flex:'1 1 100%'}}>{o.label}</button>)}</div></div>}
                 {v.isPro && v.proHint && <div style={css("font-size:11.5px;color:var(--acc);font-weight:600")}>{v.proHint}</div>}
-                {v.stkOn && <div style={css("font-size:11px;font-weight:700;color:var(--acc);line-height:1.6")}>💡 ถ้าสะดวกรบกวนคุณลูกค้าปรับขนาดสติ๊กเกอร์เป็น<b>ขนาดจริง</b>ลงในไฟล์มาเลยนะครับ จะช่วยให้ปริ้นและส่งมอบงานได้เร็วขึ้นมาก ๆ</div>}
+                {v.stkOn && <div style={css("font-size:11px;font-weight:700;color:var(--acc);line-height:1.6")}>💡 ทำไฟล์มาเป็น<b>ขนาดจริง</b> — งานเสร็จไวขึ้นมากครับ</div>}
                 {v.stkOn && <div style={css("display:flex;flex-direction:column;gap:6px")}>
                   {/* ข้อความเตือนแดง "เลือก PP/PVC ก่อน" ถูกถอด (2026-09-11) — toDelivery ยังบล็อก+toast รายไฟล์ถ้าไม่เลือกเหมือนเดิม */}
                   <div style={css("margin-top:2px;background:var(--card);border:1.5px solid var(--acc);border-radius:12px;padding:12px 14px")}>
-                    <div style={css("font-size:12.5px;font-weight:700;color:var(--acc)")}>🏷️ เลือกเนื้อ + ขนาดชิ้น + จำนวนแผ่น — ระบบคำนวณจำนวนชิ้นให้อัตโนมัติ</div>
+                    <div style={css("font-size:12.5px;font-weight:700;color:var(--acc)")}>🏷️ เลือกเนื้อ · ขนาด · จำนวนแผ่น — ระบบคิดจำนวนชิ้นให้เอง</div>
                     {v.stkFiles.length === 0
-                      ? <div style={css("margin-top:7px;font-size:11.5px;color:var(--sub);line-height:1.6")}>อัปโหลดไฟล์ลายสติ๊กเกอร์ที่ด้านบนก่อน (1 ไฟล์ = 1 ลาย) แล้วช่องกรอกขนาดกับจำนวนแผ่นของแต่ละไฟล์จะขึ้นตรงนี้ครับ</div>
+                      ? <div style={css("margin-top:7px;font-size:11.5px;color:var(--sub);line-height:1.6")}>อัปโหลดไฟล์ลายด้านบนก่อน แล้วช่องกรอกจะขึ้นตรงนี้ครับ</div>
                       : <React.Fragment>
                           {v.stkFiles.map((f, i) => (
                             f.multi
                               ? <div key={i} style={css("margin-top:9px;background:#fff0f0;border:1.5px solid #ffa8a8;border-radius:10px;padding:9px 12px;display:flex;align-items:center;gap:9px")}>
                                   <div style={css("flex:1;min-width:0")}>
                                     <div style={css("font-size:12px;font-weight:700;color:#c92a2a;overflow:hidden;text-overflow:ellipsis;white-space:nowrap")}>⚠️ {f.name} มี {f.pages} หน้า</div>
-                                    <div style={css("margin-top:2px;font-size:10.5px;color:#c92a2a;line-height:1.5")}>ไฟล์สติ๊กเกอร์ต้องมีรูปเดียว (1 หน้า) ต่อ 1 ลายเท่านั้นครับ — ที่เหลือทางร้านจัดการให้เอง</div>
+                                    <div style={css("margin-top:2px;font-size:10.5px;color:#c92a2a;line-height:1.5")}>ใช้ได้เฉพาะไฟล์ 1 หน้า (1 ลาย) ครับ</div>
                                   </div>
                                   <button onClick={f.del} style={css("flex:none;height:34px;padding:0 12px;border:none;border-radius:9px;background:#c92a2a;color:#fff;font-size:11.5px;font-weight:700;cursor:pointer;font-family:inherit")}>ลบไฟล์นี้</button>
                                 </div>
@@ -3778,11 +3778,11 @@ class App extends React.Component {
                                       ? '🎉 วางได้สูงสุด ' + f.info.cap + ' ชิ้น/' + stkUnit(f.t) + ' × ' + f.info.sheets + ' ' + stkUnit(f.t) + ' = รวม ' + f.info.q + ' ชิ้น'
                                       : f.info && f.info.cap > 0
                                       ? '🎉 ขนาดนี้วางได้สูงสุด ' + f.info.cap + ' ชิ้น/' + stkUnit(f.t) + ' — เลือกจำนวน' + stkUnit(f.t) + 'ด้านบนได้เลยครับ'
-                                      : 'เลือกเนื้อ + กรอกขนาด กว้าง × ยาว (ซม.) และจำนวนแผ่นให้ครบครับ'}
+                                      : 'เลือกเนื้อ กรอกขนาด (ซม.) และจำนวนแผ่นครับ'}
                                   </div>
                                 </div>
                           ))}
-                          {v.stkMulti && <div style={css("margin-top:10px;background:#fff0f0;border:1px solid #ffa8a8;border-radius:10px;padding:8px 11px;font-size:11.5px;font-weight:700;color:#c92a2a;line-height:1.5")}>⚠️ ลบไฟล์ที่เกิน 1 หน้าออกก่อน ถึงจะไปขั้นตอนถัดไปได้ครับ</div>}
+                          {v.stkMulti && <div style={css("margin-top:10px;background:#fff0f0;border:1px solid #ffa8a8;border-radius:10px;padding:8px 11px;font-size:11.5px;font-weight:700;color:#c92a2a;line-height:1.5")}>⚠️ ลบไฟล์ที่เกิน 1 หน้าออกก่อนครับ</div>}
                           {v.stkSum && !v.stkMulti && (v.stkSum.ready
                             ? <div style={css("margin-top:10px;background:var(--accSoft);border:1px solid var(--acc);border-radius:10px;padding:8px 11px;font-size:12px;font-weight:700;color:var(--acc)")}>
                                 <div style={css("display:flex;justify-content:space-between;gap:8px")}><span>สติ๊กเกอร์รวมทั้งหมด {v.stkSum.pcs} ชิ้น ({v.stkSum.units})</span><span>฿{v.stkSum.cost}</span></div>
