@@ -1382,7 +1382,7 @@ function AdminApp(){
   const curP = PERIODS.find(x => x[0] === period) || PERIODS[0];
   const inPeriod = (o) => new Date(o.created_at) >= curP[2];
   const ordActive = orders.filter(o => o.status >= 1 && o.status < 4);
-  const ordDone = orders.filter(o => o.status === 4 && inPeriod(o));
+  const ordDone = orders.filter(o => o.status === 4 && inPeriod(o)).sort((a, b) => new Date(a.created_at) - new Date(b.created_at)); // เรียงเก่า→ใหม่: ออเดอร์เก่าสุด = เบอร์ 1, งานเพิ่งเสร็จอยู่ท้ายสุด (เจ้าของสั่ง 2026-09-27)
   const ordCancel = orders.filter(o => o.status === 0 && inPeriod(o));
   const statusShown = filter === 'done' ? ordDone : filter === 'cancelled' ? ordCancel : ordActive;
   // กรองตามโซนไรเดอร์

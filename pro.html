@@ -1044,7 +1044,7 @@ function Dash({ role }){
           // ยกเว้น "กำลังทำ" — งานค้างต้องเห็นเสมอไม่ว่าเลือกช่วงไหน จะได้ไม่มีงานตกหล่น
           const inPeriod = (o) => new Date(o.created_at) >= curP[2];
           const inWork = orders.filter(o => o.status > 0 && o.status < 4);
-          const doneL = orders.filter(o => o.status === 4 && inPeriod(o));
+          const doneL = orders.filter(o => o.status === 4 && inPeriod(o)).sort((a, b) => new Date(a.created_at) - new Date(b.created_at)); // เรียงเก่า→ใหม่ให้เหมือน admin: เก่าสุดขึ้นก่อน งานเพิ่งเสร็จอยู่ท้ายสุด (เจ้าของสั่ง 2026-09-27)
           const cancelL = orders.filter(o => o.status === 0 && inPeriod(o));
           const TABS = [['active', <React.Fragment>{FI.printer(13)} กำลังทำ</React.Fragment>, inWork], ['done', <React.Fragment>{FI.check(13)} เสร็จแล้ว</React.Fragment>, doneL], ['cancel', <React.Fragment>{FI.x(13)} ยกเลิก</React.Fragment>, cancelL]];
           const cur = TABS.find(t => t[0] === filter) || TABS[0];
