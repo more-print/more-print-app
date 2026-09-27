@@ -3415,7 +3415,7 @@ class App extends React.Component {
           <React.Fragment>
             {v.userName
               ? <div style={css("margin:14px 20px 0;display:flex;justify-content:space-between;align-items:center")}>
-                  <div style={css("font-size:13px;color:var(--sub)")}>สวัสดี, <b style={css("color:var(--ink)")}>คุณ{v.userName}</b> 👋</div>
+                  <div style={css("font-size:13px;color:var(--sub)")}>สวัสดี, <b style={css("color:var(--ink)")}>คุณ {v.userName}</b> 👋</div>
                   <button onClick={v.doLogout} style={css("border:none;background:none;font-size:11px;text-decoration:underline;cursor:pointer;color:" + (v.logoutArm ? "#c92a2a" : "var(--sub)") + (v.logoutArm ? ";font-weight:700" : ""))}>{v.logoutArm ? 'แตะอีกครั้งเพื่อยืนยัน' : 'เปลี่ยนบัญชี'}</button>
                 </div>
               : <div style={css("margin:14px 20px 0;display:flex;justify-content:space-between;align-items:center")}>
@@ -4515,7 +4515,7 @@ class App extends React.Component {
                 ? <img src={v.userPic} alt="" referrerPolicy="no-referrer" style={css("width:52px;height:52px;border-radius:50%;object-fit:cover;flex:none;background:var(--soft)")}/>
                 : <div style={css("width:52px;height:52px;border-radius:50%;background:var(--accSoft);color:var(--acc);display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:800;flex:none")}>{(v.userName || '?').charAt(0)}</div>}
               <div style={css("flex:1;min-width:0")}>
-                <div style={css("font-size:15.5px;font-weight:800")}>คุณ{v.userName}</div>
+                <div style={css("font-size:15.5px;font-weight:800")}>คุณ {v.userName}</div>
                 <div style={css("margin-top:2px;font-size:11px;color:var(--sub);display:flex;align-items:center;gap:4px")}>{v.profLineOn ? <React.Fragment>{fi('check', 12, '#06C755')}<span>เชื่อมต่อกับ LINE แล้ว</span></React.Fragment> : 'สมาชิก MORE PRINT'}</div>
               </div>
             </div>
