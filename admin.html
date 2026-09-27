@@ -1384,7 +1384,7 @@ function AdminApp(){
   const curP = PERIODS.find(x => x[0] === period) || PERIODS[0];
   const inPeriod = (o) => new Date(o.created_at) >= curP[2];
   const ordActive = orders.filter(o => o.status >= 1 && o.status < 4);
-  const ordDone = orders.filter(o => o.status === 4 && inPeriod(o)).sort((a, b) => new Date(a.created_at) - new Date(b.created_at)); // เรียงเก่า→ใหม่: ออเดอร์เก่าสุด = เบอร์ 1, งานเพิ่งเสร็จอยู่ท้ายสุด (เจ้าของสั่ง 2026-09-27)
+  const ordDone = orders.filter(o => o.status === 4 && inPeriod(o)).sort((a, b) => new Date(b.created_at) - new Date(a.created_at)); // งานเพิ่งเสร็จอยู่บนสุด แต่เลขลำดับนับจากเก่าสุด=1 ที่ล่างสุด (เจ้าของปรับ 2026-09-27 — ดูเลข idx ตอนเรนเดอร์)
   const ordCancel = orders.filter(o => o.status === 0 && inPeriod(o));
   const statusShown = filter === 'done' ? ordDone : filter === 'cancelled' ? ordCancel : ordActive;
   // กรองตามโซนไรเดอร์
@@ -1685,7 +1685,7 @@ function AdminApp(){
                   );
                 }
               }
-              out.push(<OrderCard key={o.id} o={o} idx={i + 1} onAdvance={advance} onRetreat={retreat} onApplyEdits={applyEdits} onCancel={cancel} onRemove={removeOrder} busy={busyId === o.id} unread={unreadMap[o.id] || 0} onSeen={clearUnread}/>);
+              out.push(<OrderCard key={o.id} o={o} idx={filter === 'done' ? shown.length - i : i + 1} onAdvance={advance} onRetreat={retreat} onApplyEdits={applyEdits} onCancel={cancel} onRemove={removeOrder} busy={busyId === o.id} unread={unreadMap[o.id] || 0} onSeen={clearUnread}/>);
             });
             return out;
           })()}
