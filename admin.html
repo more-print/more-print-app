@@ -167,7 +167,7 @@ const optionsLabel = (o) => [
   o.ptype === 'poster' ? null : (o.sides === 2 ? 'หน้า-หลัง' : 'หน้าเดียว'),
   o.orient ? (o.orient === 'landscape' ? 'แนวนอน' : 'แนวตั้ง') : null,
   o.nup ? o.nup + ' หน้า/แผ่น' : null,
-  BIND_LABELS[o.bind] || 'ไม่เข้าเล่ม',
+  BIND_LABELS[o.bind] || (o.bind && o.bind !== 'none' ? 'เข้าเล่ม ' + o.bind : (o.ptype === 'pro' ? 'ไม่เข้าเล่ม' : 'ไม่เย็บมุม/ไม่เข้าเล่ม')), // ลูกค้าเลือก "ไม่เย็บมุม" ต้องอ่านออกจากการ์ด (เจ้าของแจ้ง 2026-09-27 ฝ่ายผลิตงง) · bind ชื่อไทย = เข้าเล่มพับครึ่งงาน Pro
   o.copies + ' ชุด'
 ].filter(Boolean).join(' · ');
 
@@ -441,6 +441,7 @@ function OrderCard({ o, idx, onAdvance, onRetreat, onApplyEdits, onCancel, onRem
             <div style={css("margin-top:8px;display:flex;gap:6px;flex-wrap:wrap")}>
               {o.ptype !== 'poster' && <span style={css("font-size:11px;font-weight:600;background:var(--soft);border:1px solid var(--line);border-radius:8px;padding:3px 10px")}>{o.sides === 2 ? 'หน้า-หลัง' : 'หน้าเดียว'}</span>}
               {o.bind && o.bind !== 'none' && BIND_LABELS[o.bind] && <span style={css("font-size:11px;font-weight:600;background:var(--soft);border:1px solid var(--line);border-radius:8px;padding:3px 10px")}>{BIND_LABELS[o.bind]}</span>}
+              {o.ptype !== 'pro' && (!o.bind || o.bind === 'none') && <span style={css("font-size:11px;font-weight:600;background:var(--soft);border:1px solid var(--line);border-radius:8px;padding:3px 10px")}>ไม่เย็บมุม</span>}
               {o.express && <span style={css("font-size:11px;font-weight:700;color:#c92a2a;background:#fff0f0;padding:3px 10px;border-radius:8px")}>{FI.zap(10)} งานด่วน</span>}
               {o.night && <span style={css("font-size:11px;font-weight:700;color:var(--warnInk);background:var(--warnBg);padding:3px 10px;border-radius:8px")}>{FI.moon(10)} กลางคืน</span>}
               {(() => { const z = zoneOf(o.lat, o.lng); return z ? <span style={{ fontSize: '11px', fontWeight: 700, color: z.fg, background: z.bg, padding: '3px 10px', borderRadius: '8px' }}>{FI.pin(10)} {z.name}</span> : null; })()}
@@ -454,6 +455,7 @@ function OrderCard({ o, idx, onAdvance, onRetreat, onApplyEdits, onCancel, onRem
               <div style={css("font-size:12.5px;font-weight:600;line-height:1.6")}>{optionsLabel(o)}</div>
               {o.ptype === 'pro' && <div style={css("margin-top:4px;font-size:11px;font-weight:700;color:#c92a2a;line-height:1.5")}>งาน PRO ยังไม่มีเรทราคา — ตกลง/ยืนยันราคาปริ้นกับลูกค้าก่อนเริ่มงาน (ยอดที่ลูกค้าชำระแล้วคือค่าส่งเท่านั้น)</div>}
               {['coil', 'tape', 'glue', 'book'].includes(o.bind) && <div style={css("margin-top:4px;display:inline-block;font-size:11px;font-weight:700;background:#f3f0ff;color:#5f3dc4;border:1px solid #b197fc;padding:3px 10px;border-radius:8px")}>📚 งานเข้าเล่ม: {BIND_LABELS[o.bind]} × {o.copies || 1} ชุด — อย่าลืมเข้าเล่มก่อนส่งนะ</div>}
+              {o.bind === 'corner' && <div style={css("margin-top:4px;display:inline-block;font-size:11px;font-weight:700;background:#fff3bf;color:#a16207;border:1px solid #f0dfa6;padding:3px 10px;border-radius:8px")}>📎 เย็บมุม × {o.copies || 1} ชุด — อย่าลืมเย็บลวดมุมซ้ายบนก่อนส่งนะ</div>}
             </div>
           </div>
           <div style={css("display:flex;gap:10px;font-size:12px")}>
@@ -1220,7 +1222,7 @@ function AdminApp(){
       o.sides === 2 ? 'หน้า-หลัง' : 'หน้าเดียว',
       o.orient ? (o.orient === 'landscape' ? 'แนวนอน' : 'แนวตั้ง') : '',
       o.nup ? o.nup + ' หน้า/แผ่น' : '',
-      BIND_LABELS[o.bind] || 'ไม่เข้าเล่ม',
+      BIND_LABELS[o.bind] || (o.bind && o.bind !== 'none' ? 'เข้าเล่ม ' + o.bind : (o.ptype === 'pro' ? 'ไม่เข้าเล่ม' : 'ไม่เย็บมุม/ไม่เข้าเล่ม')),
       o.copies || 1, (o.files || []).reduce((a, f) => a + (f.pages || 0), 0),
       (o.files || []).map(f => f.name).join(' | '), o.point || '', o.addr || '', o.phone || '', o.time || '',
       o.express ? 'ใช่' : '', o.night ? 'ใช่' : '',
