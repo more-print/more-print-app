@@ -22,6 +22,13 @@
   a{color:#00b368}a:hover{color:#008a50}
   input,button{font-family:'Cloud Soft','IBM Plex Sans Thai',sans-serif}
   @keyframes mpPulse{0%,100%{opacity:1}50%{opacity:.35}}
+  /* ── การ์ดกระจกโลโก้หน้า Login (เจ้าของเลือกแบบ "การ์ดกระจกขอบเขียว + แสงวิ่ง" 2026-09-27) — ใช้ logo-icon-t.png (พื้นโปร่งใส ตัดจาก logo-icon.png) ── */
+  .mp-glassB{padding:1.6px;border-radius:22px;background:linear-gradient(135deg,#00d97e,rgba(0,217,126,.15) 40%,rgba(0,217,126,.15) 60%,#00b368);box-shadow:0 10px 34px rgba(0,0,0,.16)}
+  body.night .mp-glassB{box-shadow:0 10px 34px rgba(0,0,0,.45)}
+  .mp-glass{border-radius:20.5px;padding:20px 34px 17px;display:flex;flex-direction:column;align-items:center;gap:10px;background:rgba(255,255,255,.75);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);position:relative;overflow:hidden}
+  body.night .mp-glass{background:rgba(255,255,255,.06)}
+  .mp-glass::after{content:'';position:absolute;top:0;left:-60%;width:45%;height:100%;background:linear-gradient(105deg,transparent,rgba(255,255,255,.16),transparent);transform:skewX(-18deg);animation:mpShine 4.5s ease-in-out infinite}
+  @keyframes mpShine{0%,55%{left:-60%}85%,100%{left:130%}}
   @keyframes mpFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
   @media print{
     body *{visibility:hidden !important}
@@ -3343,7 +3350,10 @@ class App extends React.Component {
           <div style={css("padding:28px 24px;display:flex;flex-direction:column;gap:14px;align-items:stretch")}>
             <div onClick={v.backToHome} style={css("align-self:flex-start;font-size:12px;color:var(--sub);cursor:pointer;font-weight:600")}>← กลับไปชมหน้าเว็บก่อน</div>
             <div style={css("display:flex;flex-direction:column;align-items:center;gap:10px;margin-bottom:2px")}>
-              <img src="assets/logo-full.png" alt="MORE PRINT" style={css("width:160px;height:auto;display:block;background:#fff;border-radius:16px")}/>
+              <div className="mp-glassB"><div className="mp-glass">
+                <img src="assets/logo-icon-t.png" alt="MORE PRINT" style={css("width:84px;height:auto;display:block")}/>
+                <div style={css("font-family:'Montserrat',sans-serif;font-weight:800;font-size:19px;letter-spacing:2px;line-height:1")}><span style={css("color:var(--acc)")}>MORE</span> <span>PRINT</span></div>
+              </div></div>
               <div style={css("font-size:14px;color:var(--sub);text-align:center")}>สมัครครั้งเดียว สั่งปริ้นส่งถึงที่ ทุกที่ใน มข.</div>
             </div>
 
