@@ -167,7 +167,7 @@ const optionsLabel = (o) => [
   o.ptype === 'poster' ? null : (o.sides === 2 ? 'หน้า-หลัง' : 'หน้าเดียว'),
   o.orient ? (o.orient === 'landscape' ? 'แนวนอน' : 'แนวตั้ง') : null,
   o.nup ? o.nup + ' หน้า/แผ่น' : null,
-  BIND_LABELS[o.bind] || (o.bind && o.bind !== 'none' ? 'เข้าเล่ม ' + o.bind : (o.ptype === 'pro' ? 'ไม่เข้าเล่ม' : 'ไม่เย็บมุม/ไม่เข้าเล่ม')), // ลูกค้าเลือก "ไม่เย็บมุม" ต้องอ่านออกจากการ์ด (เจ้าของแจ้ง 2026-09-27 ฝ่ายผลิตงง) · bind ชื่อไทย = เข้าเล่มพับครึ่งงาน Pro
+  BIND_LABELS[o.bind] || (o.bind && o.bind !== 'none' ? 'เข้าเล่ม ' + o.bind : (o.ptype === 'pro' ? null : 'ไม่เย็บมุม')), // เย็บมุมกับเข้าเล่มแยกกัน: ไม่ได้เลือกเข้าเล่ม = ไม่ขึ้นคำว่าเข้าเล่ม/ไม่เข้าเล่มเลย โชว์แค่สถานะเย็บมุม (เจ้าของย้ำ 2026-09-27) · bind ชื่อไทย = เข้าเล่มพับครึ่งงาน Pro
   o.copies + ' ชุด'
 ].filter(Boolean).join(' · ');
 
@@ -1222,7 +1222,7 @@ function AdminApp(){
       o.sides === 2 ? 'หน้า-หลัง' : 'หน้าเดียว',
       o.orient ? (o.orient === 'landscape' ? 'แนวนอน' : 'แนวตั้ง') : '',
       o.nup ? o.nup + ' หน้า/แผ่น' : '',
-      BIND_LABELS[o.bind] || (o.bind && o.bind !== 'none' ? 'เข้าเล่ม ' + o.bind : (o.ptype === 'pro' ? 'ไม่เข้าเล่ม' : 'ไม่เย็บมุม/ไม่เข้าเล่ม')),
+      BIND_LABELS[o.bind] || (o.bind && o.bind !== 'none' ? 'เข้าเล่ม ' + o.bind : (o.ptype === 'pro' ? '' : 'ไม่เย็บมุม')),
       o.copies || 1, (o.files || []).reduce((a, f) => a + (f.pages || 0), 0),
       (o.files || []).map(f => f.name).join(' | '), o.point || '', o.addr || '', o.phone || '', o.time || '',
       o.express ? 'ใช่' : '', o.night ? 'ใช่' : '',
