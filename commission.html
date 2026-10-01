@@ -709,6 +709,7 @@ function Dash(){
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const month = new Date(now.getFullYear(), now.getMonth(), 1);
   const year = new Date(now.getFullYear(), 0, 1);
+  const week = new Date(today); week.setDate(today.getDate() - ((today.getDay() + 6) % 7)); // จันทร์ต้นสัปดาห์นี้ (สูตรเดียวกับ admin)
   // รับรู้รายได้เมื่องานจบ (ส่งถึงมือลูกค้า = สถานะ 4) — งานระหว่างทางแยกเป็น "คอมรอรับ"
   const done = orders.filter(o => o.status === 4 && jobValue(o) > 0);
   // ค่าส่ง = รายได้ของ MORE PRINT เต็มจำนวน (เราวิ่งส่งเอง) — ไม่เข้าสูตรหารคอมกับร้านพาร์ทเนอร์
@@ -752,7 +753,7 @@ function Dash(){
     const max = Math.max(1, ...out.map(b => b.v));
     return out.map(b => ({ ...b, v: Math.round(b.v * 100) / 100, h: Math.round(b.v / max * 100) }));
   })();
-  const PERIODS = [['day', 'วันนี้', today], ['month', 'เดือนนี้', month], ['year', 'ปีนี้', year]];
+  const PERIODS = [['day', 'วันนี้', today], ['week', 'สัปดาห์นี้', week], ['month', 'เดือนนี้', month], ['year', 'ปีนี้', year]];
   const curP = PERIODS.find(x => x[0] === period) || PERIODS[0];
   const curAgg = agg(curP[2]);
   // สรุปรายเดือน
@@ -1141,7 +1142,15 @@ function Dash(){
             || String(o.paper || '').toLowerCase().includes(q));
           return (
             <React.Fragment>
-              <div style={css("font-size:13px;font-weight:700")}>{FI.clipboard(13)} งาน PRO {curP[1]} <span style={css("font-size:10.5px;font-weight:400;color:var(--sub)")}>· เปลี่ยนช่วงเวลาได้ที่แถบบนสุด · งานที่ยังไม่เสร็จแสดงทุกช่วงเสมอ</span></div>
+              <div style={css("font-size:13px;font-weight:700")}>{FI.clipboard(13)} งาน PRO {curP[1]} <span style={css("font-size:10.5px;font-weight:400;color:var(--sub)")}>· งานที่ยังไม่เสร็จแสดงทุกช่วงเสมอ</span></div>
+              {/* ปุ่มเลือกช่วงเวลาในแท็บออเดอร์โดยตรง แบบเดียวกับ admin (เจ้าของสั่ง 2026-10-01 — เดิมต้องไปกดที่แถบบนสุดของหน้าภาพรวม) */}
+              <div style={css("display:flex;gap:6px")}>
+                {PERIODS.map(([k, label]) => (
+                  <button key={k} onClick={() => setPeriod(k)} style={{ flex: 1, height: '34px', borderRadius: '99px', cursor: 'pointer', fontSize: '12px', fontWeight: 700, fontFamily: 'inherit',
+                    border: period === k ? '1.5px solid var(--acc)' : '1px solid var(--line)',
+                    background: period === k ? 'var(--accSoft)' : 'var(--card)', color: period === k ? 'var(--acc)' : 'var(--sub)' }}>{label}</button>
+                ))}
+              </div>
               <div style={css("display:flex;gap:7px")}>
                 {TABS.map(([k, label, list]) => (
                   <button key={k} onClick={() => setFilter(k)} style={{ flex: 1, height: '42px', borderRadius: '12px', cursor: 'pointer', fontSize: '11.5px', fontWeight: 700, fontFamily: 'inherit',
