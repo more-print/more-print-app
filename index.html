@@ -407,6 +407,39 @@ function fi(name, size, color){
 }
 
 
+// ── สเต็ปเปอร์ 4 ขั้นของหน้าสั่ง (เจ้าของสั่ง 2026-10-01 สไตล์วงกลมไอคอนต่อเส้น — ไอคอน/ขั้นตอนของเราเอง):
+//    ผ่านแล้ว = วงเขียวอ่อนขอบเขียว · ขั้นปัจจุบัน = วงเขียวเข้มใหญ่มีวงแหวน · ยังไม่ถึง = เทา · ป้ายชื่อขั้นปัจจุบันอยู่กลางใต้แถว
+const MP_STEPS_UI = [
+  { ic: 'upload', label: 'อัปโหลด & ตัวเลือก' },
+  { ic: 'pin', label: 'จุดส่ง' },
+  { ic: 'check', label: 'ตรวจสอบออเดอร์' },
+  { ic: 'card', label: 'ชำระเงิน' },
+];
+function MpStepper({ cur }){
+  return (
+    <div style={css("padding:2px 0")}>
+      <div style={css("display:flex;align-items:center")}>
+        {MP_STEPS_UI.map((st, i) => {
+          const n = i + 1, done = n < cur, act = n === cur;
+          return (
+            <React.Fragment key={st.ic}>
+              {i > 0 && <div style={css("flex:1;height:2px;border-radius:2px;margin:0 4px;background:" + (n <= cur ? "var(--acc)" : "var(--line)"))}></div>}
+              <div style={{ width: act ? '44px' : '34px', height: act ? '44px' : '34px', borderRadius: '50%', flex: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all .25s',
+                background: act ? 'var(--acc)' : done ? 'var(--accSoft)' : 'var(--soft)',
+                border: act ? 'none' : '1.5px solid ' + (done ? 'var(--acc)' : 'var(--line)'),
+                color: act ? '#fff' : done ? 'var(--acc)' : 'var(--sub)',
+                boxShadow: act ? '0 0 0 4px var(--accSoft)' : 'none' }}>
+                {fi(st.ic, act ? 19 : 15)}
+              </div>
+            </React.Fragment>
+          );
+        })}
+      </div>
+      <div style={css("margin-top:7px;text-align:center;font-size:12.5px;font-weight:700;color:var(--acc)")}>{MP_STEPS_UI[cur - 1].label}</div>
+    </div>
+  );
+}
+
 // แถวค่าปริ้นในบิลราคาโดยประมาณ — แตกราคารายไฟล์เมื่อ v.billLines มีค่า (ใช้ซ้ำ 3 จุด: หน้าสั่ง/ตรวจสอบ/ชำระเงิน)
 // ยอดทุกบรรทัด + บรรทัดปรับ = ฿printCost ของ calc() เสมอ (การันตีใน billLines ด้วยการปัดแบบสะสม)
 function BillPrint({ v }){
@@ -3604,7 +3637,7 @@ class App extends React.Component {
         {/* ── Order (Step 1) ── */}
         {v.isOrder && (
           <div style={css("padding:18px 20px 110px;display:flex;flex-direction:column;gap:14px")}>
-            <div style={css("font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:var(--sub);letter-spacing:1px")}>STEP 01 / 04 — อัปโหลด &amp; ตัวเลือก</div>
+            <MpStepper cur={1}/>
             {v.alertBn && <div style={css("background:#fff0f0;border:1px solid #ffa8a8;border-radius:12px;padding:10px 14px;font-size:13px;color:#c92a2a;font-weight:700;line-height:1.5")}>⚠️ {v.alertBn.title}</div>}
             <input type="file" multiple accept=".pdf,application/pdf" ref={this.fileRef} onChange={v.onFiles} style={css("display:none")}/>
             {/* กล่องดรอปไฟล์: แตะได้ทั้งกล่อง + รองรับลากไฟล์มาวางจริง (desktop) */}
@@ -3876,7 +3909,7 @@ class App extends React.Component {
         {/* ── Delivery (Step 2) ── */}
         {v.isDelivery && (
           <div style={css("padding:18px 20px 110px;display:flex;flex-direction:column;gap:14px")}>
-            <div style={css("font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:var(--sub);letter-spacing:1px")}>STEP 02 / 04 — จุดส่ง</div>
+            <MpStepper cur={2}/>
             <div style={css("background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px;box-shadow:var(--shadow)")}>
               {!v.isPro && <div style={css("margin-bottom:14px")}>
                 <div style={css("font-size:12.5px;font-weight:700;margin-bottom:7px")}><span style={css("color:var(--acc)")}>ขั้นที่ 1</span> · การรับงาน <span style={css("color:#d9480f")}>*</span></div>
@@ -4108,7 +4141,7 @@ class App extends React.Component {
         {/* ── Review (Step 3) — ตรวจสอบสเปกก่อนจ่าย ลดออเดอร์ผิด ── */}
         {v.isReview && (
           <div style={css("padding:18px 20px 110px;display:flex;flex-direction:column;gap:14px")}>
-            <div style={css("font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:var(--sub);letter-spacing:1px")}>STEP 03 / 04 — ตรวจสอบออเดอร์</div>
+            <MpStepper cur={3}/>
             <div style={css("background:var(--accSoft);border:1px solid var(--acc);border-radius:12px;padding:10px 14px;font-size:12.5px;color:var(--acc);font-weight:600;line-height:1.5")}>🔎 เช็คให้ชัวร์ก่อนจ่ายเงิน — ถ้าไม่ตรงกดแก้ไขได้เลย ยังไม่เสียเงินนะครับ</div>
 
             <div style={css("background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px;box-shadow:var(--shadow)")}>
@@ -4172,7 +4205,7 @@ class App extends React.Component {
         {/* ── Pay (Step 4) ── */}
         {v.isPay && (
           <div style={css("padding:18px 20px 110px;display:flex;flex-direction:column;gap:14px")}>
-            <div style={css("font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:var(--sub);letter-spacing:1px")}>STEP 04 / 04 — ชำระเงิน PROMPTPAY</div>
+            <MpStepper cur={4}/>
             <div style={css("background:var(--card);border-radius:4px;box-shadow:var(--shadow);padding:16px;position:relative")}>
               <div style={css("font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--sub);text-align:center;letter-spacing:2px")}>*** MORE PRINT — ORDER SUMMARY ***</div>
               <div style={css("margin-top:12px;display:flex;flex-direction:column;gap:6px;font-size:12.5px")}>
