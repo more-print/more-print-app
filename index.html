@@ -747,6 +747,8 @@ class App extends React.Component {
   async applyCoupon(){
     const s = this.state, code = (s.couponCode || '').trim().toUpperCase();
     if (!code) return this.showToast('พิมพ์โค้ดส่วนลดก่อนนะครับ 🎟️');
+    // UD10 = โค้ดเฉพาะงาน Pro (เจ้าของสั่ง 2026-10-01) — ด่านอยู่ฝั่งเว็บ: กันก่อนยิงเช็ค ฐานข้อมูลไม่มีช่องแยกประเภทงาน
+    if (code === 'UD10' && s.tier !== 'pro') return this.showToast('โค้ด UD10 ใช้ได้เฉพาะงาน Pro ครับ 🙏');
     const usedMsg = 'คุณใช้โค้ดนี้ไปแล้ว ใช้อีกไม่ได้แล้วครับ ❌ (โค้ดใช้ได้ 1 ครั้งต่อ 1 บัญชี)';
     if (!this.db) { // โหมดตัวอย่าง — จำการใช้ในเครื่อง
       let used = []; try { used = JSON.parse(localStorage.getItem('mp_used_demo') || '[]'); } catch (e) {}
