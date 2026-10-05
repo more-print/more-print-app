@@ -268,10 +268,12 @@ const PRO_TYPES = [
 const PRO_BINDS = ['ไสกาว', 'ปกแข็ง', 'สันห่วงพลาสติก', 'ขาตะเกียบ', 'เย็บมุงหลังคา', 'ห่วงเกลียว', 'ห่วงคู่', 'เย็บเล่ม', 'เทปปิด', 'สันกาวปกแข็ง'];
 // เข้าเล่มงาน Standard 3 แบบ +฿20/ชุด (นโยบาย 2026-09-08): เลือกได้เฉพาะ 09:00-21:29 (bindHoursOpen — เจ้าของขยับปิดจาก 22:00 เป็น 21:30 เมื่อ 2026-09-22) นอกช่วง = ซ่อนตัวเลือก
 // key บันทึกลงคอลัมน์ orders.bind ตรง ๆ — เพิ่ม/แก้ต้องแก้ป้ายใน admin.html (optionsLabel + CSV) คู่กันเสมอ
+// สันเกลียวคิดตามความหนาเล่ม (เจ้าของสั่ง 2026-10-05): ทุก ๆ 100 หน้าเอกสาร +฿30 — 1-100=฿30 · 101-200=฿60 · 201-300=฿90 ไล่ขึ้นเรื่อย ๆ (นับหน้าเอกสารต่อเล่ม ไม่เกี่ยวหน้าเดียว/หน้า-หลัง) · เทปผ้า/สันกาวยัง ฿20 เดิม
+const coilBindPrice = (pages) => 30 * Math.max(1, Math.ceil((pages || 1) / 100));
 const STD_BINDS = [
-  { k: 'coil', ic: 'bindCoil', name: 'เข้าเล่มสันห่วงกระดูกงู / สันเกลียว', sub: 'เจาะรูใส่สันห่วงพลาสติก เปิดกางได้สุด', price: 20 },
-  { k: 'tape', ic: 'bindTape', name: 'เข้าเล่มเทปผ้า (แลคซีน)', sub: 'เย็บแล้วปิดสันด้วยเทปผ้า เรียบร้อยทนทาน', price: 20 },
-  { k: 'glue', ic: 'bindGlue', name: 'เข้าเล่มสันกาว', sub: 'ไสสันทากาว เรียบเนียนเหมือนหนังสือ', price: 20 },
+  { k: 'coil', ic: 'bindCoil', name: 'เข้าเล่มสันห่วงกระดูกงู / สันเกลียว', sub: 'เจาะรูใส่สันห่วงพลาสติก เปิดกางได้สุด · เริ่ม ฿30 (ทุก 100 หน้า +฿30)', price: 30 }, // ราคาจริงคิดตามหนา coilBindPrice — price ใช้เป็นฐานโชว์เท่านั้น
+  { k: 'tape', ic: 'bindTape', name: 'เข้าเล่มเทปผ้า (แลคซีน)', sub: 'เย็บแล้วปิดสันด้วยเทปผ้า เรียบร้อยทนทาน · ฿20/เล่ม', price: 20 },
+  { k: 'glue', ic: 'bindGlue', name: 'เข้าเล่มสันกาว', sub: 'ไสสันทากาว เรียบเนียนเหมือนหนังสือ · ฿20/เล่ม', price: 20 },
 ];
 // ── ราคางาน Pro (เจ้าของกำหนด 2026-08-20) — ต่อแผ่น ──
 const POSTER_SHEET = { A0: 500, A1: 250, A2: 125, A3: 50, A4: 25 };   // โปสเตอร์ /แผ่น (ด้านหน้าเดียว) — หน้า-หลัง ×2 · ไม่มีติดบอร์ด (A2-A0 ปรับใหม่ 2026-09-11)
@@ -1309,7 +1311,7 @@ class App extends React.Component {
     const proPickupOn = s.tier === 'pro' ? s.proPickup : s.stdPickup; // รับเองที่ร้าน: Pro = อุดมสุข · Standard = หน้าร้าน MORE PRINT
     if (proPickupOn) { deliveryFee = 0; farNote = false; outOfArea = false; }
     // 'landscape' (เล่มแนวนอน) ถูกตัดออกจากตัวเลือกแล้ว — เก็บสูตรราคาไว้ให้ออเดอร์เก่าที่เคยเลือกยังแสดงถูก
-    const bindCost = s.tier === 'pro' ? 0 : (s.bind === 'corner' ? 0 : s.bind === 'book' ? 40 : s.bind === 'landscape' ? 60 : ((STD_BINDS.find(b => b.k === s.bind) || {}).price || 0)) * s.copies; // เย็บมุมฟรี (2026-08-24) · เข้าเล่ม 3 แบบใหม่ ฿20/ชุด (2026-09-08) · book/landscape = dead branch ออเดอร์เก่า
+    const bindCost = s.tier === 'pro' ? 0 : (s.bind === 'corner' ? 0 : s.bind === 'book' ? 40 : s.bind === 'landscape' ? 60 : s.bind === 'coil' ? coilBindPrice(pages) : ((STD_BINDS.find(b => b.k === s.bind) || {}).price || 0)) * s.copies; // เย็บมุมฟรี (2026-08-24) · เข้าเล่ม 3 แบบใหม่ ฿20/ชุด (2026-09-08) · book/landscape = dead branch ออเดอร์เก่า
     const deliveryCost = proPickupOn ? 0 : deliveryFee + expressFee;
     const nightFee2 = s.tier === 'pro' ? 0 : nightFee; // งาน Pro ไม่มีค่ากลางคืน · Standard คิดทุกแบบรวมมารับเอง (เจ้าของสั่ง 2026-09-17 — กลางคืนเป็นค่าปริ้นงาน ไม่ใช่ค่าส่ง)
     // ── โค้ดส่วนลด: หักจากยอดรวมท้ายสุด (ไม่ติดลบ) ──
@@ -3856,7 +3858,7 @@ class App extends React.Component {
               {v.showSides && <div style={css("display:flex;flex-direction:column;gap:6px")}><div style={css("font-size:13px;font-weight:600;color:var(--ink)")}>ด้านที่พิมพ์</div><div style={css("display:flex;gap:8px")}>{v.sidesOpts.map((o, i) => <button key={i} onClick={o.pick} style={o.st}>{o.label}</button>)}</div></div>}
               {v.showSides && <div style={css("display:flex;flex-direction:column;gap:6px")}><div style={css("font-size:13px;font-weight:600;color:var(--ink)")}>ทิศทางกระดาษ</div><div style={css("display:flex;gap:8px")}>{v.orientOpts.map((o, i) => <button key={i} onClick={o.pick} style={o.st}>{o.label}</button>)}</div></div>}
               {v.showSides && <div style={css("display:flex;flex-direction:column;gap:6px")}><div style={css("font-size:13px;font-weight:600;color:var(--ink)")}>การกำหนดหน้า</div><div style={css("display:flex;gap:8px;flex-wrap:wrap")}>{v.nupOpts.map((o, i) => <button key={i} onClick={o.pick} style={{...o.st, flex:'1 1 40%'}}>{o.label}</button>)}</div></div>}
-              {v.showBind && [['การเย็บมุม', v.cornerOpts], ...(v.bindOpen ? [['การเข้าเล่ม (+฿20/ชุด · รับ 09:00–21:30 น.)', v.bookOpts]] : [])].map(([head, opts]) => (
+              {v.showBind && [['การเย็บมุม', v.cornerOpts], ...(v.bindOpen ? [['การเข้าเล่ม (รับ 09:00–21:30 น.)', v.bookOpts]] : [])].map(([head, opts]) => (
                 <div key={head} style={css("display:flex;flex-direction:column;gap:6px")}>
                   <div style={css("font-size:13px;font-weight:600;color:var(--ink)")}>{head}</div>
                   <div style={css("display:flex;flex-direction:column;gap:8px")}>
@@ -3873,7 +3875,7 @@ class App extends React.Component {
                   </div>
                 </div>
               ))}
-              {v.showBind && !v.bindOpen && <div style={css("font-size:12px;color:var(--sub);line-height:1.5")}><span style={css("display:inline-flex;vertical-align:-2px;margin-right:5px")}>{fi('clock', 12)}</span>บริการเข้าเล่ม (+฿20/ชุด) เปิดรับเฉพาะ 09:00–21:30 น. ครับ</div>}
+              {v.showBind && !v.bindOpen && <div style={css("font-size:12px;color:var(--sub);line-height:1.5")}><span style={css("display:inline-flex;vertical-align:-2px;margin-right:5px")}>{fi('clock', 12)}</span>บริการเข้าเล่มเปิดรับเฉพาะ 09:00–21:30 น. ครับ</div>}
               {/* สติ๊กเกอร์ไม่มีจำนวนชุด — ลูกค้ากำหนดขนาด+จำนวนชิ้นรายไฟล์เองอยู่แล้ว (เจ้าของสั่ง 2026-09-11, copies ถูกล็อก 1 ตอนเลือกประเภท) */}
               {!v.stkOn && <div style={css("display:flex;justify-content:space-between;align-items:center")}><div style={css("font-size:13px;font-weight:600;color:var(--ink)")}>จำนวนชุด (สำเนา)</div>
                 <div style={css("display:flex;align-items:center;gap:10px")}>
