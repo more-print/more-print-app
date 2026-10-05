@@ -335,6 +335,7 @@ const STEPS_PRO_SHIP = ['รับออเดอร์', 'กำลังผล
 const STEPS_PRO_PICKUP = ['รับออเดอร์', 'กำลังผลิตสินค้า', 'เสร็จแล้ว มารับได้เลยครับ', 'รับสินค้าแล้ว']; // ขั้น 3 เจ้าของขอคำนุ่มขึ้น (2026-09-17)
 const stepsFor = (od) => !od ? null : od.pickup ? STEPS_PRO_PICKUP : (od.plabel || '').startsWith('PRO') ? STEPS_PRO_SHIP : null;
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+const UNSENT_MSG = '⊘ ยกเลิกการส่งข้อความแล้ว'; // ป้ายแทนข้อความที่ถูก unsend (ตรงกับ admin.html + RPC unsend_message — ห้ามแก้ข้างเดียว)
 const FILE_BASE = (window.MP_CONFIG || {}).SUPABASE_URL ? (window.MP_CONFIG.SUPABASE_URL + '/storage/v1/object/public/uploads/') : '';
 
 // ── กล่องไฮไลต์ 3 ใบใต้ปุ่ม "เริ่มสั่งปริ้น" หน้าแรก ──
@@ -509,7 +510,8 @@ class App extends React.Component {
       gmapLink: '', gmapBusy: false, pinSrc: '', pinMode: '', mapLocked: false, gpsAcc: null, gpsConfirm: false, geoHelp: '', // '' ยังไม่เลือก · 'link' วางลิงก์ · 'map' ปักหมุดเอง · mapLocked = ล็อกหมุดหลังวางลิงก์
       banners: [],
       statDelivered: 0, // จำนวนออเดอร์ส่งสำเร็จจริงจาก RPC public_stats — 0 = ยังไม่รู้ ซ่อนการ์ดสถิติไว้
-      clipIdx: null, clipMuted: true, // ฟีดคลิปร้านสไตล์ TikTok: index คลิปที่เปิดดูเต็มจอ (null = ปิด) + สถานะปิดเสียง (มือถือบังคับเริ่มแบบเงียบ ไม่งั้น autoplay ไม่ติด)
+      clipIdx: null, clipMuted: true,
+      unsendFor: null, unsendBusy: false, // ยกเลิกการส่งข้อความในแชท (กดค้าง/คลิกขวาที่ข้อความตัวเอง — เจ้าของสั่ง 2026-10-05) // ฟีดคลิปร้านสไตล์ TikTok: index คลิปที่เปิดดูเต็มจอ (null = ปิด) + สถานะปิดเสียง (มือถือบังคับเริ่มแบบเงียบ ไม่งั้น autoplay ไม่ติด)
       order: null, trackStep: 1, cancelReason: '', toast: '', now: new Date(), reupIdx: null, reupBusy: false,
       selfCancelArm: false, selfCancelBusy: false,
       chat: null, chatText: '', chatBusy: false, chatOff: false, // แชทกับร้าน (ตาราง messages)
@@ -2183,6 +2185,25 @@ class App extends React.Component {
     });
   }
 
+  // ── ยกเลิกการส่งข้อความ (unsend) ฝั่งลูกค้า: แทนข้อความด้วยป้าย UNSENT_MSG ผ่าน RPC unsend_message (ยกเลิกได้เฉพาะข้อความตัวเอง) ──
+  async doUnsend(){
+    const s = this.state, m = s.unsendFor, co = s.chatFor || s.order;
+    if (!m || !co) return;
+    const mark = (list) => (list || []).map(x => x.id === m.id ? { ...x, body: UNSENT_MSG, img: null, img_url: '' } : x);
+    if (!this.db) { this.setState({ chat: mark(s.chat), unsendFor: null }); return this.showToast('⊘ ยกเลิกการส่งข้อความแล้ว'); } // โหมดตัวอย่าง
+    this.setState({ unsendBusy: true });
+    let res = null;
+    try { res = await this.db.rpc('unsend_message', { oid: co.id, mid: m.id }); } catch (e) { res = { error: { message: String((e && e.message) || 'network') } }; }
+    this.setState({ unsendBusy: false, unsendFor: null });
+    if (res && res.error) {
+      const t = String(res.error.message || '') + String(res.error.code || '');
+      return this.showToast(/PGRST202|does not exist|not find the function|42883/i.test(t) ? 'ระบบยกเลิกข้อความยังไม่เปิดใช้ครับ 🙏' : 'ยกเลิกข้อความไม่สำเร็จ ลองอีกครั้งครับ 🙏');
+    }
+    if (String(res.data) !== 'ok') return this.showToast('ยกเลิกข้อความไม่สำเร็จ ลองอีกครั้งครับ 🙏');
+    this.setState({ chat: mark(this.state.chat) });
+    this.showToast('⊘ ยกเลิกการส่งข้อความแล้ว');
+  }
+
   // ── ฟีดคลิปร้านสไตล์ TikTok: คุมเล่น/หยุด/เสียงของวิดีโอทุกตัวใน overlay ผ่าน refs (this.clipVids) ──
   // restart = true ให้คลิปที่กำลังโชว์เริ่มใหม่ตั้งแต่ต้น (ตอนเปิดเต็มจอ/ปัดเปลี่ยนคลิป) — แต่แตะหยุด-เล่นต่อ กับปุ่มเสียง ห้ามรีเซ็ต
   syncClips(restart){
@@ -3090,8 +3111,15 @@ class App extends React.Component {
       // ── แชทกับร้าน (ต่อออเดอร์) ──
       chatOn: !!s.order && !s.chatOff,
       chatMsgs: [...(s.chat || []), ...(s.chatBots || [])].map(m => ({ id: m.id, mine: m.sender === 'customer', body: m.body, bot: !!m.bot,
-        img: m.img ? FILE_BASE + m.img : (m.img_url || ''),
+        img: m.img ? FILE_BASE + m.img : (m.img_url || ''), unsent: m.body === UNSENT_MSG,
         time: m.created_at ? this.fmtTime(new Date(m.created_at)) : '' })),
+      // unsend: มือถือกดค้าง (ไทม์เมอร์ 550ms — iOS ไม่ยิง contextmenu) · คอมคลิกขวา (contextmenu ครอบ Android กดค้างด้วย) — เฉพาะข้อความตัวเองที่ยังไม่ถูกยกเลิก
+      unsendFor: s.unsendFor, unsendBusy: s.unsendBusy,
+      unsendCtx: (m) => (e) => { if (!(m.mine && !m.bot && m.id && !m.unsent)) return; e.preventDefault(); this.setState({ unsendFor: m }); },
+      unsendTouchStart: (m) => () => { if (!(m.mine && !m.bot && m.id && !m.unsent)) return; clearTimeout(this._lpT); this._lpT = setTimeout(() => this.setState({ unsendFor: m }), 550); },
+      unsendTouchEnd: () => clearTimeout(this._lpT),
+      unsendClose: () => this.setState({ unsendFor: null }),
+      unsendGo: () => this.doUnsend(),
       chatEmpty: (s.chat || []).length === 0,
       chatUnread: (s.chat || []).filter(m => m.sender === 'shop' && !m.seen_by_customer).length,
       chatPreview: (() => {
@@ -4496,9 +4524,10 @@ class App extends React.Component {
               )}
               {v.chatMsgs.map(m => (
                 <div key={m.id} style={{ display: 'flex', justifyContent: m.mine ? 'flex-end' : 'flex-start' }}>
-                  <div style={{ maxWidth: '80%', background: m.mine ? 'var(--acc)' : 'var(--card)', color: m.mine ? '#fff' : 'var(--ink)',
-                    border: m.mine ? 'none' : '1px solid var(--line)', borderRadius: '15px', padding: '9px 13px', fontSize: '13px', lineHeight: 1.55, whiteSpace: 'pre-wrap', wordBreak: 'break-word', boxShadow: 'var(--shadow)' }}>
-                    {m.img && (
+                  <div onContextMenu={v.unsendCtx(m)} onTouchStart={v.unsendTouchStart(m)} onTouchEnd={v.unsendTouchEnd} onTouchMove={v.unsendTouchEnd}
+                    style={{ maxWidth: '80%', background: m.unsent ? 'var(--soft)' : m.mine ? 'var(--acc)' : 'var(--card)', color: m.unsent ? 'var(--sub)' : m.mine ? '#fff' : 'var(--ink)',
+                    border: m.unsent ? '1px dashed var(--line)' : m.mine ? 'none' : '1px solid var(--line)', borderRadius: '15px', padding: '9px 13px', fontSize: '13px', lineHeight: 1.55, whiteSpace: 'pre-wrap', wordBreak: 'break-word', boxShadow: m.unsent ? 'none' : 'var(--shadow)', fontStyle: m.unsent ? 'italic' : 'normal', WebkitTouchCallout: m.mine && !m.unsent ? 'none' : 'default' }}>
+                    {m.img && !m.unsent && (
                       <a href={m.img} target="_blank" rel="noreferrer" style={{ display: 'block', marginBottom: '6px' }}>
                         <img src={m.img} alt="รูปจากร้าน" style={{ maxWidth: '100%', maxHeight: '280px', borderRadius: '10px', display: 'block', background: 'var(--soft)' }}/>
                       </a>
@@ -4840,6 +4869,18 @@ class App extends React.Component {
               <textarea value={v.revAskText} onChange={v.setRevAskText} placeholder="ชื่นชมหรือแนะนำให้ร้านปรับปรุง (ไม่บังคับ)" style={css("margin-top:10px;width:100%;box-sizing:border-box;min-height:60px;border:1px solid var(--line);border-radius:10px;background:var(--soft);color:var(--ink);padding:9px 11px;font-size:12.5px;outline:none;resize:vertical;font-family:inherit")}/>
               <button onClick={v.revAskSend} style={css("margin-top:10px;width:100%;height:46px;border:none;border-radius:12px;background:var(--acc);color:#fff;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit")}>ส่งรีวิว 💚</button>
               <div onClick={v.revAskClose} style={css("margin-top:8px;text-align:center;font-size:13px;color:var(--sub);font-weight:600;cursor:pointer;padding:6px")}>ไว้ทีหลัง</div>
+            </div>
+          </div>
+        )}
+        {/* ── แผงยืนยันยกเลิกการส่งข้อความ (unsend) ── */}
+        {v.unsendFor && (
+          <div style={css("position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:1250;display:flex;align-items:flex-end;justify-content:center")} onClick={v.unsendClose}>
+            <div style={css("width:100%;max-width:430px;background:var(--card);border-radius:18px 18px 0 0;padding:16px 18px 24px;box-shadow:0 -6px 30px rgba(0,0,0,.25)")} onClick={(e) => e.stopPropagation()}>
+              <div style={css("font-size:14px;font-weight:800")}>ยกเลิกการส่งข้อความนี้?</div>
+              <div style={css("margin-top:7px;font-size:12.5px;color:var(--sub);background:var(--soft);border-radius:10px;padding:8px 11px;max-height:72px;overflow:hidden")}>{v.unsendFor.img ? '📷 รูปภาพ · ' : ''}{(v.unsendFor.body || '').slice(0, 120)}</div>
+              <div style={css("margin-top:5px;font-size:11px;color:var(--sub)")}>ข้อความจะถูกยกเลิกทั้งสองฝั่ง เหลือป้าย "{UNSENT_MSG}"</div>
+              <button onClick={v.unsendGo} disabled={v.unsendBusy} style={css("margin-top:12px;width:100%;height:46px;border:none;border-radius:12px;background:#c92a2a;color:#fff;font-size:14px;font-weight:800;cursor:pointer;font-family:inherit" + (v.unsendBusy ? ";opacity:.6" : ""))}>{v.unsendBusy ? 'กำลังยกเลิก…' : '⊘ ยกเลิกการส่งข้อความ (Unsend)'}</button>
+              <button onClick={v.unsendClose} style={css("margin-top:8px;width:100%;height:42px;border:1px solid var(--line);border-radius:12px;background:var(--card);color:var(--ink);font-size:13px;font-weight:700;cursor:pointer;font-family:inherit")}>ปิด</button>
             </div>
           </div>
         )}

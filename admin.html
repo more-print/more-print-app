@@ -96,6 +96,7 @@ const fmtWhen = (iso) => {
   const sameDay = d.toDateString() === now.toDateString();
   return (sameDay ? 'วันนี้ ' : d.getDate() + '/' + (d.getMonth()+1) + ' ') + fmtTime(d);
 };
+const UNSENT_MSG = '⊘ ยกเลิกการส่งข้อความแล้ว'; // ป้ายข้อความถูก unsend — ต้องตรงกับ index.html + RPC unsend_message เป๊ะ
 const fileUrl = (path) => path && CFG.SUPABASE_URL ? CFG.SUPABASE_URL + '/storage/v1/object/public/uploads/' + path : null;
 // ── ชุดไอคอนเส้น (สไตล์ Feather — MIT, ฝังในไฟล์) ใช้แทนอิโมจิทั้งเว็บ เพื่อความเป็นทางการ ──
 const fi = (paths, size) => (
@@ -241,6 +242,9 @@ function Chat({ o, onSeen }){
   const [busy, setBusy] = React.useState(false);
   const [missing, setMissing] = React.useState(false);
   const [upBusy, setUpBusy] = React.useState(false);
+  const [unsendFor, setUnsendFor] = React.useState(null); // ข้อความร้านที่กำลังจะ unsend (กดค้าง/คลิกขวา — เจ้าของสั่ง 2026-10-05)
+  const [unsendBusy, setUnsendBusy] = React.useState(false);
+  const lpT = React.useRef(null);
   const boxRef = React.useRef(null);
   const camRef = React.useRef(null);
   const chatSeq = React.useRef(0);
@@ -260,6 +264,16 @@ function Chat({ o, onSeen }){
     }
   }, [o.id]);
   React.useEffect(() => { load(); const t = setInterval(load, 8000); return () => clearInterval(t); }, [load]);
+  // unsend ข้อความฝั่งร้าน: แทนด้วยป้าย UNSENT_MSG (สิทธิ์ UPDATE ของแอดมินมีอยู่แล้ว — ลูกค้าเห็นป้ายในรอบโหลดถัดไป)
+  const doUnsend = async () => {
+    const m = unsendFor; if (!m) return;
+    if (!DB) { setMsgs(list => (list || []).map(x => x.id === m.id ? { ...x, body: UNSENT_MSG, img: null, img_url: null } : x)); setUnsendFor(null); return; }
+    setUnsendBusy(true);
+    const { error } = await DB.from('messages').update({ body: UNSENT_MSG, img: null }).eq('id', m.id).eq('sender', 'shop');
+    setUnsendBusy(false); setUnsendFor(null);
+    if (error) return alert('ยกเลิกข้อความไม่สำเร็จ ลองอีกครั้งครับ: ' + error.message);
+    load();
+  };
   React.useEffect(() => { if (boxRef.current) boxRef.current.scrollTop = boxRef.current.scrollHeight; }, [msgs]);
   // ส่งรูป (ใช้ถ่ายรูปหลักฐานตอนส่งของถึงมือลูกค้า แบบ Grab/LINE MAN)
   const sendPhoto = async (file) => {
@@ -322,11 +336,16 @@ function Chat({ o, onSeen }){
         {msgs !== null && msgs.length === 0 && <div style={css("font-size:11.5px;color:var(--sub);line-height:1.6")}>ยังไม่มีข้อความ — ทักลูกค้าได้เลย เช่น แจ้งราคา งานเสร็จ หรือขอรายละเอียดเพิ่ม</div>}
         {(msgs || []).map(m => {
           const mine = m.sender === 'shop';
+          const unsent = m.body === UNSENT_MSG;
+          const canUnsend = mine && !unsent && m.id;
           return (
             <div key={m.id} style={{ display: 'flex', justifyContent: mine ? 'flex-end' : 'flex-start' }}>
-              <div style={{ maxWidth: '78%', background: mine ? 'var(--acc)' : 'var(--card)', color: mine ? '#fff' : 'var(--ink)',
-                border: mine ? 'none' : '1px solid var(--line)', borderRadius: '12px', padding: '7px 11px', fontSize: '12.5px', lineHeight: 1.5, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
-                {(m.img || m.img_url) && (
+              <div onContextMenu={canUnsend ? (e) => { e.preventDefault(); setUnsendFor(m); } : undefined}
+                onTouchStart={canUnsend ? () => { clearTimeout(lpT.current); lpT.current = setTimeout(() => setUnsendFor(m), 550); } : undefined}
+                onTouchEnd={() => clearTimeout(lpT.current)} onTouchMove={() => clearTimeout(lpT.current)}
+                style={{ maxWidth: '78%', background: unsent ? 'var(--soft)' : mine ? 'var(--acc)' : 'var(--card)', color: unsent ? 'var(--sub)' : mine ? '#fff' : 'var(--ink)',
+                border: unsent ? '1px dashed var(--line)' : mine ? 'none' : '1px solid var(--line)', borderRadius: '12px', padding: '7px 11px', fontSize: '12.5px', lineHeight: 1.5, whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontStyle: unsent ? 'italic' : 'normal', WebkitTouchCallout: canUnsend ? 'none' : 'default' }}>
+                {(m.img || m.img_url) && !unsent && (
                   <a href={m.img_url || fileUrl(m.img)} target="_blank" rel="noreferrer" style={{ display: 'block', marginBottom: '5px' }}>
                     <img src={m.img_url || fileUrl(m.img)} alt="" style={{ maxWidth: '190px', maxHeight: '230px', borderRadius: '9px', display: 'block', background: 'var(--soft)' }}/>
                   </a>
@@ -344,6 +363,17 @@ function Chat({ o, onSeen }){
         style={css("margin-top:8px;width:100%;height:38px;border:1.5px solid var(--acc);border-radius:10px;background:var(--accSoft);color:var(--acc);font-size:12px;font-weight:700;cursor:pointer;font-family:inherit" + (upBusy ? ";opacity:.6" : ""))}>
         {upBusy ? 'กำลังส่งรูป…' : 'แนบรูปจากเครื่อง / ถ่ายรูปส่งให้ลูกค้า'}
       </button>
+      {unsendFor && (
+        <div style={css("position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:300;display:flex;align-items:center;justify-content:center;padding:20px")} onClick={() => setUnsendFor(null)}>
+          <div style={css("width:100%;max-width:360px;background:var(--card);border-radius:16px;padding:16px 18px;box-shadow:0 10px 40px rgba(0,0,0,.3)")} onClick={(e) => e.stopPropagation()}>
+            <div style={css("font-size:14px;font-weight:800")}>ยกเลิกการส่งข้อความนี้?</div>
+            <div style={css("margin-top:7px;font-size:12.5px;color:var(--sub);background:var(--soft);border-radius:10px;padding:8px 11px;max-height:72px;overflow:hidden")}>{(unsendFor.img || unsendFor.img_url) ? '📷 รูปภาพ · ' : ''}{(unsendFor.body || '').slice(0, 120)}</div>
+            <div style={css("margin-top:5px;font-size:11px;color:var(--sub)")}>ข้อความจะถูกยกเลิกทั้งสองฝั่ง เหลือป้าย "{UNSENT_MSG}"</div>
+            <button onClick={doUnsend} disabled={unsendBusy} style={css("margin-top:12px;width:100%;height:44px;border:none;border-radius:12px;background:#c92a2a;color:#fff;font-size:13.5px;font-weight:800;cursor:pointer;font-family:inherit" + (unsendBusy ? ";opacity:.6" : ""))}>{unsendBusy ? 'กำลังยกเลิก…' : '⊘ ยกเลิกการส่งข้อความ (Unsend)'}</button>
+            <button onClick={() => setUnsendFor(null)} style={css("margin-top:8px;width:100%;height:40px;border:1px solid var(--line);border-radius:12px;background:var(--card);color:var(--ink);font-size:12.5px;font-weight:700;cursor:pointer;font-family:inherit")}>ปิด</button>
+          </div>
+        </div>
+      )}
       <div style={css("margin-top:8px;display:flex;gap:6px")}>
         <input value={text} onChange={e => setText(e.target.value)} onKeyDown={e => e.key === 'Enter' && send()} maxLength={500} placeholder="พิมพ์ข้อความถึงลูกค้า…"
           style={css("flex:1;min-width:0;height:40px;border:1px solid var(--line);border-radius:10px;background:var(--card);color:var(--ink);padding:0 12px;font-size:12.5px;outline:none;font-family:inherit")}/>
