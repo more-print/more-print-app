@@ -4701,7 +4701,7 @@ class App extends React.Component {
               {v.chatMsgs.map(m => (
                 <div key={m.id} style={{ display: 'flex', justifyContent: m.mine ? 'flex-end' : 'flex-start' }}>
                   <div onContextMenu={v.unsendCtx(m)} onTouchStart={v.unsendTouchStart(m)} onTouchEnd={v.unsendTouchEnd} onTouchMove={v.unsendTouchEnd}
-                    style={{ maxWidth: '80%', background: m.unsent ? 'var(--soft)' : m.mine ? 'var(--acc)' : 'var(--card)', color: m.unsent ? 'var(--sub)' : m.mine ? '#fff' : 'var(--ink)',
+                    style={{ maxWidth: '80%', background: m.unsent ? 'var(--soft)' : m.mine ? 'var(--acc)' : 'var(--card)', color: m.unsent ? 'var(--sub)' : m.mine ? '#111' : 'var(--ink)', /* ฟ้อนกล่องเขียวของลูกค้าเป็นสีดำ — ขาวบนเขียวสดลายตา (เจ้าของสั่ง 2026-10-07) */
                     border: m.unsent ? '1px dashed var(--line)' : m.mine ? 'none' : '1px solid var(--line)', borderRadius: '15px', padding: '9px 13px', fontSize: '13px', lineHeight: 1.55, whiteSpace: 'pre-wrap', wordBreak: 'break-word', boxShadow: m.unsent ? 'none' : 'var(--shadow)', fontStyle: m.unsent ? 'italic' : 'normal', WebkitTouchCallout: m.mine && !m.unsent ? 'none' : 'default' }}>
                     {m.img && !m.unsent && (
                       <a href={m.img} target="_blank" rel="noreferrer" style={{ display: 'block', marginBottom: '6px' }}>
