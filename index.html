@@ -686,7 +686,7 @@ class App extends React.Component {
     clearInterval(this.clockTimer); clearInterval(this.trackTimer);
     clearTimeout(this.toastTimer); clearTimeout(this._revTimer); clearTimeout(this._distTimer); clearInterval(this._shopTimer);
     if (this._winScrollChat) window.removeEventListener('scroll', this._winScrollChat);
-    if (this._map) { this._map.remove(); this._map = null; }
+    if (this._map) { this._map.remove(); this._map = null; this._lockPin = null; }
   }
 
   // ── แผนที่เลือกจุดส่ง (สไตล์แอปเรียกรถ: หมุดอยู่กลางจอ เลื่อนแผนที่ใต้หมุดแทนการลากหมุด) ──
@@ -695,12 +695,13 @@ class App extends React.Component {
     // สลับโหมดแล้วกล่องแผนที่ถูกถอด/ใส่ใหม่ — แผนที่เก่ายังเกาะ div ที่ตายไปแล้ว ถ้าไม่ทิ้งจะเห็นแค่หมุดบนพื้นขาว (บั๊กจริง 2026-10-07)
     if (this._map && !document.body.contains(this._map.getContainer())) {
       try { this._map.remove(); } catch (e) {}
-      this._map = null; this._marker = null;
+      this._map = null; this._marker = null; this._lockPin = null;
     }
     if (onDelivery && !this._map && window.L && document.getElementById('mpMap')) {
       const start = [this.state.lat ?? 16.4746, this.state.lng ?? 102.8235]; // มข.
       const m = window.L.map('mpMap', { zoomControl: false }).setView(start, this.state.lat != null ? 17 : 15);
-      window.L.control.zoom({ position: 'bottomleft' }).addTo(m);
+      // ปุ่มซูมอยู่มุมบนซ้าย — มุมล่างเคยโดนแถบ "🔒 ล็อกหมุดไว้แล้ว" บังจนกดไม่ได้ (เจ้าของแจ้ง 2026-10-07)
+      window.L.control.zoom({ position: 'topleft' }).addTo(m);
       // แผนที่หลัก = OSM มาตรฐาน (ฟรี ไม่ต้องมีคีย์) — ห้ามกลับไปใช้ CARTO: ปลายปี 2026 CARTO บังคับ API key แล้ว
       // แผ่นภาพโหลดติดแต่เป็นภาพเปล่าลายน้ำ "API KEY REQUIRED" = ลูกค้าเห็นหมุดบนพื้นขาว (บั๊กจริงที่เจ้าของแจ้ง 2026-10-07)
       // เผื่อ OSM ล่ม/โดนบล็อกบางเน็ต: พลาดหลายแผ่นสลับไปเซิร์ฟเวอร์สำรอง (OSM France) อัตโนมัติ
@@ -734,14 +735,27 @@ class App extends React.Component {
       this._map = m;
       if (this.state.lat == null && this.state.pinMode === 'map') this.locateMe(true);
     } else if (!onDelivery && this._map) {
-      this._map.remove(); this._map = null; this._marker = null;
+      this._map.remove(); this._map = null; this._marker = null; this._lockPin = null;
     }
-    // ล็อก/ปลดล็อกการเลื่อนแผนที่จริง ๆ (กันนิ้วปัดโดนแล้วจุดส่งเปลี่ยน)
+    // ล็อกหมุดแล้วยังเลื่อน/ซูมส่องรอบ ๆ ได้ (เจ้าของสั่ง 2026-10-07 ให้ลูกค้ารีเช็คหมุด): เปิดการเลื่อนตลอด
+    // ตอนล็อก หมุดเปลี่ยนจาก "กลางจอ" (ขยับตามแผนที่) เป็นหมุดปักบนแผนที่จริงที่พิกัดล็อก — เลื่อนยังไงหมุดก็ไม่ขยับ
     if (this._map) {
-      const lock = !!this.state.mapLocked;
       ['dragging', 'touchZoom', 'doubleClickZoom', 'scrollWheelZoom', 'boxZoom', 'keyboard'].forEach(h => {
-        if (this._map[h]) lock ? this._map[h].disable() : this._map[h].enable();
+        if (this._map[h]) this._map[h].enable();
       });
+      const lk = !!this.state.mapLocked && this.state.lat != null;
+      if (lk) {
+        const pos = [this.state.lat, this.state.lng];
+        if (!this._lockPin) {
+          this._lockPin = window.L.marker(pos, {
+            icon: window.L.divIcon({ className: '', html: '<div style="font-size:40px;line-height:1;filter:drop-shadow(0 4px 4px rgba(0,0,0,.35))">📍</div>', iconSize: [40, 40], iconAnchor: [20, 40] }),
+            interactive: false, keyboard: false
+          }).addTo(this._map);
+        } else this._lockPin.setLatLng(pos);
+      } else if (this._lockPin) {
+        try { this._map.removeLayer(this._lockPin); } catch (e) {}
+        this._lockPin = null;
+      }
     }
   }
   setPin(lat, lng, move){
@@ -2990,7 +3004,17 @@ class App extends React.Component {
         : ['กดไอคอนรูป 🔒 หรือ ⚙️ ข้างช่อง URL',
            'หาหัวข้อ "ตำแหน่งที่ตั้ง" (Location) แล้วเลือก "อนุญาต"',
            'รีเฟรชหน้าเว็บแล้วกดปุ่มใช้ตำแหน่งปัจจุบันอีกครั้ง'],
-      unlockMap: () => { this.setState({ mapLocked: false }); this.showToast('ปลดล็อกแล้ว — เลื่อนแผนที่ปรับหมุดได้เลยครับ 🔓'); },
+      unlockMap: () => {
+        this.setState({ mapLocked: false });
+        // ตอนล็อกลูกค้าอาจเลื่อนส่องที่อื่นอยู่ — ปลดล็อกต้องดีดกลับมาที่หมุดก่อน ไม่งั้นหมุดกลางจอกลายเป็นคนละจุด ค่าส่งเพี้ยน
+        if (this._map && s.lat != null) {
+          this._progMove = true;
+          clearTimeout(this._progTimer);
+          this._progTimer = setTimeout(() => { this._progMove = false; }, 900);
+          this._map.setView([s.lat, s.lng], Math.max(this._map.getZoom(), 16));
+        }
+        this.showToast('ปลดล็อกแล้ว — เลื่อนแผนที่ปรับหมุดได้เลยครับ 🔓');
+      },
       relinkMap: () => this.setState({ mapLocked: false, lat: null, lng: null, distKm: null, pinSrc: '', geoLabel: '', gmapLink: '', gmapErr: '' }),
       pinModeOpts: [
         { k: 'link', icon: fi('nav', 20), name: 'ก๊อปลิงก์จาก Google Maps', sub: 'แม่นที่สุด — แชร์ลิงก์ที่อยู่มาวาง' },
@@ -4237,11 +4261,11 @@ class App extends React.Component {
               {v.pinModeLink && !v.showMap && !v.gmapErr && <div style={css("margin-top:10px;background:var(--soft);border:1px dashed var(--line);border-radius:12px;padding:16px;text-align:center;font-size:12.5px;color:var(--sub);line-height:1.7")}>🔗 วางลิงก์แล้วกด "ตกลง"<br/>ระบบจะปักหมุดให้อัตโนมัติแล้วโชว์แผนที่ยืนยัน<br/>💡 แชร์แบบ "ปักหมุด" (กดค้างบนแผนที่ก่อนแชร์) แม่นยำสุด</div>}
               {v.showMap && <div style={css("margin-top:10px;position:relative;border-radius:14px;overflow:hidden;border:1px solid " + (v.mapLocked ? "var(--acc)" : "var(--line)") + ";box-shadow:var(--shadow)")}>
                 <div id="mpMap" style={css("height:300px;position:relative;z-index:0")}></div>
-                {/* หมุดกลางจอ (แบบแอปเรียกรถ) — ไม่รับการแตะ ให้แผนที่ข้างใต้รับแทน */}
-                <div style={css("position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:10px;height:4px;background:rgba(0,0,0,.28);border-radius:50%;z-index:900;pointer-events:none")}></div>
-                <div id="mpPin" style={css("position:absolute;left:50%;top:50%;transform:translate(-50%,-100%);z-index:901;pointer-events:none;font-size:40px;line-height:1;transition:transform .18s ease;filter:drop-shadow(0 4px 4px rgba(0,0,0,.35))")}>📍</div>
+                {/* หมุดกลางจอ (แบบแอปเรียกรถ) — เฉพาะตอนยังไม่ล็อก; ล็อกแล้วใช้หมุดปักบนแผนที่จริงแทน (เลื่อนส่องรอบ ๆ ได้ หมุดไม่ขยับ) */}
+                {!v.mapLocked && <div style={css("position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:10px;height:4px;background:rgba(0,0,0,.28);border-radius:50%;z-index:900;pointer-events:none")}></div>}
+                {!v.mapLocked && <div id="mpPin" style={css("position:absolute;left:50%;top:50%;transform:translate(-50%,-100%);z-index:901;pointer-events:none;font-size:40px;line-height:1;transition:transform .18s ease;filter:drop-shadow(0 4px 4px rgba(0,0,0,.35))")}>📍</div>}
                 {!v.mapLocked && <button onClick={v.locateMe} title="ใช้ตำแหน่งปัจจุบันของฉัน" style={css("position:absolute;right:12px;bottom:12px;z-index:902;width:46px;height:46px;border-radius:50%;border:none;background:#fff;box-shadow:0 2px 10px rgba(0,0,0,.3);font-size:21px;cursor:pointer;display:flex;align-items:center;justify-content:center")}>{v.locating ? <span style={css("font-size:14px")}>…</span> : <span style={css("display:flex;color:var(--acc)")}>{fi('target', 22)}</span>}</button>}
-                {v.mapLocked && <div style={css("position:absolute;left:0;right:0;bottom:0;z-index:903;background:rgba(0,0,0,.62);color:#fff;padding:8px 12px;font-size:12.5px;font-weight:600;text-align:center")}>🔒 ล็อกหมุดไว้แล้ว — กันเลื่อนพลาด</div>}
+                {v.mapLocked && <div style={css("position:absolute;left:0;right:0;bottom:0;z-index:903;background:rgba(0,0,0,.62);color:#fff;padding:8px 12px;font-size:12px;font-weight:600;text-align:center;pointer-events:none")}>🔒 ล็อกหมุดไว้แล้ว — เลื่อน/ซูมส่องรอบ ๆ เพื่อรีเช็คได้ หมุดไม่ขยับ</div>}
               </div>}
               {v.showMap && !v.mapLocked && !v.gpsConfirm && v.pinSet && (
                 <button onClick={v.lockMap} style={css("margin-top:8px;width:100%;height:46px;border:none;border-radius:12px;background:var(--acc);color:#fff;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;display:flex;align-items:center;justify-content:center;gap:7px")}>{fi('pin', 15)} ยืนยันตำแหน่งนี้ — ล็อกหมุด</button>
