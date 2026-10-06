@@ -507,7 +507,7 @@ class App extends React.Component {
       orderList: (() => { try { return JSON.parse(localStorage.getItem('mp_orders') || '[]'); } catch (e) { return []; } })(),
       point: '', addr: '', phone: '', time: '', express: false, handoff: '', slip: null, slipChecking: false,
       lat: null, lng: null, geoLabel: '', searchQ: '', searchResults: [], searching: false, locating: false,
-      gmapLink: '', gmapBusy: false, pinSrc: '', pinMode: '', mapLocked: false, gpsAcc: null, gpsConfirm: false, geoHelp: '', // '' ยังไม่เลือก · 'link' วางลิงก์ · 'map' ปักหมุดเอง · mapLocked = ล็อกหมุดหลังวางลิงก์
+      gmapLink: '', gmapBusy: false, gmapErr: '', pinSrc: '', pinMode: '', mapLocked: false, gpsAcc: null, gpsConfirm: false, geoHelp: '', // '' ยังไม่เลือก · 'link' วางลิงก์ · 'map' ปักหมุดเอง · 'spots' จุดยอดนิยม · mapLocked = ล็อกหมุด · gmapErr = กล่องแจ้งลิงก์อ่านไม่ได้ (ค้างไว้จนกว่าจะแก้)
       banners: [],
       statDelivered: 0, // จำนวนออเดอร์ส่งสำเร็จจริงจาก RPC public_stats — 0 = ยังไม่รู้ ซ่อนการ์ดสถิติไว้
       clipIdx: null, clipMuted: true,
@@ -669,13 +669,31 @@ class App extends React.Component {
   // ── แผนที่เลือกจุดส่ง (สไตล์แอปเรียกรถ: หมุดอยู่กลางจอ เลื่อนแผนที่ใต้หมุดแทนการลากหมุด) ──
   syncMap(){
     const onDelivery = this.state.screen === 'delivery';
+    // สลับโหมดแล้วกล่องแผนที่ถูกถอด/ใส่ใหม่ — แผนที่เก่ายังเกาะ div ที่ตายไปแล้ว ถ้าไม่ทิ้งจะเห็นแค่หมุดบนพื้นขาว (บั๊กจริง 2026-10-07)
+    if (this._map && !document.body.contains(this._map.getContainer())) {
+      try { this._map.remove(); } catch (e) {}
+      this._map = null; this._marker = null;
+    }
     if (onDelivery && !this._map && window.L && document.getElementById('mpMap')) {
       const start = [this.state.lat ?? 16.4746, this.state.lng ?? 102.8235]; // มข.
       const m = window.L.map('mpMap', { zoomControl: false }).setView(start, this.state.lat != null ? 17 : 15);
       window.L.control.zoom({ position: 'bottomleft' }).addTo(m);
-      // แผนที่โทนสะอาดอ่านง่ายใกล้เคียง Google Maps (Carto Voyager — ฟรี ไม่ต้องมีคีย์)
-      window.L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
-        { attribution: '© OpenStreetMap © CARTO', subdomains: 'abcd', maxZoom: 20 }).addTo(m);
+      // แผนที่หลัก = OSM มาตรฐาน (ฟรี ไม่ต้องมีคีย์) — ห้ามกลับไปใช้ CARTO: ปลายปี 2026 CARTO บังคับ API key แล้ว
+      // แผ่นภาพโหลดติดแต่เป็นภาพเปล่าลายน้ำ "API KEY REQUIRED" = ลูกค้าเห็นหมุดบนพื้นขาว (บั๊กจริงที่เจ้าของแจ้ง 2026-10-07)
+      // เผื่อ OSM ล่ม/โดนบล็อกบางเน็ต: พลาดหลายแผ่นสลับไปเซิร์ฟเวอร์สำรอง (OSM France) อัตโนมัติ
+      const useFb = !!this._tileFallback;
+      const tiles = window.L.tileLayer(
+        useFb ? 'https://{s}.tile.openstreetmap.fr/osmfr/{z}/{x}/{y}.png' : 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+        useFb ? { attribution: '© OpenStreetMap', subdomains: 'abc', maxZoom: 19 } : { attribution: '© OpenStreetMap', maxZoom: 19 }).addTo(m);
+      let tileFails = 0;
+      tiles.on('tileerror', () => {
+        if (useFb || this._tileFallback || ++tileFails < 4) return;
+        this._tileFallback = true;
+        try { m.removeLayer(tiles); } catch (e) {}
+        window.L.tileLayer('https://{s}.tile.openstreetmap.fr/osmfr/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap', subdomains: 'abc', maxZoom: 19 }).addTo(m);
+      });
+      // div แผนที่เพิ่งโผล่ในเฟรมเดียวกัน — วัดขนาดซ้ำกันแผนที่ออกครึ่งจอ/ขาว
+      setTimeout(() => { try { m.invalidateSize(); } catch (e) {} }, 80);
       // หมุดกลางจอ: ระหว่างเลื่อนหมุดยกตัวขึ้นเล็กน้อย ปล่อยแล้ววางลง (ฟีลเดียวกับ Grab/Google)
       m.on('movestart', () => { const el = document.getElementById('mpPin'); if (el) el.style.transform = 'translate(-50%,-125%)'; });
       m.on('moveend', () => {
@@ -892,6 +910,7 @@ class App extends React.Component {
   }
   locateMe(silent){
     if (!navigator.geolocation) { if (!silent) this.showToast('เบราว์เซอร์ไม่รองรับระบุตำแหน่ง — ค้นหาชื่อสถานที่หรือลากหมุดแทนได้ครับ 📍'); return; }
+    if (this.state.locating) return; // กำลังหาอยู่แล้ว — กันเรียกซ้อน (เข้าโหมดปักหมุด + แผนที่เพิ่งสร้าง เรียกมาพร้อมกันได้)
     this.setState({ locating: true });
     navigator.geolocation.getCurrentPosition(
       (pos) => {
@@ -940,26 +959,122 @@ class App extends React.Component {
     }
   }
 
-  // ── แกะพิกัดจากลิงก์ Google Maps ──
+  // ── แกะพิกัดจากลิงก์ Google Maps — รองรับทุกรูปแบบที่ Google เคยใช้ (เจ้าของสั่ง 2026-10-07: ห้ามอ่านไม่ออกอีก) ──
   extractLatLng(s){
-    let m = s.match(/!3d(-?\d{1,2}\.\d+)!4d(-?\d{1,3}\.\d+)/);          // หมุดสถานที่ (แม่นสุด)
-    if (!m) m = s.match(/[?&]q=(-?\d{1,2}\.\d+)(?:,|%2C)(-?\d{1,3}\.\d+)/);
+    let m = s.match(/!3d(-?\d{1,2}\.\d+)!4d(-?\d{1,3}\.\d+)/);          // หมุดสถานที่ใน data= (แม่นสุด)
+    // พารามิเตอร์พิกัดทุกชื่อที่ Google ใช้: q / ll / sll / cbll / query (Maps URLs API) / center / destination / daddr (ลิงก์เส้นทาง) — รองรับ loc: เก่าด้วย
+    if (!m) m = s.match(/[?&](?:q|ll|sll|cbll|query|center|destination|daddr)=(?:loc:)?(-?\d{1,2}\.\d+)(?:,|%2C)\s*(-?\d{1,3}\.\d+)/i);
+    // พิกัดแบบองศา-ลิปดา-ฟิลิปดา เช่น 16°28'51.1"N+102°48'59.4"E (ลิงก์ปักหมุดจากเว็บเดสก์ท็อป)
+    if (!m) {
+      let d = s; try { d = decodeURIComponent(s); } catch (e) {}
+      const g = d.match(/(\d{1,2})°(\d{1,2})['′](\d{1,2}(?:\.\d+)?)["″]?\s*([NS])[+\s,]+(\d{1,3})°(\d{1,2})['′](\d{1,2}(?:\.\d+)?)["″]?\s*([EW])/i);
+      if (g) {
+        const lat = (+g[1] + g[2] / 60 + g[3] / 3600) * (/s/i.test(g[4]) ? -1 : 1);
+        const lng = (+g[5] + g[6] / 60 + g[7] / 3600) * (/w/i.test(g[8]) ? -1 : 1);
+        if (Math.abs(lat) <= 90 && Math.abs(lng) <= 180) return { lat, lng };
+      }
+    }
     if (!m) m = s.match(/@(-?\d{1,2}\.\d+),(-?\d{1,3}\.\d+)/);          // จุดกลางแผนที่
-    if (!m) m = s.match(/center=(-?\d{1,2}\.\d+)(?:%2C|,)(-?\d{1,3}\.\d+)/);
-    // รูปแบบ "แชร์ตำแหน่งปัจจุบัน": /maps/search/16.485104,+102.816614
+    // ลิงก์เส้นทาง /maps/dir/จุดเริ่ม/จุดหมาย — ต้องเอา "คู่สุดท้าย" (จุดหมาย) ไม่ใช่จุดเริ่มทาง
+    if (!m && /\/maps\/dir\//i.test(s)) {
+      const all = s.match(/(-?\d{1,2}\.\d{3,})(?:,|%2C)\s*\+?\s*(-?\d{1,3}\.\d{3,})/g);
+      if (all && all.length) m = all[all.length - 1].match(/(-?\d{1,2}\.\d{3,})(?:,|%2C)\s*\+?\s*(-?\d{1,3}\.\d{3,})/);
+    }
+    // รูปแบบ "แชร์ตำแหน่งปัจจุบัน": /maps/search/16.485104,+102.816614 หรือคู่พิกัดลอย ๆ ที่ไหนก็ได้
     if (!m) m = s.match(/(-?\d{1,2}\.\d{4,})(?:,|%2C)\s*\+?\s*(-?\d{1,3}\.\d{4,})/);
     if (!m) return null;
     const lat = +m[1], lng = +m[2];
     if (Math.abs(lat) > 90 || Math.abs(lng) > 180) return null;
     return { lat, lng };
   }
+  // ── Plus Code (รหัสจุดของ Google เช่น "FV92+VHW") → พิกัด ──
+  // ลิงก์ "กดค้างปักหมุด" จากแอป Google Maps รุ่นใหม่ (ปลายปี 2026) ไม่ใส่เลขพิกัดใน URL แล้ว
+  // แต่ฝัง Plus Code ไว้หน้าชื่อย่านใน q= แทน — ถอดเองในเครื่องได้ ไม่ต้องพึ่งเซิร์ฟเวอร์ไหน
+  olcDecode(code){
+    const AB = '23456789CFGHJMPQRVWX';
+    const d = code.replace('+', '');
+    let lat = -90, lng = -180, latRes = 400, lngRes = 400;
+    let i = 0;
+    for (; i + 1 < d.length && i < 10; i += 2) {
+      const a = AB.indexOf(d[i]), b = AB.indexOf(d[i + 1]);
+      if (a < 0 || b < 0) return null;
+      latRes /= 20; lngRes /= 20;
+      lat += a * latRes; lng += b * lngRes;
+    }
+    if (i < d.length) { // หลักที่ 11 (ถ้ามี): ตารางละเอียด 5 แถว × 4 คอลัมน์
+      const g = AB.indexOf(d[i]);
+      if (g >= 0) { latRes /= 5; lngRes /= 4; lat += Math.floor(g / 4) * latRes; lng += (g % 4) * lngRes; }
+    }
+    return { lat: lat + latRes / 2, lng: lng + lngRes / 2 };
+  }
+  // หา Plus Code ที่ "ต้นข้อความ" q= (กันจับคำอื่นมั่ว) — แบบสั้น (เช่น FV92+VHW) เติมส่วนหน้าจากย่าน มข. ตามวิธีมาตรฐาน recoverNearest
+  // หมายเหตุ: เครื่องหมาย + ใน URL ถูกถอดเป็นช่องว่างมาก่อนแล้ว จึงรับทั้ง "FV92+VHW" และ "FV92 VHW"
+  olcFromText(txt){
+    const m = (txt || '').trim().toUpperCase().match(/^([23456789CFGHJMPQRVWX]{4,8})[+ ]([23456789CFGHJMPQRVWX]{2,3})(?=[\s,]|$)/);
+    if (!m) return null;
+    const head = m[1], tail = m[2];
+    if (head.length % 2) return null; // รหัสจริงมีเลขคู่เสมอ (4/6/8 ตัวหน้า)
+    const REF = { lat: 16.4746, lng: 102.8235 }; // ใจกลาง มข. — ลูกค้าทุกคนอยู่ระแวกนี้
+    let pt;
+    if (head.length >= 8) {
+      pt = this.olcDecode(head.slice(0, 8) + tail);
+    } else {
+      // ยืมตัวหน้าที่ขาดจากรหัสของจุดอ้างอิง
+      const AB = '23456789CFGHJMPQRVWX';
+      let la = REF.lat + 90, ln = REF.lng + 180, res = 20, prefix = '';
+      for (let k = 0; k < (8 - head.length) / 2; k++) {
+        prefix += AB[Math.floor(la / res) % 20] + AB[Math.floor(ln / res) % 20];
+        la = la % res; ln = ln % res; res /= 20;
+      }
+      pt = this.olcDecode(prefix + head + tail);
+      if (pt) {
+        // ตกคนละเซลล์กับจุดอ้างอิง = ขยับทีละเซลล์เข้าหาให้ใกล้สุด
+        const cell = res * 20;
+        if (pt.lat - REF.lat > cell / 2) pt.lat -= cell; else if (REF.lat - pt.lat > cell / 2) pt.lat += cell;
+        if (pt.lng - REF.lng > cell / 2) pt.lng -= cell; else if (REF.lng - pt.lng > cell / 2) pt.lng += cell;
+      }
+    }
+    if (!pt || !isFinite(pt.lat) || !isFinite(pt.lng) || Math.abs(pt.lat) > 90 || Math.abs(pt.lng) > 180) return null;
+    return pt;
+  }
+  // ลอง Plus Code จากทุกมุมของ URL: พารามิเตอร์ q= และช่วงพาธ /maps/place|search/…
+  olcFromUrl(u){
+    let pt = null;
+    const qm = u.match(/[?&]q=([^&]+)/);
+    if (qm) { try { pt = this.olcFromText(decodeURIComponent(qm[1].replace(/\+/g, ' '))); } catch (e) {} }
+    if (!pt) {
+      const pm = u.match(/\/maps\/(?:place|search)\/([^/?#]+)/i);
+      if (pm) { try { pt = this.olcFromText(decodeURIComponent(pm[1]).replace(/\+/g, ' ')); } catch (e) {} }
+    }
+    return pt;
+  }
+  // ── สลับวิธีบอกจุดส่ง — สามวิธีแยกขาดกัน (เจ้าของสั่ง 2026-10-07): เปลี่ยนวิธี = ล้างหมุด/ราคา/ของค้างจากวิธีเก่าทั้งหมด ──
+  pickPinMode(k){
+    if (this.state.pinMode === k) return;
+    this._pinSeq = (this._pinSeq || 0) + 1; // ตัดงานแกะลิงก์/วัดระยะที่ยังค้างของโหมดเก่าทิ้ง
+    this._gmSeq = (this._gmSeq || 0) + 1;
+    clearTimeout(this._distTimer); clearTimeout(this._gmT);
+    this.setState({ pinMode: k, mapLocked: false, lat: null, lng: null, distKm: null, distSrc: '', pinSrc: '', geoLabel: '', gpsConfirm: false, gpsAcc: null, searchQ: '', searchResults: [], gmapLink: '', gmapErr: '', gmapBusy: false });
+    if (k === 'map') this.locateMe(true); // โหมดปักหมุดเอง: ลองใช้ตำแหน่งปัจจุบันให้ก่อนเงียบ ๆ (มีกล่องให้ยืนยันเสมอ ไม่ล็อกเอง)
+  }
   async useGmapLink(){
     const pinAtStart = this._pinSeq || 0; // จำสถานะหมุดตอนกดปุ่ม
     const raw = (this.state.gmapLink || '').trim();
     const urlm = raw.match(/https?:\/\/\S+/);
-    if (!urlm) return this.showToast('วางลิงก์จาก Google Maps ก่อนนะครับ 🔗');
+    if (!urlm) {
+      // ไม่ใช่ลิงก์ — เผื่อลูกค้าวางพิกัดตรง ๆ ("16.4850, 102.8165"), Plus Code เปล่า ("FV92+VHW") หรือ geo: จาก Android
+      let p2 = this.olcFromText(raw);
+      if (!p2) { const g = raw.match(/geo:(-?\d{1,2}\.\d+),(-?\d{1,3}\.\d+)/i); if (g) p2 = { lat: +g[1], lng: +g[2] }; }
+      if (!p2) { const c = raw.match(/^(-?\d{1,2}\.\d{2,})\s*[,;]\s*(-?\d{1,3}\.\d{2,})$/); if (c) p2 = { lat: +c[1], lng: +c[2] }; }
+      if (p2 && Math.abs(p2.lat) <= 90 && Math.abs(p2.lng) <= 180) {
+        this.setState({ gmapLink: '', gmapErr: '', pinSrc: 'link', mapLocked: true });
+        this.setPin(p2.lat, p2.lng, true);
+        return this.showToast('📍 ปักหมุดตามพิกัดที่วางแล้ว — ล็อกไว้กันเลื่อนพลาด 🔒');
+      }
+      return this.showToast('วางลิงก์จาก Google Maps ก่อนนะครับ 🔗');
+    }
     const url = urlm[0];
-    let pt = this.extractLatLng(url);
+    let pt = this.extractLatLng(url) || this.olcFromUrl(url);
     let finalUrl = url;
     if (!pt) {
       // ลิงก์สั้นจากปุ่มแชร์ (maps.app.goo.gl) — ให้ตัวแกะลิงก์ของร้าน (Edge Function) ตามไปอ่าน URL ปลายทาง
@@ -1001,25 +1116,22 @@ class App extends React.Component {
       this.setState({ gmapBusy: false });
     }
     if (!pt) {
-      // ลิงก์แชร์ "ร้าน/สถานที่" แบบใหม่ของ Google ไม่มีตัวเลขพิกัดใน URL แล้ว (มีแต่ชื่อ+ที่อยู่ใน q=)
-      // → ดึงชื่อไปค้นหาในแผนที่ให้เลย ลูกค้าแตะผลที่ตรงหรือเลื่อนหมุดเองต่อได้ทันที
-      const qm = finalUrl.match(/[?&]q=([^&]+)/);
-      let name = '';
-      try { name = qm ? decodeURIComponent(qm[1].replace(/\+/g, ' ')) : ''; } catch (e) {}
-      if (name && !/^-?\d/.test(name.trim())) {
-        const short = name.split(',')[0].trim().slice(0, 60);
-        this.setState({ gmapLink: '', pinMode: 'map', mapLocked: false, searchQ: short }, () => this.doSearch());
-        return this.showToast('ลิงก์แบบใหม่ของ Google ไม่บอกพิกัด 🙏 ค้นหา "' + short + '" ให้แล้ว — แตะผลที่ตรง หรือเลื่อนแผนที่ปักหมุดเองครับ');
-      }
-      if (/share\.google/i.test(url)) return this.showToast('ลิงก์จากแอป Google อ่านพิกัดไม่ได้ 🙏 เปิดแอป Google Maps กดค้างปักหมุดจุดส่ง แล้วแชร์ลิงก์มาวางใหม่ หรือปักหมุดเองครับ');
-      return this.showToast('อ่านพิกัดจากลิงก์ไม่สำเร็จ 🙏 ลองวางลิงก์เดิมซ้ำอีกครั้ง (เน็ตอาจสะดุด) หรือค้นหาชื่อสถานที่/ปักหมุดเองแทนครับ');
+      // ลิงก์ "กดค้างปักหมุด" รุ่นใหม่ซ่อนพิกัดเป็น Plus Code ไว้ใน q= หรือพาธ /place/ (เช่น "FV92+VHW เจดีย์บูรพาจารย์ …") — ถอดเองในเครื่อง
+      pt = this.olcFromUrl(finalUrl);
+    }
+    if (!pt) {
+      // อ่านพิกัดไม่ได้จริง ๆ — อยู่โหมดลิงก์เหมือนเดิม ไม่สลับโหมด ไม่ปักหมุด ไม่คิดราคา (เจ้าของสั่ง 2026-10-07: สามวิธีแยกขาดกัน)
+      // ขึ้นกล่องแจ้งค้างไว้ใต้ช่องลิงก์ (toast หายเร็ว ลูกค้าอ่านไม่ทันแล้วงง)
+      const isPlace = finalUrl !== url || /share\.google/i.test(url); // แกะลิงก์สำเร็จแต่ข้างในไม่มีพิกัด = ลิงก์แชร์ร้าน/สถานที่
+      this.setState({ gmapErr: isPlace ? 'place' : 'fail' });
+      return;
     }
     // ระหว่างรอแกะลิงก์ ถ้าลูกค้าขยับหมุดเอง = ถือว่าอันหลังสุดคือสิ่งที่ลูกค้าต้องการ ไม่ทับทิ้ง
     if ((this._pinSeq || 0) !== pinAtStart) {
       this.setState({ gmapLink: '' });
       return this.showToast('คุณย้ายหมุดหลังวางลิงก์ — ระบบใช้ตำแหน่งหมุดล่าสุดที่คุณเลือกครับ 📍');
     }
-    this.setState({ gmapLink: '', pinSrc: 'link', mapLocked: true });
+    this.setState({ gmapLink: '', gmapErr: '', pinSrc: 'link', mapLocked: true });
     this.setPin(pt.lat, pt.lng, true);
     this.showToast('📍 ปักหมุดตามลิงก์แล้ว — ล็อกไว้กันเลื่อนพลาด 🔒');
   }
@@ -2745,9 +2857,10 @@ class App extends React.Component {
       },
       gmapLink: s.gmapLink, gmapBusy: s.gmapBusy,
       gmapWrongApp: /share\.google/i.test(s.gmapLink || ''), // ลูกค้าวางลิงก์แชร์จากแอป Google (ไม่ใช่ Google Maps) — เตือนทันทีก่อนกดตกลง
+      gmapErr: s.gmapErr,
       setGmapLink: (e) => {
         const val = e.target.value;
-        this.setState({ gmapLink: val });
+        this.setState({ gmapLink: val, gmapErr: '' });
         // วางลิงก์ปุ๊บ ประมวลผลให้เองเลย ไม่ต้องกดปุ่ม
         if (/https?:\/\/(maps\.app\.goo\.gl|goo\.gl\/maps|www\.google\.[a-z.]+\/maps|maps\.google)/.test(val)) {
           clearTimeout(this._gmT);
@@ -2820,15 +2933,15 @@ class App extends React.Component {
       distLine: c.proPickupOn ? '' : s.lat == null ? ''
         : s.distKm == null ? '⏳ กำลังวัดระยะทางจริง… ค่าส่งจะอัปเดตอัตโนมัติ (กดต่อไปได้เมื่อวัดเสร็จ)'
         : c.outOfArea ? '🚫 รถยนต์ส่งได้ไม่เกิน 6 กม. — จุดนี้ห่าง ~' + s.distKm.toFixed(1) + ' กม. เลือกมอเตอร์ไซค์แทนได้ครับ'
-        : (s.pinSrc === 'link' ? '🔗 จุดจากลิงก์ Google Maps · ' : s.pinSrc === 'gps' ? '🎯 ตำแหน่งปัจจุบันของคุณ · ' : s.pinSrc === 'saved' ? '🏠 ที่อยู่ประจำของคุณ · ' : s.pinSrc === 'map' ? '📍 จุดที่คุณปักเอง · ' : '') + (c.carJob ? '🚗' : '🏍️') + ' ระยะจากร้าน ~' + s.distKm.toFixed(1) + ' กม.' + (s.distSrc === 'est' ? ' (ประมาณ)' : '') + ' · ค่าส่ง ฿' + c.deliveryFee + (c.farNote ? ' — ร้านจะนัดเวลาส่งล่วงหน้า' : ''),
+        : (s.pinSrc === 'link' ? '🔗 จุดจากลิงก์ Google Maps · ' : s.pinSrc === 'gps' ? '🎯 ตำแหน่งปัจจุบันของคุณ · ' : s.pinSrc === 'saved' ? '🏠 ที่อยู่ประจำของคุณ · ' : s.pinSrc === 'spot' ? '⭐ จุดส่งยอดนิยม · ' : s.pinSrc === 'map' ? '📍 จุดที่คุณปักเอง · ' : '') + (c.carJob ? '🚗' : '🏍️') + ' ระยะจากร้าน ~' + s.distKm.toFixed(1) + ' กม.' + (s.distSrc === 'est' ? ' (ประมาณ)' : '') + ' · ค่าส่ง ฿' + c.deliveryFee + (c.farNote ? ' — ร้านจะนัดเวลาส่งล่วงหน้า' : ''),
       distOut: !!c.outOfArea,
       measuring: !c.proPickupOn && s.lat != null && c.deliveryPending,
       // ── เลือกวิธีบอกจุดส่ง (กันลูกค้าสับสนว่าจะใช้ลิงก์หรือปักหมุด) ──
       // ── ที่อยู่จัดส่งประจำ ──
       savedAddrs: this.loadAddrs().map(a => ({ ...a, pick: () => this.pickAddr(a), del: (e) => { e.stopPropagation(); this.removeAddr(a.addr); } })),
       pinMode: s.pinMode, pinModeLink: s.pinMode === 'link', pinModeMap: s.pinMode === 'map',
-      // แผนที่โผล่เมื่อ: โหมดปักหมุด หรือ โหมดลิงก์ที่วางลิงก์สำเร็จแล้ว
-      showMap: s.pinMode === 'map' || (s.pinMode === 'link' && s.lat != null),
+      // แผนที่โผล่เมื่อ: โหมดปักหมุด หรือ โหมดลิงก์/จุดยอดนิยมที่ได้หมุดแล้ว
+      showMap: s.pinMode === 'map' || ((s.pinMode === 'link' || s.pinMode === 'spots') && s.lat != null),
       mapLocked: s.mapLocked,
       // ── กล่องยืนยันตำแหน่งหลังกดใช้ตำแหน่งปัจจุบัน (สำคัญกับคอม/โน้ตบุ๊กที่ตำแหน่งไม่แม่น) ──
       gpsConfirm: s.gpsConfirm && s.lat != null,
@@ -2852,12 +2965,12 @@ class App extends React.Component {
            'หาหัวข้อ "ตำแหน่งที่ตั้ง" (Location) แล้วเลือก "อนุญาต"',
            'รีเฟรชหน้าเว็บแล้วกดปุ่มใช้ตำแหน่งปัจจุบันอีกครั้ง'],
       unlockMap: () => { this.setState({ mapLocked: false }); this.showToast('ปลดล็อกแล้ว — เลื่อนแผนที่ปรับหมุดได้เลยครับ 🔓'); },
-      relinkMap: () => this.setState({ mapLocked: false, lat: null, lng: null, distKm: null, pinSrc: '', geoLabel: '' }),
+      relinkMap: () => this.setState({ mapLocked: false, lat: null, lng: null, distKm: null, pinSrc: '', geoLabel: '', gmapLink: '', gmapErr: '' }),
       pinModeOpts: [
         { k: 'link', icon: fi('nav', 20), name: 'ก๊อปลิงก์จาก Google Maps', sub: 'แม่นที่สุด — แชร์ลิงก์ที่อยู่มาวาง' },
         { k: 'map', icon: fi('pin', 20), name: 'ปักหมุดเอง', sub: 'ใช้ตำแหน่งปัจจุบัน หรือเลื่อนแผนที่' },
         ...(s.popSpots.length ? [{ k: 'spots', icon: fi('star', 20), name: 'จุดส่งยอดนิยม', sub: 'จุดที่ลูกค้าสั่งบ่อย — แตะแล้วปักหมุดให้ทันที' }] : [])
-      ].map(o => ({ ...o, on: s.pinMode === o.k, pick: () => this.setState({ pinMode: o.k, mapLocked: false }) })),
+      ].map(o => ({ ...o, on: s.pinMode === o.k, pick: () => this.pickPinMode(o.k) })),
       resetPinMode: () => this.setState({ pinMode: '' }),
       deliveryFee: c.deliveryFee, deliveryPending: c.deliveryPending,
       // หน้าตรวจสอบออเดอร์ก่อนชำระเงิน
@@ -3301,8 +3414,8 @@ class App extends React.Component {
       // ── หน้า My Profile ──
       goLogin: () => this.setState({ screen: 'login', authMode: 'login' }),
       backToHome: () => this.setState({ screen: 'home' }),
-      popPick: (sp) => { // ชิปจุดส่งยอดนิยม — พิกัดจริงที่ร้านยืนยันแล้ว: ปักหมุด+ล็อกให้ทันที กรอกรายละเอียดที่อยู่ต่อได้เลย
-        this.setState({ pinMode: 'map', gpsConfirm: false, searchQ: '', searchResults: [], pinSrc: 'saved' });
+      popPick: (sp) => { // ชิปจุดส่งยอดนิยม — พิกัดจริงที่ร้านยืนยันแล้ว: ปักหมุด+ล็อกให้ทันที อยู่ในโหมดจุดยอดนิยมเดิม (เจ้าของสั่ง 2026-10-07: ห้ามกระโดดไปโหมดปักหมุดเอง)
+        this.setState({ pinMode: 'spots', gpsConfirm: false, searchQ: '', searchResults: [], pinSrc: 'spot', mapLocked: false });
         this.setPin(sp.lat, sp.lng, true);
         setTimeout(() => this.setState({ mapLocked: true }), 150); // ล็อกหลังหมุดลงจุด (กัน moveend ของการเลื่อนอัตโนมัติ)
         this.showToast('ปักหมุดที่ ' + sp.name + ' และล็อกให้แล้ว ✓ กรอกรายละเอียดที่อยู่ต่อได้เลยครับ');
@@ -4050,6 +4163,13 @@ class App extends React.Component {
                     ✅ วิธีที่ชัวร์: เปิดแอป <b>Google Maps</b> → <b>กดค้าง</b>ตรงจุดส่งให้ขึ้นหมุด → กด <b>แชร์</b> → <b>คัดลอกลิงก์</b> (ลิงก์จะขึ้นต้นด้วย maps.app.goo.gl) แล้วมาวางแทนครับ
                   </div>
                 )}
+                {v.gmapErr && (
+                  <div style={css("margin-top:8px;background:#fff5f5;border:1.5px solid #ffa8a8;border-radius:10px;padding:10px 12px;font-size:12px;color:#c92a2a;line-height:1.8")}>
+                    {v.gmapErr === 'place'
+                      ? <React.Fragment>❌ <b>ลิงก์นี้เป็นลิงก์แชร์ "ร้าน/สถานที่" — ไม่มีพิกัดบอกตำแหน่ง</b> ระบบเลยยังไม่ปักหมุดให้ (กันค่าส่งผิดจุด)<br/>✅ เปิดแอป <b>Google Maps</b> → <b>กดค้าง</b>ตรงจุดส่งจนขึ้นหมุด → กด <b>แชร์</b> → <b>คัดลอกลิงก์</b> มาวางใหม่ครับ<br/>หรือถ้าสะดวกวิธีอื่น แตะเปลี่ยนเป็น "ปักหมุดเอง" / "จุดส่งยอดนิยม" ด้านบนได้เลย</React.Fragment>
+                      : <React.Fragment>❌ <b>อ่านลิงก์ไม่สำเร็จ (เน็ตอาจสะดุด)</b> — ระบบยังไม่ปักหมุดให้ กดปุ่ม "ตกลง" ลองอีกครั้งได้เลย<br/>หรือแตะเปลี่ยนเป็น "ปักหมุดเอง" / "จุดส่งยอดนิยม" ด้านบนครับ</React.Fragment>}
+                  </div>
+                )}
               </div>
               </React.Fragment>}
               {v.pinModeMap && <React.Fragment>
@@ -4088,7 +4208,7 @@ class App extends React.Component {
                 </div>
               )}
               </React.Fragment>}
-              {v.pinModeLink && !v.showMap && <div style={css("margin-top:10px;background:var(--soft);border:1px dashed var(--line);border-radius:12px;padding:16px;text-align:center;font-size:12.5px;color:var(--sub);line-height:1.7")}>🔗 วางลิงก์แล้วกด "ตกลง"<br/>ระบบจะปักหมุดให้อัตโนมัติแล้วโชว์แผนที่ยืนยัน<br/>💡 แชร์แบบ "ปักหมุด" (กดค้างบนแผนที่ก่อนแชร์) แม่นยำสุด</div>}
+              {v.pinModeLink && !v.showMap && !v.gmapErr && <div style={css("margin-top:10px;background:var(--soft);border:1px dashed var(--line);border-radius:12px;padding:16px;text-align:center;font-size:12.5px;color:var(--sub);line-height:1.7")}>🔗 วางลิงก์แล้วกด "ตกลง"<br/>ระบบจะปักหมุดให้อัตโนมัติแล้วโชว์แผนที่ยืนยัน<br/>💡 แชร์แบบ "ปักหมุด" (กดค้างบนแผนที่ก่อนแชร์) แม่นยำสุด</div>}
               {v.showMap && <div style={css("margin-top:10px;position:relative;border-radius:14px;overflow:hidden;border:1px solid " + (v.mapLocked ? "var(--acc)" : "var(--line)") + ";box-shadow:var(--shadow)")}>
                 <div id="mpMap" style={css("height:300px;position:relative;z-index:0")}></div>
                 {/* หมุดกลางจอ (แบบแอปเรียกรถ) — ไม่รับการแตะ ให้แผนที่ข้างใต้รับแทน */}
@@ -4114,10 +4234,12 @@ class App extends React.Component {
                 </div>
               )}
               {v.mapLocked
-                ? <div style={css("margin-top:7px;display:flex;gap:7px")}>
-                    <button onClick={v.unlockMap} style={css("flex:1;height:38px;border:1px solid var(--line);border-radius:10px;background:var(--card);color:var(--ink);font-size:12.5px;font-weight:700;cursor:pointer;font-family:inherit")}>🔓 ปลดล็อก — ย้ายหมุด</button>
-                    {v.pinModeLink && <button onClick={v.relinkMap} style={css("flex:1;height:38px;border:1px solid var(--line);border-radius:10px;background:var(--card);color:var(--ink);font-size:12.5px;font-weight:700;cursor:pointer;font-family:inherit")}>🔗 วางลิงก์ใหม่</button>}
-                  </div>
+                ? (v.pinMode === 'spots'
+                  ? <div style={css("margin-top:7px;font-size:12px;color:var(--sub);line-height:1.6")}>⭐ จุดนี้ร้านยืนยันพิกัดแล้ว ล็อกหมุดให้อัตโนมัติ — อยากเปลี่ยนจุด แตะชื่อจุดอื่นด้านบนได้เลยครับ</div>
+                  : <div style={css("margin-top:7px;display:flex;gap:7px")}>
+                      <button onClick={v.unlockMap} style={css("flex:1;height:38px;border:1px solid var(--line);border-radius:10px;background:var(--card);color:var(--ink);font-size:12.5px;font-weight:700;cursor:pointer;font-family:inherit")}>🔓 ปลดล็อก — ย้ายหมุด</button>
+                      {v.pinModeLink && <button onClick={v.relinkMap} style={css("flex:1;height:38px;border:1px solid var(--line);border-radius:10px;background:var(--card);color:var(--ink);font-size:12.5px;font-weight:700;cursor:pointer;font-family:inherit")}>🔗 วางลิงก์ใหม่</button>}
+                    </div>)
                 : v.showMap && <div style={css("margin-top:6px;font-size:12px;color:#a16207;font-weight:600;line-height:1.6")}>⚠️ ค่าส่งคิดตามตำแหน่งหมุดนะครับ — {v.pinModeLink ? 'ตรวจดูว่าหมุดตรงจุดส่งจริงไหม เลื่อนแผนที่แก้ได้' : 'เลื่อนแผนที่ให้หมุด 📍 ชี้ตรงจุดส่งจริง (แตะจุดไหนหมุดวิ่งไปให้)'} แล้วกดปุ่ม "ยืนยันตำแหน่ง" เพื่อล็อกหมุด กันมือลั่นเลื่อนแล้วค่าส่งเพี้ยนครับ</div>}
               {v.distLine && <div style={css("margin-top:7px;border-radius:11px;padding:9px 12px;font-size:13px;font-weight:700;line-height:1.55;" + (v.distOut ? "background:#fff0f0;border:1px solid #ffa8a8;color:#c92a2a" : "background:var(--accSoft);border:1px solid var(--acc);color:var(--acc)"))}>{v.distLine}</div>}
               {v.pinModeMap && <div style={css("margin-top:4px;font-size:12px;color:var(--acc);font-weight:600;line-height:1.5")}>💡 หาชื่อหอไม่เจอ — แตะปักหมุดเอง แล้วพิมพ์รายละเอียดช่องล่างครับ</div>}
