@@ -236,7 +236,7 @@ function StatusBadge({ status, o }){
 
 
 // ── กล่องแชทกับลูกค้า (ตาราง messages · ลูกค้าคุยผ่าน RPC ที่ต้องรู้รหัสออเดอร์) ──
-function Chat({ o, onSeen }){
+function Chat({ o, onSeen, tall }){
   const [msgs, setMsgs] = React.useState(null);
   const [text, setText] = React.useState('');
   const [busy, setBusy] = React.useState(false);
@@ -246,6 +246,7 @@ function Chat({ o, onSeen }){
   const [unsendBusy, setUnsendBusy] = React.useState(false);
   const lpT = React.useRef(null);
   const boxRef = React.useRef(null);
+  const stickRef = React.useRef(true); // ติดก้นจออยู่ไหม — เลื่อนตามเฉพาะตอนผู้ใช้อยู่ล่างสุด (เจ้าของสั่ง 2026-10-07: ห้ามเด้งลงเองตอนไล่อ่านของเก่า)
   const camRef = React.useRef(null);
   const chatSeq = React.useRef(0);
   const load = React.useCallback(async () => {
@@ -274,10 +275,12 @@ function Chat({ o, onSeen }){
     if (error) return alert('ยกเลิกข้อความไม่สำเร็จ ลองอีกครั้งครับ: ' + error.message);
     load();
   };
-  React.useEffect(() => { if (boxRef.current) boxRef.current.scrollTop = boxRef.current.scrollHeight; }, [msgs]);
+  // เลื่อนลงล่างสุดเฉพาะตอนผู้ใช้อยู่ก้นจอ/เพิ่งส่งเอง — กำลังไล่อ่านข้อความเก่าห้ามดึงลง (โพลทุก 8 วิเคยดึงลงตลอด)
+  React.useEffect(() => { const el = boxRef.current; if (el && stickRef.current) el.scrollTop = el.scrollHeight; }, [msgs]);
   // ส่งรูป (ใช้ถ่ายรูปหลักฐานตอนส่งของถึงมือลูกค้า แบบ Grab/LINE MAN)
   const sendPhoto = async (file) => {
     if (!file || upBusy) return;
+    stickRef.current = true; // ส่งเอง = พากลับลงล่างสุด
     setUpBusy(true);
     const caption = text.trim() || 'รูปหลักฐานการจัดส่ง';
     if (!DB) {
@@ -296,6 +299,7 @@ function Chat({ o, onSeen }){
   const send = async () => {
     const body = text.trim();
     if (!body || busy) return;
+    stickRef.current = true; // ส่งเอง = พากลับลงล่างสุด
     setBusy(true);
     if (!DB) { setMsgs(l => [...(l || []), { id: Date.now(), sender: 'shop', body, created_at: new Date().toISOString() }]); setText(''); setBusy(false); return; }
     const { error } = await DB.from('messages').insert({ order_id: o.id, sender: 'shop', body, seen_by_shop: true });
@@ -307,6 +311,7 @@ function Chat({ o, onSeen }){
   const sendLine = async () => {
     const body = text.trim();
     if (!body || busy) return;
+    stickRef.current = true; // ส่งเอง = พากลับลงล่างสุด
     if (!DB) { setMsgs(l => [...(l || []), { id: Date.now(), sender: 'shop', body, created_at: new Date().toISOString() }]); setText(''); return; } // โหมดตัวอย่าง
     setBusy(true);
     try {
@@ -331,7 +336,8 @@ function Chat({ o, onSeen }){
   return (
     <div style={css("background:var(--soft);border:1px solid var(--line);border-radius:12px;padding:10px 12px")}>
       <div style={css("font-size:11px;font-weight:700;color:var(--sub);letter-spacing:.5px")}>{FI.chat(12)} แชทกับลูกค้า</div>
-      <div ref={boxRef} style={css("margin-top:8px;max-height:230px;overflow-y:auto;display:flex;flex-direction:column;gap:7px")}>
+      <div ref={boxRef} onScroll={() => { const el = boxRef.current; if (el) stickRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 70; }}
+        style={css("margin-top:8px;" + (tall ? "height:52vh;" : "max-height:230px;") + "overflow-y:auto;display:flex;flex-direction:column;gap:7px")}>
         {msgs === null && <div style={css("font-size:12px;color:var(--sub)")}>กำลังโหลด…</div>}
         {msgs !== null && msgs.length === 0 && <div style={css("font-size:11.5px;color:var(--sub);line-height:1.6")}>ยังไม่มีข้อความ — ทักลูกค้าได้เลย เช่น แจ้งราคา งานเสร็จ หรือขอรายละเอียดเพิ่ม</div>}
         {(msgs || []).map(m => {
@@ -388,6 +394,36 @@ const DEMO_MSGS = [
   { id: 1, sender: 'customer', body: 'พี่ครับ ขอปริ้นหน้า-หลังนะครับ', created_at: new Date(Date.now() - 9*60000).toISOString() },
   { id: 2, sender: 'shop', body: 'รับทราบครับ กำลังจัดให้เลย', created_at: new Date(Date.now() - 7*60000).toISOString() }
 ];
+
+// ปุ่ม Live Chat บนการ์ดออเดอร์ (เจ้าของสั่ง 2026-10-07): เลิกกางแชทยาวในการ์ด — ปุ่ม + ป้ายเลขข้อความใหม่จากลูกค้า เปิดเป็นห้องแชทแบบหน้าบ้าน
+function ChatDock({ o, onSeen, unread }){
+  const [open, setOpen] = React.useState(false);
+  const name = [o.customer_fname || '', o.customer_lname || ''].filter(Boolean).join(' ');
+  return (
+    <React.Fragment>
+      <button onClick={() => setOpen(true)} style={css("position:relative;width:100%;height:46px;border:1.5px solid var(--acc);border-radius:12px;background:var(--accSoft);color:var(--acc);font-size:13px;font-weight:800;cursor:pointer;font-family:inherit;display:flex;align-items:center;justify-content:center;gap:8px")}>
+        {FI.chat(15)} Live Chat คุยกับลูกค้า
+        {unread > 0 && <span style={css("position:absolute;top:-9px;right:-7px;min-width:21px;height:21px;border-radius:99px;background:#c92a2a;color:#fff;font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center;padding:0 6px;box-shadow:0 2px 6px rgba(0,0,0,.3)")}>{unread > 99 ? '99+' : unread}</span>}
+      </button>
+      {open && (
+        <div style={css("position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:260;display:flex;align-items:flex-end;justify-content:center")} onClick={() => setOpen(false)}>
+          <div style={css("width:100%;max-width:560px;max-height:92vh;background:var(--bg);border-radius:18px 18px 0 0;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 -8px 40px rgba(0,0,0,.35)")} onClick={e => e.stopPropagation()}>
+            <div style={css("padding:11px 16px;background:var(--card);border-bottom:1px solid var(--line);display:flex;align-items:center;gap:10px;flex:none")}>
+              <div style={css("flex:1;min-width:0")}>
+                <div style={css("font-size:13.5px;font-weight:800")}>{FI.chat(13)} LIVE CHAT · {name || 'ลูกค้า'}</div>
+                <div style={css("font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--sub)")}>{o.id}</div>
+              </div>
+              <button onClick={() => setOpen(false)} style={css("flex:none;width:34px;height:34px;border:1px solid var(--line);border-radius:10px;background:var(--soft);color:var(--ink);font-size:15px;font-weight:700;cursor:pointer")}>✕</button>
+            </div>
+            <div style={css("flex:1;overflow-y:auto;padding:10px 12px")}>
+              <Chat o={o} onSeen={onSeen} tall/>
+            </div>
+          </div>
+        </div>
+      )}
+    </React.Fragment>
+  );
+}
 
 function OrderCard({ o, idx, onAdvance, onRetreat, onApplyEdits, onCancel, onRemove, busy, unread, onSeen }){
   // การรับงาน/จุดส่ง ในแผงแก้ไขออเดอร์ (มารับเอง ↔ จัดส่ง / แก้ที่อยู่-ค่าส่ง — 2026-09-15)
@@ -749,8 +785,8 @@ function OrderCard({ o, idx, onAdvance, onRetreat, onApplyEdits, onCancel, onRem
               </div>
             </div>
           )}
-          {/* แชทกับลูกค้า — ท้ายการ์ดแบบ pro.html */}
-          <Chat o={o} onSeen={onSeen}/>
+          {/* Live Chat — ปุ่ม + ป้ายข้อความใหม่ เปิดเป็นห้องแชท (เจ้าของสั่ง 2026-10-07: เลิกกางยาวในการ์ด) */}
+          <ChatDock o={o} onSeen={onSeen} unread={unread}/>
         </div>
       )}
     </div>
@@ -1744,7 +1780,7 @@ function AdminApp(){
                   {ord.customer_phone && <a href={'tel:' + String(ord.customer_phone).replace(/[^0-9+]/g, '')} style={css("flex:none;font-size:11.5px;font-weight:700;background:var(--accSoft);color:var(--acc);padding:7px 12px;border-radius:9px;text-decoration:none")}>{FI.phone(11)} โทร</a>}
                 </div>
                 {ord.addr && <div style={css("background:var(--soft);border:1px solid var(--line);border-radius:12px;padding:9px 12px;font-size:11.5px;line-height:1.6")}>{FI.pin(11)} {ord.addr}{ord.phone ? ' · ' + ord.phone : ''}</div>}
-                <Chat key={openChat} o={ord} onSeen={clearUnread}/>
+                <Chat key={openChat} o={ord} onSeen={clearUnread} tall/>
               </React.Fragment>
             );
           })()}

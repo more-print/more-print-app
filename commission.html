@@ -218,8 +218,8 @@ function MpChat({ o, me, title }){
   );
 }
 
-function Chat({ o }){
-  const [open, setOpen] = React.useState(false); // หุบไว้กันการ์ดรก — แตะหัวข้อเพื่อเปิด
+function Chat({ o, room, onSeen }){
+  const [open, setOpen] = React.useState(!!room); // room = เปิดเป็นห้องแชทในป๊อปอัพ (กางตลอด ไม่มีหัวข้อย่อ) · ปกติหุบไว้กันการ์ดรก
   const [msgs, setMsgs] = React.useState(null);
   const [text, setText] = React.useState('');
   const [busy, setBusy] = React.useState(false);
@@ -237,13 +237,16 @@ function Chat({ o }){
     setMissing(false);
     setMsgs(data || []);
     const unseen = (data || []).filter(m => m.sender === 'customer' && !m.seen_by_shop);
-    if (unseen.length) await DB.from('messages').update({ seen_by_shop: true }).eq('order_id', o.id).eq('sender', 'customer');
+    if (unseen.length) { await DB.from('messages').update({ seen_by_shop: true }).eq('order_id', o.id).eq('sender', 'customer'); if (onSeen) onSeen(o.id); }
   }, [o.id]);
   React.useEffect(() => { if (!open) return; load(); const t = setInterval(load, 8000); return () => clearInterval(t); }, [open, load]);
-  React.useEffect(() => { if (boxRef.current) boxRef.current.scrollTop = boxRef.current.scrollHeight; }, [msgs]);
+  // เลื่อนลงล่างสุดเฉพาะตอนผู้ใช้อยู่ก้นจอ/เพิ่งส่งเอง — กำลังไล่อ่านข้อความเก่าห้ามดึงลง (เจ้าของสั่ง 2026-10-07)
+  const stickRef = React.useRef(true);
+  React.useEffect(() => { const el = boxRef.current; if (el && stickRef.current) el.scrollTop = el.scrollHeight; }, [msgs]);
   const send = async () => {
     const body = text.trim();
     if (!body || busy) return;
+    stickRef.current = true; // ส่งเอง = พากลับลงล่างสุด
     setBusy(true);
     if (!DB) { setMsgs(l => [...(l || []), { id: Date.now(), sender: 'shop', body, created_at: new Date().toISOString() }]); setText(''); setBusy(false); return; }
     const { error } = await DB.from('messages').insert({ order_id: o.id, sender: 'shop', body, seen_by_shop: true });
@@ -253,6 +256,7 @@ function Chat({ o }){
   };
   const sendPhoto = async (file) => {
     if (!file || upBusy) return;
+    stickRef.current = true; // ส่งเอง = พากลับลงล่างสุด
     setUpBusy(true);
     const caption = text.trim() || 'รูปหลักฐานการจัดส่ง';
     if (!DB) { setMsgs(l => [...(l || []), { id: Date.now(), sender: 'shop', body: caption, img_url: URL.createObjectURL(file), created_at: new Date().toISOString() }]); setText(''); setUpBusy(false); return; }
@@ -267,13 +271,14 @@ function Chat({ o }){
   };
   if (missing) return null;
   return (
-    <div style={css("margin-top:9px;background:var(--soft);border:1px solid var(--line);border-radius:12px;padding:10px 12px")}>
-      <div onClick={() => setOpen(v => !v)} style={css("display:flex;align-items:center;gap:8px;cursor:pointer")}>
+    <div style={css((room ? "" : "margin-top:9px;") + "background:var(--soft);border:1px solid var(--line);border-radius:12px;padding:10px 12px")}>
+      {!room && <div onClick={() => setOpen(v => !v)} style={css("display:flex;align-items:center;gap:8px;cursor:pointer")}>
         <span style={css("flex:1;font-size:11px;font-weight:700;color:var(--sub)")}>{FI.chat(12)} แชทกับลูกค้า</span>
         <span style={css("flex:none;font-size:10.5px;font-weight:700;color:var(--sub)")}>{open ? 'ย่อ ▲' : 'เปิด ▼'}</span>
-      </div>
+      </div>}
       {open && <React.Fragment>
-      <div ref={boxRef} style={css("margin-top:8px;max-height:220px;overflow-y:auto;display:flex;flex-direction:column;gap:7px")}>
+      <div ref={boxRef} onScroll={() => { const el = boxRef.current; if (el) stickRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 70; }}
+        style={css((room ? "height:52vh;" : "margin-top:8px;max-height:220px;") + "overflow-y:auto;display:flex;flex-direction:column;gap:7px")}>
         {msgs === null && <div style={css("font-size:12px;color:var(--sub)")}>กำลังโหลด…</div>}
         {msgs !== null && msgs.length === 0 && <div style={css("font-size:11.5px;color:var(--sub)")}>ยังไม่มีข้อความ — ทักแจ้งราคา/ความคืบหน้าได้เลย</div>}
         {(msgs || []).map(m => {
@@ -307,6 +312,36 @@ function Chat({ o }){
       </div>
       </React.Fragment>}
     </div>
+  );
+}
+
+// ปุ่ม Live Chat บนการ์ดออเดอร์ (เจ้าของสั่ง 2026-10-07): ปุ่ม + ป้ายเลขข้อความใหม่จากลูกค้า เปิดเป็นห้องแชทแบบหน้าบ้าน
+function ChatDock({ o, onSeen, unread }){
+  const [open, setOpen] = React.useState(false);
+  const name = [o.customer_fname || '', o.customer_lname || ''].filter(Boolean).join(' ');
+  return (
+    <React.Fragment>
+      <button onClick={() => setOpen(true)} style={css("position:relative;margin-top:10px;width:100%;height:44px;border:1.5px solid var(--acc);border-radius:12px;background:var(--accSoft);color:var(--acc);font-size:12.5px;font-weight:800;cursor:pointer;font-family:inherit;display:flex;align-items:center;justify-content:center;gap:8px")}>
+        {FI.chat(14)} Live Chat คุยกับลูกค้า
+        {unread > 0 && <span style={css("position:absolute;top:-9px;right:-7px;min-width:21px;height:21px;border-radius:99px;background:#c92a2a;color:#fff;font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center;padding:0 6px;box-shadow:0 2px 6px rgba(0,0,0,.3)")}>{unread > 99 ? '99+' : unread}</span>}
+      </button>
+      {open && (
+        <div style={css("position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:260;display:flex;align-items:flex-end;justify-content:center")} onClick={() => setOpen(false)}>
+          <div style={css("width:100%;max-width:560px;max-height:92vh;background:var(--bg);border-radius:18px 18px 0 0;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 -8px 40px rgba(0,0,0,.35)")} onClick={e => e.stopPropagation()}>
+            <div style={css("padding:11px 16px;background:var(--card);border-bottom:1px solid var(--line);display:flex;align-items:center;gap:10px;flex:none")}>
+              <div style={css("flex:1;min-width:0")}>
+                <div style={css("font-size:13.5px;font-weight:800")}>{FI.chat(13)} LIVE CHAT · {name || 'ลูกค้า'}</div>
+                <div style={css("font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--sub)")}>{o.id}</div>
+              </div>
+              <button onClick={() => setOpen(false)} style={css("flex:none;width:34px;height:34px;border:1px solid var(--line);border-radius:10px;background:var(--soft);color:var(--ink);font-size:15px;font-weight:700;cursor:pointer")}>✕</button>
+            </div>
+            <div style={css("flex:1;overflow-y:auto;padding:10px 12px")}>
+              <Chat o={o} onSeen={onSeen} room/>
+            </div>
+          </div>
+        </div>
+      )}
+    </React.Fragment>
   );
 }
 
@@ -559,6 +594,21 @@ function Dash(){
   const [period, setPeriod] = React.useState('day');
   const [filter, setFilter] = React.useState('active');
   const [ordQ, setOrdQ] = React.useState(''); // ค้นหาออเดอร์: รหัส/ชื่อ/เบอร์/ชนิดงาน
+  // ป้ายเลขข้อความใหม่จากลูกค้าบนปุ่ม Live Chat (เจ้าของสั่ง 2026-10-07) — โพลเงียบ ๆ ทุก 15 วิ
+  const [unreadMap, setUnreadMap] = React.useState({});
+  const clearUnread = React.useCallback((oid) => setUnreadMap(m => { const n = { ...m }; delete n[oid]; return n; }), []);
+  React.useEffect(() => {
+    if (!DB) return;
+    let on = true;
+    const tick = async () => {
+      const { data, error } = await DB.from('messages').select('order_id').eq('sender', 'customer').eq('seen_by_shop', false).limit(500);
+      if (!on || error || !data) return;
+      const m = {}; data.forEach(r => { m[r.order_id] = (m[r.order_id] || 0) + 1; });
+      setUnreadMap(m);
+    };
+    tick(); const t = setInterval(tick, 15000);
+    return () => { on = false; clearInterval(t); };
+  }, []);
   const [openMap, setOpenMap] = React.useState({}); // การ์ดออเดอร์หุบ/กางรายใบ (เจ้าของสั่ง 2026-09-15 ให้เหมือน admin/pro) — เริ่มหุบทุกใบแบบ pro.html
   const [chartMode, setChartMode] = React.useState('d'); // กราฟรายได้: d รายวัน · m รายเดือน · y รายปี
   const [page, setPage] = React.useState('home');      // เมนูซ้าย: home/orders/income/bills/customers
@@ -1194,7 +1244,8 @@ function Dash(){
               {shipOf(o) > 0 && <span style={css(jobValue(o) > 0 ? "border-left:1.5px solid var(--line);padding:0 12px" : "padding-right:12px")}>ค่าส่ง <b style={css("font-family:'IBM Plex Mono',monospace;color:var(--green)")}>{baht(shipOf(o))}</b></span>}
             </div>
             <Manage o={o} onPrice={setPrice} onPayout={markPayout} onAdvance={advance} onRetreat={retreat} onApplyEdits={applyEdits} onCancel={cancelOrder} onRemove={removeOrder}/>
-            <Chat o={o}/>
+            {/* Live Chat ลูกค้า — ปุ่ม + ป้ายข้อความใหม่ เปิดเป็นห้องแชท (เจ้าของสั่ง 2026-10-07: เลิกกางยาวในการ์ด) */}
+            <ChatDock o={o} onSeen={clearUnread} unread={unreadMap[o.id] || 0}/>
             <MpChat o={o} me="moreprint" title="ช่องแชทกับร้านอุดมสุขปริ้นติ้ง (แจ้งปัญหา)"/>
             </React.Fragment>}
           </div>

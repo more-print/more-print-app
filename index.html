@@ -657,12 +657,35 @@ class App extends React.Component {
     this.purgeCancelledLocal();
     // โหลดข้อความใหม่จากร้านขณะเปิดหน้าติดตาม (ทำงานต่อแม้ออเดอร์ส่งแล้ว)
     this.chatTimer = setInterval(() => { if ((this.state.screen === 'track' || this.state.screen === 'chat') && (this.state.chatFor || this.state.order)) this.loadChat(); }, 8000);
+    // จับการเลื่อนของทั้งหน้าต่างตอนอยู่หน้าแชท (ตัว scroll จริง) — เลื่อนขึ้น = เลิกติดก้นจอ
+    this._winScrollChat = () => {
+      if (this.state.screen !== 'chat') return;
+      const el = this.chatScrollEl();
+      this._chatStick = el.scrollHeight - el.scrollTop - el.clientHeight < 90;
+    };
+    window.addEventListener('scroll', this._winScrollChat, { passive: true });
     this.syncNight();
   }
-  componentDidUpdate(){ this.syncNight(); this.syncMap(); }
+  componentDidUpdate(){ this.syncNight(); this.syncMap(); this.syncChatScroll(); }
+  // ── เลื่อนแชทแบบมีมารยาท (เจ้าของสั่ง 2026-10-07): ลงล่างสุดเฉพาะตอนเปิดห้อง/ผู้ใช้อยู่ก้นจอ/ส่งเอง — กำลังไล่อ่านข้อความเก่าห้ามดึงลง ──
+  // ตัว scroll จริงของหน้าแชทคือ "ทั้งหน้าต่าง" (เชลล์โตตามเนื้อหา กล่องแชทไม่ overflow เอง) — เลือกตัวที่ overflow จริงเสมอ
+  chatScrollEl(){
+    const box = this._chatBox, d = document.scrollingElement || document.documentElement;
+    return (box && box.scrollHeight > box.clientHeight + 4) ? box : d;
+  }
+  syncChatScroll(){
+    if (this.state.screen !== 'chat' || !this._chatBox) { this._chatN = null; return; }
+    const el = this.chatScrollEl();
+    const n = (this.state.chat || []).length + (this.state.chatBots || []).length;
+    const first = this._chatN == null;
+    if (first) this._chatStick = true; // เพิ่งเปิดห้อง — เริ่มที่ข้อความล่าสุดเสมอ
+    if ((first || n !== this._chatN) && this._chatStick) el.scrollTop = el.scrollHeight;
+    this._chatN = n;
+  }
   componentWillUnmount(){
     clearInterval(this.clockTimer); clearInterval(this.trackTimer);
     clearTimeout(this.toastTimer); clearTimeout(this._revTimer); clearTimeout(this._distTimer); clearInterval(this._shopTimer);
+    if (this._winScrollChat) window.removeEventListener('scroll', this._winScrollChat);
     if (this._map) { this._map.remove(); this._map = null; }
   }
 
@@ -2282,6 +2305,7 @@ class App extends React.Component {
   sendChat(){
     const s = this.state, body = (s.chatText || '').trim(), co = s.chatFor || s.order;
     if (!body || s.chatBusy || !co) return;
+    this._chatStick = true; // ส่งเอง = พากลับลงไปดูข้อความล่าสุด
     if (!this.db) { // โหมดตัวอย่าง
       this.setState({ chat: [...(s.chat || []), { id: Date.now(), sender: 'customer', body, created_at: new Date().toISOString() }], chatText: '' });
       return;
@@ -4618,7 +4642,8 @@ class App extends React.Component {
                 <div style={css("font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--sub)")}>ออเดอร์ {v.orderId} · {v.trackLabel}</div>
               </div>
             </div>
-            <div style={css("flex:1;overflow-y:auto;padding:16px 20px;display:flex;flex-direction:column;gap:9px;min-height:0")}>
+            <div ref={el => { this._chatBox = el; }} onScroll={() => { const el = this.chatScrollEl(); this._chatStick = el.scrollHeight - el.scrollTop - el.clientHeight < 90; }}
+              style={css("flex:1;overflow-y:auto;padding:16px 20px;display:flex;flex-direction:column;gap:9px;min-height:0")}>
               {/* การ์ดสรุปออเดอร์ที่กำลังคุยถึง */}
               {v.chatOrder && (
                 <div style={css("background:var(--card);border:1px solid var(--line);border-radius:14px;padding:13px 15px;box-shadow:var(--shadow)")}>
