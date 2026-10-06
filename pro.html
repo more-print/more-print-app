@@ -372,7 +372,9 @@ function ProOrder({ o, idx, isOwner, payoutReady, onPrice, onPayout, onAdvance, 
       {/* ── ใบออเดอร์เต็ม: กดปุ่มถึงโชว์รายละเอียดทั้งหมด (ที่อยู่ · สลิป · ยอดเงิน) ── */}
       <button onClick={() => setFull(v => !v)} style={css("margin-top:10px;width:100%;height:38px;border:1px solid var(--line);border-radius:10px;background:var(--soft);color:var(--ink);font-size:12px;font-weight:700;cursor:pointer")}>{FI.clipboard(13)} {full ? 'ซ่อนใบออเดอร์เต็ม ▴' : 'ดูใบออเดอร์เต็ม — ที่อยู่ · สลิป · ยอดเงิน ▾'}</button>
       {full && <div style={css("margin-top:10px;border-top:1px dashed var(--line);padding-top:10px;display:flex;flex-direction:column;gap:8px")}>
-        {o.note && <div style={css("background:#fff7e0;border:1px solid #f0c36d;border-radius:10px;padding:8px 11px;font-size:12px;color:#8a6d1a;line-height:1.6")}><b>{FI.file(11)} หมายเหตุจากลูกค้า:</b> {o.note}</div>}
+        {/* แยกหมายเหตุชัดเจน (เจ้าของสั่ง 2026-10-07): การปริ้น = เหลือง · การส่ง = ฟ้า */}
+        {o.note && <div style={css("background:#fff7e0;border:1px solid #f0c36d;border-radius:10px;padding:8px 11px;font-size:12px;color:#8a6d1a;line-height:1.6")}><b>{FI.file(11)} หมายเหตุการปริ้น (จากลูกค้า):</b> {o.note}</div>}
+        {o.ship_note && <div style={css("background:#e7f5ff;border:1px solid #74c0fc;border-radius:10px;padding:8px 11px;font-size:12px;color:#1864ab;line-height:1.6")}><b>🚚 หมายเหตุการส่ง (จากลูกค้า):</b> {o.ship_note}</div>}
         <div style={css("display:flex;gap:10px;font-size:12px")}>
           <span style={css("flex:none;width:76px;color:var(--sub);font-weight:600")}>{FI.truck(13)} การรับงาน</span>
           <div style={css("flex:1;min-width:0;line-height:1.6")}>

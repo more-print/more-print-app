@@ -484,7 +484,7 @@ class App extends React.Component {
     let rc0 = null; try { rc0 = JSON.parse(localStorage.getItem('mp_rc') || 'null'); } catch (e) {} // ข้อมูลผู้ซื้อในใบเสร็จที่เคยกรอก
     if (!rc0) try { const m = document.cookie.match(/(?:^|;\s*)mp_rc_bk=([^;]+)/); rc0 = m ? JSON.parse(decodeURIComponent(m[1])) : null; } catch (e) {} // สำรองในคุกกี้ — เครื่องล้าง storage เองก็ยังจำได้
     this.state = {
-      screen: 'home', files: [], tier: 'standard', ptype: 'bw', paper: 'A4', sides: 1, orient: 'portrait', nup: 1, bind: 'none', copies: 1, note: '',
+      screen: 'home', files: [], tier: 'standard', ptype: 'bw', paper: 'A4', sides: 1, orient: 'portrait', nup: 1, bind: 'none', copies: 1, note: '', shipNote: '',
       shopOpen: true, // สถานะรับออเดอร์จากหลังบ้าน (false = ร้านกดปิดรับชั่วคราว)
       shopRain: false, // โหมดฝนตก (ร้านกดจากหลังบ้าน) — ทุกงานแบบจัดส่ง (Pro+Standard) บังคับรถยนต์
       shopNightOff: false, // หลังบ้านบังคับปิดโหมดกลางคืนชั่วคราว (shop_status.night_off) — เว็บเป็นกลางวันปกติ ไว้แคปจอทำสื่อ (2026-09-12)
@@ -1740,7 +1740,8 @@ class App extends React.Component {
         night_fee: c.nightFee || 0, // ตามสูตรจริง — งาน Pro = 0 (Standard คิดทุกแบบรวมมารับเอง ตั้งแต่ 2026-09-17)
         total: c.grandTotal, status: 1, times: [t0, '', '', ''],
         coupon: c.coupon || null, discount: c.discount || 0,
-        note: (s.note || '').trim().slice(0, 300) || null // หมายเหตุ/รายละเอียดงานจากลูกค้า
+        note: (s.note || '').trim().slice(0, 300) || null, // หมายเหตุการปริ้น/รายละเอียดงานจากลูกค้า
+        ship_note: (s.shipNote || '').trim().slice(0, 300) || null // หมายเหตุการส่ง (ขั้นจุดส่ง — เจ้าของสั่ง 2026-10-07 แยกจากหมายเหตุการปริ้นชัดเจน)
       };
       // ── ตาข่ายกันออเดอร์หลุด (2026-09-14 — เคสจริง: เน็ตลูกค้าสะดุดตอนกดยืนยัน แถวออเดอร์ไม่ลงฐานข้อมูล หลังบ้าน/LINE ไม่เห็นเลย) ──
       // จด payload ลงเครื่องก่อนยิง insert เสมอ — insert พลาดเมื่อไหร่ ระบบส่งซ้ำอัตโนมัติได้จนกว่าจะถึงร้าน (ปิดเว็บแล้วเปิดใหม่ก็ยังส่งต่อ)
@@ -1759,7 +1760,7 @@ class App extends React.Component {
 
   // insert แถวออเดอร์พร้อมตัดคอลัมน์เสริมที่ฐานข้อมูลอาจยังไม่มี (ตัดสะสมได้หลายกลุ่ม ออเดอร์ต้องไม่หาย) — คืน error หรือ null
   async insertOrderRow(payload){
-    const optionalCols = [['orient', 'nup'], ['coupon', 'discount'], ['line_uid'], ['pickup'], ['ptype'], ['note']];
+    const optionalCols = [['orient', 'nup'], ['coupon', 'discount'], ['line_uid'], ['pickup'], ['ptype'], ['note'], ['ship_note']];
     const body = { ...payload };
     let { error } = await this.db.from('orders').insert(body);
     for (let pass = 0; pass < 2 && error; pass++) { // สองรอบ — ฐานข้อมูลรายงานคอลัมน์หายทีละตัว ลำดับไม่แน่นอน
@@ -2812,6 +2813,7 @@ class App extends React.Component {
       printTotalAll: c.printTotal + c.nightFee, // ยอดบรรทัด "ทั้งหมด" ของกล่องราคาโดยประมาณ = ปริ้น + เข้าเล่ม + กลางคืน (เดิมโชว์ printTotal ที่ไม่รวมกลางคืน — ขัดกับบรรทัดบน ลูกค้างง)
       deliveryCost: c.deliveryCost, grandTotal: c.grandTotal,
       noteText: s.note, setNote: (e) => this.setState({ note: e.target.value }),
+      shipNoteText: s.shipNote, setShipNote: (e) => this.setState({ shipNote: e.target.value }),
       // ตัวอย่างงานจริง: ป้ายเทา "ตัวอย่างงาน" ท้ายแถวเลือกประเภท (เฉพาะประเภทที่มีรูปจริง) · แตะป้าย = รูปขยายเต็มจอ
       prevOk: s.prevOk,
       prevOpen: s.prevOpen, openPrev: (k) => this.setState({ prevOpen: k }), closePrev: () => this.setState({ prevOpen: false }),
@@ -3092,7 +3094,7 @@ class App extends React.Component {
           document.cookie = 'mp_rc_bk=' + encodeURIComponent(rcSave) + ';max-age=31536000;path=/;SameSite=Lax'; // สำรองคุกกี้ 1 ปี
         } catch (e) {}
         this.setState({ order: { id, total: c.grandTotal, times: [t0, '', '', ''], plabel, eta, pickup, ts, express: isExp, addr: oaddr, phone: s.phone, veh: oveh, copies: s.copies, pages: c.totalPages, dist: s.distKm, rc: rcReq, cp: cpUsed }, trackStep: 1, cancelReason: '', screen: 'track',
-          files: [], slip: null, copies: 1, bind: 'none', express: false, handoff: '', tier: 'standard', ptype: 'bw', paper: 'A4', sides: 1, orient: 'portrait', nup: 1, note: '', proPickup: false, stdPickup: false, recvSel: false, vehSel: false, proLam: 'none', proSpecial: false, proStaple: false, proStand: false, vehicle: 'bike', trackOpen: false, trackMin: false, histOpen: null, chatFor: null, chatFrom: 'track', selfCancelArm: false, couponCode: '', couponOk: null });
+          files: [], slip: null, copies: 1, bind: 'none', express: false, handoff: '', tier: 'standard', ptype: 'bw', paper: 'A4', sides: 1, orient: 'portrait', nup: 1, note: '', shipNote: '', proPickup: false, stdPickup: false, recvSel: false, vehSel: false, proLam: 'none', proSpecial: false, proStaple: false, proStand: false, vehicle: 'bike', trackOpen: false, trackMin: false, histOpen: null, chatFor: null, chatFrom: 'track', selfCancelArm: false, couponCode: '', couponOk: null });
         // จำออเดอร์ไว้ในเครื่อง — ปิดเว็บแล้วกลับมา การติดตามยังอยู่
         try {
           const nod = { id, total: c.grandTotal, times: [t0, '', '', ''], step: 1, plabel, eta, pickup, ts, express: isExp, addr: oaddr, phone: s.phone, veh: oveh, copies: s.copies, pages: c.totalPages, dist: s.distKm, rc: rcReq, cp: cpUsed };
@@ -4280,6 +4282,9 @@ class App extends React.Component {
               </React.Fragment>}
               <div style={css("margin-top:10px;font-size:13px;font-weight:600;color:var(--ink)")}>เบอร์โทรผู้รับ <span style={css("color:#d9480f")}>*</span></div>
               <input value={v.phone} onChange={v.setPhone} placeholder="08x-xxx-xxxx" inputMode="tel" maxLength={12} style={css("margin-top:6px;width:100%;box-sizing:border-box;height:42px;border:1px solid var(--line);border-radius:10px;background:var(--soft);color:var(--ink);padding:0 12px;font-size:13px;outline:none")}/>
+              <div style={css("margin-top:10px;font-size:13px;font-weight:600;color:var(--ink)")}>หมายเหตุการส่ง <span style={css("font-weight:400;color:var(--sub)")}>— กรอกหรือไม่กรอกก็ได้</span></div>
+              <textarea value={v.shipNoteText} onChange={v.setShipNote} rows={2} maxLength={300} placeholder="เช่น ฝากไว้ที่ป้อม รปภ. / โทรก่อนถึง 5 นาที / วางหน้าห้อง 204"
+                style={css("margin-top:6px;width:100%;box-sizing:border-box;border:1px solid var(--line);border-radius:10px;background:var(--soft);color:var(--ink);padding:10px 12px;font-size:13px;outline:none;resize:none;font-family:inherit;line-height:1.5")}></textarea>
             </div>
             {v.handoffOn && (
               <div style={css("background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px;box-shadow:var(--shadow)")}>

@@ -64,6 +64,7 @@ const DEMO_ORDERS = [
     files: [{ name: 'รายงานสรุปวิชา.pdf', pages: 24, path: null }, { name: 'slides-present.pptx', pages: 12, path: null }],
     color: false, paper: 'A4', sides: 2, bind: 'corner', copies: 2,
     point: 'คณะวิศวกรรมฯ', addr: 'ตึก EN ชั้น 2 หน้าลิฟต์', phone: '081-234-5678', time: '14:30', express: true, night: false, lat: 16.4740, lng: 102.8230,
+    note: 'หน้าปกปริ้นสีด้วยครับ', ship_note: 'ฝากไว้ที่ป้อม รปภ. ตึก EN ได้เลยครับ',
     print_cost: 72, bind_cost: 10, delivery_cost: 30, night_fee: 0, total: 112, status: 2, times: ['13:02', '13:10', '', ''] },
   { id: '#MP-4511', created_at: new Date(Date.now() - 2*3600000).toISOString(),
     customer_fname: 'มินตรา', customer_lname: 'พาเพลิน', customer_phone: '095-888-1122', customer_email: 'mintra@kku.ac.th',
@@ -522,6 +523,8 @@ function OrderCard({ o, idx, onAdvance, onRetreat, onApplyEdits, onCancel, onRem
               {o.ptype === 'pro' && <div style={css("margin-top:4px;font-size:11px;font-weight:700;color:#c92a2a;line-height:1.5")}>งาน PRO ยังไม่มีเรทราคา — ตกลง/ยืนยันราคาปริ้นกับลูกค้าก่อนเริ่มงาน (ยอดที่ลูกค้าชำระแล้วคือค่าส่งเท่านั้น)</div>}
               {['coil', 'tape', 'glue', 'book'].includes(o.bind) && <div style={css("margin-top:4px;display:inline-block;font-size:11px;font-weight:700;background:#f3f0ff;color:#5f3dc4;border:1px solid #b197fc;padding:3px 10px;border-radius:8px")}>📚 งานเข้าเล่ม: {BIND_LABELS[o.bind]} × {o.copies || 1} ชุด — อย่าลืมเข้าเล่มก่อนส่งนะ</div>}
               {o.bind === 'corner' && <div style={css("margin-top:4px;display:inline-block;font-size:11px;font-weight:700;background:#fff3bf;color:#a16207;border:1px solid #f0dfa6;padding:3px 10px;border-radius:8px")}>📎 เย็บมุม × {o.copies || 1} ชุด — อย่าลืมเย็บลวดมุมซ้ายบนก่อนส่งนะ</div>}
+              {/* หมายเหตุการปริ้นอยู่คู่ประเภทงาน · หมายเหตุการส่งอยู่คู่จุดส่ง — แยกชัดเจน (เจ้าของสั่ง 2026-10-07) */}
+              {o.note && <div style={css("margin-top:6px;background:#fff7e0;border:1px solid #f0c36d;border-radius:10px;padding:8px 11px;font-size:12.5px;color:#8a6d1a;line-height:1.6")}><b>📝 หมายเหตุการปริ้น (จากลูกค้า):</b> {o.note}</div>}
             </div>
           </div>
           <div style={css("display:flex;gap:10px;font-size:12px")}>
@@ -632,7 +635,7 @@ function OrderCard({ o, idx, onAdvance, onRetreat, onApplyEdits, onCancel, onRem
                 </React.Fragment>
               );
             })()}
-            {o.note && <div style={css("margin-top:6px;background:#fff7e0;border:1px solid #f0c36d;border-radius:10px;padding:8px 11px;font-size:12.5px;color:#8a6d1a;line-height:1.6")}><b>📝 หมายเหตุจากลูกค้า:</b> {o.note}</div>}
+            {o.ship_note && <div style={css("margin-top:6px;background:#e7f5ff;border:1px solid #74c0fc;border-radius:10px;padding:8px 11px;font-size:12.5px;color:#1864ab;line-height:1.6")}><b>🚚 หมายเหตุการส่ง (จากลูกค้า):</b> {o.ship_note}</div>}
             <div style={css("margin-top:6px;font-size:13px;font-weight:600")}>{(o.addr || o.point || '-').replace(/^(🚗|🏍️)\s*/, '')}</div>
             {/* ใบงานด่วน: ป้าย EXPRESS สีเหลือง ตัวใหญ่ ให้แอดมินเห็นทันที (เจ้าของสั่ง 2026-09-17) · ใบปกติโชว์เวลารับเหมือนเดิม */}
             <div style={css("font-size:12px;color:var(--sub);margin-top:2px")}>{o.express
