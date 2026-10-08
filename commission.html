@@ -67,6 +67,10 @@ const printDisc = (o) => { const d = o.discount || 0; if (d <= 0) return 0; if (
 const shipAdj = (a) => a && (a.kind === 'ship' || /^(เปลี่ยนเป็นจัดส่งถึงที่|เปลี่ยนเป็นมารับเองที่ร้าน|แก้จุดส่ง)/.test(String(a.label || '')));
 const adjJob = (o) => (o.adjustments || []).reduce((sm, a) => sm + (shipAdj(a) ? 0 : (Number(a.amt) || 0)), 0);
 const jobNet = (o) => Math.max(0, jobValue(o) + adjJob(o) - printDisc(o));
+// เรทคอมรายออเดอร์ (ใบดีลพิเศษ 2026-10-09): orders.comm_rate มีค่า (0-1) = ใช้เรทนั้น · ไม่มีค่า = ดีลปกติ 20/80 — ต้องตรงกับ pro.html
+const commRateOf = (o) => { const r = Number(o && o.comm_rate); return isFinite(r) && r > 0 && r < 1 ? r : COMMISSION; };
+const commOf = (o) => jobNet(o) * commRateOf(o);
+const partnerOf = (o) => jobNet(o) - commOf(o);
 // ราคาสุทธิบิลลูกค้า = o.total (ระบบอัปเดตเองทุกทาง); เผื่อออเดอร์เก่าไม่มี total ค่อยคำนวณจากส่วนประกอบ
 const netBill = (o) => Number(o.total) || Math.max(0, jobValue(o) + (o.delivery_cost || 0) + (o.night_fee || 0) + (o.adjustments || []).reduce((s, a) => s + (Number(a.amt) || 0), 0) - (o.discount || 0));
 const fmtDate = (iso) => { const d = new Date(iso); return d.getDate() + ' ' + TH_MONTHS[d.getMonth()] + ' ' + ((d.getFullYear() + 543) % 100); };
@@ -110,7 +114,7 @@ const stepsOf = (o) => o && o.pickup
 
 const DEMO = [
   { id: '#MP-PRO101', created_at: new Date().toISOString(), status: 4, print_cost: 600, bind_cost: 0, delivery_cost: 69, night_fee: 0, slip_path: 'x/slip.jpg', payout_at: new Date().toISOString(), customer_fname: 'สมชาย', paper: 'A1', copies: 2 },
-  { id: '#MP-PRO102', created_at: new Date(Date.now() - 20*3600000).toISOString(), status: 4, print_cost: 250, bind_cost: 0, delivery_cost: 37, night_fee: 10, slip_path: 'x/slip.jpg', payout_at: null, customer_fname: 'มินตรา', paper: 'A2', copies: 1 },
+  { id: '#MP-PRO102', created_at: new Date(Date.now() - 20*3600000).toISOString(), status: 4, print_cost: 250, bind_cost: 0, delivery_cost: 37, night_fee: 10, slip_path: 'x/slip.jpg', payout_at: null, customer_fname: 'มินตรา', paper: 'A2', copies: 1, comm_rate: 0.532 },
   { id: '#MP-PRO103', created_at: new Date(Date.now() - 3*3600000).toISOString(), status: 2, print_cost: 1000, bind_cost: 0, slip_path: 'x/slip.jpg', payout_at: null, customer_fname: 'ต้นกล้า', paper: 'A0', copies: 1 },
   { id: '#MP-PRO104', created_at: new Date(Date.now() - 40*24*3600000).toISOString(), status: 4, print_cost: 480, bind_cost: 0, delivery_cost: 89, night_fee: 0, slip_path: 'x/slip.jpg', payout_at: new Date().toISOString(), customer_fname: 'boat', paper: 'A2', copies: 3 }
 ];
@@ -627,7 +631,7 @@ function Dash(){
     const list = orders.filter(o => o.status === 4 && jobValue(o) > 0 && !o.payout_at && new Date(o.created_at) >= b.from && new Date(o.created_at) < b.to); // ใบที่ยังไม่ตั้งราคา (0 บาท) ห้ามประทับโอน — เดี๋ยวตั้งราคาแล้วเงินร้านหาย
     const ids = list.map(o => o.id);
     if (!ids.length) return;
-    const amount = Math.round(list.reduce((a, o) => a + jobNet(o) * (1 - COMMISSION), 0) * 100) / 100; // ฐานหลังหักส่วนลด (2026-09-15)
+    const amount = Math.round(list.reduce((a, o) => a + partnerOf(o), 0) * 100) / 100; // ฐานหลังหักส่วนลด (2026-09-15) · รายใบ รองรับใบดีลพิเศษ comm_rate
     if (!DB) { setOrders(l => l.map(x => ids.includes(x.id) ? { ...x, payout_at: ts } : x)); setPayPanel(null); setPaySlip(null); return; }
     setPayBusy(true);
     let slip_path = null;
@@ -661,7 +665,7 @@ function Dash(){
     setLoading(true);
     const cols = 'id,created_at,status,print_cost,bind_cost,slip_path,customer_fname,paper,copies';
     const colsFull = cols + ',payout_at,pickup,sides,customer_lname,customer_phone,delivery_cost,night_fee,times,cancel_reason,files,total,addr,point,lat,lng';
-    let r = await DB.from('orders').select(colsFull + ',cancelled_at,note,coupon,discount,adjustments').eq('ptype', 'pro').order('created_at', { ascending: false }).limit(3000);
+    let r = await DB.from('orders').select(colsFull + ',cancelled_at,note,coupon,discount,adjustments,comm_rate').eq('ptype', 'pro').order('created_at', { ascending: false }).limit(3000); // comm_rate = เรทคอมรายใบ (ยังไม่รัน SQL = ตกลง fallback ล่าง)
     if (r.error) r = await DB.from('orders').select(colsFull).eq('ptype', 'pro').order('created_at', { ascending: false }).limit(3000); // ยังไม่รัน SQL ลบอัตโนมัติ
     if (r.error) r = await DB.from('orders').select(cols).eq('ptype', 'pro').order('created_at', { ascending: false }).limit(3000);
     if (!r.error && r.data) { setOrders(r.data.filter(o => !cancelledExpired(o))); purgeCancelled(r.data); }
@@ -769,18 +773,18 @@ function Dash(){
   const doneAll = orders.filter(o => o.status === 4);
   const shipOf = (o) => (o.delivery_cost || 0) + (o.night_fee || 0);
   const pending = orders.filter(o => o.status > 0 && o.status < 4);
-  const pendingComm = pending.reduce((a, o) => a + jobNet(o) * COMMISSION, 0);
+  const pendingComm = pending.reduce((a, o) => a + commOf(o), 0);
   const agg = (since) => {
     const rows = done.filter(o => new Date(o.created_at) >= since);
     const job = rows.reduce((a, o) => a + jobNet(o), 0);
     const ship = doneAll.filter(o => new Date(o.created_at) >= since).reduce((a, o) => a + shipOf(o), 0);
-    return { n: rows.length, job, comm: job * COMMISSION, partner: job * (1 - COMMISSION), ship };
+    return { n: rows.length, job, comm: rows.reduce((a, o) => a + commOf(o), 0), partner: rows.reduce((a, o) => a + partnerOf(o), 0), ship }; // รายใบ — รองรับใบดีลพิเศษ comm_rate
   };
   // ── ข้อมูลกราฟรายได้ของเรา (คอมตาม COMMISSION + ค่าส่ง จากงานที่จบแล้ว) ──
   const chartData = (() => {
     const income = (d0, d1) => {
       const inB = (o) => { const t = new Date(o.created_at); return t >= d0 && t < d1; };
-      return done.filter(inB).reduce((a, o) => a + jobNet(o) * COMMISSION, 0)
+      return done.filter(inB).reduce((a, o) => a + commOf(o), 0)
            + doneAll.filter(inB).reduce((a, o) => a + shipOf(o), 0);
     };
     const out = [];
@@ -828,9 +832,9 @@ function Dash(){
       if (!map[key]) map[key] = { from,
         to: billMode === 'm' ? new Date(from.getFullYear(), from.getMonth() + 1, 1)
                              : new Date(from.getFullYear(), from.getMonth(), from.getDate() + 7),
-        n: 0, job: 0, unpaid: 0, disc: 0, dn: 0 };
+        n: 0, job: 0, commSum: 0, netSum: 0, unpaid: 0, disc: 0, dn: 0 };
       const b = map[key];
-      b.n++; b.job += jobNet(o);
+      b.n++; b.job += jobNet(o); b.commSum += commOf(o); b.netSum += partnerOf(o); // รายใบ — รองรับใบดีลพิเศษ comm_rate
       if (printDisc(o) > 0) { b.disc += printDisc(o); b.dn++; } // ส่วนลดที่ลูกค้าใช้ (หักจากฐานแบ่งแล้ว) — โชว์ในแถวรอบบิล
       if (!o.payout_at) b.unpaid++;
     });
@@ -841,7 +845,7 @@ function Dash(){
       const label = billMode === 'm'
         ? 'เดือน ' + TH_MONTHS[b.from.getMonth()] + ' ' + (b.from.getFullYear() + 543)
         : fmtD(b.from) + ' – ' + fmtD(endShow) + ' ' + ((endShow.getFullYear() + 543) % 100);
-      return { ...b, label, comm: b.job * COMMISSION, net: b.job * (1 - COMMISSION), current: now < b.to };
+      return { ...b, label, comm: b.commSum, net: b.netSum, current: now < b.to };
     });
   })();
 
@@ -869,12 +873,12 @@ function Dash(){
     const rows = done.filter(o => { const d = new Date(o.created_at);
       return bill.from ? (d >= bill.from && d < bill.to) : (d.getFullYear() === bill.y && d.getMonth() === bill.m); });
     const job = rows.reduce((a, o) => a + jobNet(o), 0);
-    const comm = job * COMMISSION, net = job - comm;
+    const comm = rows.reduce((a, o) => a + commOf(o), 0), net = job - comm; // รายใบ — รองรับใบดีลพิเศษ comm_rate
     // ส่วนลดที่ลูกค้าใช้ในรอบนี้ (เฉพาะโค้ดลดราคางาน — โค้ดส่งฟรีลดฝั่งค่าส่ง MORE PRINT ไม่เข้าบิลนี้)
     const discTotal = rows.reduce((a, o) => a + printDisc(o), 0);
     const discN = rows.filter(o => printDisc(o) > 0).length;
     const unpaid = rows.filter(o => !o.payout_at);
-    const unpaidNet = unpaid.reduce((a, o) => a + jobNet(o) * (1 - COMMISSION), 0);
+    const unpaidNet = unpaid.reduce((a, o) => a + partnerOf(o), 0);
     const monthLabel = bill.label || (TH_MONTHS[bill.m] + ' ' + (bill.y + 543));
     const forUs = bill.who === 'us'; // บิลรายได้ของเรา — ตัวเลขกลับด้านจากบิลร้าน
     const d0 = new Date();
@@ -1240,8 +1244,8 @@ function Dash(){
             <div style={css("margin-top:9px;display:flex;align-items:center;gap:0;flex-wrap:wrap;font-size:12px;font-weight:600")}>
               {jobValue(o) > 0 && <React.Fragment>
                 <span style={css("padding-right:12px")}>ค่างานปริ้น <b style={css("font-family:'IBM Plex Mono',monospace;color:var(--ink)")}>{baht(jobNet(o))}</b></span>
-                <span style={css("border-left:1.5px solid var(--line);padding:0 12px")}>คอมฯ <b style={css("font-family:'IBM Plex Mono',monospace;color:var(--acc)")}>{baht(jobNet(o) * COMMISSION)}</b></span>
-                <span style={css("border-left:1.5px solid var(--line);padding:0 12px")}>ร้านได้รับ <b style={css("font-family:'IBM Plex Mono',monospace;color:var(--purple)")}>{baht(jobNet(o) * (1 - COMMISSION))}</b></span>
+                <span style={css("border-left:1.5px solid var(--line);padding:0 12px")}>คอมฯ{commRateOf(o) !== COMMISSION ? ' ' + (Math.round(commRateOf(o) * 1000) / 10) + '%' : ''} <b style={css("font-family:'IBM Plex Mono',monospace;color:var(--acc)")}>{baht(commOf(o))}</b></span>
+                <span style={css("border-left:1.5px solid var(--line);padding:0 12px")}>ร้านได้รับ <b style={css("font-family:'IBM Plex Mono',monospace;color:var(--purple)")}>{baht(partnerOf(o))}</b></span>
               </React.Fragment>}
               {shipOf(o) > 0 && <span style={css(jobValue(o) > 0 ? "border-left:1.5px solid var(--line);padding:0 12px" : "padding-right:12px")}>ค่าส่ง <b style={css("font-family:'IBM Plex Mono',monospace;color:var(--green)")}>{baht(shipOf(o))}</b></span>}
             </div>

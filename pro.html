@@ -103,11 +103,13 @@ const printDisc = (o) => { const d = o.discount || 0; if (d <= 0) return 0; if (
 const shipAdj = (a) => a && (a.kind === 'ship' || /^(เปลี่ยนเป็นจัดส่งถึงที่|เปลี่ยนเป็นมารับเองที่ร้าน|แก้จุดส่ง)/.test(String(a.label || '')));
 const adjJob = (o) => (o.adjustments || []).reduce((sm, a) => sm + (shipAdj(a) ? 0 : (Number(a.amt) || 0)), 0);
 const jobNet = (o) => Math.max(0, jobValue(o) + adjJob(o) - printDisc(o));
-const commOf = (o) => jobNet(o) * COMMISSION;
+// เรทคอมรายออเดอร์ (ใบดีลพิเศษ 2026-10-09): orders.comm_rate มีค่า (0-1) = ใช้เรทนั้น · ไม่มีค่า = ดีลปกติ 20/80 — ต้องตรงกับ commission.html
+const commRateOf = (o) => { const r = Number(o && o.comm_rate); return isFinite(r) && r > 0 && r < 1 ? r : COMMISSION; };
+const commOf = (o) => jobNet(o) * commRateOf(o);
 const partnerOf = (o) => jobNet(o) - commOf(o);
 
 const DEMO = [
-  { id: '#MP-PRO001', created_at: new Date(Date.now() - 2*3600000).toISOString(), status: 2, customer_fname: 'สมชาย', customer_lname: 'ใจดี', customer_phone: '081-111-2222', paper: 'A1', sides: 1, copies: 2, addr: '🏍️ หอ 9 ตึก B ชั้น 2', lat: 16.4712, lng: 102.8221, print_cost: 600, bind_cost: 0, delivery_cost: 39, night_fee: 0, total: 639, payout_at: null, files: [{ name: 'โปสเตอร์งานวิจัย.pdf', pages: 1, path: null, drive_url: 'https://drive.google.com/file/d/demo' }] },
+  { id: '#MP-PRO001', created_at: new Date(Date.now() - 2*3600000).toISOString(), status: 2, customer_fname: 'สมชาย', customer_lname: 'ใจดี', customer_phone: '081-111-2222', paper: 'A1', sides: 1, copies: 2, addr: '🏍️ หอ 9 ตึก B ชั้น 2', lat: 16.4712, lng: 102.8221, print_cost: 600, bind_cost: 0, delivery_cost: 39, night_fee: 0, total: 639, payout_at: null, comm_rate: 0.532, files: [{ name: 'โปสเตอร์งานวิจัย.pdf', pages: 1, path: null, drive_url: 'https://drive.google.com/file/d/demo' }] },
   { id: '#MP-PRO002', created_at: new Date(Date.now() - 26*3600000).toISOString(), status: 2, customer_fname: 'มินตรา', customer_lname: 'พาเพลิน', customer_phone: '095-333-4444', paper: 'A2', sides: 2, copies: 1, print_cost: 250, bind_cost: 0, delivery_cost: 0, night_fee: 0, total: 250, payout_at: null, pickup: true },
   { id: '#MP-PRO003', created_at: new Date(Date.now() - 30*3600000).toISOString(), status: 4, customer_fname: 'ต้นกล้า', customer_lname: 'เรียนดี', customer_phone: '062-555-6666', paper: 'A3', sides: 1, copies: 5, addr: '🚗 คณะสถาปัตย์ มข.', print_cost: 0, bind_cost: 0, delivery_cost: 39, night_fee: 0, total: 39, payout_at: null }
 ];
@@ -420,8 +422,8 @@ function ProOrder({ o, idx, isOwner, payoutReady, onPrice, onPayout, onAdvance, 
           {isOwner && adjJob(o) !== 0 && <div style={css("display:flex;justify-content:space-between")}><span style={css("color:#e8590c")}>รายการปรับเพิ่ม/ลด (เนื้องาน)</span><span style={css("font-family:'IBM Plex Mono',monospace;color:#e8590c;font-weight:600")}>{adjJob(o) > 0 ? '+' : '−'}{baht(Math.abs(adjJob(o)))}</span></div>}
           {isOwner && printDisc(o) > 0 && <div style={css("display:flex;justify-content:space-between")}><span style={css("color:#c2255c")}>ส่วนลดที่ลูกค้าใช้</span><span style={css("font-family:'IBM Plex Mono',monospace;color:#c2255c;font-weight:600")}>−{baht(printDisc(o))}</span></div>}
           {isOwner && (printDisc(o) > 0 || adjJob(o) !== 0) && <div style={css("display:flex;justify-content:space-between")}><span style={css("color:var(--sub)")}>ฐานคิดส่วนแบ่ง (รวมปรับ/หักส่วนลด)</span><span style={css("font-family:'IBM Plex Mono',monospace;font-weight:600")}>{baht(jobNet(o))}</span></div>}
-          {isOwner && <div style={css("display:flex;justify-content:space-between")}><span style={css("color:var(--sub)")}>ค่าคอม MORE PRINT ({Math.round(COMMISSION * 100)}%)</span><span style={css("font-family:'IBM Plex Mono',monospace;color:var(--acc);font-weight:600")}>−{baht(commOf(o))}</span></div>}
-          <div style={css("display:flex;justify-content:space-between;font-weight:700" + (isOwner ? ";border-top:1px dashed var(--line);padding-top:5px" : ""))}><span>{isOwner ? 'ยอดโอนให้ร้านพาร์ทเนอร์' : 'ส่วนของร้านคุณ (หลังหักคอม ' + Math.round(COMMISSION * 100) + '%)'}</span><span style={css("font-family:'IBM Plex Mono',monospace;color:var(--gold)")}>{baht(partnerOf(o))}</span></div>
+          {isOwner && <div style={css("display:flex;justify-content:space-between")}><span style={css("color:var(--sub)")}>ค่าคอม MORE PRINT ({Math.round(commRateOf(o) * 1000) / 10}%{commRateOf(o) !== COMMISSION ? ' · ใบดีลพิเศษ' : ''})</span><span style={css("font-family:'IBM Plex Mono',monospace;color:var(--acc);font-weight:600")}>−{baht(commOf(o))}</span></div>}
+          <div style={css("display:flex;justify-content:space-between;font-weight:700" + (isOwner ? ";border-top:1px dashed var(--line);padding-top:5px" : ""))}><span>{isOwner ? 'ยอดโอนให้ร้านพาร์ทเนอร์' : 'ส่วนของร้านคุณ (หลังหักคอม ' + (Math.round(commRateOf(o) * 1000) / 10) + '%)'}</span><span style={css("font-family:'IBM Plex Mono',monospace;color:var(--gold)")}>{baht(partnerOf(o))}</span></div>
           {isOwner && o.status !== 0 && !o.payout_at && (
             payoutReady
               ? <button onClick={askPayout} style={css("margin-top:6px;height:38px;border:none;border-radius:10px;background:" + (confirmPay ? "#0b7285" : "var(--gold)") + ";color:#fff;font-size:12.5px;font-weight:700;cursor:pointer")}>{confirmPay ? 'กดอีกครั้งเพื่อยืนยัน — โอนเงินแล้วจริงๆ' : 'โอนเงินให้ร้านแล้ว — บันทึก'}</button>
@@ -631,7 +633,7 @@ function Dash({ role }){
     if (!DB) return;
     setLoading(true);
     const cols = 'id,created_at,status,times,cancel_reason,customer_fname,customer_lname,customer_phone,paper,sides,copies,print_cost,bind_cost,delivery_cost,night_fee,total,files,slip_path,addr,point,lat,lng';
-    let r = await DB.from('orders').select(cols + ',payout_at,pickup,cancelled_at,note,coupon,discount,adjustments').eq('ptype', 'pro').order('created_at', { ascending: false }).limit(2000);
+    let r = await DB.from('orders').select(cols + ',payout_at,pickup,cancelled_at,note,coupon,discount,adjustments,comm_rate').eq('ptype', 'pro').order('created_at', { ascending: false }).limit(2000); // comm_rate = เรทคอมรายใบ (ยังไม่รัน SQL = ตกลง fallback ล่างเอง)
     if (r.error) r = await DB.from('orders').select(cols + ',payout_at,pickup').eq('ptype', 'pro').order('created_at', { ascending: false }).limit(2000); // ยังไม่รัน SQL ลบอัตโนมัติ
     if (r.error) {
       // ยังไม่มีคอลัมน์ payout_at — โหลดแบบไม่มีไปก่อน (ตั้งราคายังใช้ได้ แต่บันทึกการโอนยังไม่ได้)
@@ -783,7 +785,8 @@ function Dash({ role }){
   const agg = (since) => {
     const rows = valid.filter(o => new Date(o.created_at) >= since);
     const job = rows.reduce((a, o) => a + jobNet(o), 0); // ฐานหลังหักส่วนลด (2026-09-15)
-    return { n: rows.length, job, comm: job * COMMISSION, partner: job * (1 - COMMISSION), unpriced: rows.filter(o => jobValue(o) === 0).length };
+    // คอม/ส่วนแบ่งรวมแบบรายใบ (ไม่ใช่ job×เรทเดียว) — รองรับใบดีลพิเศษ comm_rate (2026-10-09)
+    return { n: rows.length, job, comm: rows.reduce((a, o) => a + commOf(o), 0), partner: rows.reduce((a, o) => a + partnerOf(o), 0), unpriced: rows.filter(o => jobValue(o) === 0).length };
   };
   // ── ตัวเลขภาพรวมวันนี้ (การ์ดบนสุดแบบแดชบอร์ด) ──
   const ovToday = valid.filter(o => new Date(o.created_at) >= today);
@@ -810,8 +813,9 @@ function Dash({ role }){
       const done = rows.filter(o => o.status === 4 && jobValue(o) > 0);
       const job = done.reduce((a, o) => a + jobNet(o), 0);
       const inflight = rows.filter(o => o.status > 0 && o.status < 4).reduce((a, o) => a + jobNet(o), 0);
-      out.push({ label: 'จ. ' + fmtDM(from) + ' – อา. ' + fmtDM(new Date(to.getTime() - 86400000)), job, mine: Math.round(job * (1 - COMMISSION) * 100) / 100,
-        n: done.length, inflight: Math.round(inflight * (1 - COMMISSION) * 100) / 100, paidAll: done.length > 0 && done.every(o => o.payout_at), cur: i === 0 });
+      // ส่วนแบ่งร้านรวมรายใบ (รองรับใบดีลพิเศษ comm_rate)
+      out.push({ label: 'จ. ' + fmtDM(from) + ' – อา. ' + fmtDM(new Date(to.getTime() - 86400000)), job, mine: Math.round(done.reduce((a, o) => a + partnerOf(o), 0) * 100) / 100,
+        n: done.length, inflight: Math.round(rows.filter(o => o.status > 0 && o.status < 4).reduce((a, o) => a + partnerOf(o), 0) * 100) / 100, paidAll: done.length > 0 && done.every(o => o.payout_at), cur: i === 0 });
     }
     return out;
   })();
@@ -845,8 +849,8 @@ function Dash({ role }){
   valid.forEach(o => {
     const d = new Date(o.created_at);
     const k = d.getFullYear() * 100 + d.getMonth();
-    if (!byM[k]) byM[k] = { y: d.getFullYear(), m: d.getMonth(), n: 0, job: 0 };
-    byM[k].n++; byM[k].job += jobNet(o);
+    if (!byM[k]) byM[k] = { y: d.getFullYear(), m: d.getMonth(), n: 0, job: 0, comm: 0, partner: 0 };
+    byM[k].n++; byM[k].job += jobNet(o); byM[k].comm += commOf(o); byM[k].partner += partnerOf(o); // รายใบ — รองรับใบดีลพิเศษ comm_rate
   });
   const monthRows = Object.keys(byM).sort((a, b) => b - a).map(k => byM[k]);
   // ลูกค้าประจำงาน Pro — พาร์ทเนอร์เห็นชื่อ+สถิติการสั่ง (เบอร์โทรยังปิดไว้เหมือนเดิม เห็นเฉพาะเจ้าของ)
@@ -1030,7 +1034,7 @@ function Dash({ role }){
                   <td style={css("padding:7px 14px;font-size:12px;font-weight:700;white-space:nowrap")}>{TH_M[m.m]} {(m.y + 543) % 100}</td>
                   <td style={css("padding:7px 14px;font-size:12px;color:var(--sub)")}>{m.n}</td>
                   <td style={css("padding:7px 14px;font-size:12px;text-align:right;font-family:'IBM Plex Mono',monospace")}>{baht(m.job)}</td>
-                  <td style={css("padding:7px 14px;font-size:12px;text-align:right;font-family:'IBM Plex Mono',monospace;font-weight:700;color:" + (isOwner ? "var(--acc)" : "var(--gold)"))}>{baht(m.job * (isOwner ? COMMISSION : 1 - COMMISSION))}</td>
+                  <td style={css("padding:7px 14px;font-size:12px;text-align:right;font-family:'IBM Plex Mono',monospace;font-weight:700;color:" + (isOwner ? "var(--acc)" : "var(--gold)"))}>{baht(isOwner ? m.comm : m.partner)}</td>
                 </tr>
               ))}
             </tbody>
