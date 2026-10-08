@@ -301,11 +301,15 @@ const PRO_BINDS = ['ไสกาว', 'ปกแข็ง', 'สันห่ว�
 // เข้าเล่มงาน Standard 3 แบบ +฿20/ชุด (นโยบาย 2026-09-08): เลือกได้เฉพาะ 09:00-21:29 (bindHoursOpen — เจ้าของขยับปิดจาก 22:00 เป็น 21:30 เมื่อ 2026-09-22) นอกช่วง = ซ่อนตัวเลือก
 // key บันทึกลงคอลัมน์ orders.bind ตรง ๆ — เพิ่ม/แก้ต้องแก้ป้ายใน admin.html (optionsLabel + CSV) คู่กันเสมอ
 // สันเกลียวคิดตามความหนาเล่ม (เจ้าของสั่ง 2026-10-05): ทุก ๆ 100 หน้าเอกสาร +฿30 — 1-100=฿30 · 101-200=฿60 · 201-300=฿90 ไล่ขึ้นเรื่อย ๆ (นับหน้าเอกสารต่อเล่ม ไม่เกี่ยวหน้าเดียว/หน้า-หลัง) · เทปผ้า/สันกาวยัง ฿20 เดิม
-const coilBindPrice = (pages) => 30 * Math.max(1, Math.ceil((pages || 1) / 100));
+// เรทค่าเข้าเล่ม Standard ใหม่ (เจ้าของสั่ง 2026-10-09 — ใช้ทุกแบบรวมสันเกลียว): นับ "แผ่นกระดาษจริง" ต่อเล่ม
+// ไม่เกิน 99 แผ่น ฿40 · 100-199 แผ่น ฿70 · จากนั้น +฿30 ทุก 100 แผ่น (200-299 = ฿100 · 300-399 = ฿130 …)
+// แผ่นจริง = หน้าเอกสาร ÷ (หน้า-หลัง 2 : หน้าเดียว 1) ÷ หน้าต่อแผ่น (nup) — ปัดขึ้นรายไฟล์ (ไฟล์ใหม่เริ่มแผ่นใหม่เสมอ)
+const stdBindPrice = (sheets) => sheets < 100 ? 40 : 70 + 30 * Math.floor((sheets - 100) / 100);
+const STD_BIND_SUB = 'เริ่ม ฿40 (ไม่เกิน 99 แผ่น) · 100-199 แผ่น ฿70 · +฿30 ทุก 100 แผ่นถัดไป';
 const STD_BINDS = [
-  { k: 'coil', ic: 'bindCoil', name: 'เข้าเล่มสันห่วงกระดูกงู / สันเกลียว', sub: 'เจาะรูใส่สันห่วงพลาสติก เปิดกางได้สุด · เริ่ม ฿30 (ทุก 100 หน้า +฿30)', price: 30 }, // ราคาจริงคิดตามหนา coilBindPrice — price ใช้เป็นฐานโชว์เท่านั้น
-  { k: 'tape', ic: 'bindTape', name: 'เข้าเล่มเทปผ้า (แลคซีน)', sub: 'เย็บแล้วปิดสันด้วยเทปผ้า เรียบร้อยทนทาน · ฿20/เล่ม', price: 20 },
-  { k: 'glue', ic: 'bindGlue', name: 'เข้าเล่มสันกาว', sub: 'ไสสันทากาว เรียบเนียนเหมือนหนังสือ · ฿20/เล่ม', price: 20 },
+  { k: 'coil', ic: 'bindCoil', name: 'เข้าเล่มสันห่วงกระดูกงู / สันเกลียว', sub: 'เจาะรูใส่สันห่วงพลาสติก เปิดกางได้สุด · ' + STD_BIND_SUB, price: 40 }, // ราคาจริงคิดตามหนา stdBindPrice — price ใช้เป็นฐานโชว์เท่านั้น
+  { k: 'tape', ic: 'bindTape', name: 'เข้าเล่มเทปผ้า (แลคซีน)', sub: 'เย็บแล้วปิดสันด้วยเทปผ้า เรียบร้อยทนทาน · ' + STD_BIND_SUB, price: 40 },
+  { k: 'glue', ic: 'bindGlue', name: 'เข้าเล่มสันกาว', sub: 'ไสสันทากาว เรียบเนียนเหมือนหนังสือ · ' + STD_BIND_SUB, price: 40 },
 ];
 // ── ราคางาน Pro (เจ้าของกำหนด 2026-08-20) — ต่อแผ่น ──
 const POSTER_SHEET = { A0: 500, A1: 250, A2: 125, A3: 50, A4: 25 };   // โปสเตอร์ /แผ่น (ด้านหน้าเดียว) — หน้า-หลัง ×2 · ไม่มีติดบอร์ด (A2-A0 ปรับใหม่ 2026-09-11)
@@ -1509,10 +1513,10 @@ class App extends React.Component {
       else if (s.proType === 'blueprint') { rate = BLUEPRINT_PRICE[s.proSize] ?? 0; pc = rate * shPro; }
       else if (s.proType === 'foldbook') {
         // พับครึ่งโฉมใหม่ (2026-09-13): ราคา = จำนวนหน้าเอกสาร × เรทต่อหน้า (ตามขนาดเล่ม) × จำนวนเล่ม
-        // + เคลือบต่อแผ่นกระดาษจริง (ceil(หน้า/4)) + เข้าเล่ม 20/เล่ม — พิมพ์หน้า-หลังเสมอ (เล่มพับ) ไม่มีตัวเลือกด้าน
+        // + เคลือบต่อแผ่นกระดาษจริง + เข้าเล่ม 20/เล่ม — เลือกด้านได้แล้ว (เจ้าของสั่ง 2026-10-09): หน้า-หลัง 1 แผ่นพับ = 4 หน้า · หน้าเดียว = 2 หน้า (เรทต่อหน้าเท่ากัน)
         const bk = FOLDBOOK_BOOK[s.proSize] || FOLDBOOK_BOOK.A4;
         rate = bk.perPage;
-        const fbSheets = Math.ceil(pages / 4); // แผ่นกระดาษจริง: 1 แผ่นพับ = 4 หน้าเอกสาร
+        const fbSheets = Math.ceil(pages / (s.sides === 2 ? 4 : 2)); // แผ่นกระดาษจริงตามด้านที่พิมพ์ (ใช้คิดค่าเคลือบ)
         const fbLam = (s.proLam === 'two' ? PRO_LAM_TWO : s.proLam === 'one' ? PRO_LAM_ONE : 0) * fbSheets;
         pc = (pages * bk.perPage + fbLam) * s.copies + PRO_FOLDBOOK_BIND * s.copies;
       }
@@ -1525,7 +1529,11 @@ class App extends React.Component {
     const proPickupOn = s.tier === 'pro' ? s.proPickup : s.stdPickup; // รับเองที่ร้าน: Pro = อุดมสุข · Standard = หน้าร้าน MORE PRINT
     if (proPickupOn) { deliveryFee = 0; farNote = false; outOfArea = false; }
     // 'landscape' (เล่มแนวนอน) ถูกตัดออกจากตัวเลือกแล้ว — เก็บสูตรราคาไว้ให้ออเดอร์เก่าที่เคยเลือกยังแสดงถูก
-    const bindCost = s.tier === 'pro' ? 0 : (s.bind === 'corner' ? 0 : s.bind === 'book' ? 40 : s.bind === 'landscape' ? 60 : s.bind === 'coil' ? coilBindPrice(pages) : ((STD_BINDS.find(b => b.k === s.bind) || {}).price || 0)) * s.copies; // เย็บมุมฟรี (2026-08-24) · เข้าเล่ม 3 แบบใหม่ ฿20/ชุด (2026-09-08) · book/landscape = dead branch ออเดอร์เก่า
+    // ค่าเข้าเล่ม (เรทใหม่ 2026-10-09 ใช้ทุกแบบรวมสันเกลียว): นับแผ่นกระดาษจริงต่อเล่ม — หน้า-หลัง 1 แผ่น = 2 หน้า · รวมหน้า (nup) หารเพิ่มตามจริง ปัดขึ้นรายไฟล์
+    const bindNup = (s.tier !== 'pro' && (s.nup || 1) > 1) ? s.nup : 1;
+    const bindPerSheet = (s.sides === 2 ? 2 : 1) * bindNup;
+    const bindSheets = s.files.reduce((a, f) => a + Math.ceil((f.pages || 1) / bindPerSheet), 0);
+    const bindCost = s.tier === 'pro' ? 0 : (s.bind === 'corner' ? 0 : s.bind === 'book' ? 40 : s.bind === 'landscape' ? 60 : STD_BINDS.some(b => b.k === s.bind) ? stdBindPrice(bindSheets) : 0) * s.copies; // เย็บมุมฟรี (2026-08-24) · book/landscape = dead branch ออเดอร์เก่า
     const deliveryCost = proPickupOn ? 0 : deliveryFee + expressFee;
     const nightFee2 = s.tier === 'pro' ? 0 : nightFee; // งาน Pro ไม่มีค่ากลางคืน · Standard คิดทุกแบบรวมมารับเอง (เจ้าของสั่ง 2026-09-17 — กลางคืนเป็นค่าปริ้นงาน ไม่ใช่ค่าส่ง)
     // ── โค้ดส่วนลด: หักจากยอดรวมท้ายสุด (ไม่ติดลบ) ──
@@ -1655,7 +1663,7 @@ class App extends React.Component {
       s.files.forEach((f, i) => lines.push({ name: 'ไฟล์ที่ ' + (i + 1) + ' · ' + f.name,
         desc: (f.pages * cp) + unit + c.rate, amt: amts[i] }));
       if (s.proType === 'foldbook') {
-        const fbSheets = Math.ceil(s.files.reduce((a, f) => a + (f.pages || 1), 0) / 4);
+        const fbSheets = Math.ceil(s.files.reduce((a, f) => a + (f.pages || 1), 0) / (s.sides === 2 ? 4 : 2)); // ต้องตรงสูตร calc (หน้าเดียว = 2 หน้า/แผ่นพับ)
         const fbLamRate = s.proLam === 'two' ? PRO_LAM_TWO : s.proLam === 'one' ? PRO_LAM_ONE : 0;
         if (fbLamRate > 0) adjust.push({ label: 'เคลือบฟิล์มลามิเนต ฿' + fbLamRate + ' × ' + fbSheets + ' แผ่น × ' + cp + ' เล่ม', amt: fbLamRate * fbSheets * cp });
         adjust.push({ label: 'เข้าเล่ม ฿' + PRO_FOLDBOOK_BIND + ' × ' + cp + ' เล่ม', amt: PRO_FOLDBOOK_BIND * cp });
@@ -1723,9 +1731,10 @@ class App extends React.Component {
     // ตัวเลือกเสริมพ่วงเข้าไปในป้าย — หลังบ้านทุกที่จะเห็นครบว่าลูกค้าเลือกอะไร (บันทึกลงช่อง paper)
     const ex = [];
     if (s.proType === 'foldbook') {
-      // พับครึ่งโฉมใหม่ (2026-09-13): พิมพ์หน้า-หลังเสมอ ไม่ต้องบอกด้าน — บอกจำนวนหน้าให้ร้านเห็นแทน
+      // พับครึ่ง: บอกจำนวนหน้า + ด้านที่พิมพ์ (เลือกได้ตั้งแต่ 2026-10-09) — ร้านเห็นในป้าย paper ทันที
       const fbPages = (s.files || []).reduce((a, f) => a + (f.pages || 1), 0);
       if (fbPages > 0) ex.push(fbPages + ' หน้า');
+      ex.push(s.sides === 2 ? 'พิมพ์หน้า-หลัง' : 'พิมพ์หน้าเดียว');
       if (s.proLam === 'one') ex.push('เคลือบฟิล์มลามิเนตหน้าเดียว');
       if (s.proLam === 'two') ex.push('เคลือบฟิล์มลามิเนตหน้า-หลัง');
     }
@@ -2713,8 +2722,8 @@ class App extends React.Component {
       shopClosed: s.shopOpen === false, // ร้านกดปิดรับออเดอร์จากหลังบ้าน
       rainMode: s.shopRain === true, // โหมดฝนตก — ทุกงานแบบจัดส่งบังคับรถยนต์
       proAfter17: s.now.getHours() >= 17, // แยกข้อความ: หลัง 17:00 = ผลิตพรุ่งนี้ · ก่อน 08:30 = ผลิตเช้านี้
-      pickStandard: () => this.setState({ tier: 'standard', paper: SIZE_BY_TYPE[s.ptype][0] }, () => this.remeasureOrigin()), // สลับประเภทงาน = ต้นทางค่าส่งเปลี่ยน — วัดระยะใหม่ถ้าปักหมุดค้างไว้
-      pickPro: () => this.setState({ tier: 'pro', sides: (s.proType === 'poster' || s.proType === 'portfolio' || s.proType === 'namecard' || s.proType === 'foldbook') ? s.sides : 1, copies: s.proType === 'sticker' ? 1 : s.copies }, () => this.remeasureOrigin()), // ประเภทที่พิมพ์หน้าเดียว ห้ามติดค่าหน้า-หลังค้างจาก Standard · สติ๊กเกอร์ล็อก 1 ชุดเสมอ (จำนวนชิ้นรายไฟล์คือตัวกำหนด)
+      pickStandard: () => this.setState({ tier: 'standard', paper: SIZE_BY_TYPE[s.ptype][0], recvSel: false }, () => this.remeasureOrigin()), // สลับประเภทงาน = ต้นทางค่าส่งเปลี่ยน — วัดระยะใหม่ถ้าปักหมุดค้างไว้ · การรับงานให้เลือกใหม่ (ขั้น 1 หน้าจุดส่ง)
+      pickPro: () => this.setState({ tier: 'pro', sides: (s.proType === 'poster' || s.proType === 'portfolio' || s.proType === 'namecard' || s.proType === 'foldbook') ? s.sides : 1, copies: s.proType === 'sticker' ? 1 : s.copies, recvSel: false }, () => this.remeasureOrigin()), // ประเภทที่พิมพ์หน้าเดียว ห้ามติดค่าหน้า-หลังค้างจาก Standard · สติ๊กเกอร์ล็อก 1 ชุดเสมอ (จำนวนชิ้นรายไฟล์คือตัวกำหนด)
       proTypeOpts: PRO_TYPES.map(t => ({
         k: t.k, on: s.proType === t.k, // การ์ดกริด 2 คอลัมน์ใช้ on จัดสไตล์เอง (2026-09-11 เลิกใช้สไตล์ seg)
         ...this.seg(t.label, s.proType === t.k,
@@ -2725,8 +2734,9 @@ class App extends React.Component {
       })),
       proPickupOn: c.proPickupOn,
       proPickupOpts: s.tier === 'pro' ? [
-        { svg: ICON_SCOOTER, name: 'บริการส่ง', sub: 'คิดราคาตามระยะทาง', on: !s.proPickup, pick: () => this.setState({ proPickup: false }) },
-        { svg: ICON_HANDOVER, name: 'มารับเองที่ร้าน', sub: 'ฟรี · ร้านอุดมสุขปริ้นติ้ง (กังสดาล)', on: s.proPickup, pick: () => this.setState({ proPickup: true }) }
+        // ย้ายมาอยู่ขั้นที่ 1 หน้าจุดส่งแบบเดียวกับ Standard (เจ้าของสั่ง 2026-10-09) — ต้องแตะเลือกก่อน ขั้นถัดไปถึงเปิด (recvSel)
+        { svg: ICON_SCOOTER, name: 'บริการส่งถึงที่', sub: 'คิดค่าส่งตามระยะทาง', on: s.recvSel && !s.proPickup, pick: () => this.setState({ proPickup: false, recvSel: true }) },
+        { svg: ICON_HANDOVER, name: 'มารับเองที่ร้าน', sub: 'ฟรี · ร้านอุดมสุขปริ้นติ้ง (กังสดาล)', on: s.recvSel && s.proPickup, pick: () => this.setState({ proPickup: true, recvSel: true }) }
       ] : [
         { svg: ICON_SCOOTER, name: 'บริการส่งถึงที่', sub: 'คิดค่าส่งตามระยะทาง', on: s.recvSel && !s.stdPickup, pick: () => this.setState({ stdPickup: false, recvSel: true }) },
         { svg: ICON_HANDOVER, name: 'รับหน้าร้าน', sub: 'ฟรี · ร้าน MORE PRINT (หอพักบริบูรณ์เพลส)', on: s.recvSel && s.stdPickup, pick: () => this.setState({ stdPickup: true, recvSel: true }) }
@@ -2745,7 +2755,7 @@ class App extends React.Component {
         return this.seg(lbl, s.proSize === sz, () => this.setState(st => ({ proSize: sz,
           ...(((st.proType === 'plate' && !['A4', 'A3'].includes(sz)) || (st.proType === 'poster' && sz !== 'A4')) ? { proLam: 'none', proFilm: 'lam' } : {}) })), true);
       }),
-      proShowSides: s.proType === 'poster' || s.proType === 'portfolio' || s.proType === 'namecard', // พับครึ่งพิมพ์หน้า-หลังเสมอ (คิดต่อหน้าแล้ว 2026-09-13) — ตัดตัวเลือกด้านออก
+      proShowSides: s.proType === 'poster' || s.proType === 'portfolio' || s.proType === 'namecard' || s.proType === 'foldbook', // พับครึ่งเลือกด้านได้แล้ว (เจ้าของสั่ง 2026-10-09) — เรทต่อหน้าเท่ากันทั้งสองแบบ
       proSidesOpts: [
         // นามบัตรไม่โชว์ราคาท้ายปุ่มด้าน (เจ้าของสั่ง 2026-09-15 — ราคาบนปุ่มไม่ขยับตามจำนวนใบ ลูกค้างง ให้ดูราคาที่ตัวเลือก "จำนวน" แทน)
         this.seg('ด้านหน้าอย่างเดียว' + (s.proType === 'portfolio' ? ' ฿' + PRO_PORTFOLIO.one + '/แผ่น' : s.proType === 'poster' ? ' ฿' + (POSTER_SHEET[s.proSize] ?? 0) + '/แผ่น' : s.proType === 'foldbook' ? ' ฿' + (FOLDBOOK_SHEET[s.proSize] ?? 0) + '/แผ่น' : ''), s.sides === 1, () => this.setState({ sides: 1 }), true),
@@ -4176,18 +4186,7 @@ class App extends React.Component {
                 </div>}
                 {v.isPro && v.proShowBind && <div style={css("display:flex;flex-direction:column;gap:6px")}><div style={css("font-size:13px;font-weight:600;color:var(--ink)")}>ตัวเลือกเข้าเล่ม</div><div style={css("display:flex;flex-direction:column;gap:8px")}>{v.proBindOpts.map((o, i) => <button key={i} onClick={o.pick} style={{ ...o.st, width: '100%', boxSizing: 'border-box', minHeight: '44px', display: 'flex', alignItems: 'center', textAlign: 'left', fontSize: '13px' }}>{o.label}</button>)}</div></div>}
                 {v.isPro && v.proShowQty && <div style={css("display:flex;flex-direction:column;gap:6px")}><div style={css("font-size:13px;font-weight:600;color:var(--ink)")}>จำนวน</div><div style={css("display:flex;flex-direction:column;gap:8px")}>{v.proQtyOpts.map((o, i) => <button key={i} onClick={o.pick} style={{ ...o.st, width: '100%', boxSizing: 'border-box', minHeight: '44px', display: 'flex', alignItems: 'center', textAlign: 'left', fontSize: '13px' }}>{o.label}</button>)}</div></div>}
-                {v.isPro && <div style={css("display:flex;flex-direction:column;gap:6px")}><div style={css("font-size:13px;font-weight:600;color:var(--ink)")}>การรับงาน</div><div style={css("display:flex;flex-direction:column;gap:8px")}>
-                  {v.proPickupOpts.map((o, i) => (
-                    <div key={i} onClick={o.pick} style={css("border:" + (o.on ? "1.5px solid var(--acc)" : "1px solid var(--line)") + ";border-radius:12px;padding:11px 14px;background:" + (o.on ? "var(--accSoft)" : "var(--card)") + ";display:flex;align-items:center;gap:11px;cursor:pointer")}>
-                      <div style={{ flex: 'none', fontSize: '22px', lineHeight: o.svg ? 0 : 'normal', color: o.on ? 'var(--acc)' : 'var(--ink)' }}>{o.svg || o.icon}</div>
-                      <div style={css("flex:1;min-width:0")}>
-                        <div style={css("font-size:13.5px;font-weight:700;color:" + (o.on ? "var(--acc)" : "var(--ink)"))}>{o.name}</div>
-                        <div style={css("margin-top:1px;font-size:12px;color:var(--sub);line-height:1.5")}>{o.sub}</div>
-                      </div>
-                      <div style={css("width:20px;height:20px;border-radius:50%;flex:none;border:2px solid " + (o.on ? "var(--acc)" : "var(--line)") + ";display:flex;align-items:center;justify-content:center")}>{o.on && <div style={css("width:10px;height:10px;border-radius:50%;background:var(--acc)")}></div>}</div>
-                    </div>
-                  ))}
-                </div></div>}
+                {/* การรับงานของงาน Pro ย้ายไปอยู่ "ขั้นที่ 1" ของหน้าจุดส่ง เหมือนงาน Standard แล้ว (เจ้าของสั่ง 2026-10-09) */}
                 {/* งาน Pro ไม่โชว์บรรทัด "ที่เลือก"/💡 สรุปเรทแล้ว (เจ้าของสั่ง 2026-09-17 — บิลท้ายหน้าโชว์ครบ รกซ้ำซ้อน) · Standard คงเรทไว้ */}
                 {!v.isPro && <div style={css("font-size:12.5px;color:var(--acc);font-weight:600")}>💡 {v.rateHint}</div>}
                 {v.colorNote && <div style={css("font-size:11.5px;color:var(--sub)")}>{v.colorNote}</div>}
@@ -4258,7 +4257,8 @@ class App extends React.Component {
           <div style={css("padding:18px 20px 110px;display:flex;flex-direction:column;gap:14px")}>
             <MpStepper cur={2}/>
             <div style={css("background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px;box-shadow:var(--shadow)")}>
-              {!v.isPro && <div style={css("margin-bottom:14px")}>
+              {/* ขั้นที่ 1 การรับงาน — ใช้ร่วมทั้ง Standard และ Pro (เจ้าของสั่ง 2026-10-09 ให้เหมือนกัน) */}
+              <div style={css("margin-bottom:14px")}>
                 <div style={css("font-size:12.5px;font-weight:700;margin-bottom:7px")}><span style={css("color:var(--acc)")}>ขั้นที่ 1</span> · การรับงาน <span style={css("color:#d9480f")}>*</span></div>
                 <div style={css("display:flex;flex-direction:column;gap:8px")}>
                   {v.proPickupOpts.map((o, i) => (
@@ -4272,7 +4272,7 @@ class App extends React.Component {
                     </div>
                   ))}
                 </div>
-              </div>}
+              </div>
               {v.proPickupOn && (
                 <div style={css("border:1.5px solid var(--acc);border-radius:12px;padding:12px 14px;background:var(--accSoft)")}>
                   <div style={css("font-size:13.5px;font-weight:800;color:var(--acc)")}>🏪 {v.isPro ? 'มารับเองที่ร้านอุดมสุขปริ้นติ้ง (กังสดาล)' : 'รับหน้าร้าน MORE PRINT (หอพักบริบูรณ์เพลส)'}</div>
@@ -4280,7 +4280,7 @@ class App extends React.Component {
                 </div>
               )}
               {!v.proPickupOn && <React.Fragment>
-              {!(v.isPro || v.recvSel) ? (
+              {!v.recvSel ? (
                 <div style={css("background:var(--soft);border:1px dashed var(--line);border-radius:11px;padding:12px 14px;font-size:12.5px;color:var(--sub);line-height:1.6")}>เลือก "การรับงาน" ด้านบนก่อนครับ — ขั้นตอนถัดไปจะแสดงขึ้นเอง</div>
               ) : (<React.Fragment>
               {/* ขั้น 2: เลือกพาหนะส่งเอง — ราคาเปลี่ยนทันทีตามที่เลือก */}
