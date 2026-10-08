@@ -2238,6 +2238,26 @@ class App extends React.Component {
     } catch (e) {}
     this.showToast('✓ ส่งไฟล์ใหม่เรียบร้อย ร้านเปิดไฟล์ได้แล้วครับ 🎉');
   }
+  // ลูกค้ากดลบออเดอร์ที่ถูกยกเลิกออกจากหน้าจอเอง (เจ้าของสั่ง 2026-10-09 — รกตา ไม่ต้องรอตัวกวาด 2 ชม.)
+  // ลบเฉพาะหน้าจอเครื่องลูกค้า (mp_order/mp_orders) — ฝั่งร้านมีระบบลบถาวรของตัวเองอยู่แล้ว
+  removeCancelledOrder(id){
+    const inList = (this.state.orderList || []).find(x => x.id === id);
+    const isCur = this.state.order && this.state.order.id === id;
+    if (!((inList && inList.step === 0) || (isCur && this.state.trackStep === 0))) return; // ลบได้เฉพาะใบที่ยกเลิกแล้วเท่านั้น
+    this.dropFromOrderList(id);
+    try {
+      const od = JSON.parse(localStorage.getItem('mp_order') || 'null');
+      if (od && od.id === id) {
+        localStorage.removeItem('mp_order');
+        clearInterval(this.trackTimer);
+        const next = (this.readOrderList() || [])[0];
+        if (next) this.pickOrder(next); // มีใบอื่นอยู่ — สลับไปโชว์ใบล่าสุดแทน
+        else this.setState({ order: null, cancelReason: '', chat: [], trackOpen: false, selfCancelArm: false, trackStep: 1 });
+      }
+    } catch (e) {}
+    this.showToast('ลบออเดอร์ที่ยกเลิกออกจากหน้าจอแล้วครับ 🗑️');
+  }
+
   // ออเดอร์ที่ยกเลิกแล้ว: โชว์ให้ลูกค้าเห็นเหตุผล 2 ชั่วโมง แล้วเก็บกวาดออกจากหน้าจอเอง (นโยบายร้าน — ของเก่าที่ไม่มีเวลายกเลิก = ลบทันที)
   purgeCancelledLocal(){
     const gone = (step, at) => step === 0 && Date.now() - (at || 0) > 2 * 60 * 60 * 1000;
@@ -3328,6 +3348,7 @@ class App extends React.Component {
       orderList: s.orderList || [],
       otherOrders: (s.orderList || []).filter(o => !s.order || o.id !== s.order.id).map(o => ({ ...o, statusLabel: o.step === 0 ? 'ยกเลิกแล้ว' : (stepsFor(o) || STEPS)[Math.min(o.step || 1, 4) - 1] })),
       pickOrder: (o) => this.pickOrder(o),
+      removeCancelled: (id) => this.removeCancelledOrder(id),
       orderId: s.order ? s.order.id : '', paidTotal: s.order ? s.order.total : 0,
       orderAdjs: (s.order && s.order.adjs) || [], // รายการที่ร้านปรับเพิ่ม/ลดภายหลัง — โชว์ในบิลหน้าติดตาม
       cancelled, cancelReason: s.cancelReason,
@@ -4649,7 +4670,9 @@ class App extends React.Component {
                       <div style={css("margin-top:2px;font-size:11.5px;color:var(--sub);overflow:hidden;text-overflow:ellipsis;white-space:nowrap")}>{o.plabel || 'งานปริ้น'} · แตะเพื่อดู</div>
                     </div>
                     <span style={css("flex:none;font-size:11.5px;font-weight:700;padding:3px 9px;border-radius:99px;" + (o.step === 0 ? "color:#c92a2a;background:#ffe3e3" : "color:var(--acc);background:var(--accSoft)"))}>{o.statusLabel}</span>
-                    <span style={css("color:var(--sub);font-size:13px;flex:none")}>▼</span>
+                    {o.step === 0
+                      ? <span onClick={(e) => { e.stopPropagation(); v.removeCancelled(o.id); }} title="ลบออเดอร์ที่ยกเลิกออกจากหน้าจอ" style={css("flex:none;font-size:15px;padding:4px 6px;cursor:pointer")}>🗑️</span>
+                      : <span style={css("color:var(--sub);font-size:13px;flex:none")}>▼</span>}
                   </div>
                 ))}
               </div>
@@ -4664,6 +4687,8 @@ class App extends React.Component {
                     </div>
                     {!v.selfCancelled && v.cancelReason && <div style={css("margin-top:6px;font-size:13px;color:#a61e1e;line-height:1.5")}><b>เหตุผล:</b> {v.cancelReason}</div>}
                     <div style={css("margin-top:8px;font-size:12.5px;color:#a61e1e")}>โอนเงินแล้ว? ติดต่อขอคืนเงิน/สั่งใหม่ทาง LINE OA @346kifvy 💬</div>
+                    <button onClick={(e) => { e.stopPropagation(); v.removeCancelled(v.orderId); }}
+                      style={css("margin-top:10px;width:100%;height:42px;border:1.5px solid #c92a2a;border-radius:11px;background:#fff;color:#c92a2a;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit")}>🗑️ ลบออเดอร์นี้ออกจากหน้าจอ</button>
                   </div>
                 )}
                 {/* ออเดอร์ยังส่งไม่ถึงร้าน (เน็ตสะดุดตอนกดยืนยัน) — บอกตรง ๆ + ปุ่มส่งซ้ำ (ระบบก็วนส่งซ้ำเองทุก 8 วิ) — 2026-09-14 */}
