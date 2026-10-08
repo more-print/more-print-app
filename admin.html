@@ -74,8 +74,8 @@ const DEMO_ORDERS = [
     print_cost: 225, bind_cost: 40, delivery_cost: 10, night_fee: 0, total: 275, status: 4, times: ['10:45', '11:02', '11:30', '11:52'] },
   { id: '#MP-4510', created_at: new Date(Date.now() - 5*3600000).toISOString(),
     customer_fname: 'ต้นกล้า', customer_lname: 'เรียนดี', customer_phone: '062-345-9900', customer_email: '',
-    files: [{ name: 'ชีทสอบ-final.pdf', pages: 30, path: null }],
-    color: false, paper: 'A4', sides: 1, bind: 'none', copies: 5,
+    files: [{ name: 'ชีทสอบ-final.pdf', pages: 30, path: null, cmode: 'pages', cpages: '1-2', cheavy: 2, clight: 0, cbw: 28 }],
+    ptype: 'mix', color: false, paper: 'A4', sides: 1, bind: 'none', copies: 5,
     point: 'โรงชาย มข.', addr: '', phone: '062-345-9900', time: '21:00', express: false, night: true, lat: 16.4796, lng: 102.8039,
     print_cost: 150, bind_cost: 0, delivery_cost: 10, night_fee: 25, total: 185, status: 1, times: ['20:15', '', '', ''] }
 ];
@@ -138,7 +138,7 @@ const FI = {
   search: (z) => fi(<React.Fragment><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></React.Fragment>, z),
   award: (z) => fi(<React.Fragment><circle cx="12" cy="8" r="7"/><polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88"/></React.Fragment>, z)
 };
-const PTYPE_LABELS = { bw: 'ปริ้นขาวดำ', laser: 'ขาวดำเลเซอร์', color: 'ปริ้นสี', portfolio: 'Portfolio', poster: 'โปสเตอร์', pro: 'PRO พรีเมียม' };
+const PTYPE_LABELS = { bw: 'ปริ้นขาวดำ', laser: 'ขาวดำเลเซอร์', color: 'ปริ้นสี', mix: 'ปริ้นผสม', portfolio: 'Portfolio', poster: 'โปสเตอร์', pro: 'PRO พรีเมียม' };
 
 // ── แบ่งโซนส่งของจากพิกัดหมุดลูกค้า (สำหรับจ่ายงานไรเดอร์) ──
 const ZONES = [
@@ -563,8 +563,16 @@ function OrderCard({ o, idx, onAdvance, onRetreat, onApplyEdits, onCancel, onRem
                         : '⚠️ จำนวนหน้าลูกค้าแจ้งเอง — เปิดไฟล์ตรวจสอบก่อนปริ้น'}
                     </div>
                   )}
-                  {(o.ptype === 'color' || o.color) && f.scanned === false && (
+                  {(o.ptype === 'color' || o.ptype === 'mix' || o.color) && f.scanned === false && (
                     <div style={css("margin-top:5px;font-size:10.5px;line-height:1.5;color:#c92a2a;font-weight:700")}>⚠️ ระบบสแกนปริมาณสีไม่ได้ — คิดเรทสีน้อยไว้ก่อน ตรวจไฟล์แล้วยืนยันราคาก่อนปริ้น</div>
+                  )}
+                  {/* งานปริ้นผสม (เจ้าของสั่ง 2026-10-08): บอกชัดต่อไฟล์ว่าพิมพ์แบบไหน หน้าสีหน้าไหน — ทีมผลิตไม่ต้องเดา */}
+                  {f.cmode && (
+                    <div style={css("margin-top:6px;font-size:11.5px;font-weight:700;line-height:1.6;border-radius:9px;padding:5px 10px;" + (f.cmode === 'bw' ? "background:var(--soft);color:var(--sub);border:1px solid var(--line)" : "background:var(--accSoft);color:var(--acc);border:1.5px solid var(--acc)"))}>
+                      {f.cmode === 'bw' ? '📄 ขาวดำทั้งไฟล์ (' + f.pages + ' หน้า)'
+                        : f.cmode === 'color' ? '🌈 สีทั้งไฟล์ ' + f.pages + ' หน้า (สีเยอะ ' + (f.cheavy || 0) + ' · สีน้อย ' + (f.clight || 0) + ')'
+                        : '🎨 หน้าสี: ' + (f.cpages || '-') + ' (สีเยอะ ' + (f.cheavy || 0) + ' · สีน้อย ' + (f.clight || 0) + ') · ที่เหลือขาวดำ ' + (f.cbw || 0) + ' หน้า'}
+                    </div>
                   )}
                 </div>
               ))}
