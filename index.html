@@ -4115,9 +4115,10 @@ class App extends React.Component {
                   : v.proAfterCut
                   ? <div style={css("background:#fff7e0;border:1.5px solid #f0c36d;border-radius:12px;padding:11px 14px;font-size:13px;font-weight:700;color:#8a6d1a;line-height:1.6")}><span style={css("display:inline-flex;vertical-align:-2px;margin-right:6px")}>{fi('clock', 14)}</span>สั่งได้เลยครับ — ออเดอร์จะเริ่มผลิตเวลา 08:30 น.</div>
                   : <div style={css("background:var(--accSoft);border:1px solid var(--acc);border-radius:12px;padding:9px 13px;font-size:12.5px;font-weight:700;color:var(--acc);line-height:1.65")}><span style={css("display:inline-flex;vertical-align:-2px;margin-right:6px")}>{fi('clock', 13)}</span>งาน Pro สั่งได้ตลอด 24 ชม.<span style={css("display:block")}>สั่งออเดอร์หลัง 17:00 น. เริ่มผลิตวันถัดไป 08:30 น.</span><span style={css("display:block")}>ร้านหยุดทุกวันอาทิตย์ (รับผลิตออเดอร์สุดท้ายก่อน 16.00 น. วันเสาร์)</span></div>)}
-                {/* ประเภทงาน Pro เป็นกริดการ์ด 2 คอลัมน์ (เจ้าของเลือกจาก prototype 2026-09-11): ไอคอนเดิม + ชื่ออย่างเดียว ไม่มีราคาบนการ์ด (ราคาไปอยู่ในบิล) · ใบสุดท้าย (แบบแปลน) เต็มแถว */}
+                {/* ประเภทงาน Pro เป็นกริดการ์ด 2 คอลัมน์ (เจ้าของเลือกจาก prototype 2026-09-11): ไอคอนเดิม + ชื่ออย่างเดียว ไม่มีราคาบนการ์ด (ราคาไปอยู่ในบิล)
+                    · แบบแปลนย่อเหลือครึ่งแถว + การ์ด "รับออกแบบ" ต่อท้ายขวา ชิป "ส่งบรีฟเลย" เด้งเข้า LINE OA (เจ้าของสั่ง 2026-10-09) */}
                 {v.isPro && <div style={css("display:flex;flex-direction:column;gap:6px")}><div style={css("font-size:13px;font-weight:600;color:var(--ink)")}>ประเภทงาน Pro (ร้านอุดมสุขปริ้นติ้ง)</div><div style={css("display:grid;grid-template-columns:repeat(2, minmax(0, 1fr));gap:8px")}>{v.proTypeOpts.map((o, i) => (
-                  <button key={i} onClick={o.pick} style={{ gridColumn: i === v.proTypeOpts.length - 1 ? '1 / -1' : 'auto', boxSizing: 'border-box', minHeight: '46px', border: o.on ? '1.5px solid var(--acc)' : '1px solid var(--line)', borderRadius: '12px', padding: o.on ? '10.5px 12.5px' : '11px 13px', background: o.on ? 'var(--accSoft)' : 'var(--card)', display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '6px', textAlign: 'left', cursor: 'pointer', fontFamily: 'inherit' }}>
+                  <button key={i} onClick={o.pick} style={{ boxSizing: 'border-box', minHeight: '46px', border: o.on ? '1.5px solid var(--acc)' : '1px solid var(--line)', borderRadius: '12px', padding: o.on ? '10.5px 12.5px' : '11px 13px', background: o.on ? 'var(--accSoft)' : 'var(--card)', display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '6px', textAlign: 'left', cursor: 'pointer', fontFamily: 'inherit' }}>
                     <span style={{ flex: 'none', lineHeight: 0, color: o.on ? 'var(--acc)' : 'var(--ink)' }}>{o.svg}</span>
                     <span style={{ fontSize: '13px', fontWeight: 700, color: o.on ? 'var(--acc)' : 'var(--ink)', lineHeight: 1.35 }}>{o.label}</span>
                     {v.prevOk[o.k] && (
@@ -4125,7 +4126,13 @@ class App extends React.Component {
                         style={{ fontSize: '11px', fontWeight: 700, color: 'var(--sub)', background: 'var(--soft)', border: '1px solid var(--line)', borderRadius: '99px', padding: '3px 9px', lineHeight: 1.4, cursor: 'zoom-in' }}>กดดูตัวอย่างงาน</span>
                     )}
                   </button>
-                ))}</div></div>}
+                ))}
+                <button key="design" onClick={() => window.open((window.MP_CONFIG || {}).LINE_OA_URL || 'https://line.me/R/ti/p/@346kifvy', '_blank')}
+                  style={{ boxSizing: 'border-box', minHeight: '46px', border: '1px solid var(--line)', borderRadius: '12px', padding: '11px 13px', background: 'var(--card)', display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '6px', textAlign: 'left', cursor: 'pointer', fontFamily: 'inherit' }}>
+                  <span style={{ flex: 'none', fontSize: '20px', lineHeight: 1.1 }}>🎨</span>
+                  <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--ink)', lineHeight: 1.35 }}>รับออกแบบ</span>
+                  <span style={{ fontSize: '11px', fontWeight: 700, color: '#06C755', background: 'var(--soft)', border: '1px solid #06C755', borderRadius: '99px', padding: '3px 9px', lineHeight: 1.4 }}>ส่งบรีฟเลย</span>
+                </button></div></div>}
                 {/* คำกำกับกระดาษ (โปสเตอร์/เพลท) — ข้อความเขียวสด หลังกดเลือกประเภท ก่อนตัวเลือกขนาด (เจ้าของสั่ง 2026-09-11) */}
                 {v.isPro && v.proPaperNote && <div style={css("font-size:13.5px;font-weight:700;color:var(--acc);line-height:1.6")}>{v.proPaperNote}</div>}
                 {v.isPro && v.proSizeOpts.length > 0 && <div style={css("display:flex;flex-direction:column;gap:6px")}><div style={css("font-size:13px;font-weight:600;color:var(--ink)")}>ขนาด</div><div style={css("display:flex;gap:8px;flex-wrap:wrap")}>{v.proSizeOpts.map((o, i) => <button key={i} onClick={o.pick} style={o.st}>{o.label}</button>)}</div></div>}
