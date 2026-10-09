@@ -356,9 +356,11 @@ function ProOrder({ o, idx, isOwner, payoutReady, onPrice, onPayout, onAdvance, 
                     : <span style={css("font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:var(--sub);flex:none")}>{f.pages} หน้า</span>}
                   {f.drive_url
                     ? <a href={f.drive_url} target="_blank" rel="noreferrer" style={css("flex:none;font-size:13.5px;font-weight:800;color:#fff;text-decoration:none;background:var(--gold);padding:10px 18px;border-radius:10px;box-shadow:var(--shadow)")}>{FI.download(15)} เปิดไฟล์ใหญ่</a>
-                    : fileUrl(f.path)
-                      ? <a href={fileUrl(f.path)} target="_blank" rel="noreferrer" style={css("flex:none;font-size:13.5px;font-weight:800;color:#fff;text-decoration:none;background:var(--acc);padding:10px 18px;border-radius:10px;box-shadow:var(--shadow)")}>{FI.download(15)} เปิดไฟล์</a>
-                      : <span style={css("flex:none;font-size:10.5px;font-weight:700;color:#c92a2a;background:#ffe3e3;padding:3px 9px;border-radius:8px")}>{FI.alert(12)} ไฟล์อัปไม่สำเร็จ — แจ้ง MORE PRINT ขอไฟล์จากลูกค้า</span>}
+                    : o.files_purged_at
+                      ? <span style={css("flex:none;font-size:10.5px;font-weight:700;color:var(--sub);background:var(--soft);border:1px solid var(--line);padding:3px 9px;border-radius:8px")}>🧹 ไฟล์ถูกล้างตามรอบเก็บ 7 วัน</span>
+                      : fileUrl(f.path)
+                        ? <a href={fileUrl(f.path)} target="_blank" rel="noreferrer" style={css("flex:none;font-size:13.5px;font-weight:800;color:#fff;text-decoration:none;background:var(--acc);padding:10px 18px;border-radius:10px;box-shadow:var(--shadow)")}>{FI.download(15)} เปิดไฟล์</a>
+                        : <span style={css("flex:none;font-size:10.5px;font-weight:700;color:#c92a2a;background:#ffe3e3;padding:3px 9px;border-radius:8px")}>{FI.alert(12)} ไฟล์อัปไม่สำเร็จ — แจ้ง MORE PRINT ขอไฟล์จากลูกค้า</span>}
                 </div>
               ))}
             </div>
@@ -392,7 +394,7 @@ function ProOrder({ o, idx, isOwner, payoutReady, onPrice, onPayout, onAdvance, 
                 </span>}
           </div>
         </div>
-        {o.slip_path && fileUrl(o.slip_path) && (
+        {o.slip_path && !o.files_purged_at && fileUrl(o.slip_path) && (
           <div style={css("display:flex;gap:10px;font-size:12px")}>
             <span style={css("flex:none;width:76px;color:var(--sub);font-weight:600")}>{FI.receipt(13)} สลิป</span>
             {isOwner

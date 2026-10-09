@@ -429,6 +429,7 @@ function Manage({ o, onPrice, onPayout, onAdvance, onRetreat, onApplyEdits, onCa
         <div style={css("display:flex;gap:6px;flex-wrap:wrap")}>
           {(o.files || []).map((f, i) => {
             const u = f.drive_url || fileUrl(f.path);
+            if (o.files_purged_at && !f.drive_url) return <span key={i} style={css("font-size:11px;font-weight:700;color:var(--sub);background:var(--soft);border:1px solid var(--line);padding:4px 10px;border-radius:8px")}>🧹 {f.name} — ไฟล์ถูกล้างตามรอบเก็บ 7 วัน</span>;
             return u
               ? <a key={i} href={u} target="_blank" rel="noreferrer" style={css("font-size:12px;font-weight:700;color:#fff;background:var(--acc);padding:8px 14px;border-radius:9px;text-decoration:none;display:inline-flex;align-items:center;gap:6px")}>{FI.download(13)} {f.name} · {f.qty ? 'ไฟล์ที่ ' + (i + 1) + ' — ' + (f.stk ? f.stk.toUpperCase() + ' · ' : '') + (f.w && f.h ? f.w + '×' + f.h + ' ซม. · ' : '') + f.qty + ' ชิ้น (' + (f.sh || Math.ceil(f.qty / 9)) + (f.stk === 'pvc' ? ' ตร.ม.)' : ' แผ่น)') : f.pages + ' หน้า'}</a>
               : <span key={i} style={css("font-size:11px;font-weight:700;color:#c92a2a;background:#ffe3e3;padding:4px 10px;border-radius:8px")}>{FI.alert(11)} {f.name} — ไฟล์อัปไม่สำเร็จ ทักแชทขอจากลูกค้า</span>;
@@ -477,7 +478,7 @@ function Manage({ o, onPrice, onPayout, onAdvance, onRetreat, onApplyEdits, onCa
             target="_blank" rel="noreferrer" style={css("margin-left:8px;font-weight:700;color:var(--acc)")}>{FI.nav(12)} นำทาง</a>
         </div>
       )}
-      {o.slip_path && fileUrl(o.slip_path) && (
+      {o.slip_path && !o.files_purged_at && fileUrl(o.slip_path) && (
         <a href={fileUrl(o.slip_path)} target="_blank" rel="noreferrer" style={css("text-decoration:none")}>
           <img src={fileUrl(o.slip_path)} alt="สลิป" style={css("max-width:170px;max-height:220px;border-radius:9px;border:1px solid var(--line);display:block;background:var(--soft)")} onError={(e) => { e.target.style.display = 'none'; }}/>
           <span style={css("font-size:10.5px;color:var(--acc);font-weight:600")}>{FI.receipt(11)} สลิปโอนเงิน — แตะดูเต็ม</span>

@@ -77,7 +77,14 @@ const DEMO_ORDERS = [
     files: [{ name: 'ชีทสอบ-final.pdf', pages: 30, path: null, cmode: 'pages', cpages: '1-2', cheavy: 2, clight: 0, cbw: 28 }],
     ptype: 'mix', color: false, paper: 'A4', sides: 1, bind: 'none', copies: 5,
     point: 'โรงชาย มข.', addr: '', phone: '062-345-9900', time: '21:00', express: false, night: true, lat: 16.4796, lng: 102.8039,
-    print_cost: 150, bind_cost: 0, delivery_cost: 10, night_fee: 25, total: 185, status: 1, times: ['20:15', '', '', ''] }
+    print_cost: 150, bind_cost: 0, delivery_cost: 10, night_fee: 25, total: 185, status: 1, times: ['20:15', '', '', ''] },
+  { id: '#MP-4509', created_at: new Date(Date.now() - 10*24*3600000).toISOString(),
+    customer_fname: 'วรรณ', customer_lname: 'ใจดี', customer_phone: '081-000-2211', customer_email: '',
+    files: [{ name: 'รายงานกลุ่ม.pdf', pages: 42, path: 'MP-4509/f0_report.pdf', auto: true }],
+    ptype: 'bw', color: false, paper: 'A4', sides: 2, bind: 'none', copies: 1,
+    point: 'หอใน มข.', addr: '🏍️ หอ 9 หลัง มข.', phone: '081-000-2211', time: '14:00', express: false, night: false, lat: 16.47, lng: 102.82,
+    print_cost: 42, bind_cost: 0, delivery_cost: 19, night_fee: 0, total: 61, status: 4, times: ['13:10', '13:40', '14:05', '14:20'],
+    slip_path: 'MP-4509/slip.jpg', files_purged_at: new Date(Date.now() - 3*24*3600000).toISOString() }
 ];
 
 function css(str){
@@ -552,9 +559,11 @@ function OrderCard({ o, idx, onAdvance, onRetreat, onApplyEdits, onCancel, onRem
                     {(o.ptype === 'color' || o.color) && f.scanned && <span style={css("flex:none;font-size:10.5px;font-weight:700;background:#e7f5ff;color:#1971c2;padding:3px 8px;border-radius:8px")}>{FI.drop(10)} สีเยอะ {f.heavy || 0}/{f.pages}</span>}
                     {f.drive_url
                       ? <a href={f.drive_url} target="_blank" rel="noreferrer" style={css("flex:none;font-size:11.5px;font-weight:700;background:#fff7e0;color:#a16207;border:1px solid #f0b429;padding:4px 10px;border-radius:8px;text-decoration:none")}>⬇ เปิดไฟล์ใหญ่</a>
-                      : fileUrl(f.path)
-                        ? <a href={fileUrl(f.path)} target="_blank" rel="noreferrer" style={css("flex:none;font-size:11.5px;font-weight:600;background:var(--accSoft);color:var(--acc);padding:4px 10px;border-radius:8px;text-decoration:none")}>⬇ เปิดไฟล์</a>
-                        : <span style={css("flex:none;max-width:100%;box-sizing:border-box;line-height:1.5;font-size:11px;font-weight:700;color:#c92a2a;background:#ffe3e3;padding:3px 9px;border-radius:8px")}>⚠️ ไฟล์อัปไม่สำเร็จ — ทักแชทขอไฟล์จากลูกค้า</span>}
+                      : o.files_purged_at
+                        ? <span style={css("flex:none;font-size:11px;font-weight:700;color:var(--sub);background:var(--soft);border:1px solid var(--line);padding:3px 9px;border-radius:8px")}>🧹 ไฟล์ถูกล้างตามรอบเก็บ 7 วัน</span>
+                        : fileUrl(f.path)
+                          ? <a href={fileUrl(f.path)} target="_blank" rel="noreferrer" style={css("flex:none;font-size:11.5px;font-weight:600;background:var(--accSoft);color:var(--acc);padding:4px 10px;border-radius:8px;text-decoration:none")}>⬇ เปิดไฟล์</a>
+                          : <span style={css("flex:none;max-width:100%;box-sizing:border-box;line-height:1.5;font-size:11px;font-weight:700;color:#c92a2a;background:#ffe3e3;padding:3px 9px;border-radius:8px")}>⚠️ ไฟล์อัปไม่สำเร็จ — ทักแชทขอไฟล์จากลูกค้า</span>}
                   </div>
                   {f.drive_url && (
                     <div style={css("margin-top:5px;font-size:10.5px;line-height:1.5;color:" + (f.auto ? "var(--sub)" : "#c92a2a") + ";font-weight:" + (f.auto ? "400" : "700"))}>
@@ -581,7 +590,9 @@ function OrderCard({ o, idx, onAdvance, onRetreat, onApplyEdits, onCancel, onRem
           <div style={css("display:flex;gap:10px;font-size:12px")}>
             <span style={css("flex:none;width:64px;color:var(--sub);font-weight:600;padding-top:2px")}>{FI.receipt(12)} สลิป</span>
             <div style={css("flex:1;min-width:0")}>
-            {fileUrl(o.slip_path)
+            {o.files_purged_at
+              ? <div style={css("margin-top:4px;font-size:11.5px;color:var(--sub)")}>🧹 สลิปถูกล้างตามรอบเก็บไฟล์ 7 วันหลังส่งสำเร็จ</div>
+              : fileUrl(o.slip_path)
               ? <a href={fileUrl(o.slip_path)} target="_blank" rel="noreferrer" style={css("display:inline-block;margin-top:6px;text-decoration:none")}>
                   <img src={fileUrl(o.slip_path)} alt="สลิปโอนเงิน" style={css("max-width:170px;max-height:220px;border-radius:10px;border:1px solid var(--line);display:block;background:var(--soft)")}/>
                   <div style={css("font-size:11px;color:var(--acc);margin-top:4px;font-weight:600")}>แตะเพื่อดูรูปเต็ม</div>
@@ -1176,6 +1187,30 @@ function AdminApp(){
       } catch (e) {}
     });
   };
+
+  // ── ลบไฟล์ของออเดอร์ที่ส่งสำเร็จเกิน 7 วัน (นโยบายเจ้าของ 2026-10-09) — กันคลังไฟล์ 1GB เต็มจนอัปโหลดพังทั้งเว็บ ──
+  // ลบเฉพาะตัวไฟล์ PDF+สลิปในคลัง: แถวออเดอร์/ยอดเงิน/ประวัติอยู่ครบ แล้วตีตรา files_purged_at ให้หลังบ้านขึ้นป้าย 🧹 แทนปุ่มเปิดไฟล์
+  // (ไฟล์ใหญ่บน B2 ไม่แตะ — คลังแยก 10GB) ทำงานเงียบ ๆ ตอนเปิดหลังบ้าน ครั้งละ ≤5 ใบ เหมือนระบบลบออเดอร์ยกเลิก
+  const FILE_KEEP_MS = 7 * 24 * 60 * 60 * 1000;
+  const autoPurgeFiles = async (rows) => {
+    if (window.__purgeFilesOff) return;
+    if (!window.__purgeColOk) {
+      const { error } = await DB.from('orders').select('files_purged_at').limit(1);
+      if (error) { window.__purgeFilesOff = true; return; } // คอลัมน์ยังไม่ถูกเพิ่ม (รอ SQL เจ้าของ) — ห้ามลบไฟล์ก่อนตีตราได้ เดี๋ยวป้ายเพี้ยนเป็น "อัปไม่สำเร็จ"
+      window.__purgeColOk = true;
+    }
+    const due = rows.filter(o => o.status === 4 && !o.files_purged_at && o.created_at && (Date.now() - new Date(o.created_at).getTime() > FILE_KEEP_MS));
+    for (const o of due.slice(0, 5)) {
+      try {
+        const paths = (o.files || []).map(f => f.path).filter(Boolean);
+        if (o.slip_path) paths.push(o.slip_path);
+        paths.push(o.id.replace('#', '') + '/slip-re.jpg'); // สลิปที่ลูกค้าส่งใหม่ path ตายตัว ไม่อยู่ในแถว — ลบเผื่อไว้ (ไม่มีไฟล์ = ระบบข้ามเอง)
+        const { error: se } = await DB.storage.from('uploads').remove(paths);
+        if (se) continue; // ลบไฟล์ไม่สำเร็จ = ข้ามใบนี้รอบนี้ กันตีตราทั้งที่ไฟล์ยังอยู่
+        await DB.from('orders').update({ files_purged_at: new Date().toISOString() }).eq('id', o.id);
+      } catch (e) {}
+    }
+  };
   const refresh = React.useCallback(async () => {
     if (!DB) return;
     try {
@@ -1188,6 +1223,7 @@ function AdminApp(){
         setOrders(data.filter(o => o.ptype !== 'pro' && !cancelledExpired(o)));
         setLastSync(new Date());
         purgeCancelled(data); // แอดมินเก็บกวาดให้ทุกประเภทงาน รวมงาน Pro ด้วย
+        autoPurgeFiles(data); // ลบไฟล์ออเดอร์ส่งสำเร็จเกิน 7 วัน (ไม่ await — ทำเบื้องหลัง)
       }
     } catch (e) { console.error(e); }
     setLoading(false);
@@ -1335,7 +1371,9 @@ function AdminApp(){
     }
   };
 
-  // ล้างเฉพาะ "ไฟล์" ของออเดอร์ที่จบงานแล้ว (ส่งสำเร็จ/ยกเลิก) เกิน 30 วัน — ข้อมูลตัวเลข/สถิติอยู่ครบ
+  // ล้างเฉพาะ "ไฟล์" ของออเดอร์ที่จบงานแล้ว (ส่งสำเร็จ/ยกเลิก) เกิน 7 วัน — ข้อมูลตัวเลข/สถิติอยู่ครบ
+  // (2026-10-09 ลด 30→7 วันตามนโยบายเจ้าของ + เปลี่ยนมาตีตรา files_purged_at แทนการล้าง path — ป้ายขึ้น 🧹 ไม่ปนกับ "ไฟล์อัปไม่สำเร็จ";
+  //  ระบบอัตโนมัติ autoPurgeFiles ทำงานเองทุกครั้งที่เปิดหลังบ้านอยู่แล้ว ปุ่มนี้ไว้กดกวาดทั้งหมดทันที)
   const purgeOldFiles = async () => {
     if (!purgeConfirm) {
       setPurgeConfirm(true);
@@ -1346,25 +1384,25 @@ function AdminApp(){
     if (!DB) { setPurgeResult('โหมดตัวอย่าง — ไม่มีไฟล์จริงให้ล้าง'); return; }
     setPurgeBusy(true); setPurgeResult('');
     try {
-      const cutoff = new Date(Date.now() - 30 * 24 * 3600 * 1000).toISOString();
+      const probe = await DB.from('orders').select('files_purged_at').limit(1);
+      if (probe.error) { setPurgeResult('ยังใช้ไม่ได้ — ต้องรัน SQL เพิ่มคอลัมน์ files_purged_at ก่อนครับ'); setPurgeBusy(false); return; }
+      const cutoff = new Date(Date.now() - FILE_KEEP_MS).toISOString();
       const { data } = await DB.from('orders').select('id,files,slip_path')
-        .in('status', [0, 4]).lt('created_at', cutoff).limit(500);
+        .in('status', [0, 4]).is('files_purged_at', null).lt('created_at', cutoff).limit(500);
       let nFiles = 0, nOrders = 0;
       for (const o of (data || [])) {
         const paths = [];
         (o.files || []).forEach(f => { if (f.path) paths.push(f.path); });
         if (o.slip_path) paths.push(o.slip_path);
-        if (!paths.length) continue;
+        const real = paths.length;
+        paths.push(o.id.replace('#', '') + '/slip-re.jpg'); // สลิปส่งใหม่ path ตายตัว — ลบเผื่อ (ไม่มี = ระบบข้ามเอง)
         const { error } = await DB.storage.from('uploads').remove(paths);
         if (!error) {
-          nFiles += paths.length; nOrders++;
-          await DB.from('orders').update({
-            files: (o.files || []).map(f => ({ name: f.name, pages: f.pages, path: null })),
-            slip_path: null
-          }).eq('id', o.id);
+          nFiles += real; nOrders++;
+          await DB.from('orders').update({ files_purged_at: new Date().toISOString() }).eq('id', o.id);
         }
       }
-      setPurgeResult(nOrders ? '✓ ล้างแล้ว ' + nFiles + ' ไฟล์ จาก ' + nOrders + ' ออเดอร์ — ข้อมูลยอดขายอยู่ครบทุกรายการ' : 'ยังไม่มีไฟล์เก่าเกิน 30 วันให้ล้างครับ');
+      setPurgeResult(nOrders ? '✓ ล้างแล้ว ' + nFiles + ' ไฟล์ จาก ' + nOrders + ' ออเดอร์ — ข้อมูลยอดขายอยู่ครบทุกรายการ' : 'ยังไม่มีไฟล์เก่าเกิน 7 วันให้ล้างครับ');
       await refresh();
     } catch (e) { console.error(e); setPurgeResult('เกิดข้อผิดพลาด ลองอีกครั้งครับ'); }
     setPurgeBusy(false);
@@ -1973,11 +2011,11 @@ function AdminApp(){
 
           <div style={css("background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px")}>
             <div style={css("font-size:12px;font-weight:700")}>{FI.trash(12)} คืนพื้นที่ไฟล์</div>
-            <div style={css("margin-top:4px;font-size:11.5px;color:var(--sub);line-height:1.5")}>ลบเฉพาะ<b>ไฟล์ PDF และรูปสลิป</b>ของออเดอร์ที่จบงานแล้ว (ส่งสำเร็จ/ยกเลิก) เกิน 30 วัน — ตัวเลขยอดขาย สถิติ และประวัติลูกค้า<b>อยู่ครบไม่หายไปไหน</b></div>
+            <div style={css("margin-top:4px;font-size:11.5px;color:var(--sub);line-height:1.5")}>ระบบ<b>ล้างอัตโนมัติ</b>ทุกครั้งที่เปิดหลังบ้าน: ลบเฉพาะ<b>ไฟล์ PDF และรูปสลิป</b>ของออเดอร์ที่ส่งสำเร็จเกิน 7 วัน — ตัวเลขยอดขาย สถิติ และประวัติลูกค้า<b>อยู่ครบไม่หายไปไหน</b> (ปุ่มนี้ไว้กดกวาดทั้งหมดทันที)</div>
             <button disabled={purgeBusy} onClick={purgeOldFiles}
               style={{ marginTop: '10px', width: '100%', height: '42px', border: 'none', borderRadius: '11px', fontSize: '13px', fontWeight: 700, cursor: 'pointer',
                 background: purgeConfirm ? '#d9480f' : 'var(--soft)', color: purgeConfirm ? '#fff' : 'var(--ink)' }}>
-              {purgeBusy ? '⏳ กำลังล้างไฟล์…' : purgeConfirm ? '⚠️ แน่ใจนะ? กดอีกครั้งเพื่อล้างไฟล์เก่า' : 'ล้างไฟล์ออเดอร์ที่จบแล้วเกิน 30 วัน'}
+              {purgeBusy ? '⏳ กำลังล้างไฟล์…' : purgeConfirm ? '⚠️ แน่ใจนะ? กดอีกครั้งเพื่อล้างไฟล์เก่า' : 'ล้างไฟล์ออเดอร์ที่จบแล้วเกิน 7 วัน (ทั้งหมดทันที)'}
             </button>
             {purgeResult && <div style={css("margin-top:8px;font-size:12px;color:var(--acc);font-weight:600")}>{purgeResult}</div>}
           </div>
