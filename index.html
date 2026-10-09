@@ -1344,6 +1344,49 @@ class App extends React.Component {
     } catch (e) { console.error('b2 upload:', e); setF({ upErr: true, up: 0 }); }
   }
 
+  // อัปโหลดเข้าคลังแบบลองซ้ำ 3 รอบ เว้นจังหวะให้เน็ตฟื้น (1.2/3 วิ) — รอบหลังเจอ "already exists" ถือว่าสำเร็จ (ห้าม upsert ตามกติกา RLS)
+  async uploadRetry(path, file){
+    let error = null;
+    for (let a = 0; a < 3; a++) {
+      if (a) await new Promise(r => setTimeout(r, a === 1 ? 1200 : 3000));
+      const r = await this.db.storage.from('uploads').upload(path, file);
+      error = r.error && !(a && /exist|duplicate/i.test(String(r.error.message || ''))) ? r.error : null;
+      if (!error) return null;
+    }
+    return error;
+  }
+
+  // สำรองไฟล์เล็กเข้าคลังทันทีที่ลูกค้าแนบ (เหมือนไฟล์ใหญ่) — กันเคสจริง: กดยืนยันแล้วเน็ตสะดุด/เบราว์เซอร์ใน LINE เขี่ยไฟล์ทิ้งจากหน่วยความจำ ทำให้อัปตอนจ่ายพังทั้งชุด
+  preUpload(it){
+    if (!this.db || !it.file) return;
+    this._preUp = this._preUp || {};
+    const rec = { path: null, err: false, promise: null };
+    this._preUp[it.uid] = rec;
+    const setF = (patch) => this.setState(st => ({ files: st.files.map(x => x.uid === it.uid ? { ...x, ...patch } : x) }));
+    rec.promise = (async () => {
+      setF({ up: 1, upErr: false, upDone: false });
+      const safe = it.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+      const path = 'pre/' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8) + '/f_' + safe;
+      const err = await this.uploadRetry(path, it.file);
+      if (err) { console.error('pre-upload:', err); rec.err = true; setF({ upErr: true, up: 0 }); }
+      else { rec.path = path; setF({ up: 100, upDone: true }); }
+    })();
+  }
+
+  // สำรองสลิปเข้าคลังทันทีที่แนบ (ผ่านตรวจ QR แล้ว) — ตอนกดยืนยันแค่หยิบ path ที่ขึ้นไปแล้วมาใช้
+  preUpSlip(f){
+    if (!this.db || !f) return;
+    const rec = { file: f, path: null, err: false, promise: null };
+    this._slipUp = rec;
+    rec.promise = (async () => {
+      const ext = (f.name.split('.').pop() || 'jpg').replace(/[^a-zA-Z0-9]/g, '').slice(0, 5) || 'jpg';
+      const path = 'pre/' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8) + '/slip.' + ext;
+      const err = await this.uploadRetry(path, f);
+      if (err) { console.error('pre-slip:', err); rec.err = true; }
+      else rec.path = path;
+    })();
+  }
+
   // ล็อกอินด้วยโปรไฟล์ LINE (หลัง authorize ผ่าน LINE OA)
   async finishLineLogin(){
     try {
@@ -1771,20 +1814,12 @@ class App extends React.Component {
   // บันทึกออเดอร์ + อัปโหลดไฟล์ขึ้นฐานข้อมูลกลาง (ให้เจ้าของเห็นในหน้าหลังบ้าน)
   async saveOrder(id, c, t0){
     this._savingOrder = id; // ระหว่างอัปไฟล์+บันทึก — หน้าติดตามห้ามตีความว่าออเดอร์ถูกลบ
-    try { await this._saveOrderInner(id, c, t0); } finally { if (this._savingOrder === id) this._savingOrder = null; }
+    this.setState({ savingUp: true }); // แถบเตือน "อย่าเพิ่งปิดหน้า" บนหน้าติดตาม
+    try { await this._saveOrderInner(id, c, t0); } finally { if (this._savingOrder === id) this._savingOrder = null; this.setState({ savingUp: false }); }
   }
   async _saveOrderInner(id, c, t0){
     const s = this.state;
     try {
-      // อัปโหลดพลาดครั้งแรก (เน็ตสะดุด) ให้ลองซ้ำอีกรอบ — ถ้าไฟล์ขึ้นไปแล้วเจอ "already exists" ถือว่าสำเร็จ
-      const uploadRetry = async (path, file) => {
-        let { error } = await this.db.storage.from('uploads').upload(path, file);
-        if (error) {
-          const r2 = await this.db.storage.from('uploads').upload(path, file);
-          error = r2.error && !/exist|duplicate/i.test(String(r2.error.message || '')) ? r2.error : null;
-        }
-        return error;
-      };
       const files = [];
       let upFail = 0;
       const failIdx = []; // ไฟล์ที่อัปไม่สำเร็จ — ให้ลูกค้าส่งใหม่ได้จากหน้าติดตาม
@@ -1792,10 +1827,17 @@ class App extends React.Component {
         const f = s.files[i];
         let path = null;
         if (f.file && !f.big) {
-          const safe = f.name.replace(/[^a-zA-Z0-9._-]/g, '_');
-          path = id.replace('#', '') + '/f' + i + '_' + safe;
-          const error = await uploadRetry(path, f.file);
-          if (error) { console.error('upload:', error); path = null; upFail++; failIdx.push({ i, name: f.name }); }
+          // ไฟล์ถูกสำรองเข้าคลังตั้งแต่ตอนแนบแล้ว (preUpload) — รอให้เสร็จแล้วหยิบ path มาใช้เลย ไม่ต้องอัปซ้ำ
+          const rec = (this._preUp || {})[f.uid];
+          if (rec) { try { await rec.promise; } catch (e) {} }
+          if (rec && rec.path) path = rec.path;
+          else {
+            // สำรองล่วงหน้าไม่สำเร็จ/ไม่มี — อัปตรงนี้อีกชุด (ลองซ้ำ 3 รอบเว้นจังหวะ)
+            const safe = f.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+            path = id.replace('#', '') + '/f' + i + '_' + safe;
+            const error = await this.uploadRetry(path, f.file);
+            if (error) { console.error('upload:', error); path = null; upFail++; failIdx.push({ i, name: f.name }); }
+          }
         }
         // qty/w/h/sh = จำนวนชิ้น (ระบบคำนวณ = cap×แผ่น)·ขนาด (ซม.)·จำนวนแผ่น (PP 13"×19" / PVC ตร.ม.) ต่อลาย — บันทึกเฉพาะออเดอร์สติ๊กเกอร์เท่านั้น
         const sti = (s.tier === 'pro' && s.proType === 'sticker') ? this.stickerInfo().list[i] : null;
@@ -1818,13 +1860,18 @@ class App extends React.Component {
           this.setState(st => st.order && st.order.id === id ? { order: { ...st.order, fails: failIdx } } : null);
         } catch (e) {}
       }
-      // อัปโหลดสลิปโอนเงิน
+      // สลิปโอนเงิน — สำรองไว้ตั้งแต่ตอนแนบ (preUpSlip) ถ้าสำเร็จแล้วใช้ path นั้นเลย
       let slip_path = null;
       if (s.slip) {
-        const ext = (s.slip.name.split('.').pop() || 'jpg').replace(/[^a-zA-Z0-9]/g, '').slice(0, 5) || 'jpg';
-        slip_path = id.replace('#', '') + '/slip.' + ext;
-        const se = await uploadRetry(slip_path, s.slip);
-        if (se) { console.error('slip:', se); slip_path = null; this.markSlipFail(id, true); } // ขึ้นป้าย+ปุ่มส่งสลิปใหม่บนหน้าติดตาม (2026-09-15 เคสจริง #MP-V6RXTVBS)
+        const srec = this._slipUp && this._slipUp.file === s.slip ? this._slipUp : null;
+        if (srec) { try { await srec.promise; } catch (e) {} }
+        if (srec && srec.path) slip_path = srec.path;
+        else {
+          const ext = (s.slip.name.split('.').pop() || 'jpg').replace(/[^a-zA-Z0-9]/g, '').slice(0, 5) || 'jpg';
+          slip_path = id.replace('#', '') + '/slip.' + ext;
+          const se = await this.uploadRetry(slip_path, s.slip);
+          if (se) { console.error('slip:', se); slip_path = null; this.markSlipFail(id, true); } // ขึ้นป้าย+ปุ่มส่งสลิปใหม่บนหน้าติดตาม (2026-09-15 เคสจริง #MP-V6RXTVBS)
+        }
       }
       const u = s.user || {};
       const payload = {
@@ -2675,7 +2722,7 @@ class App extends React.Component {
         const items = ok;
         this.setState(st => ({ files: st.files.concat(items) }));
         items.forEach(async (it) => {
-          if (it.big) this.uploadBig(it);
+          if (it.big) this.uploadBig(it); else this.preUpload(it);
           const r = await this.countPages(it.file);
           this.setState(st => ({ files: st.files.map(x => x.uid === it.uid ? { ...x, pages: r.pages, auto: r.auto, heavy: r.heavy || 0, heavyList: r.heavyList || [], scanned: !!r.scanned, thumb: r.thumb || null, counting: false } : x) }));
         });
@@ -2687,7 +2734,7 @@ class App extends React.Component {
         auto: !!f.auto, counting: !!f.counting, // ไว้ล็อกปุ่มแก้จำนวนหน้าของไฟล์ที่นับอัตโนมัติแล้ว
         thumb: f.thumb || null, heavy: f.heavy || 0, scanned: !!f.scanned,
         up: f.up || 0, upDone: !!f.upDone, upErr: !!f.upErr,
-        retryUp: () => { const it = s.files[i]; if (it && it.big && it.file) this.uploadBig(it); },
+        retryUp: () => { const it = s.files[i]; if (!it || !it.file) return; if (it.big) this.uploadBig(it); else this.preUpload(it); },
         // งานสติ๊กเกอร์: ขนาด/จำนวนแผ่นกรอกที่ช่องใต้ตัวเลือกงาน (stkFiles) — แถวไฟล์บนนี้แค่โชว์สรุป
         stMode: stOn,
         qty: stOn && si && si.list[i] ? si.list[i].q : (f.qty || 0),
@@ -2979,7 +3026,7 @@ class App extends React.Component {
       rcOn: s.rcOn, rcToggle: (on) => () => this.setState({ rcOn: on }),
       rcName: s.rcName, rcAddr: s.rcAddr, rcTax: s.rcTax, rcPhone: s.rcPhone,
       setRc: (k) => (e) => this.setState({ [k]: e.target.value }),
-      rcView: s.rcView, closeRc: () => this.setState({ rcView: null }), curOrder: s.order,
+      rcView: s.rcView, closeRc: () => this.setState({ rcView: null }), curOrder: s.order, savingUp: !!s.savingUp,
       printRc: () => { try { window.print(); } catch (e) {} },
       openReceipt: async (o) => {
         if (!o || !o.rc) return;
@@ -3209,6 +3256,7 @@ class App extends React.Component {
           return this.showToast('รูปนี้ไม่ใช่สลิปโอนเงิน (ไม่พบ QR ของสลิป) — แนบสลิปจริงจากแอปธนาคารนะครับ 🧾');
         }
         this.setState({ slipChecking: false, slip: f });
+        this.preUpSlip(f);
         if (ok === true) this.showToast('✓ ตรวจพบ QR สลิปแล้ว ขอบคุณครับ');
       },
       slipChecking: s.slipChecking,
@@ -4034,6 +4082,12 @@ class App extends React.Component {
                     )}
                   </div>
                 )}
+                {!f.big && f.upErr && (
+                  <div style={css("margin-top:8px;padding-top:8px;border-top:1px dashed var(--line);display:flex;align-items:center;gap:10px")}>
+                    <div style={css("flex:1;font-size:12.5px;font-weight:700;color:#c92a2a;line-height:1.5")}>⚠️ สำรองไฟล์เข้าระบบไม่สำเร็จ — กดลองใหม่ก่อนสั่งนะครับ</div>
+                    <button onClick={f.retryUp} style={css("height:32px;padding:0 14px;border:none;border-radius:9px;background:var(--acc);color:#fff;font-size:12.5px;font-weight:700;cursor:pointer")}>🔁 ลองใหม่</button>
+                  </div>
+                )}
                 {/* งานปริ้นผสม: เลือกรูปแบบการพิมพ์ของไฟล์นี้ — การ์ดประเภทงานย่อส่วน 3 ช่อง (เจ้าของอนุมัติดีไซน์ 2026-10-08) */}
                 {v.isMix && f.mix && !f.counting && (
                   <div style={css("margin-top:9px;padding-top:9px;border-top:1px dashed var(--line)")}>
@@ -4675,6 +4729,9 @@ class App extends React.Component {
         {/* ── Track ── */}
         {v.isTrack && (
           <div style={css("padding:18px 20px 110px;display:flex;flex-direction:column;gap:14px")}>
+            {v.savingUp && (
+              <div style={css("background:#fff8e1;border:1px solid #f0b429;border-radius:12px;padding:10px 14px;font-size:12.5px;font-weight:700;color:#a16207;line-height:1.6")}>☁️ กำลังส่งไฟล์เข้าระบบ — อยู่ในหน้านี้สักครู่ อย่าเพิ่งปิดแอปนะครับ</div>
+            )}
             {/* ลูกค้าสั่งหลายใบไล่เลี่ยกัน — ลิสต์ทุกออเดอร์ แตะใบไหนก็สลับไปดูใบนั้น */}
             {v.otherOrders.length > 0 && (
               <div style={css("display:flex;flex-direction:column;gap:8px")}>

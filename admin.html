@@ -597,7 +597,7 @@ function OrderCard({ o, idx, onAdvance, onRetreat, onApplyEdits, onCancel, onRem
                   </a>
                   {(o.status >= 1 && o.status < 4)
                     ? <div className="slip-warn" style={css("margin-top:4px;font-size:12.5px;color:#c92a2a;font-weight:700")}>⚠️ ไม่มีสลิปแนบมา — โทรเช็คก่อนปริ้น</div>
-                    : <div className="slip-warn" style={css("margin-top:4px;font-size:11.5px;color:var(--sub)")}>— ไม่มีไฟล์ (อาจถูกล้างเพื่อคืนพื้นที่แล้ว)</div>}
+                    : <div className="slip-warn" style={css("margin-top:4px;font-size:11.5px;color:var(--sub)")}>— ไม่มีสลิปในระบบ (ตอนสั่งแนบไม่สำเร็จจากเครื่องลูกค้า หรือออเดอร์ไม่มียอดโอน)</div>}
                 </div>}
             </div>
           </div>
