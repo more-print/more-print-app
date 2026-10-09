@@ -3216,7 +3216,7 @@ class App extends React.Component {
         if (this._payTs && Date.now() - this._payTs < 5000) return; // กันกดยืนยันรัว/เบิ้ล — ออเดอร์ต้องไม่ซ้ำ
         if (s.shopOpen === false) return this.showToast('ขออภัยครับ ตอนนี้ร้านปิดรับออเดอร์ชั่วคราว 🙏 ยังไม่หักเงินนะครับ — เปิดรับอีกครั้งเร็ว ๆ นี้');
         if (s.slipChecking) return this.showToast('กำลังตรวจสลิปอยู่ แป๊บนึงครับ ⏳');
-        if (s.rcOn && !(s.rcName.trim() && s.rcAddr.trim() && s.rcTax.trim() && s.rcPhone.trim())) return this.showToast('ขอใบเสร็จ — กรอกข้อมูลผู้ซื้อให้ครบ 4 ช่องก่อนนะครับ 🧾');
+        if (s.rcOn && !(s.rcName.trim() && s.rcAddr.trim() && s.rcPhone.trim())) return this.showToast('ขอใบเสร็จ — กรอกชื่อผู้ซื้อ ที่อยู่ และโทรศัพท์ก่อนนะครับ 🧾 (เลขผู้เสียภาษีไม่บังคับ)');
         if (this.db && !s.slip && c.grandTotal > 0) return this.showToast('แนบสลิปโอนเงินก่อนยืนยันนะครับ 🧾');
         this._payTs = Date.now(); // ผ่านทุกด่านแล้วค่อยล็อก — โดนเตือนอยู่ยังกดใหม่ได้ แต่กดเบิ้ลจะไม่สร้างออเดอร์ซ้ำ
         if (!this.db && c.coupon) try { const uD = JSON.parse(localStorage.getItem('mp_used_demo') || '[]'); if (!uD.includes(c.coupon)) { uD.push(c.coupon); localStorage.setItem('mp_used_demo', JSON.stringify(uD)); } } catch (e) {} // โหมดตัวอย่าง: จำว่าใช้โค้ดแล้ว
@@ -4648,7 +4648,7 @@ class App extends React.Component {
                 <div style={css("margin-top:10px;display:flex;flex-direction:column;gap:8px")}>
                   <input value={v.rcName} onChange={v.setRc('rcName')} placeholder="ชื่อผู้ซื้อ (ชื่อ-นามสกุล หรือชื่อบริษัท) *" maxLength={120} style={css("width:100%;box-sizing:border-box;height:42px;border:1px solid var(--line);border-radius:10px;background:var(--soft);color:var(--ink);padding:0 12px;font-size:13px;outline:none")}/>
                   <textarea value={v.rcAddr} onChange={v.setRc('rcAddr')} placeholder="ที่อยู่ *" rows={2} maxLength={300} style={css("width:100%;box-sizing:border-box;border:1px solid var(--line);border-radius:10px;background:var(--soft);color:var(--ink);padding:10px 12px;font-size:13px;outline:none;resize:none;font-family:inherit;line-height:1.5")}></textarea>
-                  <input value={v.rcTax} onChange={v.setRc('rcTax')} placeholder="เลขประจำตัวผู้เสียภาษี (13 หลัก) *" inputMode="numeric" maxLength={17} style={css("width:100%;box-sizing:border-box;height:42px;border:1px solid var(--line);border-radius:10px;background:var(--soft);color:var(--ink);padding:0 12px;font-size:13px;outline:none;font-family:'IBM Plex Mono',monospace")}/>
+                  <input value={v.rcTax} onChange={v.setRc('rcTax')} placeholder="เลขประจำตัวผู้เสียภาษี (ถ้ามี)" inputMode="numeric" maxLength={17} style={css("width:100%;box-sizing:border-box;height:42px;border:1px solid var(--line);border-radius:10px;background:var(--soft);color:var(--ink);padding:0 12px;font-size:13px;outline:none;font-family:'IBM Plex Mono',monospace")}/>
                   <input value={v.rcPhone} onChange={v.setRc('rcPhone')} placeholder="โทรศัพท์ *" inputMode="tel" maxLength={12} style={css("width:100%;box-sizing:border-box;height:42px;border:1px solid var(--line);border-radius:10px;background:var(--soft);color:var(--ink);padding:0 12px;font-size:13px;outline:none;font-family:'IBM Plex Mono',monospace")}/>
                   <div style={css("font-size:11.5px;color:var(--sub);line-height:1.6")}>ใบเสร็จเปิดดู/พิมพ์ได้ที่หน้า "ติดตาม" หลังยืนยันออเดอร์ครับ</div>
                 </div>
@@ -5168,7 +5168,7 @@ class App extends React.Component {
                     {row('ชื่อผู้ซื้อ', rc.name)}
                     {row('ที่อยู่', rc.addr)}
                     <div style={{ display: 'flex', gap: '0 14px', flexWrap: 'wrap' }}>
-                      <div style={{ flex: '1 1 250px', minWidth: 0 }}>{row('เลขประจำตัวผู้เสียภาษี', rc.tax, true)}</div>
+                      <div style={{ flex: '1 1 250px', minWidth: 0 }}>{row('เลขประจำตัวผู้เสียภาษี', rc.tax || '-', true)}</div>
                       <div style={{ flex: '1 1 170px', minWidth: 0 }}>{row('โทรศัพท์', rc.phone, true)}</div>
                     </div>
                   </div>
