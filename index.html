@@ -1368,7 +1368,7 @@ class App extends React.Component {
       const safe = it.name.replace(/[^a-zA-Z0-9._-]/g, '_');
       const path = 'pre/' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8) + '/f_' + safe;
       const err = await this.uploadRetry(path, it.file);
-      if (err) { console.error('pre-upload:', err); rec.err = true; setF({ upErr: true, up: 0 }); }
+      if (err) { console.error('pre-upload:', err); rec.err = true; setF({ upErr: true, up: 0, upTries: (it.upTries || 0) + 1 }); }
       else { rec.path = path; setF({ up: 100, upDone: true }); }
     })();
   }
@@ -1378,6 +1378,7 @@ class App extends React.Component {
     if (!this.db || !f) return;
     const rec = { file: f, path: null, err: false, promise: null };
     this._slipUp = rec;
+    this._slipRetried = false; // ด่านสลิปใน confirmPay ให้สิทธิ์ลองใหม่อีกรอบทุกครั้งที่มีการสำรองรอบใหม่
     rec.promise = (async () => {
       const ext = (f.name.split('.').pop() || 'jpg').replace(/[^a-zA-Z0-9]/g, '').slice(0, 5) || 'jpg';
       const path = 'pre/' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8) + '/slip.' + ext;
@@ -2255,7 +2256,7 @@ class App extends React.Component {
     if (!o || !this.db || !file) return;
     this.setState({ reupBusy: true });
     const path = o.id.replace('#', '') + '/slip-re.jpg'; // นามสกุลไม่ต้องตรงชนิดไฟล์จริง — เบราว์เซอร์แสดงรูปตามเนื้อไฟล์
-    let { error } = await this.db.storage.from('uploads').upload(path, file);
+    let error = await this.uploadRetry(path, file); // ลองซ้ำ 3 รอบเว้นจังหวะ
     if (error && /exist|duplicate/i.test(String(error.message || ''))) error = null; // เคยส่งไปแล้ว = ร้านเห็นไฟล์เดิมอยู่แล้ว
     this.setState({ reupBusy: false });
     if (error) { console.error('slip-re:', error); return this.showToast('อัปโหลดไม่สำเร็จ ลองอีกครั้งครับ 🙏 (หรือส่งรูปสลิปทางแชทร้านก็ได้)'); }
@@ -2270,7 +2271,7 @@ class App extends React.Component {
     this.setState({ reupBusy: true });
     const safe = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
     const path = o.id.replace('#', '') + '/re' + idx + '_' + Date.now().toString(36) + '_' + safe;
-    const { error } = await this.db.storage.from('uploads').upload(path, file);
+    const error = await this.uploadRetry(path, file); // ลองซ้ำ 3 รอบเว้นจังหวะ
     if (error) { this.setState({ reupBusy: false }); return this.showToast('อัปโหลดไม่สำเร็จ ลองอีกครั้งครับ 🙏'); }
     const { data, error: e2 } = await this.db.rpc('reattach_file', { oid: o.id, idx, new_path: path });
     this.setState({ reupBusy: false });
@@ -2733,7 +2734,7 @@ class App extends React.Component {
         name: f.name, pages: f.pages, big: !!f.big, sizeMB: f.sizeMB || 0,
         auto: !!f.auto, counting: !!f.counting, // ไว้ล็อกปุ่มแก้จำนวนหน้าของไฟล์ที่นับอัตโนมัติแล้ว
         thumb: f.thumb || null, heavy: f.heavy || 0, scanned: !!f.scanned,
-        up: f.up || 0, upDone: !!f.upDone, upErr: !!f.upErr,
+        up: f.up || 0, upDone: !!f.upDone, upErr: !!f.upErr, upTries: f.upTries || 0, hasFile: !!f.file,
         retryUp: () => { const it = s.files[i]; if (!it || !it.file) return; if (it.big) this.uploadBig(it); else this.preUpload(it); },
         // งานสติ๊กเกอร์: ขนาด/จำนวนแผ่นกรอกที่ช่องใต้ตัวเลือกงาน (stkFiles) — แถวไฟล์บนนี้แค่โชว์สรุป
         stMode: stOn,
@@ -3044,6 +3045,12 @@ class App extends React.Component {
         if (s.files.some(f => f.counting)) return this.showToast('รอระบบอ่านไฟล์แป๊บนึงครับ ⏳');
         const bigPending = s.files.find(f => f.big && !f.upDone);
         if (bigPending) return this.showToast(bigPending.upErr ? 'ไฟล์ใหญ่อัปโหลดไม่สำเร็จ — กดปุ่ม "ลองใหม่" ที่ไฟล์ก่อนนะครับ 🔁' : 'รอไฟล์ใหญ่อัปโหลดให้เสร็จก่อนนะครับ ⏳ (ดู % ที่รายการไฟล์)');
+        // ไฟล์เล็กที่สำรองเข้าคลังไม่สำเร็จ = ห้ามไปต่อ (กันเคสออเดอร์เข้าแต่ไฟล์หาย 2026-10-09) — ระบบลองอัปให้ใหม่เองตอนกด
+        const smallErr = s.files.filter(f => !f.big && f.file && f.upErr);
+        if (smallErr.length) {
+          smallErr.forEach(f => this.preUpload(f));
+          return this.showToast((smallErr[0].upTries || 0) >= 2 ? '⚠️ ไฟล์ "' + smallErr[0].name + '" ส่งเข้าระบบไม่ได้ — ลบไฟล์นี้ (✕) แล้วแนบใหม่อีกครั้งนะครับ' : '⚠️ สำรองไฟล์เข้าระบบยังไม่สำเร็จ — กำลังลองใหม่ให้ กด "ถัดไป" อีกครั้งนะครับ');
+        }
         // เพลทต้องเลือกประเภทบอร์ดก่อน (นโยบาย 2026-09-09)
         if (s.tier === 'pro' && s.proType === 'plate' && !s.proBoard)
           return this.showToast('🪧 เลือกประเภทบอร์ดก่อนนะครับ — ฟิวเจอร์บอร์ด หรือ โฟมบอร์ด (ไม่บวกราคาเพิ่ม)');
@@ -3264,6 +3271,18 @@ class App extends React.Component {
         if (this._payTs && Date.now() - this._payTs < 5000) return; // กันกดยืนยันรัว/เบิ้ล — ออเดอร์ต้องไม่ซ้ำ
         if (s.shopOpen === false) return this.showToast('ขออภัยครับ ตอนนี้ร้านปิดรับออเดอร์ชั่วคราว 🙏 ยังไม่หักเงินนะครับ — เปิดรับอีกครั้งเร็ว ๆ นี้');
         if (s.slipChecking) return this.showToast('กำลังตรวจสลิปอยู่ แป๊บนึงครับ ⏳');
+        // ด่านไฟล์ก่อนสร้างออเดอร์: สำรองเข้าคลังไม่สำเร็จ = ไม่ปล่อยผ่าน (ต้นเหตุเคสไฟล์หาย 2026-10-09) — ลองอัปใหม่ให้อัตโนมัติ
+        const fErr = s.files.filter(f => !f.big && f.file && f.upErr);
+        if (fErr.length) {
+          fErr.forEach(f => this.preUpload(f));
+          return this.showToast((fErr[0].upTries || 0) >= 2 ? '⚠️ ไฟล์ "' + fErr[0].name + '" ส่งเข้าระบบไม่ได้ — กลับไปขั้นแรก ลบไฟล์นี้แล้วแนบใหม่นะครับ' : '⚠️ สำรองไฟล์เข้าระบบยังไม่สำเร็จ — กำลังลองใหม่ให้ กดยืนยันอีกครั้งนะครับ');
+        }
+        // ด่านสลิป: สำรองพลาดให้ลองใหม่หนึ่งรอบก่อน (รอบถัดไปปล่อยผ่าน — มีตาข่ายอัปตอนบันทึก + ปุ่มส่งสลิปใหม่ + ป้ายโทรเช็คหลังบ้านรับช่วง)
+        if (s.slip && this._slipUp && this._slipUp.file === s.slip && this._slipUp.err && !this._slipRetried) {
+          this._slipRetried = true;
+          this.preUpSlip(s.slip);
+          return this.showToast('สลิปยังส่งเข้าระบบไม่สำเร็จ — กำลังลองใหม่ให้ กดยืนยันอีกครั้งนะครับ 🧾');
+        }
         if (s.rcOn && !(s.rcName.trim() && s.rcAddr.trim() && s.rcPhone.trim())) return this.showToast('ขอใบเสร็จ — กรอกชื่อผู้ซื้อ ที่อยู่ และโทรศัพท์ก่อนนะครับ 🧾 (เลขผู้เสียภาษีไม่บังคับ)');
         if (this.db && !s.slip && c.grandTotal > 0) return this.showToast('แนบสลิปโอนเงินก่อนยืนยันนะครับ 🧾');
         this._payTs = Date.now(); // ผ่านทุกด่านแล้วค่อยล็อก — โดนเตือนอยู่ยังกดใหม่ได้ แต่กดเบิ้ลจะไม่สร้างออเดอร์ซ้ำ
@@ -4084,9 +4103,12 @@ class App extends React.Component {
                 )}
                 {!f.big && f.upErr && (
                   <div style={css("margin-top:8px;padding-top:8px;border-top:1px dashed var(--line);display:flex;align-items:center;gap:10px")}>
-                    <div style={css("flex:1;font-size:12.5px;font-weight:700;color:#c92a2a;line-height:1.5")}>⚠️ สำรองไฟล์เข้าระบบไม่สำเร็จ — กดลองใหม่ก่อนสั่งนะครับ</div>
+                    <div style={css("flex:1;font-size:12.5px;font-weight:700;color:#c92a2a;line-height:1.5")}>{f.upTries >= 2 ? '⚠️ ไฟล์นี้ส่งเข้าระบบไม่ได้ — ลบ (✕) แล้วแนบใหม่อีกครั้งนะครับ' : '⚠️ สำรองไฟล์เข้าระบบไม่สำเร็จ — กดลองใหม่ก่อนสั่งนะครับ'}</div>
                     <button onClick={f.retryUp} style={css("height:32px;padding:0 14px;border:none;border-radius:9px;background:var(--acc);color:#fff;font-size:12.5px;font-weight:700;cursor:pointer")}>🔁 ลองใหม่</button>
                   </div>
+                )}
+                {!f.big && f.hasFile && !f.upErr && !f.upDone && f.up > 0 && (
+                  <div style={css("margin-top:8px;padding-top:8px;border-top:1px dashed var(--line);font-size:12px;font-weight:700;color:#a16207")}>☁️ กำลังสำรองไฟล์เข้าระบบ…</div>
                 )}
                 {/* งานปริ้นผสม: เลือกรูปแบบการพิมพ์ของไฟล์นี้ — การ์ดประเภทงานย่อส่วน 3 ช่อง (เจ้าของอนุมัติดีไซน์ 2026-10-08) */}
                 {v.isMix && f.mix && !f.counting && (
