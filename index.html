@@ -509,6 +509,15 @@ function BillPrint({ v }){
   );
 }
 
+// ── ร่างออเดอร์ (เจ้าของสั่ง 2026-10-11): ลูกค้าสลับไปแอปธนาคารแล้วมือถือ (โดยเฉพาะเบราว์เซอร์ใน LINE) ปิดหน้าเว็บเบื้องหลังทิ้ง กลับมาเว็บโหลดใหม่ ข้อมูลหายหมด ──
+// key ทุกตัวที่ใช้สั่งงาน+คิดราคา (ตรวจแล้ว: state ที่ไม่อยู่ในนี้ไม่เกี่ยวกับออเดอร์) — เพิ่ม state ใหม่ของขั้นสั่งงานเมื่อไหร่ต้องเพิ่มที่นี่ด้วย ไม่งั้นกู้คืนแล้วราคาเพี้ยน
+const DRAFT_KEYS = ['tier', 'ptype', 'paper', 'sides', 'orient', 'nup', 'bind', 'copies', 'note', 'shipNote', 'recvSel', 'vehSel', 'vehicle',
+  'rcOn', 'rcName', 'rcAddr', 'rcTax', 'rcPhone', 'proType', 'proSize', 'proBind', 'proQty', 'proPickup', 'stdPickup', 'proBoard', 'proGram', 'stkType',
+  'proFilm', 'proPoPaper', 'proLam', 'proSpecial', 'proStaple', 'proStand', 'distKm', 'distSrc', 'point', 'addr', 'phone', 'time', 'express', 'handoff',
+  'lat', 'lng', 'geoLabel', 'gmapLink', 'pinSrc', 'pinMode', 'mapLocked', 'gpsAcc', 'couponCode', 'couponOk'];
+const DRAFT_FLOW = ['order', 'delivery', 'review', 'pay'];
+const DRAFT_TTL = 6 * 3600 * 1000;
+
 class App extends React.Component {
   constructor(props){
     super(props);
@@ -557,6 +566,7 @@ class App extends React.Component {
       emailIn: '', passIn: '',
       regFname: '', regLname: '', regEmail: '', regPass1: '', regPass2: ''
     };
+    this._draftDefaults = {}; DRAFT_KEYS.forEach(k => { this._draftDefaults[k] = this.state[k]; }); // ร่างเก็บเฉพาะค่าที่ต่างจากค่าเริ่มต้น — เล็กพอใส่คุกกี้สำรองได้
   }
 
   componentDidMount(){
@@ -701,8 +711,16 @@ class App extends React.Component {
     };
     window.addEventListener('scroll', this._winScrollChat, { passive: true });
     this.syncNight();
+    // ร่างออเดอร์: บันทึกทันทีตอนหน้าเว็บกำลังถูกพับไปเบื้องหลัง (สลับไปแอปธนาคาร) แล้วกู้คืนหลังหน้าจอแรกวาดเสร็จ (ตอนนั้นรู้ตัวตนผู้ใช้แล้ว)
+    this._draftFlush = () => { if (document.visibilityState === 'hidden') { clearTimeout(this._draftT); this.saveDraft(); } };
+    document.addEventListener('visibilitychange', this._draftFlush);
+    window.addEventListener('pagehide', () => { clearTimeout(this._draftT); this.saveDraft(); });
+    setTimeout(() => this.restoreDraft(), 0);
   }
-  componentDidUpdate(){ this.syncNight(); this.syncMap(); this.syncChatScroll(); }
+  componentDidUpdate(){
+    this.syncNight(); this.syncMap(); this.syncChatScroll();
+    if (this._draftReady) { clearTimeout(this._draftT); this._draftT = setTimeout(() => this.saveDraft(), 600); }
+  }
   // ── เลื่อนแชทแบบมีมารยาท (เจ้าของสั่ง 2026-10-07): ลงล่างสุดเฉพาะตอนเปิดห้อง/ผู้ใช้อยู่ก้นจอ/ส่งเอง — กำลังไล่อ่านข้อความเก่าห้ามดึงลง ──
   // ตัว scroll จริงของหน้าแชทคือ "ทั้งหน้าต่าง" (เชลล์โตตามเนื้อหา กล่องแชทไม่ overflow เอง) — เลือกตัวที่ overflow จริงเสมอ
   chatScrollEl(){
@@ -1369,8 +1387,71 @@ class App extends React.Component {
       const path = 'pre/' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8) + '/f_' + safe;
       const err = await this.uploadRetry(path, it.file);
       if (err) { console.error('pre-upload:', err); rec.err = true; setF({ upErr: true, up: 0, upTries: (it.upTries || 0) + 1 }); }
-      else { rec.path = path; setF({ up: 100, upDone: true }); }
+      else { rec.path = path; setF({ up: 100, upDone: true, prePath: path }); } // prePath อยู่ในตัวไฟล์ด้วย — ร่างออเดอร์กู้คืนไฟล์ได้โดยไม่ต้องแนบใหม่
     })();
+  }
+
+  saveDraft(){
+    if (!this._draftReady) return;
+    const s = this.state;
+    if (DRAFT_FLOW.includes(s.screen)) this._draftScreen = s.screen;
+    if (!s.files.length) return this.clearDraft();
+    const data = {};
+    DRAFT_KEYS.forEach(k => { if (JSON.stringify(s[k]) !== JSON.stringify(this._draftDefaults[k])) data[k] = s[k]; });
+    data.files = s.files.map(({ file, ...rest }) => rest);
+    const body = JSON.stringify({ screen: this._draftScreen || 'order', data });
+    if (body === this._draftLast) return; // ไม่มีอะไรเปลี่ยน — ไม่ต้องเขียนซ้ำทุกครั้งที่หน้าจอวาดใหม่
+    this._draftLast = body;
+    const d = { v: 1, t: Date.now(), screen: this._draftScreen || 'order', data };
+    try { localStorage.setItem('mp_draft', JSON.stringify(d)); }
+    catch (e) { try { localStorage.setItem('mp_draft', JSON.stringify({ ...d, data: { ...data, files: data.files.map(f => ({ ...f, thumb: null })) } })); } catch (e2) {} }
+    // คุกกี้สำรอง: เบราว์เซอร์ใน LINE ล้าง localStorage เองได้แต่คุกกี้รอด — ไม่เก็บรูปตัวอย่าง + ย่อรายการหน้าสีเป็นช่วงหน้า · ใหญ่เกินไม่เขียน (คุกกี้ติดไปทุกคำขอ ห้ามบวม)
+    try {
+      const lite = { ...d, data: { ...data, files: data.files.map(({ thumb, heavyList, ...f }) => ({ ...f, hl: pagesToRanges(heavyList || []) })) } };
+      const b64 = btoa(unescape(encodeURIComponent(JSON.stringify(lite))));
+      if (b64.length > 3000) return this.clearDraftCookie();
+      document.cookie = 'mp_draft_bk=' + b64 + ';max-age=21600;path=/;SameSite=Lax';
+    } catch (e) {}
+  }
+
+  readDraft(){
+    let d = null;
+    try { d = JSON.parse(localStorage.getItem('mp_draft') || 'null'); } catch (e) {}
+    if (!d) try {
+      const m = document.cookie.match(/(?:^|;\s*)mp_draft_bk=([^;]+)/);
+      if (m) d = JSON.parse(decodeURIComponent(escape(atob(m[1]))));
+    } catch (e) { d = null; }
+    return d;
+  }
+
+  clearDraft(){
+    this._draftLast = null;
+    try { if (localStorage.getItem('mp_draft')) localStorage.removeItem('mp_draft'); } catch (e) {}
+    this.clearDraftCookie();
+  }
+  clearDraftCookie(){ try { if (/(?:^|;\s*)mp_draft_bk=/.test(document.cookie)) document.cookie = 'mp_draft_bk=;max-age=0;path=/'; } catch (e) {} }
+
+  // กู้ร่างตอนเปิดเว็บใหม่ — ไฟล์เล็กต้องขึ้นคลังแล้ว (prePath) · ไฟล์ใหญ่ต้องอัปเสร็จแล้ว (b2Url) · ที่เหลือต้องแนบใหม่
+  restoreDraft(){
+    const ready = () => { this._draftReady = true; };
+    const d = this.readDraft();
+    if (!d || d.v !== 1 || !d.data || Date.now() - (d.t || 0) > DRAFT_TTL) { this.clearDraft(); return ready(); }
+    const files = [], lost = [];
+    (d.data.files || []).forEach(f0 => {
+      const f = { ...f0 };
+      if (f.hl != null && !Array.isArray(f.heavyList)) f.heavyList = [...parsePageSpec(f.hl, f.pages || 1).set];
+      delete f.hl;
+      if (f.big ? (f.upDone && f.b2Url) : f.prePath) files.push({ ...f, counting: false, upErr: false, upDone: true, up: 100 });
+      else lost.push(f.name);
+    });
+    if (!files.length && !lost.length) { this.clearDraft(); return ready(); }
+    const known = !!this.state.user || this.ensureUser();
+    const resume = files.length && !lost.length && DRAFT_FLOW.includes(d.screen) ? d.screen : 'order';
+    this._draftScreen = resume;
+    this.setState({ ...d.data, files, screen: known ? resume : 'home' }, ready);
+    setTimeout(() => this.showToast(lost.length
+      ? '⚠️ กู้ข้อมูลออเดอร์ที่ทำค้างไว้ให้แล้ว แต่ไฟล์ "' + lost.join('", "') + '" ยังส่งเข้าระบบไม่ทัน — แนบไฟล์นั้นใหม่อีกครั้งนะครับ'
+      : known ? '✓ กู้ข้อมูลออเดอร์ที่ทำค้างไว้ให้แล้ว ทำต่อได้เลยครับ' : 'มีออเดอร์ที่ทำค้างไว้ — เข้าสู่ระบบแล้วกด "สั่งปริ้น" ทำต่อได้เลยครับ', lost.length ? 7000 : 4000), 400);
   }
 
   // สำรองสลิปเข้าคลังทันทีที่แนบ (ผ่านตรวจ QR แล้ว) — ตอนกดยืนยันแค่หยิบ path ที่ขึ้นไปแล้วมาใช้
@@ -1416,10 +1497,10 @@ class App extends React.Component {
     return h >= 22 || h < 6;
   }
 
-  showToast(msg){
+  showToast(msg, ms){
     clearTimeout(this.toastTimer);
     this.setState({ toast: msg });
-    this.toastTimer = setTimeout(() => this.setState({ toast: '' }), 2200);
+    this.toastTimer = setTimeout(() => this.setState({ toast: '' }), ms || 2200);
   }
 
   // ส่งด่วน (Express) ใช้ได้เฉพาะ: งาน Standard + แบบจัดส่ง (ไม่ใช่รับหน้าร้าน) + ล็อกหมุดจุดส่งแล้ว + ช่วงเวลาเปิดรับ
@@ -1827,11 +1908,12 @@ class App extends React.Component {
       for (let i = 0; i < s.files.length; i++) {
         const f = s.files[i];
         let path = null;
-        if (f.file && !f.big) {
+        if (!f.big && (f.file || f.prePath)) {
           // ไฟล์ถูกสำรองเข้าคลังตั้งแต่ตอนแนบแล้ว (preUpload) — รอให้เสร็จแล้วหยิบ path มาใช้เลย ไม่ต้องอัปซ้ำ
           const rec = (this._preUp || {})[f.uid];
           if (rec) { try { await rec.promise; } catch (e) {} }
           if (rec && rec.path) path = rec.path;
+          else if (f.prePath) path = f.prePath; // ไฟล์ที่กู้คืนจากร่างออเดอร์ (หน้าเว็บโหลดใหม่ ตัวไฟล์ในเครื่องหายแล้ว แต่ขึ้นคลังไว้ก่อนหน้าแล้ว)
           else {
             // สำรองล่วงหน้าไม่สำเร็จ/ไม่มี — อัปตรงนี้อีกชุด (ลองซ้ำ 3 รอบเว้นจังหวะ)
             const safe = f.name.replace(/[^a-zA-Z0-9._-]/g, '_');
@@ -3286,6 +3368,7 @@ class App extends React.Component {
         if (s.rcOn && !(s.rcName.trim() && s.rcAddr.trim() && s.rcPhone.trim())) return this.showToast('ขอใบเสร็จ — กรอกชื่อผู้ซื้อ ที่อยู่ และโทรศัพท์ก่อนนะครับ 🧾 (เลขผู้เสียภาษีไม่บังคับ)');
         if (this.db && !s.slip && c.grandTotal > 0) return this.showToast('แนบสลิปโอนเงินก่อนยืนยันนะครับ 🧾');
         this._payTs = Date.now(); // ผ่านทุกด่านแล้วค่อยล็อก — โดนเตือนอยู่ยังกดใหม่ได้ แต่กดเบิ้ลจะไม่สร้างออเดอร์ซ้ำ
+        this.clearDraft(); // ออเดอร์นี้กำลังถูกสร้าง — ล้างร่างทันที (เว็บโหลดใหม่ระหว่างบันทึกต้องไม่กู้ร่างเดิมมาให้กดยืนยันซ้ำ · ออเดอร์ที่ส่งไม่ถึงมี mp_pending ส่งต่อให้เอง)
         if (!this.db && c.coupon) try { const uD = JSON.parse(localStorage.getItem('mp_used_demo') || '[]'); if (!uD.includes(c.coupon)) { uD.push(c.coupon); localStorage.setItem('mp_used_demo', JSON.stringify(uD)); } } catch (e) {} // โหมดตัวอย่าง: จำว่าใช้โค้ดแล้ว
         const id = '#MP-' + Array.from(crypto.getRandomValues(new Uint8Array(8))).map(b => 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'[b % 31]).join('');
         const t0 = this.fmtTime(new Date());
@@ -5396,7 +5479,7 @@ class MpBoot extends React.Component {
         <div style={{ marginTop: '10px', fontSize: '16px', fontWeight: 800 }}>ขออภัยครับ หน้าเว็บมีปัญหาชั่วคราว</div>
         <div style={{ marginTop: '6px', fontSize: '12.5px', color: '#8a8a84', lineHeight: 1.6 }}>กด "โหลดใหม่" ก่อน ถ้ายังไม่หายให้กด "ล้างข้อมูลชั่วคราว" (บัญชีและออเดอร์ที่สั่งไปแล้วไม่หายครับ — ติดตามออเดอร์ได้จากรหัสในแชท/LINE)</div>
         <button onClick={() => location.reload()} style={{ marginTop: '16px', width: '100%', height: '46px', border: 'none', borderRadius: '12px', background: '#00b368', color: '#fff', fontSize: '14px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>🔄 โหลดใหม่</button>
-        <button onClick={() => { try { ['mp_order', 'mp_orders', 'mp_history', 'mp_review_last'].forEach(k => localStorage.removeItem(k)); } catch (e) {} location.reload(); }} style={{ marginTop: '9px', width: '100%', height: '42px', border: '1px solid #ddd', borderRadius: '12px', background: '#fff', color: '#333', fontSize: '13px', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>🧹 ล้างข้อมูลชั่วคราวแล้วโหลดใหม่</button>
+        <button onClick={() => { try { ['mp_order', 'mp_orders', 'mp_history', 'mp_review_last', 'mp_draft'].forEach(k => localStorage.removeItem(k)); document.cookie = 'mp_draft_bk=;max-age=0;path=/'; } catch (e) {} location.reload(); }} style={{ marginTop: '9px', width: '100%', height: '42px', border: '1px solid #ddd', borderRadius: '12px', background: '#fff', color: '#333', fontSize: '13px', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>🧹 ล้างข้อมูลชั่วคราวแล้วโหลดใหม่</button>
       </div>
     );
   }
