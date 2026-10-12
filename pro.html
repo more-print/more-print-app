@@ -382,7 +382,7 @@ function ProOrder({ o, idx, isOwner, payoutReady, onPrice, onPayout, onAdvance, 
         <div style={css("display:flex;gap:10px;font-size:12px")}>
           <span style={css("flex:none;width:76px;color:var(--sub);font-weight:600")}>{FI.truck(13)} การรับงาน</span>
           <div style={css("flex:1;min-width:0;line-height:1.6")}>
-            {o.pickup
+            {(o.pickup || (o.addr || '').indexOf('🏪') === 0)
               ? <b>ลูกค้ามารับเองที่ร้าน — ไม่ต้องจัดส่ง</b>
               : <span><b>ทีมงาน MORE PRINT ไปรับที่ร้าน แล้วจัดส่งให้ลูกค้าเอง</b>
                   {/🤝 รับกับมือ|📦 วางไว้จุดวางของ/.test(o.addr || '') && <span style={css("display:block;margin-top:2px;font-weight:700;color:" + ((o.addr || '').includes('📦') ? "#b8860b" : "var(--acc)"))}>{(o.addr || '').includes('📦') ? '📦 ลูกค้าให้วางไว้จุดวางของ' : '🤝 ลูกค้าขอรับกับมือ'}</span>}

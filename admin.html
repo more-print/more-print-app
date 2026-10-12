@@ -632,7 +632,7 @@ function OrderCard({ o, idx, onAdvance, onRetreat, onApplyEdits, onCancel, onRem
             {(() => {
               const a = o.addr || '';
               const car = a.indexOf('🚗') === 0, bike = a.indexOf('🏍️') === 0;
-              const pickup = !!o.pickup;
+              const pickup = !!o.pickup || a.indexOf('🏪') === 0; // ออเดอร์เก่าบางใบไม่มีธง pickup แต่ที่อยู่ขึ้นต้น 🏪 (มารับเอง)
               // วิธีรับของที่ลูกค้าเลือก (ตัวเลือกเสริม) — ฝังมาท้ายคอลัมน์ addr ข้อความต้องตรงกับ handoffLabel() ใน index.html เป๊ะ
               const hHand = a.includes('🤝 รับกับมือ'), hDrop = a.includes('📦 วางไว้จุดวางของ');
               return (
@@ -660,7 +660,8 @@ function OrderCard({ o, idx, onAdvance, onRetreat, onApplyEdits, onCancel, onRem
             <div style={css("font-size:12px;color:var(--sub);margin-top:2px")}>{o.express
               ? <React.Fragment><span style={css("font-size:15px;font-weight:800;color:#f59f00")}>⚡ EXPRESS : งานด่วน — ลัดคิวเร่งผลิต</span> · </React.Fragment>
               : o.time ? <React.Fragment>เวลารับ: <span style={css("font-family:'IBM Plex Mono',monospace")}>{o.time + ' น.'}</span> · </React.Fragment> : null}โทร <span style={css("font-family:'IBM Plex Mono',monospace")}>{o.phone}</span></div>
-            {(o.lat != null && o.lng != null) || (o.addr || o.point) ? (
+            {/* มารับเองที่ร้าน = ไม่มีที่ให้นำทางไป ซ่อนปุ่ม (เจ้าของสั่ง 2026-10-12) */}
+            {!(o.pickup || (o.addr || '').indexOf('🏪') === 0) && ((o.lat != null && o.lng != null) || (o.addr || o.point)) ? (
               <a href={o.lat != null && o.lng != null
                   ? 'https://www.google.com/maps?q=' + o.lat + ',' + o.lng
                   : 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(String(o.addr || o.point).replace(/^(🚗|🏍️)\s*/, ''))}
