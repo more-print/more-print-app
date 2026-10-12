@@ -200,8 +200,10 @@ const stdSpecRows = (o, f) => {
   return [
     ['ขนาดกระดาษ', o.paper || 'A4'],
     ['ประเภท', fileTypeLabel(o, f)],
+    o.ptype === 'poster' ? null : ['ด้านที่พิมพ์', o.sides === 2 ? 'หน้า-หลัง' : 'หน้าเดียว'],
     orient ? ['แนวกระดาษ', orient === 'landscape' ? 'แนวนอน' : 'แนวตั้ง'] : null,
     nup ? ['หน้า/แผ่น', nup + ' หน้า/แผ่น'] : null,
+    ['จำนวน', (o.copies || 1) + ' ชุด'],
     ['เย็บมุม', bind === 'corner' ? 'ต้องเย็บมุม' : 'ไม่เย็บมุม'],
     bind && bind !== 'none' && bind !== 'corner' ? ['เข้าเล่ม', bindShort(bind)] : null
   ].filter(Boolean);
@@ -555,55 +557,9 @@ function OrderCard({ o, idx, onAdvance, onRetreat, onApplyEdits, onCancel, onRem
       </div>
       {open && (
         <div style={css("border-top:1px dashed var(--line);padding:14px 16px;display:flex;flex-direction:column;gap:12px")}>
-          {/* เรียงแบบ pro.html: ป้ายรอทำ → สเปกใหญ่+ชิป → แถวข้อมูล → ปุ่ม → แชทท้ายสุด · ชื่อ+เบอร์ลูกค้าย้ายไปแถวจุดส่ง (เจ้าของสั่ง 2026-10-12) */}
+          {/* ป้ายรอทำ → แถวข้อมูล → ปุ่ม → แชทท้ายสุด · หัวสเปกตัวใหญ่+แถวชิป+ป้ายเตือนเย็บ/เข้าเล่ม ลบแล้ว ข้อมูลอยู่ในกล่องสเปก (เจ้าของสั่ง 2026-10-12) · ชื่อ+เบอร์ลูกค้าอยู่แถวจุดส่ง */}
           {o.status === 1 && (() => { const m = Math.max(0, Math.round((Date.now() - new Date(o.created_at).getTime()) / 60000)); const tt = m < 60 ? m + ' นาที' : (m / 60).toFixed(m < 600 ? 1 : 0).replace(/\.0$/, '') + ' ชม.'; return <div><span style={css("font-size:10.5px;font-weight:700;color:#a16207;background:#fff3bf;padding:3px 10px;border-radius:99px")}>{FI.clock(11)} รอเริ่มงาน · ผ่านมา {tt}</span></div>; })()}
-          {/* สเปกตัวใหญ่ + แถวชิป (โครงหน้าตาแบบ pro.html) */}
-          <div>
-            <div style={css("font-size:17px;font-weight:800;line-height:1.3")}>{FI.file(16)} {o.ptype ? (PTYPE_LABELS[o.ptype] || o.ptype) : (o.color ? 'ปริ้นสี' : 'ปริ้นขาวดำ')} {o.paper} <span style={css("color:#b8860b")}>× {o.copies || 1} ชุด</span></div>
-            <div style={css("margin-top:8px;display:flex;gap:6px;flex-wrap:wrap")}>
-              {o.ptype !== 'poster' && <span style={css("font-size:11px;font-weight:600;background:var(--soft);border:1px solid var(--line);border-radius:8px;padding:3px 10px")}>{o.sides === 2 ? 'หน้า-หลัง' : 'หน้าเดียว'}</span>}
-              {(() => { // ชิปเย็บ/เข้าเล่ม: ไฟล์ตั้งต่างกัน = บอกให้ดูรายไฟล์ในกล่องสเปก (2026-10-12)
-                const ch = "font-size:11px;font-weight:600;background:var(--soft);border:1px solid var(--line);border-radius:8px;padding:3px 10px";
-                const fs = o.files || [], bs = fs.some(f => f.bind) ? [...new Set(fs.map(f => f.bind || 'none'))] : null;
-                if (bs && bs.length > 1) return <span style={css(ch)}>เย็บ/เข้าเล่มตามแต่ละไฟล์</span>;
-                const b = bs ? bs[0] : o.bind;
-                if (b && b !== 'none' && BIND_LABELS[b]) return <span style={css(ch)}>{BIND_LABELS[b]}</span>;
-                return o.ptype !== 'pro' ? <span style={css(ch)}>ไม่เย็บมุม</span> : null;
-              })()}
-              {o.express && <span style={css("font-size:11px;font-weight:700;color:#c92a2a;background:#fff0f0;padding:3px 10px;border-radius:8px")}>{FI.zap(10)} งานด่วน</span>}
-              {o.night && <span style={css("font-size:11px;font-weight:700;color:var(--warnInk);background:var(--warnBg);padding:3px 10px;border-radius:8px")}>{FI.moon(10)} กลางคืน</span>}
-              {(() => { const z = zoneOf(o.lat, o.lng); return z ? <span style={{ fontSize: '11px', fontWeight: 700, color: z.fg, background: z.bg, padding: '3px 10px', borderRadius: '8px' }}>{FI.pin(10)} {z.name}</span> : null; })()}
-              <span style={css("font-size:11px;font-weight:700;padding:3px 10px;border-radius:8px;" + (o.pickup ? "background:#fff3bf;color:#a16207" : "background:var(--accSoft);color:var(--acc)"))}>{o.pickup ? <React.Fragment>{FI.bag ? FI.bag(11) : null} ลูกค้ามารับเอง</React.Fragment> : <React.Fragment>{FI.truck(11)} MORE PRINT ส่ง</React.Fragment>}</span>
-            </div>
-          </div>
-          {/* แถวข้อมูลสไตล์ pro — ลำดับตามเจ้าของ (ปรับ 2026-10-01): ประเภทงาน → ไฟล์งาน → สลิป → ราคา → จุดส่ง */}
-          <div style={css("border-top:1px solid var(--line);padding-top:10px;display:flex;gap:10px;font-size:12px")}>
-            <span style={css("flex:none;width:64px;color:var(--sub);font-weight:600;padding-top:9px")}>{FI.printer(12)} ประเภทงาน</span>
-            <div style={css("flex:1;min-width:0")}>
-              {(o.files || []).length > 1
-                ? <React.Fragment>
-                    <div className={"mp-swipe-hint" + (o.files.length > 2 ? " all" : "")} style={css("margin-bottom:5px;font-size:11px;font-weight:700;color:#00b368")}>สั่ง {o.files.length} ไฟล์ — เลื่อนไปทางขวาดูกล่องสเปกครบทุกไฟล์ →</div>
-                    <div style={css("display:flex;gap:8px;overflow-x:auto;padding-bottom:3px")}>{/* สั่งหลายไฟล์ = กล่องสเปกละไฟล์ เรียงไปทางขวา (เจ้าของสั่ง 2026-10-12) */}
-                      {o.files.map((f, i) => <SpecBox key={i} grow title={'ไฟล์ ' + (i + 1)} sub={f.name} rows={stdSpecRows(o, f)}/>)}
-                    </div>
-                  </React.Fragment>
-                : <SpecBox rows={stdSpecRows(o, (o.files || [])[0])}/>}
-              {o.ptype === 'pro' && <div style={css("margin-top:4px;font-size:11px;font-weight:700;color:#c92a2a;line-height:1.5")}>งาน PRO ยังไม่มีเรทราคา — ตกลง/ยืนยันราคาปริ้นกับลูกค้าก่อนเริ่มงาน (ยอดที่ลูกค้าชำระแล้วคือค่าส่งเท่านั้น)</div>}
-              {/* ป้ายเตือนเข้าเล่ม/เย็บมุม — ออเดอร์ตั้งค่ารายไฟล์ (2026-10-12) บอกว่าไฟล์ไหน · ออเดอร์เก่าใช้ค่าทั้งออเดอร์ */}
-              {(() => {
-                const fs = o.files || [], per = fs.some(f => f.bind), BK = ['coil', 'tape', 'glue', 'book'];
-                const pick = (ok) => per ? fs.map((f, i) => [i, f.bind]).filter(([, b]) => ok(b)) : (ok(o.bind) ? [[-1, o.bind]] : []);
-                const books = pick(b => BK.includes(b)), corners = pick(b => b === 'corner');
-                const nm = (i) => i >= 0 && fs.length > 1 ? 'ไฟล์ ' + (i + 1) + ' ' : '';
-                return <React.Fragment>
-                  {books.length > 0 && <div style={css("margin-top:4px;display:inline-block;font-size:11px;font-weight:700;background:#f3f0ff;color:#5f3dc4;border:1px solid #b197fc;padding:3px 10px;border-radius:8px")}>📚 งานเข้าเล่ม: {books.map(([i, b]) => nm(i) + bindShort(b)).join(' · ')} × {o.copies || 1} ชุด — อย่าลืมเข้าเล่มก่อนส่งนะ</div>}
-                  {corners.length > 0 && <div style={css("margin-top:4px;display:inline-block;font-size:11px;font-weight:700;background:#fff3bf;color:#a16207;border:1px solid #f0dfa6;padding:3px 10px;border-radius:8px")}>📎 เย็บมุม{corners.some(([i]) => i >= 0) && fs.length > 1 ? ' ' + corners.map(([i]) => 'ไฟล์ ' + (i + 1)).join(', ') : ''} × {o.copies || 1} ชุด — อย่าลืมเย็บลวดมุมซ้ายบนก่อนส่งนะ</div>}
-                </React.Fragment>;
-              })()}
-              {/* หมายเหตุการปริ้นอยู่คู่ประเภทงาน · หมายเหตุการส่งอยู่คู่จุดส่ง — แยกชัดเจน (เจ้าของสั่ง 2026-10-07) */}
-              {o.note && <div style={css("margin-top:6px;background:#fff7e0;border:1px solid #f0c36d;border-radius:10px;padding:8px 11px;font-size:12.5px;color:#8a6d1a;line-height:1.6")}><b>📝 หมายเหตุการปริ้น (จากลูกค้า):</b> {o.note}</div>}
-            </div>
-          </div>
+          {/* แถวข้อมูล — ลำดับตามเจ้าของ (ปรับ 2026-10-12): ไฟล์งาน → ประเภทงาน (กล่องสเปก) → สลิป → ราคา → จุดส่ง */}
           <div style={css("display:flex;gap:10px;font-size:12px")}>
             <span style={css("flex:none;width:64px;color:var(--sub);font-weight:600;padding-top:4px")}>{FI.file(12)} ไฟล์งาน ({(o.files || []).length})</span>
             <div style={css("flex:1;min-width:0;display:flex;flex-direction:column;gap:6px")}>
@@ -655,6 +611,22 @@ function OrderCard({ o, idx, onAdvance, onRetreat, onApplyEdits, onCancel, onRem
                   )}
                 </div>
               ))}
+            </div>
+          </div>
+          <div style={css("display:flex;gap:10px;font-size:12px")}>
+            <span style={css("flex:none;width:64px;color:var(--sub);font-weight:600;padding-top:9px")}>{FI.printer(12)} ประเภทงาน</span>
+            <div style={css("flex:1;min-width:0")}>
+              {(o.files || []).length > 1
+                ? <React.Fragment>
+                    <div className={"mp-swipe-hint" + (o.files.length > 2 ? " all" : "")} style={css("margin-bottom:5px;font-size:11px;font-weight:700;color:#00b368")}>สั่ง {o.files.length} ไฟล์ — เลื่อนไปทางขวาดูกล่องสเปกครบทุกไฟล์ →</div>
+                    <div style={css("display:flex;gap:8px;overflow-x:auto;padding-bottom:3px")}>{/* สั่งหลายไฟล์ = กล่องสเปกละไฟล์ เรียงไปทางขวา (เจ้าของสั่ง 2026-10-12) */}
+                      {o.files.map((f, i) => <SpecBox key={i} grow title={'ไฟล์ ' + (i + 1)} sub={f.name} rows={stdSpecRows(o, f)}/>)}
+                    </div>
+                  </React.Fragment>
+                : <SpecBox rows={stdSpecRows(o, (o.files || [])[0])}/>}
+              {o.ptype === 'pro' && <div style={css("margin-top:4px;font-size:11px;font-weight:700;color:#c92a2a;line-height:1.5")}>งาน PRO ยังไม่มีเรทราคา — ตกลง/ยืนยันราคาปริ้นกับลูกค้าก่อนเริ่มงาน (ยอดที่ลูกค้าชำระแล้วคือค่าส่งเท่านั้น)</div>}
+              {/* หมายเหตุการปริ้นอยู่คู่ประเภทงาน · หมายเหตุการส่งอยู่คู่จุดส่ง — แยกชัดเจน (เจ้าของสั่ง 2026-10-07) */}
+              {o.note && <div style={css("margin-top:6px;background:#fff7e0;border:1px solid #f0c36d;border-radius:10px;padding:8px 11px;font-size:12.5px;color:#8a6d1a;line-height:1.6")}><b>📝 หมายเหตุการปริ้น (จากลูกค้า):</b> {o.note}</div>}
             </div>
           </div>
           <div style={css("display:flex;gap:10px;font-size:12px")}>
@@ -717,6 +689,8 @@ function OrderCard({ o, idx, onAdvance, onRetreat, onApplyEdits, onCancel, onRem
                     · ค่าส่ง ฿{o.delivery_cost || 0} {pickup ? '(ไม่มีค่าส่ง)' : car ? '(เหมาตามระยะ 69/89/129)' : '(ไม่เกิน 2 กม. ฿19 แล้ว +6/กม.)'}
                   </span>
                 </div>
+                {/* โซนไรเดอร์ (เดิมเป็นชิปบนหัวการ์ด — ย้ายมาอยู่คู่จุดส่ง 2026-10-12) */}
+                {!pickup && (() => { const z = zoneOf(o.lat, o.lng); return z ? <span style={{ marginTop: '6px', marginLeft: '6px', display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '12px', fontWeight: 700, color: z.fg, background: z.bg, padding: '5px 10px', borderRadius: '10px', verticalAlign: 'top' }}>{FI.pin(11)} {z.name}</span> : null; })()}
                 {(hHand || hDrop) && (
                   <div style={css("margin-top:6px;margin-left:6px;display:inline-flex;align-items:center;gap:6px;background:" + (hDrop ? "#fff7e0" : "var(--accSoft)") + ";border:1.5px solid " + (hDrop ? "#f0c36d" : "var(--acc)") + ";border-radius:10px;padding:5px 10px;font-size:12px;font-weight:700;color:" + (hDrop ? "#8a6d1a" : "var(--acc)"))}>
                     {hDrop ? '📦 ลูกค้าให้วางไว้จุดวางของ — ดูจุดวางในที่อยู่' : '🤝 ลูกค้าขอรับกับมือ — โทรหาก่อนถึง'}
