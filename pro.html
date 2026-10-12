@@ -25,6 +25,7 @@
   /* จอคอมกว้าง: ขยายคอลัมน์เนื้อหาให้ใช้พื้นที่มากขึ้น (เจ้าของสั่ง 2026-09-15) — มือถือ/แท็บเล็ตคงเดิม */
   @media(min-width:1200px){ .mp-content{max-width:1020px !important} }
   img{max-width:100%}
+  @keyframes mpRing{0%,100%{transform:rotate(0)}15%{transform:rotate(-16deg)}30%{transform:rotate(14deg)}45%{transform:rotate(-10deg)}60%{transform:rotate(6deg)}75%{transform:rotate(-3deg)}} /* กระดิ่งสั่นตอนออเดอร์ใหม่เข้า */
 </style>
 <script src="./config.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -92,7 +93,8 @@ const FI = {
   out: (z) => fi(<React.Fragment><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></React.Fragment>, z),
   alert: (z) => fi(<React.Fragment><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></React.Fragment>, z),
   baht: (z) => fi(<React.Fragment><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></React.Fragment>, z),
-  bell: (z) => fi(<React.Fragment><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></React.Fragment>, z)
+  bell: (z) => fi(<React.Fragment><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></React.Fragment>, z),
+  bellOff: (z) => fi(<React.Fragment><path d="M13.73 21a2 2 0 0 1-3.46 0"/><path d="M18.63 13A17.89 17.89 0 0 1 18 8"/><path d="M6.26 6.26A5.86 5.86 0 0 0 6 8c0 7-3 9-3 9h14"/><path d="M18 8a6 6 0 0 0-9.33-5"/><line x1="1" y1="1" x2="23" y2="23"/></React.Fragment>, z)
 };
 const jobValue = (o) => (o.print_cost || 0) + (o.bind_cost || 0); // มูลค่างานปริ้นราคาเต็ม (ก่อนส่วนลด)
 // ส่วนลดที่กินค่างานปริ้น — โค้ดส่งฟรี (ยอดลดเท่าค่าส่งพอดี) ลดค่าส่งฝั่ง MORE PRINT ไม่แตะส่วนแบ่งร้าน
@@ -592,6 +594,115 @@ function ProOrder({ o, idx, isOwner, payoutReady, onPrice, onPayout, onAdvance, 
   );
 }
 
+// ═══ เสียงเรียกออเดอร์ใหม่แบบแอปร้านค้า (เจ้าของขอ 2026-10-12 "เหมือนร้านในแอป Grab") ═══
+// ดังวนจนกว่าจะกด "รับทราบ" · Android สั่นด้วย · เปิดเสียงแล้วจอไม่ดับเอง (Wake Lock) ตราบที่หน้านี้เปิดอยู่
+// ข้อจำกัดของเว็บ: ต้องเปิดหน้านี้ค้างไว้บนจอ — ล็อกจอ/สลับไปแอปอื่น เบราว์เซอร์จะพักหน้าเว็บ (ช่วงนั้นพึ่งแจ้งเตือน LINE)
+const OrderAlarm = {
+  audio: null, ctx: null, buf: null, src: null, vib: null, wake: null, ringing: false,
+  // สังเคราะห์ริงโทนในเครื่อง ไม่ต้องโหลดไฟล์เสียง: ติ๊ง-ต่อง-ติ๊ง 2 ชุด แล้วเว้น วนทุก 2 วินาที
+  pcm() {
+    if (this._pcm) return this._pcm;
+    const sr = 22050, len = sr * 2, d = new Float32Array(len);
+    [[0, 1319], [0.16, 1047], [0.32, 1568], [0.8, 1319], [0.96, 1047], [1.12, 1568]].forEach(([t0, f]) => {
+      const s0 = Math.floor(t0 * sr);
+      for (let i = 0; i < sr * 0.6 && s0 + i < len; i++) {
+        const t = i / sr, env = Math.min(1, t / 0.005) * Math.exp(-t / 0.18);
+        d[s0 + i] += env * (Math.sin(2 * Math.PI * f * t) + 0.35 * Math.sin(4 * Math.PI * f * t));
+      }
+    });
+    let pk = 0; for (let i = 0; i < len; i++) pk = Math.max(pk, Math.abs(d[i]));
+    for (let i = 0; i < len; i++) d[i] = d[i] / pk * 0.95;
+    return (this._pcm = { sr, d });
+  },
+  wavUrl() {
+    const { sr, d } = this.pcm(), n = d.length, b = new DataView(new ArrayBuffer(44 + n * 2));
+    const w = (o, s) => { for (let i = 0; i < s.length; i++) b.setUint8(o + i, s.charCodeAt(i)); };
+    w(0, 'RIFF'); b.setUint32(4, 36 + n * 2, true); w(8, 'WAVE'); w(12, 'fmt '); b.setUint32(16, 16, true);
+    b.setUint16(20, 1, true); b.setUint16(22, 1, true); b.setUint32(24, sr, true); b.setUint32(28, sr * 2, true);
+    b.setUint16(32, 2, true); b.setUint16(34, 16, true); w(36, 'data'); b.setUint32(40, n * 2, true);
+    for (let i = 0; i < n; i++) b.setInt16(44 + i * 2, Math.max(-1, Math.min(1, d[i])) * 32767, true);
+    return URL.createObjectURL(new Blob([b], { type: 'audio/wav' }));
+  },
+  el() { if (!this.audio) { const a = new Audio(this.wavUrl()); a.loop = true; a.preload = 'auto'; this.audio = a; } return this.audio; },
+  // ปลดล็อกเสียง — เรียกตอนผู้ใช้แตะจอเท่านั้น (iPhone/Chrome ห้ามเว็บเล่นเสียงเองจนกว่าจะมีการแตะ 1 ครั้ง)
+  arm() {
+    try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch (e) {} // iPhone: ดังแม้เปิดสวิตช์โหมดเงียบ
+    try {
+      const C = window.AudioContext || window.webkitAudioContext;
+      if (C && !this.ctx) this.ctx = new C();
+      if (this.ctx && this.ctx.state !== 'running') this.ctx.resume();
+    } catch (e) {}
+    const a = this.el();
+    if (this.ringing) return Promise.resolve(true);
+    // เล่นช่วงเงียบท้ายริงโทน (1.8-2 วิ) แล้วหยุด = ปลดล็อกโดยไม่มีเสียงออก — ห้ามใช้ muted: Chrome หยุดสื่อที่ปิดเสียงเองเพื่อประหยัดไฟ ปลดล็อกไม่ติด
+    try { if (a.readyState >= 1) a.currentTime = 1.8; } catch (e) {}
+    return Promise.resolve(a.play()).then(() => { if (!this.ringing) { a.pause(); a.currentTime = 0; } return true; })
+      .catch(() => false);
+  },
+  start() {
+    if (this.ringing) return;
+    this.ringing = true;
+    const a = this.el(); a.currentTime = 0;
+    Promise.resolve(a.play()).catch(() => this.startCtx()); // เล่นแบบไฟล์ไม่ได้ → ใช้ Web Audio สำรอง
+    try { if (navigator.vibrate) { navigator.vibrate([600, 250, 600]); this.vib = setInterval(() => navigator.vibrate([600, 250, 600]), 2000); } } catch (e) {}
+  },
+  startCtx() {
+    try {
+      if (!this.ctx || !this.ringing) return;
+      if (!this.buf) { const { sr, d } = this.pcm(); this.buf = this.ctx.createBuffer(1, d.length, sr); this.buf.getChannelData(0).set(d); }
+      const s = this.ctx.createBufferSource(); s.buffer = this.buf; s.loop = true; s.connect(this.ctx.destination); s.start(); this.src = s;
+    } catch (e) {}
+  },
+  stop() {
+    this.ringing = false;
+    if (this.audio) { this.audio.pause(); this.audio.currentTime = 0; }
+    try { if (this.src) this.src.stop(); } catch (e) {}
+    this.src = null;
+    if (this.vib) { clearInterval(this.vib); this.vib = null; }
+    try { if (navigator.vibrate) navigator.vibrate(0); } catch (e) {}
+  },
+  // จอไม่ดับเองระหว่างเปิดหน้านี้ — เบราว์เซอร์ปล่อยล็อกเองเมื่อสลับแอป จึงต้องขอใหม่ทุกครั้งที่กลับมา
+  wakeOn() {
+    try {
+      if (!navigator.wakeLock || this.wake || document.visibilityState !== 'visible') return;
+      navigator.wakeLock.request('screen').then(w => { this.wake = w; w.addEventListener('release', () => { this.wake = null; }); }).catch(() => {});
+    } catch (e) {}
+  },
+  wakeOff() { try { if (this.wake) this.wake.release(); } catch (e) {} this.wake = null; },
+};
+// คืนออเดอร์ใหม่ที่ยังไม่เคยเห็น — จำรหัสที่เห็นแล้วไว้ในเครื่อง หน้ารีโหลด/มือถือปลุกจากจอดับก็ยังรู้ว่าใบไหนเข้ามาระหว่างนั้น
+// เปิดครั้งแรกในเครื่อง = จำของเดิมไว้เฉย ๆ ไม่ดัง · ดังเฉพาะใบสถานะ "รับออเดอร์" ที่สั่งมาไม่เกิน 6 ชม.
+const ALARM_SEEN = {};
+function takeNewOrders(list, key) {
+  const now = Date.now(), recent = (o) => now - new Date(o.created_at).getTime() < 6 * 3600 * 1000;
+  let seen = ALARM_SEEN[key] || null;
+  if (!seen) { try { const s = localStorage.getItem(key); if (s) seen = JSON.parse(s); } catch (e) {} }
+  const fresh = seen ? list.filter(o => o.status === 1 && recent(o) && seen.indexOf(o.id) < 0) : [];
+  const ids = list.filter(recent).map(o => o.id);
+  ALARM_SEEN[key] = ids;
+  try { localStorage.setItem(key, JSON.stringify(ids)); } catch (e) {}
+  return fresh;
+}
+// ป๊อปอัพเต็มจอตอนเสียงดัง — กดรับทราบ = หยุดเสียง
+function AlarmPopup({ list, line, onAck }){
+  return (
+    <div style={css("position:fixed;inset:0;z-index:500;background:rgba(8,8,6,.74);display:flex;align-items:center;justify-content:center;padding:20px")}>
+      <div style={css("width:100%;max-width:360px;background:var(--card);border-radius:20px;padding:22px 20px 18px;box-shadow:0 20px 60px rgba(0,0,0,.4);text-align:center;box-sizing:border-box")}>
+        <div style={css("width:78px;height:78px;margin:0 auto;border-radius:50%;background:var(--acc);color:#fff;display:flex;align-items:center;justify-content:center;animation:mpRing 1s ease-in-out infinite")}>{FI.bell(38)}</div>
+        <div style={css("margin-top:12px;font-size:23px;font-weight:800;color:var(--ink)")}>ออเดอร์ใหม่เข้า!</div>
+        <div style={css("margin-top:3px;font-size:12.5px;color:var(--sub)")}>{list.length} รายการ · กดรับทราบเพื่อหยุดเสียง</div>
+        <div style={css("margin-top:12px;display:flex;flex-direction:column;gap:7px;max-height:38vh;overflow-y:auto;text-align:left")}>
+          {list.slice(0, 6).map(o => (
+            <div key={o.id} style={css("background:var(--soft);border:1px solid var(--line);border-radius:12px;padding:9px 12px;font-size:12.5px;line-height:1.55;color:var(--ink)")}>{line(o)}</div>
+          ))}
+          {list.length > 6 && <div style={css("font-size:12px;color:var(--sub);text-align:center")}>และอีก {list.length - 6} รายการ</div>}
+        </div>
+        <button onClick={onAck} style={css("margin-top:16px;width:100%;height:54px;border:none;border-radius:14px;background:var(--acc);color:#fff;font-size:17px;font-weight:800;cursor:pointer;font-family:inherit")}>รับทราบ · ไปดูออเดอร์</button>
+      </div>
+    </div>
+  );
+}
+
 function Dash({ role }){
   const isOwner = role === 'owner'; // พาร์ทเนอร์ = ดูอย่างเดียว (ฐานข้อมูลก็บังคับไว้อีกชั้น)
   const [orders, setOrders] = React.useState(DB ? [] : DEMO);
@@ -631,6 +742,23 @@ function Dash({ role }){
       } catch (e) {}
     });
   };
+  // ── เสียงเรียกออเดอร์ใหม่ (OrderAlarm) — เปิด/ปิดที่ปุ่มกระดิ่งบนแถบหัว จำค่าไว้ในเครื่องนี้ ──
+  const [alarmOn, setAlarmOn] = React.useState(() => { try { return localStorage.getItem('mp_alarm') === '1'; } catch (e) { return false; } });
+  const [alarmArmed, setAlarmArmed] = React.useState(false); // ปลดล็อกเสียงแล้วรอบนี้ (เปิดหน้าใหม่ต้องแตะจอ 1 ครั้ง)
+  const [ringList, setRingList] = React.useState([]);
+  const ringListRef = React.useRef([]);
+  ringListRef.current = ringList;
+  const ringRef = React.useRef(null);
+  ringRef.current = (fresh) => {
+    if (alarmOn) { setRingList(l => l.concat(fresh.filter(o => !l.some(x => x.id === o.id)))); OrderAlarm.start(); return; }
+    // ยังไม่เปิดกระดิ่ง = ติ๊งสั้นครั้งเดียว + ชื่อแท็บกะพริบ แบบเดิม (ร้านเปิดแท็บทิ้งไว้ก็รู้ทันที)
+    try { const C = window.AudioContext || window.webkitAudioContext; const ctx = new C(); const os = ctx.createOscillator(); const g = ctx.createGain();
+      os.connect(g); g.connect(ctx.destination); os.frequency.value = 880; g.gain.setValueAtTime(0.3, ctx.currentTime);
+      g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.7); os.start(); os.stop(ctx.currentTime + 0.7);
+      setTimeout(() => { try { ctx.close(); } catch (e2) {} }, 1000); } catch (e) {} // ปิด context ทุกครั้ง — เบราว์เซอร์จำกัดจำนวน เปิดค้างเสียงจะเงียบ
+    try { const orig = document.title.replace(/^🔔.*?· /, ''); let n = 0;
+      const iv = setInterval(() => { document.title = (n % 2 === 0) ? ('🔔 ออเดอร์ใหม่! · ' + orig) : orig; n++; if (n > 9) { clearInterval(iv); document.title = orig; } }, 900); } catch (e) {}
+  };
   const load = React.useCallback(async () => {
     if (!DB) return;
     setLoading(true);
@@ -642,27 +770,49 @@ function Dash({ role }){
       r = await DB.from('orders').select(cols).eq('ptype', 'pro').order('created_at', { ascending: false }).limit(2000);
       setPayoutReady(false);
     } else setPayoutReady(true);
-    if (!r.error && r.data) { setOrders(r.data.filter(o => !cancelledExpired(o))); purgeCancelled(r.data); }
+    if (!r.error && r.data) {
+      setOrders(r.data.filter(o => !cancelledExpired(o))); purgeCancelled(r.data);
+      const fresh = takeNewOrders(r.data, 'mp_alarm_pro'); // ออเดอร์ Pro ใหม่ → เสียงเรียก
+      if (fresh.length) ringRef.current(fresh);
+    }
     setLoading(false);
   }, []);
   React.useEffect(() => { load(); const t = setInterval(load, 15000); return () => clearInterval(t); }, [load]); // รีเฟรชออเดอร์เองทุก 15 วิ — ออเดอร์ใหม่ต้องโผล่เองไม่ต้องกดรีเฟรช
-  // ออเดอร์ใหม่เข้า → เสียงติ๊ง + ชื่อแท็บกะพริบ (ร้านเปิดแท็บทิ้งไว้ก็รู้ทันที)
-  const prevActIds = React.useRef(null);
-  React.useEffect(() => {
-    const act = orders.filter(o => o.status > 0 && o.status < 4).map(o => o.id);
-    if (prevActIds.current) {
-      const fresh = act.filter(id => !prevActIds.current.includes(id));
-      if (fresh.length) {
-        try { const C = window.AudioContext || window.webkitAudioContext; const ctx = new C(); const os = ctx.createOscillator(); const g = ctx.createGain();
-          os.connect(g); g.connect(ctx.destination); os.frequency.value = 880; g.gain.setValueAtTime(0.3, ctx.currentTime);
-          g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.7); os.start(); os.stop(ctx.currentTime + 0.7);
-          setTimeout(() => { try { ctx.close(); } catch (e2) {} }, 1000); } catch (e) {} // ปิด context ทุกครั้ง — เบราว์เซอร์จำกัดจำนวน เปิดค้างเสียงจะเงียบ
-        try { const orig = document.title.replace(/^🔔.*?· /, ''); let n = 0;
-          const iv = setInterval(() => { document.title = (n % 2 === 0) ? ('🔔 ออเดอร์ใหม่! · ' + orig) : orig; n++; if (n > 9) { clearInterval(iv); document.title = orig; } }, 900); } catch (e) {}
-      }
+  React.useEffect(() => { // เปิดหน้าใหม่ทั้งที่เปิดเสียงค้างไว้ → แตะตรงไหนก็ได้ 1 ครั้ง = ปลดล็อกเสียง + ขอจอไม่ดับ
+    if (!alarmOn || alarmArmed) return;
+    OrderAlarm.el(); // โหลดเสียงรอไว้ก่อน — ตอนแตะจะได้ข้ามไปช่วงเงียบได้ทันที
+    const go = () => { OrderAlarm.arm().then(ok => { if (ok) setAlarmArmed(true); }); OrderAlarm.wakeOn(); };
+    ['touchend', 'click', 'keydown'].forEach(ev => document.addEventListener(ev, go));
+    return () => ['touchend', 'click', 'keydown'].forEach(ev => document.removeEventListener(ev, go));
+  }, [alarmOn, alarmArmed]);
+  React.useEffect(() => { // กลับมาที่หน้านี้ (ปลดล็อกจอ/สลับแอปกลับ) → ขอจอไม่ดับใหม่ + ดึงออเดอร์ทันที ไม่ต้องรอรอบ 15 วิ
+    if (!alarmOn) return;
+    OrderAlarm.wakeOn();
+    const vis = () => { if (document.visibilityState === 'visible') { OrderAlarm.wakeOn(); load(); } };
+    document.addEventListener('visibilitychange', vis);
+    return () => document.removeEventListener('visibilitychange', vis);
+  }, [alarmOn, load]);
+  React.useEffect(() => { // ชื่อแท็บกะพริบระหว่างเสียงดัง
+    if (!ringList.length) return;
+    const orig = document.title; let n = 0;
+    const iv = setInterval(() => { document.title = (n++ % 2 === 0) ? '🔔 ออเดอร์ใหม่! (' + ringList.length + ')' : orig; }, 900);
+    return () => { clearInterval(iv); document.title = orig; };
+  }, [ringList.length]);
+  const toggleAlarm = () => {
+    if (alarmOn) {
+      OrderAlarm.stop(); OrderAlarm.wakeOff(); setRingList([]); setAlarmOn(false); setAlarmArmed(false);
+      try { localStorage.setItem('mp_alarm', '0'); } catch (e) {}
+      return;
     }
-    prevActIds.current = act;
-  }, [orders]);
+    try { localStorage.setItem('mp_alarm', '1'); } catch (e) {}
+    setAlarmOn(true); setAlarmArmed(true);
+    OrderAlarm.arm(); OrderAlarm.wakeOn();
+    OrderAlarm.start(); // ดังตัวอย่าง 2 วิ ให้รู้ว่าเสียงดังพอไหม
+    setTimeout(() => { if (!ringListRef.current.length) OrderAlarm.stop(); }, 2200);
+    // โหมดตัวอย่าง (ไม่มีฐานข้อมูล): จำลองออเดอร์ใหม่เข้าใน 4 วิ ให้เห็นหน้าตาตอนเสียงเรียกจริง
+    if (!DB) setTimeout(() => ringRef.current([{ id: '#MP-DEMO' + String(Date.now()).slice(-4), created_at: new Date().toISOString(), status: 1, customer_fname: 'ตัวอย่าง', paper: 'โปสเตอร์ A2', copies: 2, pickup: true }]), 4000);
+  };
+  const ackAlarm = () => { OrderAlarm.stop(); setRingList([]); setPage('orders'); setFilter('active'); };
 
   const setPrice = async (o, n) => {
     // รวมรายการปรับที่อาจใส่ไว้ก่อนตั้งราคาด้วย — บิลลูกค้า (o.total) ตรงเสมอ
@@ -912,6 +1062,27 @@ function Dash({ role }){
       </div>
 
       <div className="mp-content" style={css("padding:14px 16px 40px;display:flex;flex-direction:column;gap:12px;max-width:760px;margin:0 auto")}>
+        {!alarmOn ? (
+          <div style={css("background:var(--card);border:1px dashed var(--line);border-radius:12px;padding:8px 10px 8px 13px;display:flex;align-items:center;gap:9px;font-size:12.5px;color:var(--sub)")}>
+            {FI.bellOff(16)}<span style={css("flex:1;min-width:0;line-height:1.45")}>เสียงเรียกออเดอร์ใหม่ (ดังจนกว่าจะกดรับทราบ) <b>ปิดอยู่</b></span>
+            <button onClick={toggleAlarm} style={css("flex:none;height:32px;padding:0 13px;border:none;border-radius:9px;background:var(--acc);color:#fff;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;display:flex;align-items:center;gap:5px")}>{FI.bell(13)} เปิดเสียง</button>
+          </div>
+        ) : !alarmArmed ? (
+          <div style={css("background:var(--goldBg);border:1px solid #f0dfa6;border-radius:12px;padding:10px 14px;font-size:12.5px;color:var(--gold);line-height:1.5;cursor:pointer;display:flex;align-items:center;gap:9px")}>
+            {FI.bell(16)}<span><b>แตะตรงนี้ 1 ครั้ง</b> เพื่อเปิดเสียงเรียกออเดอร์ใหม่ — เบราว์เซอร์ยอมให้เว็บเล่นเสียงหลังแตะจอเท่านั้น</span>
+          </div>
+        ) : (
+          <div style={css("background:var(--accSoft);border:1px solid var(--acc);border-radius:12px;padding:8px 10px 8px 13px;display:flex;align-items:center;gap:9px;font-size:12.5px;color:var(--ink)")}>
+            <span style={css("color:var(--acc);line-height:0")}>{FI.bell(16)}</span><span style={css("flex:1;min-width:0;line-height:1.45")}><b>เสียงเรียกออเดอร์ใหม่เปิดอยู่</b> <span style={css("color:var(--sub)")}>· เปิดหน้านี้ค้างไว้ จอจะไม่ดับเอง</span></span>
+            <button onClick={toggleAlarm} style={css("flex:none;height:30px;padding:0 11px;border:1px solid var(--line);border-radius:9px;background:var(--card);color:var(--sub);font-size:11.5px;font-weight:700;cursor:pointer;font-family:inherit")}>ปิดเสียง</button>
+          </div>
+        )}
+        {ringList.length > 0 && <AlarmPopup list={ringList} onAck={ackAlarm} line={(o) => (
+          <React.Fragment>
+            <div style={css("font-weight:800")}>{o.id}{isOwner && o.customer_fname ? ' · คุณ' + o.customer_fname : ''}</div>
+            <div style={css("color:var(--sub)")}>{o.paper || 'งาน PRO'} × {o.copies || 1} ชุด · {(o.pickup || (o.addr || '').indexOf('🏪') === 0) ? 'มารับเองที่ร้าน' : 'จัดส่ง'}</div>
+          </React.Fragment>
+        )}/>}
         {!DB && <div style={css("background:var(--goldBg);border:1px solid #f0dfa6;border-radius:12px;padding:10px 14px;font-size:12px;color:var(--gold);line-height:1.6")}>{FI.alert(13)} โหมดตัวอย่าง — ข้อมูลด้านล่างเป็นเพียงตัวอย่าง</div>}
 
         {/* ภาพรวมร้านวันนี้ (แบบแดชบอร์ด) */}
