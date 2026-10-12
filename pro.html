@@ -150,6 +150,21 @@ function proSpecRows(o){
   rows.push(['จำนวนชุด', (o.copies || 1) + ' ชุด']);
   return rows;
 }
+// Pro หลายไฟล์ (2026-10-12): ลูกค้าเลือกประเภทงาน+สเปก+จำนวนชุดทีละไฟล์ → files[].paper/copies/sides/bind · ออเดอร์เก่า/ไฟล์เดียวใช้ค่าทั้งออเดอร์
+const proPerFile = (o) => (o.files || []).length > 1 && (o.files || []).some(f => f.paper);
+const proFileRows = (o, f) => proSpecRows({ paper: f.paper || o.paper, copies: f.copies || 1, sides: f.sides || o.sides, bind: f.paper ? (f.bind || 'none') : o.bind });
+// กล่องสเปกรายไฟล์เรียงไปทางขวา (มือถือเลื่อนได้) — แบบเดียวกับหลังบ้าน Standard
+function ProSpecs({ o }){
+  if (!proPerFile(o)) return <SpecBox rows={proSpecRows(o)}/>;
+  return (
+    <React.Fragment>
+      <div style={css("margin-bottom:5px;font-size:11px;font-weight:700;color:#00b368")}>สั่ง {o.files.length} ไฟล์ · แต่ละไฟล์คนละสเปก — เลื่อนไปทางขวาดูครบทุกไฟล์ →</div>
+      <div style={css("display:flex;gap:8px;overflow-x:auto;padding-bottom:3px")}>
+        {o.files.map((f, i) => <SpecBox key={i} grow title={'ไฟล์ ' + (i + 1)} sub={f.name} rows={proFileRows(o, f)}/>)}
+      </div>
+    </React.Fragment>
+  );
+}
 // กล่องสเปก: หัวข้อสีเขียว · ค่าที่ลูกค้าเลือกสีดำ · กรอบเขียวแบบกล่องราคา — ใช้แบบเดียวกันทั้ง admin/pro/commission (แก้ต้องแก้ทั้ง 3 ไฟล์)
 // title/sub = หัวกล่องรายไฟล์ (ไฟล์ 1 · ชื่อไฟล์) · grow = กล่องเรียงต่อกันไปทางขวา
 function SpecBox({ rows, title, sub, grow }){
@@ -417,7 +432,7 @@ function ProOrder({ o, idx, isOwner, payoutReady, onPrice, onPayout, onAdvance, 
         ); })()}
         <div style={css("display:flex;gap:10px;font-size:12px")}>
           <span style={css("flex:none;width:76px;color:var(--sub);font-weight:600;padding-top:9px")}>{FI.file(13)} สเปกงาน</span>
-          <div style={css("flex:1;min-width:0")}><SpecBox rows={proSpecRows(o)}/></div>
+          <div style={css("flex:1;min-width:0")}><ProSpecs o={o}/></div>
         </div>
         {o.status === 0 && o.cancel_reason && (
           <div style={css("display:flex;gap:10px;font-size:12px")}>

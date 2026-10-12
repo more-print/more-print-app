@@ -160,6 +160,38 @@ const MIX_FMODES = [
   { k: 'color', nm: <React.Fragment>{React.cloneElement(ICON_COLORPRINT, { width: 15, height: 15, style: { verticalAlign: '-3px' } })} ปริ้นสี</React.Fragment>, ds: 'ทั้งไฟล์นี้' }, // ไอคอนเดียวกับการ์ดปริ้นสีด้านบน (เจ้าของสั่ง 2026-10-12 — เดิม 🌈)
   { k: 'pages', nm: '🎨 ปริ้นผสม', ds: 'ระบุหน้าที่พิมพ์สี' }
 ];
+// ── แกะป้ายงาน Pro เป็นหัวข้อ (ก๊อปจาก pro.html/commission.html — แก้ต้องแก้คู่กัน) ใช้กับหน้าตรวจสอบ Pro หลายไฟล์ ──
+const PRO_SPEC_RX = [
+  [/บอร์ด/, 'บอร์ด'],
+  [/^(พีพีฟิล์ม|ไวนิล|กระดาษโฟโต้|กระดาษอาร์ต)$/, 'กระดาษ'],
+  [/^กระดาษพิเศษ$/, 'ตัวเลือกเสริม'],
+  [/เคลือบ/, 'การเคลือบ'],
+  [/^(พิมพ์)?(หน้า-หลัง|หน้าเดียว)$/, 'ด้านที่พิมพ์'],
+  [/^แนว(ตั้ง|นอน)$/, 'แนวกระดาษ'],
+  [/^\d+ หน้า$/, 'จำนวนหน้า'],
+  [/เย็บ/, 'การเย็บเล่ม'],
+  [/ขาตั้ง/, 'ขาตั้ง'],
+  [/ซม\.|ชิ้น|ลาย/, 'ขนาด/จำนวน']
+];
+function proSpecRowsC(o){
+  const parts = String(o.paper || '').split(' · ').map(x => x.trim()).filter(Boolean);
+  const base = parts.shift() || '';
+  const rows = [];
+  let m;
+  if ((m = base.match(/^(เพลท|โปสเตอร์) (\S+)$/))) rows.push(['ประเภทงาน', m[1]], ['ขนาด', m[2]]);
+  else if ((m = base.match(/^Postcard (\S+) \((.+)\)$/))) rows.push(['ประเภทงาน', 'Postcard'], ['ขนาด', m[1] + ' (' + m[2] + ')']);
+  else if ((m = base.match(/^พับครึ่ง เล่ม (\S+) \(กระดาษ (\S+)\)$/))) rows.push(['ประเภทงาน', 'พับครึ่ง (เข้าเล่ม/เมนู)'], ['ขนาดเล่ม', m[1]], ['ขนาดกระดาษ', m[2]]);
+  else if ((m = base.match(/^นามบัตร (\d+) ใบ ?(หน้า-หลัง|หน้าเดียว)?$/))) { rows.push(['ประเภทงาน', 'นามบัตร'], ['จำนวนใบ', m[1] + ' ใบ']); if (m[2]) rows.push(['ด้านที่พิมพ์', m[2]]); }
+  else if ((m = base.match(/^(ปริ้นสีขาวดำขนาดใหญ่.*) (A\d)$/))) rows.push(['ประเภทงาน', m[1]], ['ขนาด', m[2]]);
+  else if ((m = base.match(/^สติ๊กเกอร์ ?(.*)$/))) { rows.push(['ประเภทงาน', 'สติ๊กเกอร์']); if (m[1]) rows.push(['เนื้อสติ๊กเกอร์', m[1]]); }
+  else if (/^A\d$/.test(base)) rows.push(['ขนาด', base]); // ออเดอร์รุ่นแรกเก็บแค่ขนาดกระดาษ
+  else rows.push(['ประเภทงาน', base || 'งาน PRO']);
+  parts.forEach(p => { const k = PRO_SPEC_RX.find(([re]) => re.test(p)); rows.push([k ? k[1] : 'รายละเอียด', p]); });
+  if (!rows.some(r => r[0] === 'ด้านที่พิมพ์')) rows.push(['ด้านที่พิมพ์', o.sides === 2 ? 'หน้า-หลัง' : 'หน้าเดียว']); // เดิมเป็นชิปบนหัวการ์ด (ลบ 2026-10-12)
+  if (o.bind && o.bind !== 'none') rows.push(['เข้าเล่ม', o.bind]);
+  rows.push(['จำนวนชุด', (o.copies || 1) + ' ชุด']);
+  return rows;
+}
 // แปลงข้อความเลขหน้า "1, 5, 10-12" → เซ็ตเลขหน้า (รูปแบบ/ช่วงเพี้ยน = err ห้ามคิดเงิน)
 function parsePageSpec(spec, max){
   const s = (spec || '').trim();
@@ -297,6 +329,10 @@ const PRO_TYPES = [
   { k: 'standee', icon: '🧍', label: 'Standy (สแตนดี้)' },
   { k: 'blueprint', icon: '📐', label: 'ปริ้นสีขาวดำขนาดใหญ่ (แบบแปลน,เอกสาร)', sizes: ['A3', 'A2', 'A1'] } // ชื่อใหม่ตามเจ้าของ 2026-09-11 · กระดาษ 80 แกรมทุกขนาด (คำกำกับอยู่ที่ปุ่มขนาด)
 ];
+// สเปกงาน Pro รายไฟล์ (เจ้าของสั่ง 2026-10-12): สั่ง Pro หลายไฟล์ = แต่ละไฟล์เลือกประเภทงาน+สเปก+จำนวนชุดของตัวเอง
+// state ชุดนี้ = "ไฟล์ที่กำลังเลือก" (proActive) · ไฟล์อื่นเก็บไว้ใน files[i].pro · ยืนยันแล้ว = files[i].proOk
+const PRO_SPEC_KEYS = ['proType', 'proSize', 'proBind', 'proQty', 'proBoard', 'proGram', 'stkType', 'proFilm', 'proPoPaper', 'proLam', 'proSpecial', 'proStaple', 'proStand', 'sides', 'orient', 'copies'];
+const pickProSpec = (st) => { const o = {}; PRO_SPEC_KEYS.forEach(k => { o[k] = st[k]; }); return o; };
 const PRO_BINDS = ['ไสกาว', 'ปกแข็ง', 'สันห่วงพลาสติก', 'ขาตะเกียบ', 'เย็บมุงหลังคา', 'ห่วงเกลียว', 'ห่วงคู่', 'เย็บเล่ม', 'เทปปิด', 'สันกาวปกแข็ง'];
 // เข้าเล่มงาน Standard 3 แบบ +฿20/ชุด (นโยบาย 2026-09-08): เลือกได้เฉพาะ 09:00-21:29 (bindHoursOpen — เจ้าของขยับปิดจาก 22:00 เป็น 21:30 เมื่อ 2026-09-22) นอกช่วง = ซ่อนตัวเลือก
 // key บันทึกลง files[].bind รายไฟล์ + สรุปลงคอลัมน์ orders.bind — เพิ่ม/แก้ต้องแก้ป้ายใน admin.html (BIND_LABELS/bindShort + CSV) และ STD_BIND_SHORT คู่กันเสมอ
@@ -512,7 +548,7 @@ function BillPrint({ v }){
 
 // ── ร่างออเดอร์ (เจ้าของสั่ง 2026-10-11): ลูกค้าสลับไปแอปธนาคารแล้วมือถือ (โดยเฉพาะเบราว์เซอร์ใน LINE) ปิดหน้าเว็บเบื้องหลังทิ้ง กลับมาเว็บโหลดใหม่ ข้อมูลหายหมด ──
 // key ทุกตัวที่ใช้สั่งงาน+คิดราคา (ตรวจแล้ว: state ที่ไม่อยู่ในนี้ไม่เกี่ยวกับออเดอร์) — เพิ่ม state ใหม่ของขั้นสั่งงานเมื่อไหร่ต้องเพิ่มที่นี่ด้วย ไม่งั้นกู้คืนแล้วราคาเพี้ยน
-const DRAFT_KEYS = ['tier', 'ptype', 'paper', 'sides', 'orient', 'nup', 'bind', 'copies', 'note', 'shipNote', 'recvSel', 'vehSel', 'vehicle',
+const DRAFT_KEYS = ['proActive', 'tier', 'ptype', 'paper', 'sides', 'orient', 'nup', 'bind', 'copies', 'note', 'shipNote', 'recvSel', 'vehSel', 'vehicle',
   'rcOn', 'rcName', 'rcAddr', 'rcTax', 'rcPhone', 'proType', 'proSize', 'proBind', 'proQty', 'proPickup', 'stdPickup', 'proBoard', 'proGram', 'stkType',
   'proFilm', 'proPoPaper', 'proLam', 'proSpecial', 'proStaple', 'proStand', 'distKm', 'distSrc', 'point', 'addr', 'phone', 'time', 'express', 'handoff',
   'lat', 'lng', 'geoLabel', 'gmapLink', 'pinSrc', 'pinMode', 'mapLocked', 'gpsAcc', 'couponCode', 'couponOk'];
@@ -530,7 +566,7 @@ class App extends React.Component {
     let rc0 = null; try { rc0 = JSON.parse(localStorage.getItem('mp_rc') || 'null'); } catch (e) {} // ข้อมูลผู้ซื้อในใบเสร็จที่เคยกรอก
     if (!rc0) try { const m = document.cookie.match(/(?:^|;\s*)mp_rc_bk=([^;]+)/); rc0 = m ? JSON.parse(decodeURIComponent(m[1])) : null; } catch (e) {} // สำรองในคุกกี้ — เครื่องล้าง storage เองก็ยังจำได้
     this.state = {
-      screen: 'home', files: [], tier: 'standard', ptype: 'bw', paper: 'A4', sides: 1, orient: 'portrait', nup: 1, bind: 'none', copies: 1, note: '', shipNote: '',
+      screen: 'home', files: [], proActive: 0, tier: 'standard', ptype: 'bw', paper: 'A4', sides: 1, orient: 'portrait', nup: 1, bind: 'none', copies: 1, note: '', shipNote: '',
       shopOpen: true, // สถานะรับออเดอร์จากหลังบ้าน (false = ร้านกดปิดรับชั่วคราว)
       shopRain: false, // โหมดฝนตก (ร้านกดจากหลังบ้าน) — ทุกงานแบบจัดส่ง (Pro+Standard) บังคับรถยนต์
       shopNightOff: false, // หลังบ้านบังคับปิดโหมดกลางคืนชั่วคราว (shop_status.night_off) — เว็บเป็นกลางวันปกติ ไว้แคปจอทำสื่อ (2026-09-12)
@@ -1556,6 +1592,108 @@ class App extends React.Component {
     return { list, err: list.some(x => x.err) };
   }
 
+  // เช็คสเปกงาน Pro ก่อนไปต่อ (ย้ายมาจาก toDelivery 2026-10-12 ใช้ทั้งไฟล์เดียว/รายไฟล์): คืนข้อความเตือน หรือ null = ผ่าน
+  // base = เลขไฟล์เริ่มในข้อความ (เช็ครายไฟล์) · skipA4 = ข้ามกติกาโปสเตอร์ A4 เลขคู่ (หลายไฟล์เช็ครวมทุกไฟล์ที่ toDelivery)
+  proCheck(base = 0, skipA4 = false){
+    const s = this._ov || this.state;
+    if (s.tier !== 'pro') return null;
+    // เพลทต้องเลือกประเภทบอร์ดก่อน (นโยบาย 2026-09-09)
+    if (s.tier === 'pro' && s.proType === 'plate' && !s.proBoard)
+      return '🪧 เลือกประเภทบอร์ดก่อนนะครับ — ฟิวเจอร์บอร์ด หรือ โฟมบอร์ด (ไม่บวกราคาเพิ่ม)';
+    // งานสติ๊กเกอร์รับไฟล์ลายละ "1 หน้า (รูปเดียว)" เท่านั้น — ไฟล์หลายหน้าห้ามไปต่อ (นโยบาย 2026-09-09)
+    if (s.tier === 'pro' && s.proType === 'sticker' && s.files.some(f => (f.pages || 1) > 1))
+      return '🏷️ ไฟล์สติ๊กเกอร์ใช้ได้ 1 หน้าต่อ 1 ลายครับ 🙏';
+    // สติ๊กเกอร์ v3: ต้องเลือกเนื้อ (PP/PVC รายลาย) + กรอกขนาด/จำนวนแผ่นครบทุกลาย + ชิ้นไม่ใหญ่เกินแผ่นของเนื้อนั้น
+    if (s.tier === 'pro' && s.proType === 'sticker') {
+      const si = this.stickerInfo();
+      const noT = si.list.findIndex(x => !x.t);
+      if (noT >= 0) return '🏷️ เลือกประเภทสติ๊กเกอร์ (PP หรือ PVC) ของ "ไฟล์ที่ ' + (noT + 1 + base) + '" ก่อนนะครับ';
+      const bad = si.list.findIndex(x => !x.ok);
+      if (bad >= 0) return '🏷️ กรอกขนาด (กว้าง×ยาว ซม.) และจำนวนแผ่นของ "ไฟล์ที่ ' + (bad + 1 + base) + '" ให้ครบก่อนนะครับ';
+      const over = si.list.findIndex(x => x.over);
+      if (over >= 0) { const shp = STK_SHEET[si.list[over].t] || STK_SHEET.pp;
+        return '🏷️ ไฟล์ที่ ' + (over + 1 + base) + ' ขนาดใหญ่เกิน' + (si.list[over].t === 'pvc' ? 'พื้นที่ 1 ตร.ม.' : 'แผ่น 13"×19"') + ' ครับ (พิมพ์ได้ไม่เกิน ' + (shp.w - STK_MARGIN * 2) + '×' + (shp.h - STK_MARGIN * 2) + ' ซม.) — ลดขนาดลงหรือทักไลน์ร้านได้เลย'; }
+    }
+    // พับครึ่งโฉมใหม่ (2026-09-13): ขั้นต่ำต่อเล่ม — เล่ม A5 ≥8 หน้า + สั่ง ≥2 เล่ม · เล่ม A4 ≥4 หน้า
+    if (s.tier === 'pro' && s.proType === 'foldbook') {
+      const bk = FOLDBOOK_BOOK[s.proSize] || {};
+      const fbPages = s.files.reduce((a, f) => a + (f.pages || 1), 0);
+      if ((bk.minPages || 1) > 1 && fbPages < bk.minPages)
+        return '📖 เล่ม ' + bk.book + ' รับผลิตขั้นต่ำ ' + bk.minPages + ' หน้าขึ้นไปครับ (ตอนนี้ ' + fbPages + ' หน้า) 🙏';
+      if ((bk.minCopies || 1) > 1 && s.copies < bk.minCopies)
+        return '📖 เล่ม ' + bk.book + ' รับผลิตขั้นต่ำ ' + bk.minCopies + ' เล่มขึ้นไปครับ — เพิ่มจำนวนเล่มที่ช่อง "จำนวนชุด (สำเนา)" นะครับ 🙏';
+    }
+    // โปสเตอร์ A4: รับผลิตขั้นต่ำ 2 แผ่น และจำนวนรวมต้องเป็นเลขคู่ (เจ้าของสั่ง 2026-10-05 — เตือนตอนกดไปต่อ ไม่แปะคำกำกับถาวรบนจอ)
+    if (!skipA4 && s.tier === 'pro' && s.proType === 'poster' && s.proSize === 'A4') {
+      const shts = s.files.reduce((a, f) => a + (f.pages || 1), 0) * Math.max(1, s.copies || 1);
+      if (shts < 2 || shts % 2 !== 0)
+        return '🖼️ โปสเตอร์ A4 รับผลิตขั้นต่ำ 2 แผ่น และจำนวนรวมต้องเป็นเลขคู่ครับ (ตอนนี้ ' + shts + ' แผ่น) — ปรับที่ช่อง "จำนวนชุด (สำเนา)" ได้เลย 🙏';
+    }
+    return null;
+  }
+
+  // ── งาน Pro หลายไฟล์: เลือกประเภทงาน+สเปกทีละไฟล์ (เจ้าของสั่ง 2026-10-12) ──
+  proMulti(){ const s = this.state; return s.tier === 'pro' && s.files.length >= 2; }
+  proActiveIdx(){ const s = this.state; return Math.max(0, Math.min(s.proActive || 0, s.files.length - 1)); }
+  // สเปกของไฟล์ i — ไฟล์ที่กำลังเลือก = state สด · ไฟล์อื่น = ที่บันทึกไว้ (ยังไม่เคยเปิด = ตามไฟล์ที่กำลังเลือก)
+  proSpecOf(i){ const s = this.state, live = pickProSpec(s); return i === this.proActiveIdx() ? live : (s.files[i].pro || live); }
+  // รันการคิดราคา/ป้าย/เช็คด้วย state จำลองของไฟล์ชุดนั้น (calc/stickerInfo/proLabel/proCheck/etaMinutes/bigJob อ่าน this._ov ก่อน state จริง)
+  withProFiles(spec, files, fn){ const prev = this._ov; this._ov = { ...this.state, ...spec, tier: 'pro', files }; try { return fn(); } finally { this._ov = prev; } }
+  // รายการคิดเงินรายไฟล์: [{ i, f, spec, label, cost }] — ไฟล์ละ 1 ชิ้น (เจ้าของเลือก 2026-10-12) · สติ๊กเกอร์รวมกลุ่มเดียว เรท PP ขั้นตามแผ่นรวมทุกลายเหมือนเดิม
+  proItems(){
+    const s = this.state, items = s.files.map((f, i) => ({ i, f, spec: this.proSpecOf(i) }));
+    const stk = items.filter(x => x.spec.proType === 'sticker');
+    let stkRaw = [];
+    if (stk.length) {
+      const si = this.withProFiles({ ...stk[0].spec, copies: 1 }, stk.map(x => x.f), () => this.stickerInfo());
+      stkRaw = si.list.map(x => x.t === 'pvc' ? x.sheets * STK_PVC_SQM : x.sheets * si.pp.rate);
+    }
+    let n = 0;
+    return items.map(x => ({ ...x,
+      label: this.withProFiles(x.spec, [x.f], () => this.proLabel()),
+      cost: x.spec.proType === 'sticker' ? (stkRaw[n++] || 0) : this.withProFiles(x.spec, [x.f], () => this.calc().printCost) }));
+  }
+  // ป้ายงานระดับออเดอร์ (ช่อง paper/หน้าติดตาม/รีวิว): ไฟล์เดียว = ป้ายเดิม · หลายไฟล์ = ชนิดงานของแต่ละไฟล์ต่อกันด้วย +
+  proOrderLabel(){
+    if (!this.proMulti()) return this.proLabel();
+    return [...new Set(this.proItems().map(x => x.label.split(' · ')[0]))].join(' + ');
+  }
+  // สลับไปเลือกสเปกไฟล์ j: เก็บสเปกไฟล์ที่กำลังเลือกไว้ในไฟล์นั้นก่อน แล้วโหลดสเปกของไฟล์ j ขึ้นมาแทน (ไม่มีอะไรหาย)
+  proSelect(j){
+    this.setState(st => {
+      const n = st.files.length; if (!n || j < 0 || j >= n) return null;
+      const act = Math.max(0, Math.min(st.proActive || 0, n - 1));
+      if (j === act) return null;
+      const files = st.files.map((x, k) => k === act ? { ...x, pro: pickProSpec(st) } : x);
+      return { files, proActive: j, ...(files[j].pro || pickProSpec(st)) };
+    });
+  }
+  // ลบไฟล์ (ทุกระดับงาน): งาน Pro หลายไฟล์ต้องขยับไฟล์ที่กำลังเลือก + โหลดสเปกให้ถูกไฟล์
+  proRemoveFile(i){
+    this.setState(st => {
+      const n = st.files.length;
+      if (st.tier !== 'pro' || n < 2) return { files: st.files.filter((_, j) => j !== i) };
+      const act = Math.max(0, Math.min(st.proActive || 0, n - 1));
+      const files = st.files.map((x, k) => k === act ? { ...x, pro: pickProSpec(st) } : x).filter((_, j) => j !== i);
+      const na = act > i ? act - 1 : act === i ? Math.min(i, files.length - 1) : act;
+      return { files, proActive: na, ...((files[na] && files[na].pro) || {}) };
+    });
+  }
+  // ยืนยันสเปกไฟล์ที่กำลังเลือก → ไปไฟล์ถัดไปที่ยังไม่ได้ยืนยัน (ครบแล้ว = แจ้งให้กดต่อไป)
+  proConfirm(){
+    const s = this.state, act = this.proActiveIdx();
+    if (!s.files[act]) return;
+    const msg = this.withProFiles(pickProSpec(s), [s.files[act]], () => this.proCheck(act, true));
+    if (msg) return this.showToast(msg);
+    const files = s.files.map((x, k) => k === act ? { ...x, pro: pickProSpec(s), proOk: true } : x);
+    const nxt = files.map((_, k) => (act + 1 + k) % files.length).find(k => !files[k].proOk);
+    if (nxt == null) { this.setState({ files }); return this.showToast('✓ เลือกสเปกครบทุกไฟล์แล้ว — กด "ต่อไป" ด้านล่างได้เลยครับ'); }
+    this.setState({ files, proActive: nxt, ...(files[nxt].pro || pickProSpec(s)) }, () => {
+      try { const el = document.getElementById('mp-pro-head'); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch (e) {}
+    });
+    this.showToast('✓ บันทึกสเปกไฟล์ที่ ' + (act + 1) + ' แล้ว — ต่อไปเลือกสเปกไฟล์ที่ ' + (nxt + 1));
+  }
+
   // ตัวเลือกรายไฟล์ (เจ้าของสั่ง 2026-10-12): แนวกระดาษ · หน้า/แผ่น · เย็บมุม/เข้าเล่ม ตั้งแยกทีละไฟล์ (เก็บใน files[].orient/nup/bind)
   // งานผสมแบบระบุหน้าสี (fmode 'pages') ล็อก 1 หน้า/แผ่น — หน้าสีกับขาวดำจะปนแผ่นเดียวกัน · งาน Pro ไม่ใช้ตัวเลือกชุดนี้
   fileOpt(f){
@@ -1587,7 +1725,7 @@ class App extends React.Component {
   }
 
   calc(){
-    const s = this.state;
+    const s = this._ov || this.state;
     const nightFee = this.isNight() ? (CONFIG.nightFee ?? 10) : 0;
     const expressFee = this.isExpress() ? (CONFIG.expressFee ?? 20) : 0;
     // ค่าส่ง 2 ชั้นตามระยะถนนจริง — ลูกค้าเลือกพาหนะเอง (ยังไม่ปักหมุด = โชว์ราคาเริ่มต้น)
@@ -1643,7 +1781,11 @@ class App extends React.Component {
       printCost = Math.ceil(sheets * rate + mixCol * s.copies - 1e-9);
     }
     // งาน Pro: ราคาจริงตามเรทเจ้าของ (แผ่นรวม = หน้าไฟล์ × ชุด) — ยกเว้น "พับครึ่ง เข้าเล่ม/เมนู" ที่ร้านยังยืนยันราคาทาง LINE
-    if (s.tier === 'pro') {
+    if (s.tier === 'pro' && !this._ov && this.proMulti()) {
+      // Pro หลายไฟล์ (2026-10-12): ไฟล์ละ 1 ชิ้นตามประเภท+สเปก+จำนวนชุดของตัวเอง แล้วรวม — สติ๊กเกอร์ทุกไฟล์รวมกลุ่มเดียว (เรทขั้น PP ตามแผ่นรวม)
+      heavyPages = 0; lightPages = 0; rate = 0;
+      printCost = this.proItems().reduce((a, x) => a + x.cost, 0);
+    } else if (s.tier === 'pro') {
       heavyPages = 0; lightPages = 0; rate = 0;
       const shPro = pages * s.copies;
       let pc = 0;
@@ -1713,7 +1855,7 @@ class App extends React.Component {
 
   // เวลาผลิต+ส่งโดยประมาณของงานปัจจุบัน (นาที ยังไม่รวมคิว)
   etaMinutes(){
-    const s = this.state;
+    const s = this._ov || this.state;
     if (s.tier !== 'pro') {
       // งาน Standard: ทุก ๆ 150 หน้า = 1 ชม. ขั้นต่ำ 1 ชม. (นับรวมทุกไฟล์ × จำนวนชุด — นโยบาย 2026-08-27)
       // งานด่วน (Express): เร่งผลิต — บล็อกละ 45 นาทีแทน 1 ชม. (150 หน้า = 45 นาที · 300 หน้า = 1 ชม.ครึ่ง — นโยบาย 2026-09-05)
@@ -1721,6 +1863,8 @@ class App extends React.Component {
       const per = this.isExpress() ? 45 : 60;
       return Math.max(1, Math.ceil(tp / 150)) * per;
     }
+    // Pro หลายไฟล์: เวลาผลิตรวมของทุกไฟล์ (แต่ละไฟล์คิดตามประเภท/สเปกของตัวเอง)
+    if (!this._ov && this.proMulti()) return s.files.reduce((a, f, i) => a + this.withProFiles(this.proSpecOf(i), [f], () => this.etaMinutes()), 0);
     // งาน Pro (เจ้าของปรับ 2026-09-15): เวลาผลิต "ต่อแผ่น/ต่อหน่วย" × จำนวนหน่วยจริง + เคลือบ +15 นาที
     const m = CONFIG.etaProMin || {};
     const cp = Math.max(1, s.copies || 1);
@@ -1758,8 +1902,9 @@ class App extends React.Component {
 
   // งานแข็ง = บังคับส่งรถยนต์เท่านั้น (นโยบาย 2026-09-01): เพลท A3-A0 (ติดบอร์ดแข็ง) + Standy — งานกระดาษอื่นม้วนใส่มอไซค์ได้ ไม่บังคับ
   bigJob(){
-    const s = this.state;
+    const s = this._ov || this.state;
     if (s.tier !== 'pro') return false;
+    if (!this._ov && this.proMulti()) return s.files.some((f, i) => this.withProFiles(this.proSpecOf(i), [f], () => this.bigJob())); // หลายไฟล์: มีไฟล์ไหนเป็นงานแข็ง = บังคับรถยนต์
     if (s.proType === 'standee') return true; // 60×120 ซม. แข็ง
     return s.proType === 'plate' && ['A0', 'A1', 'A2', 'A3'].includes(s.proSize);
   }
@@ -1768,7 +1913,7 @@ class App extends React.Component {
   // เนื้อเลือกได้รายลาย: f.stk · หน่วยตามเนื้อ: PP = แผ่น 13"×19" · PVC = ตร.ม. (100×100 ซม.) · จำนวนชิ้น q = cap × แผ่น อัตโนมัติ ทุกแผ่นเต็มเสมอ
   // คืน { list:[{ok,over,w,h,q,cap,sheets,t}], ready, sheets, pcs, pp:{sheets,rate,cost}, pvc:{sheets,blocks,cost}, cost }
   stickerInfo(){
-    const s = this.state, copies = Math.max(1, s.copies || 1);
+    const s = this._ov || this.state, copies = Math.max(1, s.copies || 1);
     const list = (s.files || []).map(f => {
       const w = parseFloat(f.w), h = parseFloat(f.h), sh = f.shq || 0, t = f.stk || '';
       const cap = (w > 0 && h > 0 && t) ? stickerPerSheet(w, h, t) : 0;
@@ -1793,8 +1938,11 @@ class App extends React.Component {
   // ผลรวมทุกบรรทัดต้องเท่ากับ printCost ของ calc() เป๊ะ: ใช้การปัดแบบสะสม (ceil ยอดสะสม − ceil ยอดสะสมก่อนหน้า)
   // คืน null = ไม่ต้องแตก (ไฟล์เดียว / งานคิดต่อออเดอร์เช่นนามบัตร-Standy / สติ๊กเกอร์ยังกรอกไม่ครบ)
   billLines(c){
-    const s = this.state, cp = Math.max(1, s.copies || 1);
+    const s = this._ov || this.state, cp = Math.max(1, s.copies || 1);
     if (!s.files || s.files.length < 2) return null;
+    // Pro หลายไฟล์: บรรทัดละไฟล์ = ประเภท/สเปก/จำนวนชุดของไฟล์นั้น · ยอดเท่ากับที่ calc รวมไว้เป๊ะ (ใช้ proItems ชุดเดียวกัน)
+    if (s.tier === 'pro' && !this._ov && this.proMulti())
+      return { lines: this.proItems().map(x => ({ name: 'ไฟล์ที่ ' + (x.i + 1) + ' · ' + x.f.name, desc: x.label + (x.spec.proType === 'sticker' ? '' : ' × ' + (x.spec.copies || 1) + ' ชุด'), amt: x.cost })), adjust: [] };
     if (s.tier === 'pro' && (s.proType === 'namecard' || s.proType === 'standee')) return null;
     const lines = [], adjust = [];
     const alloc = (raws) => { let cum = 0, prev = 0; return raws.map(r => { cum += r; const v = Math.ceil(cum - 1e-9) - Math.ceil(prev - 1e-9); prev = cum; return v; }); };
@@ -1855,7 +2003,7 @@ class App extends React.Component {
 
   // ป้ายสรุปงาน Pro เช่น "เพลท A2" / "พับครึ่ง A3" — ใช้แสดงผลและบันทึกลงช่อง paper
   proLabel(){
-    const s = this.state;
+    const s = this._ov || this.state;
     const t = PRO_TYPES.find(x => x.k === s.proType) || PRO_TYPES[0];
     const base = t.k === 'plate' ? 'เพลท ' + s.proSize
       : t.k === 'poster' ? 'โปสเตอร์ ' + s.proSize
@@ -1926,6 +2074,7 @@ class App extends React.Component {
       const files = [];
       let upFail = 0;
       const failIdx = []; // ไฟล์ที่อัปไม่สำเร็จ — ให้ลูกค้าส่งใหม่ได้จากหน้าติดตาม
+      const pItems = this.proMulti() ? this.proItems() : null; // Pro หลายไฟล์: สเปก/ป้าย/ราคารายไฟล์ (บันทึกลง files[] ให้หลังบ้านเห็นทีละไฟล์)
       for (let i = 0; i < s.files.length; i++) {
         const f = s.files[i];
         let path = null;
@@ -1944,7 +2093,7 @@ class App extends React.Component {
           }
         }
         // qty/w/h/sh = จำนวนชิ้น (ระบบคำนวณ = cap×แผ่น)·ขนาด (ซม.)·จำนวนแผ่น (PP 13"×19" / PVC ตร.ม.) ต่อลาย — บันทึกเฉพาะออเดอร์สติ๊กเกอร์เท่านั้น
-        const sti = (s.tier === 'pro' && s.proType === 'sticker') ? this.stickerInfo().list[i] : null;
+        const sti = (pItems ? pItems[i].spec.proType === 'sticker' : (s.tier === 'pro' && s.proType === 'sticker')) ? this.stickerInfo().list[i] : null;
         const row = { name: f.name, pages: f.pages, path, drive_url: f.big ? (f.b2Url || null) : null, auto: !!f.auto, heavy: f.heavy || 0, scanned: !!f.scanned, qty: sti ? Math.max(1, sti.q || 1) : null };
         if (sti && sti.ok) { row.w = sti.w; row.h = sti.h; row.sh = sti.sheets; row.stk = sti.t || null; } // stk = เนื้อของลายนี้ (pp/pvc)
         // งานปริ้นผสม: บันทึกต่อไฟล์ว่าพิมพ์แบบไหน + หน้าสีหน้าไหน — หลังบ้าน/ทีมผลิตอ่านจากการ์ดได้เลย (เจ้าของสั่ง 2026-10-08)
@@ -1955,6 +2104,7 @@ class App extends React.Component {
           row.cheavy = mx.ch || 0; row.clight = mx.cl || 0; row.cbw = mx.cBw || 0;
         }
         if (s.tier !== 'pro') { const fo = this.fileOpt(f); row.sides = fo.sides; row.orient = fo.orient; row.nup = fo.nup; row.bind = fo.bind; } // ตัวเลือกรายไฟล์ (2026-10-12)
+        if (pItems) { const it = pItems[i]; row.paper = it.label; row.protype = it.spec.proType; row.copies = Math.max(1, it.spec.copies || 1); row.sides = it.spec.sides === 2 ? 2 : 1; row.bind = it.spec.proType === 'foldbook' ? it.spec.proBind : 'none'; row.pcost = it.cost; } // Pro รายไฟล์ (2026-10-12)
         files.push(row);
       }
       if (upFail) {
@@ -1984,11 +2134,11 @@ class App extends React.Component {
         customer_fname: u.fname || '', customer_lname: u.lname || '',
         customer_phone: u.phone || s.phone || '', customer_email: u.email || '',
         files, ptype: s.tier === 'pro' ? 'pro' : s.ptype, color: s.tier !== 'pro' && s.ptype === 'color',
-        paper: s.tier === 'pro' ? this.proLabel() : s.paper, sides: s.tier === 'pro' ? s.sides : (s.files[0] ? this.fileOpt(s.files[0]).sides : 1), // Standard: ด้านละเอียดอยู่ใน files[].sides
+        paper: s.tier === 'pro' ? this.proOrderLabel() : s.paper, sides: s.tier === 'pro' ? (pItems ? (pItems[0].spec.sides === 2 ? 2 : 1) : s.sides) : (s.files[0] ? this.fileOpt(s.files[0]).sides : 1), // Standard/Pro หลายไฟล์: ค่าละเอียดอยู่ใน files[]
         // คอลัมน์ระดับออเดอร์ = สรุปจากรายไฟล์ (ค่าละเอียดอยู่ใน files[].orient/nup/bind): แนว/หน้าต่อแผ่นของไฟล์แรก · bind = เข้าเล่มแบบแรกที่มี > เย็บมุม > none
         orient: s.tier === 'pro' ? null : (s.files[0] ? this.fileOpt(s.files[0]).orient : 'portrait'),
         nup: s.tier === 'pro' ? null : (s.files[0] ? this.fileOpt(s.files[0]).nup : 1),
-        bind: s.tier === 'pro' ? (s.proType === 'foldbook' ? s.proBind : 'none') : (() => { const bs = s.files.map(f => this.fileOpt(f).bind); return bs.find(b => STD_BINDS.some(x => x.k === b)) || (bs.includes('corner') ? 'corner' : 'none'); })(), copies: s.copies,
+        bind: s.tier === 'pro' ? (pItems ? ((pItems.find(x => x.spec.proType === 'foldbook') || {}).spec || {}).proBind || 'none' : (s.proType === 'foldbook' ? s.proBind : 'none')) : (() => { const bs = s.files.map(f => this.fileOpt(f).bind); return bs.find(b => STD_BINDS.some(x => x.k === b)) || (bs.includes('corner') ? 'corner' : 'none'); })(), copies: pItems ? 1 : s.copies, // Pro หลายไฟล์: จำนวนชุดอยู่รายไฟล์ (files[].copies)
         point: s.geoLabel || '', lat: s.lat, lng: s.lng,
         pickup: s.tier === 'pro' ? s.proPickup : s.stdPickup,
         line_uid: (s.user && s.user.line_uid) || null, // ไว้แจ้งเตือนลูกค้าทาง LINE (เฉพาะคนล็อกอินด้วย LINE)
@@ -2833,7 +2983,8 @@ class App extends React.Component {
           this.setState(st => ({ files: st.files.map(x => x.uid === it.uid ? { ...x, pages: r.pages, auto: r.auto, heavy: r.heavy || 0, heavyList: r.heavyList || [], scanned: !!r.scanned, thumb: r.thumb || null, counting: false } : x) }));
         });
       },
-      files: (() => { const stOn = s.tier === 'pro' && s.proType === 'sticker'; const si = stOn ? this.stickerInfo() : null;
+      files: (() => { const pMulti = this.proMulti(), pAct = this.proActiveIdx(), pItems = pMulti ? this.proItems() : null; // Pro หลายไฟล์ (2026-10-12)
+        const stOn = s.tier === 'pro' && s.proType === 'sticker' && !pMulti; const si = stOn ? this.stickerInfo() : null;
         const mixOn = s.tier !== 'pro' && s.ptype === 'mix'; const mi = mixOn ? this.mixInfo() : null; // งานปริ้นผสม: สรุปหน้าสี/ขาวดำต่อไฟล์
         return s.files.map((f, i) => ({
         name: f.name, pages: f.pages, big: !!f.big, sizeMB: f.sizeMB || 0,
@@ -2856,7 +3007,11 @@ class App extends React.Component {
         // ไฟล์ที่ระบบอ่านนับหน้าได้เอง = ล็อกจำนวนตามไฟล์จริง แก้ไม่ได้ (กันกดลดหน้าให้ราคาถูกกว่าความจริง) — แก้ได้เฉพาะไฟล์ที่เว็บนับไม่ได้ (เช่น DOCX)
         inc: () => { if (f.auto) return this.showToast('ไฟล์นี้ระบบนับหน้าจากตัวไฟล์จริงแล้ว ล็อกจำนวนไว้ครับ 🔒'); this.setState(st => ({ files: st.files.map((x, j) => j === i ? { ...x, pages: x.pages + 1 } : x) })); },
         dec: () => { if (f.auto) return this.showToast('ไฟล์นี้ระบบนับหน้าจากตัวไฟล์จริงแล้ว ล็อกจำนวนไว้ครับ 🔒'); this.setState(st => ({ files: st.files.map((x, j) => j === i ? { ...x, pages: Math.max(1, x.pages - 1) } : x) })); },
-        del: () => this.setState(st => ({ files: st.files.filter((_, j) => j !== i) })),
+        del: () => this.proRemoveFile(i),
+        // ── งาน Pro หลายไฟล์: การ์ดไฟล์แตะเลือกได้ · กรอบเขียว = ไฟล์ที่กำลังเลือกสเปก · ✓ = ยืนยันแล้ว ──
+        proOn: pMulti, proActive: pMulti && i === pAct, proOk: !!f.proOk,
+        proText: pItems ? pItems[i].label + (pItems[i].spec.proType === 'sticker' ? '' : ' × ' + (pItems[i].spec.copies || 1) + ' ชุด') : '',
+        pickPro: () => this.proSelect(i),
         // ── งานปริ้นผสม: ตัวเลือกต่อไฟล์ + ช่องเลขหน้าสี (เจ้าของสั่ง 2026-10-08) ──
         mix: mi ? mi.list[i] : null,
         fmode: f.fmode || 'bw', fspec: f.fspec || '',
@@ -2870,7 +3025,7 @@ class App extends React.Component {
           return {
             opt: o, nupLock: o.nupLock,
             // แถวสเปกรายไฟล์บนหน้าตรวจสอบ (เจ้าของสั่ง 2026-10-12: สั่งหลายไฟล์ต้องเห็นชัดว่าไฟล์ไหนสเปกไหน)
-            reviewRows: [
+            reviewRows: pItems ? proSpecRowsC({ paper: pItems[i].label, copies: pItems[i].spec.proType === 'sticker' ? 1 : pItems[i].spec.copies, sides: pItems[i].spec.sides, bind: pItems[i].spec.proType === 'foldbook' ? pItems[i].spec.proBind : 'none' }) : [
               ['ประเภท', !mi ? ((PRINT_TYPES.find(t => t.k === s.ptype) || {}).label || '')
                 : (() => { const x = mi.list[i]; if (!x || x.set.size === 0) return 'ปริ้นขาวดำทั้งไฟล์'; if (x.cBw === 0) return 'ปริ้นสีทั้งไฟล์';
                     const bw = []; for (let p = 1; p <= f.pages; p++) if (!x.set.has(p)) bw.push(p);
@@ -2968,6 +3123,15 @@ class App extends React.Component {
       proShowBind: s.proType === 'foldbook',
       proBindOpts: PRO_BINDS.map(b => this.seg(b, s.proBind === b, () => this.setState({ proBind: b }))),
       proPicked: this.proLabel(),
+      // ── Pro หลายไฟล์ (เจ้าของสั่ง 2026-10-12): แท็บไฟล์ + ปุ่มยืนยันสเปกทีละไฟล์ ──
+      proMulti: this.proMulti(),
+      proActNum: this.proActiveIdx() + 1,
+      proActName: (s.files[this.proActiveIdx()] || {}).name || '',
+      proTabs: this.proMulti() ? s.files.map((f, i) => ({ i, on: i === this.proActiveIdx(), ok: !!f.proOk, pick: () => this.proSelect(i) })) : [],
+      proAllOk: this.proMulti() && s.files.every(f => f.proOk),
+      proConfirm: () => this.proConfirm(),
+      proConfirmLabel: (() => { if (!this.proMulti()) return ''; const act = this.proActiveIdx(); const nxt = s.files.map((_, k) => (act + 1 + k) % s.files.length).find(k => k !== act && !s.files[k].proOk);
+        return '✓ ยืนยันสเปกไฟล์ที่ ' + (act + 1) + (nxt != null ? ' → ไปเลือกไฟล์ที่ ' + (nxt + 1) : (s.files[act].proOk ? ' (บันทึกการแก้ไข)' : ' (ไฟล์สุดท้าย)')); })(),
       // ตัวเลือกเสริมตามประเภทงาน — ราคาบวกเพิ่มโชว์ตรงปุ่มเลย (ตัวเลือกกระดาษธรรมดา/พิเศษถูกถอดหมดแล้ว 2026-09-11: โปสเตอร์+เพลท+พับครึ่ง)
       proExtraOpts: s.proType === 'portfolio' ? [
         this.seg('ไม่เย็บ (ฟรี)', !s.proStaple, () => this.setState({ proStaple: false }), true),
@@ -3028,14 +3192,15 @@ class App extends React.Component {
       proNote: '', // ทุกประเภทงาน Pro มีราคาจริงแล้ว (foldbook เป็นตัวสุดท้าย 2026-08-24)
       // ── งานสติ๊กเกอร์ v2: เลือกเนื้อ PP/PVC + กรอกขนาด (ซม.) และจำนวนชิ้นรายไฟล์ อยู่ใต้ตัวเลือกงานเลย ──
       stkOn: s.tier === 'pro' && s.proType === 'sticker',
-      stkTypeMissing: (s.tier === 'pro' && s.proType === 'sticker') && s.files.length > 0 && s.files.some(f => !f.stk), // ยังมีลายที่ไม่ได้เลือกเนื้อ
+      stkTypeMissing: (s.tier === 'pro' && s.proType === 'sticker') && s.files.length > 0 && (this.proMulti() ? !(s.files[this.proActiveIdx()] || {}).stk : s.files.some(f => !f.stk)), // ยังมีลายที่ไม่ได้เลือกเนื้อ
       // การ์ดอธิบายเนื้อ PP/PVC + ราคา (stkTypeOpts) ถูกถอดออกแล้ว (เจ้าของสั่ง 2026-09-10 ไม่ต้องโชว์รายละเอียด/ราคา) — ลูกค้ากดเลือกเนื้อที่ปุ่ม PP/PVC ในกล่องของแต่ละลายเหมือนเดิม
       stkFiles: (s.tier === 'pro' && s.proType === 'sticker') ? (() => {
         const si = this.stickerInfo();
         const set = (i, k, val) => this.setState(st => ({ files: st.files.map((x, j) => j === i ? { ...x, [k]: val } : x) }));
         const num = (e) => e.target.value.replace(/[^\d.]/g, '').replace(/(\..*)\./g, '$1').slice(0, 5); // เลข+จุดทศนิยมจุดเดียว เช่น 6.5
-        return s.files.map((f, i) => ({
-          name: f.name,
+        const pAct = this.proMulti() ? this.proActiveIdx() : -1; // Pro หลายไฟล์: กรอกเฉพาะลายของไฟล์ที่กำลังเลือก
+        return s.files.map((f, i) => ({ f, i })).filter(x => pAct < 0 || x.i === pAct).map(({ f, i }) => ({
+          name: f.name, num: i + 1,
           multi: (f.pages || 1) > 1, // ไฟล์เกิน 1 หน้า = ผิดกติกาสติ๊กเกอร์ (ลายละ 1 รูป) — เตือนแดง + toDelivery บล็อก
           pages: f.pages || 1,
           valW: f.w == null ? '' : String(f.w), valH: f.h == null ? '' : String(f.h),
@@ -3043,15 +3208,16 @@ class App extends React.Component {
           t: f.stk || '', // เนื้อของลายนี้ (เลือกที่ปุ่ม PP/PVC ในกล่องลายเท่านั้น)
           setStk: (k) => set(i, 'stk', k),
           info: si.list[i], // {ok, over, cap, sheets, t}
-          del: () => this.setState(st => ({ files: st.files.filter((_, j) => j !== i) })),
+          del: () => this.proRemoveFile(i),
           setW: (e) => { const d = num(e); set(i, 'w', d === '' ? null : d); },
           setH: (e) => { const d = num(e); set(i, 'h', d === '' ? null : d); },
           setSh: (e) => { const d = e.target.value.replace(/\D/g, '').slice(0, 3); set(i, 'shq', d === '' ? null : Math.max(1, parseInt(d, 10))); }
         }));
       })() : [],
-      stkMulti: s.tier === 'pro' && s.proType === 'sticker' && s.files.some(f => (f.pages || 1) > 1),
+      stkMulti: s.tier === 'pro' && s.proType === 'sticker' && (this.proMulti() ? (s.files[this.proActiveIdx()] || {}).pages > 1 : s.files.some(f => (f.pages || 1) > 1)),
       stkSum: (() => {
         if (!(s.tier === 'pro' && s.proType === 'sticker') || !s.files.length) return null;
+        if (this.proMulti()) return null; // หลายไฟล์: ราคาสติ๊กเกอร์รวมอยู่ในบิลรายไฟล์ด้านล่าง
         const si = this.stickerInfo();
         const notes = [];
         if (si.pp.sheets > 0 && si.pp.rate < STK_PP_SHEET) notes.push('🎉 PP ลดอัตโนมัติเหลือ ฿' + si.pp.rate + '/แผ่น');
@@ -3128,7 +3294,7 @@ class App extends React.Component {
       typeLabel: s.tier === 'pro' ? '✨ PRO พรีเมียม' : ((PRINT_TYPES.find(t => t.k === s.ptype) || {}).label || ''),
       billLines: this.billLines(c), // แตกค่าปริ้นรายไฟล์ในบิล (null = โชว์บรรทัดเดียวแบบเดิม)
       // สติ๊กเกอร์ไม่นับเป็น "หน้า" — บิลสรุปเป็นชิ้น/แผ่น A3 แทน กันลูกค้างง (เจ้าของสั่ง 2026-09-09)
-      pageSummary: (s.tier === 'pro' && s.proType === 'sticker') ? (() => {
+      pageSummary: (s.tier === 'pro' && s.proType === 'sticker' && !this.proMulti()) ? (() => {
           const si = this.stickerInfo();
           if (!si.ready) return 'สติ๊กเกอร์ — กรอกให้ครบ แล้วยอดขึ้นตรงนี้ครับ';
           const parts = [];
@@ -3136,6 +3302,7 @@ class App extends React.Component {
           if (si.pvc.sheets > 0) parts.push('PVC ' + si.pvc.sheets + ' ตร.ม.');
           return 'สติ๊กเกอร์รวม ' + si.pcs + ' ชิ้น (' + parts.join(' + ') + (s.copies > 1 ? ' · ' + s.copies + ' ชุด' : '') + ')';
         })()
+        : this.proMulti() ? 'PRO ' + s.files.length + ' ไฟล์ · ' + c.pages + ' หน้า (ประเภท/สเปก/จำนวนชุดตามแต่ละไฟล์)'
         : c.pages + ' หน้า × ' + s.copies + ' ชุด (' + (s.tier === 'pro' ? 'PRO ' + this.proLabel() : ((PRINT_TYPES.find(t => t.k === s.ptype) || {}).label || '') + ' ' + s.paper + (() => { const nps = [...new Set(s.files.map(f => this.fileOpt(f).nup))]; return nps.length > 1 ? ' · หน้า/แผ่นตามแต่ละไฟล์' : nps[0] > 1 ? ' · ' + nps[0] + ' หน้า/แผ่น' : ''; })()) + ')',
       // ค่าปริ้นที่โชว์ลูกค้ารวมค่าบริการกลางคืนแล้ว (เจ้าของสั่ง 2026-09-17: กลางคืนเป็นค่าปริ้นงาน ไม่ใช่ค่าส่ง) — ยอดบันทึกลงฐานข้อมูล (print_cost/night_fee) แยกคอลัมน์เหมือนเดิม
       printCost: c.printCost + c.nightFee, printCostRaw: c.printCost, bindCost: c.bindCost, printTotal: c.printTotal,
@@ -3180,37 +3347,18 @@ class App extends React.Component {
           smallErr.forEach(f => this.preUpload(f));
           return this.showToast((smallErr[0].upTries || 0) >= 2 ? '⚠️ ไฟล์ "' + smallErr[0].name + '" ส่งเข้าระบบไม่ได้ — ลบไฟล์นี้ (✕) แล้วแนบใหม่อีกครั้งนะครับ' : '⚠️ สำรองไฟล์เข้าระบบยังไม่สำเร็จ — กำลังลองใหม่ให้ กด "ถัดไป" อีกครั้งนะครับ');
         }
-        // เพลทต้องเลือกประเภทบอร์ดก่อน (นโยบาย 2026-09-09)
-        if (s.tier === 'pro' && s.proType === 'plate' && !s.proBoard)
-          return this.showToast('🪧 เลือกประเภทบอร์ดก่อนนะครับ — ฟิวเจอร์บอร์ด หรือ โฟมบอร์ด (ไม่บวกราคาเพิ่ม)');
-        // งานสติ๊กเกอร์รับไฟล์ลายละ "1 หน้า (รูปเดียว)" เท่านั้น — ไฟล์หลายหน้าห้ามไปต่อ (นโยบาย 2026-09-09)
-        if (s.tier === 'pro' && s.proType === 'sticker' && s.files.some(f => (f.pages || 1) > 1))
-          return this.showToast('🏷️ ไฟล์สติ๊กเกอร์ใช้ได้ 1 หน้าต่อ 1 ลายครับ 🙏');
-        // สติ๊กเกอร์ v3: ต้องเลือกเนื้อ (PP/PVC รายลาย) + กรอกขนาด/จำนวนแผ่นครบทุกลาย + ชิ้นไม่ใหญ่เกินแผ่นของเนื้อนั้น
-        if (s.tier === 'pro' && s.proType === 'sticker') {
-          const si = this.stickerInfo();
-          const noT = si.list.findIndex(x => !x.t);
-          if (noT >= 0) return this.showToast('🏷️ เลือกประเภทสติ๊กเกอร์ (PP หรือ PVC) ของ "ไฟล์ที่ ' + (noT + 1) + '" ก่อนนะครับ');
-          const bad = si.list.findIndex(x => !x.ok);
-          if (bad >= 0) return this.showToast('🏷️ กรอกขนาด (กว้าง×ยาว ซม.) และจำนวนแผ่นของ "ไฟล์ที่ ' + (bad + 1) + '" ให้ครบก่อนนะครับ');
-          const over = si.list.findIndex(x => x.over);
-          if (over >= 0) { const shp = STK_SHEET[si.list[over].t] || STK_SHEET.pp;
-            return this.showToast('🏷️ ไฟล์ที่ ' + (over + 1) + ' ขนาดใหญ่เกิน' + (si.list[over].t === 'pvc' ? 'พื้นที่ 1 ตร.ม.' : 'แผ่น 13"×19"') + ' ครับ (พิมพ์ได้ไม่เกิน ' + (shp.w - STK_MARGIN * 2) + '×' + (shp.h - STK_MARGIN * 2) + ' ซม.) — ลดขนาดลงหรือทักไลน์ร้านได้เลย'); }
-        }
-        // พับครึ่งโฉมใหม่ (2026-09-13): ขั้นต่ำต่อเล่ม — เล่ม A5 ≥8 หน้า + สั่ง ≥2 เล่ม · เล่ม A4 ≥4 หน้า
-        if (s.tier === 'pro' && s.proType === 'foldbook') {
-          const bk = FOLDBOOK_BOOK[s.proSize] || {};
-          const fbPages = s.files.reduce((a, f) => a + (f.pages || 1), 0);
-          if ((bk.minPages || 1) > 1 && fbPages < bk.minPages)
-            return this.showToast('📖 เล่ม ' + bk.book + ' รับผลิตขั้นต่ำ ' + bk.minPages + ' หน้าขึ้นไปครับ (ตอนนี้ ' + fbPages + ' หน้า) 🙏');
-          if ((bk.minCopies || 1) > 1 && s.copies < bk.minCopies)
-            return this.showToast('📖 เล่ม ' + bk.book + ' รับผลิตขั้นต่ำ ' + bk.minCopies + ' เล่มขึ้นไปครับ — เพิ่มจำนวนเล่มที่ช่อง "จำนวนชุด (สำเนา)" นะครับ 🙏');
-        }
-        // โปสเตอร์ A4: รับผลิตขั้นต่ำ 2 แผ่น และจำนวนรวมต้องเป็นเลขคู่ (เจ้าของสั่ง 2026-10-05 — เตือนตอนกดไปต่อ ไม่แปะคำกำกับถาวรบนจอ)
-        if (s.tier === 'pro' && s.proType === 'poster' && s.proSize === 'A4') {
-          const shts = s.files.reduce((a, f) => a + (f.pages || 1), 0) * Math.max(1, s.copies || 1);
-          if (shts < 2 || shts % 2 !== 0)
-            return this.showToast('🖼️ โปสเตอร์ A4 รับผลิตขั้นต่ำ 2 แผ่น และจำนวนรวมต้องเป็นเลขคู่ครับ (ตอนนี้ ' + shts + ' แผ่น) — ปรับที่ช่อง "จำนวนชุด (สำเนา)" ได้เลย 🙏');
+        // สเปกงาน Pro (proCheck): ไฟล์เดียวเช็คแบบเดิม · หลายไฟล์ ต้องยืนยันครบทุกไฟล์ + เช็ครายไฟล์ (เจ้าของสั่ง 2026-10-12)
+        if (s.tier === 'pro' && !this.proMulti()) { const m = this.proCheck(); if (m) return this.showToast(m); }
+        if (this.proMulti()) {
+          const miss = s.files.findIndex(f => !f.proOk);
+          if (miss >= 0) { this.proSelect(miss); return this.showToast('📌 เลือกประเภทงานและสเปกของ "ไฟล์ที่ ' + (miss + 1) + '" แล้วกดยืนยันก่อนนะครับ'); }
+          for (let i = 0; i < s.files.length; i++) {
+            const m = this.withProFiles(this.proSpecOf(i), [s.files[i]], () => this.proCheck(i, true));
+            if (m) { this.proSelect(i); return this.showToast(m); }
+          }
+          // โปสเตอร์ A4 พิมพ์คู่บนแผ่น A3 — นับรวมทุกไฟล์ที่เป็นโปสเตอร์ A4 ต้องได้ ≥2 และเป็นเลขคู่
+          const a4 = s.files.reduce((a, f, i) => { const sp = this.proSpecOf(i); return a + (sp.proType === 'poster' && sp.proSize === 'A4' ? (f.pages || 1) * Math.max(1, sp.copies || 1) : 0); }, 0);
+          if (a4 > 0 && (a4 < 2 || a4 % 2 !== 0)) return this.showToast('🖼️ โปสเตอร์ A4 รับผลิตขั้นต่ำ 2 แผ่น และจำนวนรวมต้องเป็นเลขคู่ครับ (ตอนนี้รวม ' + a4 + ' แผ่น) — ปรับ "จำนวนชุด" ของไฟล์โปสเตอร์ได้เลย 🙏');
         }
         // ปริ้นผสม: เลขหน้าสีต้องถูกต้อง/ไม่ว่างทุกไฟล์ก่อนไปต่อ (กันคิดเงินเพี้ยน — เจ้าของสั่ง 2026-10-08)
         if (s.tier !== 'pro' && s.ptype === 'mix') {
@@ -3354,7 +3502,7 @@ class App extends React.Component {
       goPay: () => this.setState({ screen: 'pay' }),
       goEditOrder: () => this.setState({ screen: 'order' }),
       goEditDelivery: () => this.setState({ screen: 'delivery' }),
-      paperLabel: s.tier === 'pro' ? this.proLabel() : s.paper,
+      paperLabel: s.tier === 'pro' ? this.proOrderLabel() : s.paper,
       sidesLabel: s.sides === 2 ? 'หน้า-หลัง' : s.tier === 'pro' && s.proType === 'poster' ? 'ด้านหน้าอย่างเดียว' : 'หน้าเดียว',
       bindLabel: s.tier === 'pro' ? (s.proType === 'foldbook' ? s.proBind : '—') : s.bind === 'corner' ? 'เย็บมุม' : s.bind === 'book' ? 'เข้าเล่ม' : s.bind === 'landscape' ? 'เล่มแนวนอน' : ((STD_BINDS.find(b => b.k === s.bind) || {}).name || 'ไม่เย็บมุม'),
       isColorType: s.ptype === 'color',
@@ -3421,7 +3569,7 @@ class App extends React.Component {
         }
         try { // เกราะกันหน้าค้าง (2026-09-14 เคสจริง): ถ้าโค้ดจัดจอหลังจากนี้พังกลางทาง ออเดอร์ถึงร้านแล้วแต่ลูกค้าค้างหน้าจ่าย ไม่รู้ว่าสำเร็จ — catch ท้ายฟังก์ชันพาเข้าหน้าติดตามเสมอ
         // จำป้ายประเภทงานไว้กับออเดอร์ — ใช้แสดงในรีวิว ("งานเอกสารขาวดำ" ฯลฯ)
-        const plabel = s.tier === 'pro' ? 'PRO ' + this.proLabel() : ((PRINT_TYPES.find(t => t.k === s.ptype) || {}).label || '');
+        const plabel = s.tier === 'pro' ? 'PRO ' + this.proOrderLabel() : ((PRINT_TYPES.find(t => t.k === s.ptype) || {}).label || '');
         // เวลาคาดว่าจะได้รับ: เวลาฐานตามประเภทงาน (คิวจริงจะบวกเพิ่มตามหลังเมื่อระบบตอบ)
         const etaBaseMin = this.etaMinutes(); // งานด่วน: etaMinutes ลดเวลาผลิตให้แล้ว (45 นาที/150 หน้า)
         // งานด่วน (Express — Standard): ธงตามที่คิดเงินจริง (c.expressFee) — ร้านลัดคิวให้ ไม่บวกเวลาคิว
@@ -3453,11 +3601,11 @@ class App extends React.Component {
           localStorage.setItem('mp_rc', rcSave);
           document.cookie = 'mp_rc_bk=' + encodeURIComponent(rcSave) + ';max-age=31536000;path=/;SameSite=Lax'; // สำรองคุกกี้ 1 ปี
         } catch (e) {}
-        this.setState({ order: { id, total: c.grandTotal, times: [t0, '', '', ''], plabel, eta, pickup, ts, express: isExp, addr: oaddr, phone: s.phone, veh: oveh, copies: s.copies, pages: c.totalPages, dist: s.distKm, rc: rcReq, cp: cpUsed }, trackStep: 1, cancelReason: '', screen: 'track',
-          files: [], slip: null, copies: 1, bind: 'none', express: false, handoff: '', tier: 'standard', ptype: 'bw', paper: 'A4', sides: 1, orient: 'portrait', nup: 1, note: '', shipNote: '', proPickup: false, stdPickup: false, recvSel: false, vehSel: false, proLam: 'none', proSpecial: false, proStaple: false, proStand: false, vehicle: 'bike', trackOpen: false, trackMin: false, histOpen: null, chatFor: null, chatFrom: 'track', selfCancelArm: false, couponCode: '', couponOk: null });
+        this.setState({ order: { id, total: c.grandTotal, times: [t0, '', '', ''], plabel, eta, pickup, ts, express: isExp, addr: oaddr, phone: s.phone, veh: oveh, copies: this.proMulti() ? 1 : s.copies, pages: c.totalPages, dist: s.distKm, rc: rcReq, cp: cpUsed }, trackStep: 1, cancelReason: '', screen: 'track',
+          files: [], proActive: 0, slip: null, copies: 1, bind: 'none', express: false, handoff: '', tier: 'standard', ptype: 'bw', paper: 'A4', sides: 1, orient: 'portrait', nup: 1, note: '', shipNote: '', proPickup: false, stdPickup: false, recvSel: false, vehSel: false, proLam: 'none', proSpecial: false, proStaple: false, proStand: false, vehicle: 'bike', trackOpen: false, trackMin: false, histOpen: null, chatFor: null, chatFrom: 'track', selfCancelArm: false, couponCode: '', couponOk: null });
         // จำออเดอร์ไว้ในเครื่อง — ปิดเว็บแล้วกลับมา การติดตามยังอยู่
         try {
-          const nod = { id, total: c.grandTotal, times: [t0, '', '', ''], step: 1, plabel, eta, pickup, ts, express: isExp, addr: oaddr, phone: s.phone, veh: oveh, copies: s.copies, pages: c.totalPages, dist: s.distKm, rc: rcReq, cp: cpUsed };
+          const nod = { id, total: c.grandTotal, times: [t0, '', '', ''], step: 1, plabel, eta, pickup, ts, express: isExp, addr: oaddr, phone: s.phone, veh: oveh, copies: this.proMulti() ? 1 : s.copies, pages: c.totalPages, dist: s.distKm, rc: rcReq, cp: cpUsed };
           localStorage.setItem('mp_order', JSON.stringify(nod));
           this.upsertOrderList(nod); // สั่งหลายใบไล่เลี่ยกัน — ทุกใบอยู่ในลิสต์ติดตาม
         } catch (e) {}
@@ -4189,8 +4337,18 @@ class App extends React.Component {
               </div>
             </div>
             <div style={css("margin-top:-6px;font-size:12px;color:var(--sub);line-height:1.6")}><span style={css("display:inline-flex;vertical-align:-2px;margin-right:5px")}>{fi('upload', 12)}</span>หากเป็นไฟล์ที่ไม่ใช่ PDF <a href={(window.MP_CONFIG || {}).LINE_OA_URL || 'https://line.me/R/ti/p/@346kifvy'} target="_blank" rel="noreferrer" style={css("color:#06C755;font-weight:700")}>ติดต่อทางไลน์ →</a></div>
+            {/* Pro หลายไฟล์ (เจ้าของสั่ง 2026-10-12): คำชี้แจงการเลือกสเปกทีละไฟล์ */}
+            {v.proMulti && (
+              <div style={css("background:var(--accSoft);border:1.5px solid var(--acc);border-radius:12px;padding:10px 13px;font-size:12.5px;color:var(--ink);line-height:1.6")}>
+                <div style={css("font-size:13.5px;font-weight:800;color:var(--acc)")}>📌 งาน Pro หลายไฟล์ — เลือกสเปกทีละไฟล์</div>
+                <div style={css("margin-top:3px")}><b style={css("color:var(--acc)")}>กรอบสีเขียว</b> = ไฟล์ที่กำลังเลือก → เลือกสเปกด้านล่าง แล้วกด <b>"ยืนยัน"</b></div>
+                <div>แตะไฟล์อื่นเพื่อสลับได้ สเปกที่เลือกไว้ไม่หาย</div>
+                <div style={css("margin-top:3px;font-size:12px;font-weight:700;color:#a16207")}>คิดราคาไฟล์ละ 1 ชิ้น · ต้องยืนยันครบทุกไฟล์</div>
+              </div>
+            )}
             {v.files.map((f, i) => (
-              <div key={i} style={css("background:var(--card);border:1px solid " + (f.big ? "#f0b429" : "var(--line)") + ";border-radius:12px;padding:10px 14px")}>
+              <div key={i} onClick={f.proOn ? (e) => { if (!e.target.closest('button,input,a')) f.pickPro(); } : undefined}
+                style={css("background:" + (f.proActive ? "var(--accSoft)" : "var(--card)") + ";border:" + (f.proActive ? "2px solid var(--acc)" : "1px solid " + (f.big ? "#f0b429" : "var(--line)")) + ";border-radius:12px;padding:" + (f.proActive ? "9px 13px" : "10px 14px") + (f.proOn ? ";cursor:pointer" : ""))}>
                 <div style={css("display:flex;align-items:center;gap:10px")}>
                   {f.thumb
                     ? <img src={f.thumb} alt="" style={css("width:30px;height:40px;object-fit:cover;object-position:top;border:1px solid var(--line);border-radius:5px;background:#fff;flex:none")}/>
@@ -4233,6 +4391,11 @@ class App extends React.Component {
                 {!f.big && f.hasFile && !f.upErr && !f.upDone && f.up > 0 && (
                   <div style={css("margin-top:8px;padding-top:8px;border-top:1px dashed var(--line);font-size:12px;font-weight:700;color:#a16207")}>☁️ กำลังสำรองไฟล์เข้าระบบ…</div>
                 )}
+                {f.proOn && (
+                  <div style={css("margin-top:8px;padding-top:7px;border-top:1px dashed " + (f.proActive ? "var(--acc)" : "var(--line)") + ";font-size:12px;font-weight:700;line-height:1.5;color:" + (f.proActive ? "var(--acc)" : f.proOk ? "var(--acc)" : "#a16207"))}>
+                    {f.proActive ? '✏️ กำลังเลือกสเปกไฟล์นี้ (ด้านล่าง)' + (f.proOk ? ' · ยืนยันแล้ว: ' + f.proText : '') : f.proOk ? '✓ ' + f.proText : '⚠️ ยังไม่ได้เลือกสเปก — แตะเพื่อเลือก'}
+                  </div>
+                )}
               </div>
             ))}
             {/* เลือกระดับงาน: Standard (ของเดิม) / Pro (งานขั้นสูง A3-A1 ราคารอยืนยัน) */}
@@ -4260,6 +4423,16 @@ class App extends React.Component {
               </div>
             </div>
             <div style={css("background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px;display:flex;flex-direction:column;gap:12px;box-shadow:var(--shadow)")}>
+              {v.isPro && v.proMulti && (
+                <div id="mp-pro-head" style={css("scroll-margin-top:84px;background:var(--accSoft);border:2px solid var(--acc);border-radius:12px;padding:10px 12px")}>
+                  <div style={css("font-size:13.5px;font-weight:800;color:var(--acc);overflow:hidden;text-overflow:ellipsis;white-space:nowrap")}>✏️ กำลังเลือกสเปก: ไฟล์ที่ {v.proActNum} · {v.proActName}</div>
+                  <div style={css("margin-top:7px;display:flex;gap:6px;flex-wrap:wrap")}>
+                    {v.proTabs.map(t => (
+                      <button key={t.i} onClick={t.pick} style={css("height:32px;padding:0 12px;border-radius:99px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;border:" + (t.on ? "2px solid var(--acc)" : "1px solid var(--line)") + ";background:" + (t.on ? "var(--acc)" : "var(--card)") + ";color:" + (t.on ? "#fff" : t.ok ? "var(--acc)" : "#a16207"))}>ไฟล์ {t.i + 1} {t.ok ? '✓' : t.on ? '' : '•'}</button>
+                    ))}
+                  </div>
+                </div>
+              )}
               <div style={css("display:flex;flex-direction:column;gap:6px")}>
                 {!v.isPro && <div style={css("font-size:13px;font-weight:600;color:var(--ink)")}>ประเภทงานปริ้น</div>}
                 {!v.isPro && v.typeOpts.map((t, i) => (
@@ -4348,7 +4521,7 @@ class App extends React.Component {
                                   <button onClick={f.del} style={css("flex:none;height:34px;padding:0 12px;border:none;border-radius:9px;background:#c92a2a;color:#fff;font-size:12.5px;font-weight:700;cursor:pointer;font-family:inherit")}>ลบไฟล์นี้</button>
                                 </div>
                               : <div key={i} style={css("margin-top:9px;border:1px solid var(--line);border-radius:10px;padding:10px 12px;background:var(--soft)")}>
-                                  <div style={css("font-size:13px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap")}>ไฟล์ที่ {i + 1} · {f.name}</div>
+                                  <div style={css("font-size:13px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap")}>ไฟล์ที่ {f.num} · {f.name}</div>
                                   <div style={css("margin-top:8px;font-size:11.5px;font-weight:600;color:var(--ink)")}>1. เลือกประเภทสติ๊กเกอร์</div>
                                   <div style={css("margin-top:4px;display:flex;gap:7px")}>
                                     {['pp', 'pvc'].map(k => (
@@ -4480,6 +4653,12 @@ class App extends React.Component {
                   <button onClick={v.copyInc} style={css("width:30px;height:30px;border:1px solid var(--line);background:var(--soft);color:var(--ink);border-radius:9px;font-size:15px;cursor:pointer")}>+</button>
                 </div>
               </div>}
+              {v.isPro && v.proMulti && (
+                <div style={css("display:flex;flex-direction:column;gap:6px")}>
+                  <button onClick={v.proConfirm} style={css("width:100%;min-height:48px;border:none;border-radius:12px;background:var(--acc);color:#fff;font-size:14px;font-weight:800;cursor:pointer;font-family:inherit;padding:8px 12px;line-height:1.4")}>{v.proConfirmLabel}</button>
+                  {v.proAllOk && <div style={css("font-size:12px;font-weight:700;color:var(--acc);text-align:center")}>✓ เลือกสเปกครบทุกไฟล์แล้ว — กด "ต่อไป" ด้านล่างได้เลย</div>}
+                </div>
+              )}
             </div>
             <div style={css("background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px;display:flex;flex-direction:column;gap:8px")}>
               <div style={css("font-size:13px;font-weight:600;color:var(--ink)")}>หมายเหตุ (รายละเอียดงาน) <span style={css("font-weight:400")}>— กรอกหรือไม่กรอกก็ได้</span></div>
@@ -4780,7 +4959,7 @@ class App extends React.Component {
             <div style={css("background:var(--accSoft);border:1.5px solid var(--acc);border-radius:14px;padding:14px 16px;box-shadow:var(--shadow)")}>
               <div style={css("font-size:12px;font-weight:700;color:var(--acc);letter-spacing:.5px")}>🖨️ สเปกงานปริ้นที่คุณเลือก</div>
               <div style={css("margin-top:10px;display:flex;flex-direction:column;gap:9px")}>
-                {[['ประเภทงาน', v.typeLabel], ['ขนาดกระดาษ', v.paperLabel], ...(v.isPro ? [['ด้านที่พิมพ์', v.sidesLabel], ['การเข้าเล่ม', v.bindLabel]] : []), ['จำนวน', v.copies + ' ชุด']].map((p, i) => (
+                {(v.proMulti ? [['ประเภทงาน', v.typeLabel], ['งานที่สั่ง', v.paperLabel], ['จำนวนไฟล์', v.files.length + ' ไฟล์ (สเปกตามแต่ละไฟล์ด้านล่าง)']] : [['ประเภทงาน', v.typeLabel], ['ขนาดกระดาษ', v.paperLabel], ...(v.isPro ? [['ด้านที่พิมพ์', v.sidesLabel], ['การเข้าเล่ม', v.bindLabel]] : []), ['จำนวน', v.copies + ' ชุด']]).map((p, i) => (
                   <div key={i} style={css("display:flex;align-items:center;gap:10px")}>
                     <div style={css("width:20px;height:20px;border-radius:50%;background:var(--acc);color:#fff;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;flex:none")}>✓</div>
                     <span style={css("font-size:12.5px;color:var(--sub);min-width:88px")}>{p[0]}</span>
@@ -4789,7 +4968,7 @@ class App extends React.Component {
                 ))}
               </div>
               {/* สเปกรายไฟล์ (เจ้าของสั่ง 2026-10-12): สั่งกี่ไฟล์ก็เห็นชัดว่าไฟล์ไหนตั้งค่าอะไร */}
-              {v.showSides && v.files.map((f, i) => (
+              {(v.showSides || v.proMulti) && v.files.map((f, i) => (
                 <div key={'pf' + i} style={css("margin-top:11px;border-top:1px dashed var(--acc);padding-top:9px")}>
                   <div style={css("display:flex;align-items:baseline;gap:7px;min-width:0")}>
                     <span style={css("flex:none;font-size:13px;font-weight:800;color:var(--acc)")}>📄 ไฟล์ {i + 1}</span>
