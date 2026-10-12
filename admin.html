@@ -941,7 +941,7 @@ function Delta({ cur, prev, invert }){
 }
 
 // แท่งแนวนอน — ประเภทงาน/โซน/จุดส่ง (ค่าเดียว สีเดียว ป้ายกำกับเป็นตัวหนังสือ)
-function HBars({ items, fmt }){
+function HBars({ items, fmt, color }){
   if (!items.length) return <div style={css("font-size:12px;color:var(--sub)")}>ยังไม่มีข้อมูลในช่วงนี้</div>;
   const max = Math.max(...items.map(x => x.v), 1);
   return (
@@ -949,17 +949,61 @@ function HBars({ items, fmt }){
       {items.map((x, i) => (
         <div key={i} title={x.label + ' · ' + fmt(x)}>
           <div style={css("display:flex;justify-content:space-between;gap:8px;font-size:12px")}><span style={css("font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap")}>{x.label}</span><span style={css("font-family:'IBM Plex Mono',monospace;color:var(--sub);white-space:nowrap")}>{fmt(x)}</span></div>
-          <div style={css("margin-top:4px;height:6px;background:var(--soft);border-radius:99px;overflow:hidden")}><div style={{ height: '100%', borderRadius: '99px', background: 'var(--acc)', width: Math.max(2, Math.round(x.v / max * 100)) + '%' }}></div></div>
+          <div style={css("margin-top:4px;height:6px;background:var(--soft);border-radius:99px;overflow:hidden")}><div style={{ height: '100%', borderRadius: '99px', background: color || 'var(--acc)', width: Math.max(2, Math.round(x.v / max * 100)) + '%' }}></div></div>
         </div>
       ))}
     </div>
   );
 }
 
-function OrderDashboard({ rows, loading, loadedAt, onReload }){
+const dashChip = (on) => ({ height: '30px', padding: '0 12px', borderRadius: '99px', border: '1px solid ' + (on ? 'var(--acc)' : 'var(--line)'), background: on ? 'var(--acc)' : 'var(--card)', color: on ? '#fff' : 'var(--ink)', fontSize: '12px', fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0 });
+const csvCell = (v) => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
+function downloadCsv(name, head, lines){
+  const blob = new Blob(['﻿' + [head, ...lines].map(r => r.map(csvCell).join(',')).join('\r\n')], { type: 'text/csv;charset=utf-8' }); // BOM ให้ Excel อ่านภาษาไทยถูก
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = name;
+  a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+}
+// ช่วงเวลาที่เลือก (ใช้ร่วมกันทั้งแท็บยอดขายและแท็บสรุปรวม)
+function useDashPeriod(){
   const [pkey, setPkey] = React.useState('7d');
   const [from, setFrom] = React.useState(() => ymd(new Date(Date.now() - 6 * 86400000)));
   const [to, setTo] = React.useState(() => ymd(new Date()));
+  return { pkey, setPkey, from, setFrom, to, setTo };
+}
+function DashHeader({ title, P, R, loading, loadedAt, onReload, onCsv, csvOn }){
+  const e = new Date(R.end.getTime() - 1);
+  const f = (t) => t.getDate() + ' ' + DASH_MONTHS[t.getMonth()] + ' ' + ((t.getFullYear() + 543) % 100);
+  const rangeText = R.start.toDateString() === e.toDateString() ? f(R.start) : f(R.start) + ' – ' + f(e);
+  const dateIn = css("flex:1;min-width:0;height:34px;border:1px solid var(--line);border-radius:9px;padding:0 8px;background:var(--card);color:var(--ink)");
+  return (
+    <div style={css("display:flex;flex-direction:column;gap:8px")}>
+      <div style={css("display:flex;align-items:center;gap:8px")}>
+        <div style={css("flex:1;min-width:0")}>
+          <div style={css("font-size:16px;font-weight:700")}>{title}</div>
+          <div style={css("font-size:11px;color:var(--sub)")}>{rangeText} · เทียบช่วงก่อนหน้าเท่ากัน{loadedAt ? ' · อัปเดต ' + loadedAt.toTimeString().slice(0, 5) : ''}</div>
+        </div>
+        <button onClick={onReload} disabled={loading} title="โหลดข้อมูลล่าสุด" style={dashChip(false)}>{loading ? '⏳' : '↻'} รีเฟรช</button>
+        <button onClick={onCsv} disabled={!csvOn} title="ดาวน์โหลดรายการออเดอร์ในช่วงนี้ (เปิดด้วย Excel/Google Sheets)" style={{ ...dashChip(false), display: 'flex', alignItems: 'center', gap: '5px', opacity: csvOn ? 1 : .5 }}>{FI.download(13)} CSV</button>
+      </div>
+      <div style={css("display:flex;gap:6px;overflow-x:auto;padding-bottom:2px")}>
+        {DASH_PERIODS.map(([k, l]) => <button key={k} onClick={() => P.setPkey(k)} style={dashChip(P.pkey === k)}>{l}</button>)}
+      </div>
+      {P.pkey === 'custom' && (
+        <div style={css("display:flex;align-items:center;gap:8px;font-size:12px")}>
+          <input type="date" value={P.from} max={P.to} onChange={ev => P.setFrom(ev.target.value)} style={dateIn}/>
+          <span style={css("color:var(--sub)")}>ถึง</span>
+          <input type="date" value={P.to} min={P.from} onChange={ev => P.setTo(ev.target.value)} style={dateIn}/>
+        </div>
+      )}
+      {loading && !loadedAt && <div style={css("padding:30px 0;text-align:center;font-size:12.5px;color:var(--sub)")}>⏳ กำลังโหลดประวัติออเดอร์ทั้งหมด…</div>}
+    </div>
+  );
+}
+
+function OrderDashboard({ rows, loading, loadedAt, onReload }){
+  const P = useDashPeriod();
+  const { pkey, from, to } = P;
   const [hover, setHover] = React.useState(null); // แท่งกราฟที่ชี้อยู่
   const [jobBy, setJobBy] = React.useState('revenue');
 
@@ -1044,26 +1088,17 @@ function OrderDashboard({ rows, loading, loadedAt, onReload }){
   const exportCsv = () => {
     const STAT = ['ยกเลิก', ...STEPS];
     const head = ['รหัสออเดอร์', 'วันที่', 'เวลา', 'ลูกค้า', 'เบอร์โทร', 'ประเภทงาน', 'จำนวนหน้า', 'สถานะ', 'รับงาน', 'ค่าปริ้น', 'ค่าเข้าเล่ม', 'ค่าส่ง(รวมด่วน)', 'ค่ากลางคืน', 'ยอดรวม'];
-    const q = (v) => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
     const lines = [...d.cur.inR].sort((a, b) => (a.created_at > b.created_at ? 1 : -1)).map(o => {
       const t = new Date(o.created_at);
       return [o.id, ymd(t), t.toTimeString().slice(0, 5), ((o.customer_fname || '') + ' ' + (o.customer_lname || '')).trim(), custKey(o), jobLabelOf(o), pagesOf(o),
-        STAT[o.status] || o.status, isPickup(o) ? 'มารับเอง' : 'จัดส่ง', o.print_cost || 0, o.bind_cost || 0, o.delivery_cost || 0, o.night_fee || 0, o.total || 0].map(q).join(',');
+        STAT[o.status] || o.status, isPickup(o) ? 'มารับเอง' : 'จัดส่ง', o.print_cost || 0, o.bind_cost || 0, o.delivery_cost || 0, o.night_fee || 0, o.total || 0];
     });
-    const blob = new Blob(['﻿' + [head.map(q).join(','), ...lines].join('\r\n')], { type: 'text/csv;charset=utf-8' }); // BOM ให้ Excel อ่านภาษาไทยถูก
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = 'moreprint-orders_' + ymd(d.R.start) + '_' + ymd(new Date(d.R.end.getTime() - 1)) + '.csv';
-    a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+    downloadCsv('moreprint-orders_' + ymd(d.R.start) + '_' + ymd(new Date(d.R.end.getTime() - 1)) + '.csv', head, lines);
   };
+
 
   const { cur, prev } = d;
   const mono = "font-family:'IBM Plex Mono',monospace;";
-  const rangeText = (() => {
-    const e = new Date(d.R.end.getTime() - 1);
-    const f = (t) => t.getDate() + ' ' + DASH_MONTHS[t.getMonth()] + ' ' + ((t.getFullYear() + 543) % 100);
-    return d.R.start.toDateString() === e.toDateString() ? f(d.R.start) : f(d.R.start) + ' – ' + f(e);
-  })();
   const KPIS = [
     [FI.baht(11), 'รายได้', baht(cur.revenue), cur.revenue, prev.revenue, true],
     [FI.receipt(11), 'ออเดอร์', cur.orders.toLocaleString(), cur.orders, prev.orders],
@@ -1073,35 +1108,13 @@ function OrderDashboard({ rows, loading, loadedAt, onReload }){
     [FI.x(11), 'ยกเลิก', cur.cancelled.length + ' (' + baht(cur.cancelValue) + ')', cur.cancelled.length, prev.cancelled.length, false, true]
   ];
   const jobsSorted = [...d.jobs].sort((a, b) => jobBy === 'revenue' ? b.rev - a.rev : b.n - a.n);
-  const chip = (on) => ({ height: '30px', padding: '0 12px', borderRadius: '99px', border: '1px solid ' + (on ? 'var(--acc)' : 'var(--line)'), background: on ? 'var(--acc)' : 'var(--card)', color: on ? '#fff' : 'var(--ink)', fontSize: '12px', fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0 });
+  const chip = dashChip;
   const hb = hover != null ? d.buckets[hover] : null;
   const labelEvery = Math.ceil(d.buckets.length / 12);
 
   return (
     <React.Fragment>
-      {/* ตัวกรองช่วงเวลา */}
-      <div style={css("display:flex;flex-direction:column;gap:8px")}>
-        <div style={css("display:flex;align-items:center;gap:8px")}>
-          <div style={css("flex:1;min-width:0")}>
-            <div style={css("font-size:16px;font-weight:700")}>สรุปออเดอร์</div>
-            <div style={css("font-size:11px;color:var(--sub)")}>{rangeText} · เทียบช่วงก่อนหน้าเท่ากัน{loadedAt ? ' · อัปเดต ' + loadedAt.toTimeString().slice(0, 5) : ''}</div>
-          </div>
-          <button onClick={onReload} disabled={loading} title="โหลดข้อมูลล่าสุด" style={chip(false)}>{loading ? '⏳' : '↻'} รีเฟรช</button>
-          <button onClick={exportCsv} disabled={!cur.inR.length} title="ดาวน์โหลดรายการออเดอร์ในช่วงนี้ (เปิดด้วย Excel/Google Sheets)" style={{ ...chip(false), display: 'flex', alignItems: 'center', gap: '5px', opacity: cur.inR.length ? 1 : .5 }}>{FI.download(13)} CSV</button>
-        </div>
-        <div style={css("display:flex;gap:6px;overflow-x:auto;padding-bottom:2px")}>
-          {DASH_PERIODS.map(([k, l]) => <button key={k} onClick={() => setPkey(k)} style={chip(pkey === k)}>{l}</button>)}
-        </div>
-        {pkey === 'custom' && (
-          <div style={css("display:flex;align-items:center;gap:8px;font-size:12px")}>
-            <input type="date" value={from} max={to} onChange={e => setFrom(e.target.value)} style={css("flex:1;min-width:0;height:34px;border:1px solid var(--line);border-radius:9px;padding:0 8px;background:var(--card);color:var(--ink)")}/>
-            <span style={css("color:var(--sub)")}>ถึง</span>
-            <input type="date" value={to} min={from} onChange={e => setTo(e.target.value)} style={css("flex:1;min-width:0;height:34px;border:1px solid var(--line);border-radius:9px;padding:0 8px;background:var(--card);color:var(--ink)")}/>
-          </div>
-        )}
-      </div>
-
-      {loading && !rows && <div style={css("padding:30px 0;text-align:center;font-size:12.5px;color:var(--sub)")}>⏳ กำลังโหลดประวัติออเดอร์ทั้งหมด…</div>}
+      <DashHeader title="สรุปออเดอร์ Standard" P={P} R={d.R} loading={loading} loadedAt={loadedAt} onReload={onReload} onCsv={exportCsv} csvOn={cur.inR.length > 0}/>
 
       {/* ตัวเลขหลัก */}
       <div className="mp-kpis" style={css("display:grid;gap:10px")}>
@@ -1353,6 +1366,259 @@ function AlarmPopup({ list, line, onAck }){
   );
 }
 
+// ── ส่วนแบ่งงาน Pro กับร้านพาร์ทเนอร์ — สูตรต้องตรงกับ pro.html / commission.html (แก้ต้องแก้ทั้ง 3 ไฟล์) ──
+const PRO_COMMISSION = 0.20; // เรา 20% / ร้าน 80% ของค่างานปริ้นหลังหักส่วนลด (ค่าส่งเป็นของ MORE PRINT)
+const PRO_PARTNER = 'ร้านอุดมสุขปริ้นติ้ง';
+const proJobValue = (o) => (o.print_cost || 0) + (o.bind_cost || 0);
+const proPrintDisc = (o) => { const d = o.discount || 0; if (d <= 0) return 0; if ((o.delivery_cost || 0) > 0 && d === o.delivery_cost) return 0; return Math.min(d, proJobValue(o)); };
+const proShipAdj = (a) => a && (a.kind === 'ship' || /^(เปลี่ยนเป็นจัดส่งถึงที่|เปลี่ยนเป็นมารับเองที่ร้าน|แก้จุดส่ง)/.test(String(a.label || '')));
+const proJobNet = (o) => Math.max(0, proJobValue(o) + (o.adjustments || []).reduce((sm, a) => sm + (proShipAdj(a) ? 0 : (Number(a.amt) || 0)), 0) - proPrintDisc(o));
+const proCommRate = (o) => { const r = Number(o && o.comm_rate); return isFinite(r) && r > 0 && r < 1 ? r : PRO_COMMISSION; };
+const proPartnerOf = (o) => proJobNet(o) * (1 - proCommRate(o));
+const isPro = (o) => o.ptype === 'pro';
+const ownRevenue = (o) => (o.total || 0) - (isPro(o) ? proPartnerOf(o) : 0); // รายได้ที่เข้าร้านจริง: Standard = ทั้งบิล · Pro = บิล − ส่วนของร้านพาร์ทเนอร์
+const STD_COLOR = 'var(--acc)', PRO_COLOR = '#7048e8'; // เขียว/ม่วง — ผ่านเช็กตาบอดสี (ΔE 30)
+
+function overviewSummary(rows, start, end){
+  const inR = rows.filter(o => { const t = new Date(o.created_at); return t >= start && t < end; });
+  const valid = inR.filter(o => o.status !== 0);
+  const part = (list) => {
+    const sales = list.reduce((a, o) => a + (o.total || 0), 0);
+    const own = list.reduce((a, o) => a + ownRevenue(o), 0);
+    return { n: list.length, sales, own, partner: sales - own, avg: list.length ? sales / list.length : 0, customers: new Set(list.map(custKey)).size };
+  };
+  const std = valid.filter(o => !isPro(o)), pro = valid.filter(isPro);
+  return { inR, valid, all: part(valid), std: { ...part(std), list: std, cancelled: inR.filter(o => o.status === 0 && !isPro(o)).length },
+    pro: { ...part(pro), list: pro, cancelled: inR.filter(o => o.status === 0 && isPro(o)).length } };
+}
+
+function OverviewDashboard({ rows, loading, loadedAt, onReload, onOpen }){
+  const P = useDashPeriod();
+  const [hover, setHover] = React.useState(null);
+  const [metric, setMetric] = React.useState('sales'); // กราฟ: ยอดขาย | รายได้เข้าร้าน
+
+  const d = React.useMemo(() => {
+    const all = rows || [];
+    const R = dashRange(P.pkey, P.from, P.to);
+    const cur = overviewSummary(all, R.start, R.end);
+    const prev = overviewSummary(all, R.prevStart, R.prevEnd);
+
+    const buckets = [];
+    if (R.bucket === 'hour') for (let h = 0; h < 24; h++) buckets.push({ s: new Date(R.start.getFullYear(), R.start.getMonth(), R.start.getDate(), h), label: String(h).padStart(2, '0'), long: String(h).padStart(2, '0') + ':00–' + String(h).padStart(2, '0') + ':59' });
+    else if (R.bucket === 'day') for (let t = new Date(R.start); t < R.end; t = new Date(t.getFullYear(), t.getMonth(), t.getDate() + 1)) buckets.push({ s: t, label: String(t.getDate()), long: DASH_DAYS[t.getDay()] + ' ' + t.getDate() + ' ' + DASH_MONTHS[t.getMonth()] });
+    else for (let t = new Date(R.start.getFullYear(), R.start.getMonth(), 1); t < R.end; t = new Date(t.getFullYear(), t.getMonth() + 1, 1)) buckets.push({ s: t, label: DASH_MONTHS[t.getMonth()], long: DASH_MONTHS[t.getMonth()] + ' ' + (t.getFullYear() + 543) });
+    const keyOf = (t) => R.bucket === 'hour' ? t.getHours() : R.bucket === 'day' ? t.toDateString() : t.getFullYear() * 100 + t.getMonth();
+    const idx = {}; buckets.forEach((b, i) => { b.std = { sales: 0, own: 0, n: 0 }; b.pro = { sales: 0, own: 0, n: 0 }; idx[keyOf(b.s)] = i; });
+    cur.valid.forEach(o => { const i = idx[keyOf(new Date(o.created_at))]; if (i == null) return; const x = buckets[i][isPro(o) ? 'pro' : 'std']; x.sales += o.total || 0; x.own += ownRevenue(o); x.n++; });
+    const nowK = keyOf(new Date());
+    buckets.forEach(b => { b.isNow = keyOf(b.s) === nowK && R.end > new Date(Date.now() - 60000); });
+
+    const statusOf = (list) => [1, 2, 3, 4].map(s => list.filter(o => o.status === s).length);
+    const stdIn = cur.inR.filter(o => !isPro(o)), proIn = cur.inR.filter(isPro);
+
+    // งาน Pro: รอตีราคา / ค้างโอนให้ร้านพาร์ทเนอร์ (นับทุกช่วงเวลา — งานค้างต้องไม่ตกหล่น) + ขนาดงานยอดนิยมในช่วงนี้
+    const proAll = all.filter(isPro);
+    const unpriced = proAll.filter(o => o.status >= 1 && o.status < 4 && !(o.print_cost > 0)).length;
+    const unpaid = proAll.filter(o => o.status === 4 && !o.payout_at);
+    const unpaidAmt = unpaid.reduce((a, o) => a + proPartnerOf(o), 0);
+    const pm = {};
+    cur.pro.list.forEach(o => { const k = o.paper || 'ไม่ระบุ'; if (!pm[k]) pm[k] = { label: k, v: 0, n: 0 }; pm[k].v += o.total || 0; pm[k].n++; });
+
+    // ลูกค้า: ใช้ทั้ง 2 แบบ / Standard อย่างเดียว / Pro อย่างเดียว + Top 5 รวม
+    const cm = {};
+    cur.valid.forEach(o => {
+      const k = custKey(o);
+      if (!cm[k]) cm[k] = { name: ('คุณ' + (o.customer_fname || '') + ' ' + (o.customer_lname || '')).trim(), phone: k, n: 0, sales: 0, std: 0, pro: 0 };
+      cm[k].n++; cm[k].sales += o.total || 0; cm[k][isPro(o) ? 'pro' : 'std']++;
+    });
+    const custs = Object.values(cm);
+
+    return { R, cur, prev, buckets, stdStatus: statusOf(stdIn), proStatus: statusOf(proIn), unpriced, unpaid: unpaid.length, unpaidAmt,
+      papers: Object.values(pm).sort((a, b) => b.v - a.v).slice(0, 5), custs,
+      both: custs.filter(c => c.std && c.pro).length, onlyStd: custs.filter(c => c.std && !c.pro).length, onlyPro: custs.filter(c => c.pro && !c.std).length };
+  }, [rows, P.pkey, P.from, P.to]);
+
+  const exportCsv = () => {
+    const STAT = ['ยกเลิก', ...STEPS];
+    const head = ['รหัสออเดอร์', 'ประเภท', 'วันที่', 'เวลา', 'ลูกค้า', 'เบอร์โทร', 'งาน', 'สถานะ', 'ยอดขาย(บิลลูกค้า)', 'ส่วนของร้านพาร์ทเนอร์', 'รายได้เข้าร้าน'];
+    const lines = [...d.cur.inR].sort((a, b) => (a.created_at > b.created_at ? 1 : -1)).map(o => {
+      const t = new Date(o.created_at), cancelled = o.status === 0;
+      return [o.id, isPro(o) ? 'Pro' : 'Standard', ymd(t), t.toTimeString().slice(0, 5), ((o.customer_fname || '') + ' ' + (o.customer_lname || '')).trim(), custKey(o), jobLabelOf(o),
+        STAT[o.status] || o.status, o.total || 0, cancelled || !isPro(o) ? 0 : Math.round(proPartnerOf(o) * 100) / 100, cancelled ? 0 : Math.round(ownRevenue(o) * 100) / 100];
+    });
+    downloadCsv('moreprint-std-pro_' + ymd(d.R.start) + '_' + ymd(new Date(d.R.end.getTime() - 1)) + '.csv', head, lines);
+  };
+
+  const { cur, prev } = d;
+  const mono = "font-family:'IBM Plex Mono',monospace;";
+  const pct = (a, b) => b ? Math.round(a / b * 100) : 0;
+  const KPIS = [
+    [FI.baht(11), 'ยอดขายรวม', baht(cur.all.sales), cur.all.sales, prev.all.sales, true, 'บิลลูกค้าทั้ง Standard + Pro'],
+    [FI.award(11), 'รายได้เข้าร้าน', baht(cur.all.own), cur.all.own, prev.all.own, true, 'หักส่วนของร้านพาร์ทเนอร์แล้ว'],
+    [FI.receipt(11), 'ออเดอร์รวม', cur.all.n.toLocaleString(), cur.all.n, prev.all.n],
+    [FI.chart(11), 'เฉลี่ย/ออเดอร์', baht(cur.all.avg), cur.all.avg, prev.all.avg],
+    [FI.users(11), 'ลูกค้า (ไม่ซ้ำ)', cur.all.customers.toLocaleString(), cur.all.customers, prev.all.customers],
+    [FI.send(11), 'ส่วนของร้านพาร์ทเนอร์', baht(cur.all.partner), cur.all.partner, prev.all.partner]
+  ];
+  const bVal = (x) => x[metric];
+  const bMax = Math.max(1, ...d.buckets.map(b => bVal(b.std) + bVal(b.pro)));
+  const hb = hover != null ? d.buckets[hover] : null;
+  const labelEvery = Math.ceil(d.buckets.length / 12);
+  const salesShare = pct(cur.std.sales, cur.all.sales);
+  const Dot = ({ c }) => <span style={{ display: 'inline-block', width: '9px', height: '9px', borderRadius: '3px', background: c, flexShrink: 0 }}></span>;
+  const COMPARE = [
+    ['ออเดอร์', (x) => x.n.toLocaleString(), (x) => x.n],
+    ['ยอดขาย', (x) => baht(x.sales), (x) => x.sales],
+    ['รายได้เข้าร้าน', (x) => baht(x.own), (x) => x.own],
+    ['เฉลี่ย/ออเดอร์', (x) => baht(x.avg), null],
+    ['ลูกค้า (ไม่ซ้ำ)', (x) => x.customers.toLocaleString(), null],
+    ['ยกเลิก', (x) => x.cancelled.toLocaleString(), null]
+  ];
+
+  return (
+    <React.Fragment>
+      <DashHeader title="สรุปรวม Standard + Pro" P={P} R={d.R} loading={loading} loadedAt={loadedAt} onReload={onReload} onCsv={exportCsv} csvOn={cur.inR.length > 0}/>
+
+      <div className="mp-kpis" style={css("display:grid;gap:10px")}>
+        {KPIS.map(([ic, label, val, c, p, hero, hint], i) => (
+          <div key={i} title={hint || ''} style={css("background:var(--card);border:" + (hero ? "1.5px solid var(--acc)" : "1px solid var(--line)") + ";border-radius:14px;padding:12px 14px;box-shadow:var(--shadow);min-width:0")}>
+            <div style={css("font-size:11px;font-weight:600;color:var(--sub);display:flex;align-items:center;gap:5px")}>{ic} {label}</div>
+            <div style={css(mono + "margin-top:4px;font-size:" + (hero ? "22px" : "18px") + ";font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:" + (hero ? "var(--acc)" : "var(--ink)"))}>{val}</div>
+            <div style={css("margin-top:2px;display:flex;align-items:center;gap:5px")}><Delta cur={c} prev={p}/><span style={css("font-size:10px;color:var(--sub)")}>เทียบช่วงก่อน</span></div>
+          </div>
+        ))}
+      </div>
+
+      {/* Standard vs Pro */}
+      <DashCard title={<React.Fragment>{FI.repeat(13)} Standard เทียบ Pro</React.Fragment>}>
+        <div style={css("display:flex;justify-content:space-between;font-size:11px;font-weight:700;margin-bottom:5px")}>
+          <span style={css("display:flex;align-items:center;gap:5px")}><Dot c={STD_COLOR}/> Standard {salesShare}%</span>
+          <span style={css("display:flex;align-items:center;gap:5px")}>Pro {cur.all.sales ? 100 - salesShare : 0}% <Dot c={PRO_COLOR}/></span>
+        </div>
+        <div title={'สัดส่วนยอดขาย · Standard ' + baht(cur.std.sales) + ' · Pro ' + baht(cur.pro.sales)} style={css("display:flex;gap:2px;height:12px;border-radius:4px;overflow:hidden;background:var(--soft)")}>
+          {cur.std.sales > 0 && <div style={{ width: salesShare + '%', background: STD_COLOR }}></div>}
+          {cur.pro.sales > 0 && <div style={{ flex: 1, background: PRO_COLOR }}></div>}
+        </div>
+        <div style={css("margin-top:12px;font-size:12.5px")}>
+          <div style={css("display:flex;font-size:10.5px;font-weight:700;color:var(--sub);padding-bottom:6px;border-bottom:1px solid var(--line)")}>
+            <span style={css("flex:1.3")}></span>
+            <span style={css("flex:1;text-align:right;display:flex;align-items:center;justify-content:flex-end;gap:5px")}><Dot c={STD_COLOR}/> Standard</span>
+            <span style={css("flex:1;text-align:right;display:flex;align-items:center;justify-content:flex-end;gap:5px")}><Dot c={PRO_COLOR}/> Pro</span>
+          </div>
+          {COMPARE.map(([l, f, raw], i) => (
+            <div key={i} style={css("display:flex;align-items:center;padding:7px 0;border-bottom:1px dashed var(--line)")}>
+              <span style={css("flex:1.3;color:var(--sub)")}>{l}</span>
+              <span style={css(mono + "flex:1;text-align:right;font-weight:600")}>{f(cur.std)}{raw && <div style={css("font-size:10px;color:var(--sub);font-weight:400")}><Delta cur={raw(cur.std)} prev={raw(prev.std)}/></div>}</span>
+              <span style={css(mono + "flex:1;text-align:right;font-weight:600")}>{f(cur.pro)}{raw && <div style={css("font-size:10px;color:var(--sub);font-weight:400")}><Delta cur={raw(cur.pro)} prev={raw(prev.pro)}/></div>}</span>
+            </div>
+          ))}
+        </div>
+        <div style={css("margin-top:8px;font-size:10.5px;color:var(--sub);line-height:1.5")}>* ไม่นับใบที่ยกเลิก · รายได้เข้าร้านของงาน Pro = บิลลูกค้า − ส่วนของ{PRO_PARTNER} (คอมเรา {Math.round(PRO_COMMISSION * 100)}% ของค่างาน + ค่าส่งทั้งหมด)</div>
+      </DashCard>
+
+      {/* แนวโน้ม 2 ประเภท (แท่งซ้อน) */}
+      <DashCard title={<React.Fragment>{FI.chart(13)} {metric === 'sales' ? 'ยอดขาย' : 'รายได้เข้าร้าน'}{d.R.bucket === 'hour' ? 'รายชั่วโมง' : d.R.bucket === 'day' ? 'รายวัน' : 'รายเดือน'}</React.Fragment>}
+        right={<div style={css("display:flex;gap:4px")}>{[['sales', 'ยอดขาย'], ['own', 'เข้าร้าน']].map(([k, l]) => <button key={k} onClick={() => setMetric(k)} style={{ ...dashChip(metric === k), height: '24px', padding: '0 9px', fontSize: '10.5px' }}>{l}</button>)}</div>}>
+        <div style={css("display:flex;gap:12px;font-size:11px;margin-bottom:4px")}>
+          <span style={css("display:flex;align-items:center;gap:5px")}><Dot c={STD_COLOR}/> Standard</span>
+          <span style={css("display:flex;align-items:center;gap:5px")}><Dot c={PRO_COLOR}/> Pro</span>
+        </div>
+        <div style={css("min-height:16px;font-size:11px;color:var(--sub);margin-bottom:4px")}>
+          {hb ? <span><b style={css("color:var(--ink)")}>{hb.long}</b> · Standard <b style={css(mono + "color:var(--ink)")}>{baht(bVal(hb.std))}</b> ({hb.std.n}) · Pro <b style={css(mono + "color:var(--ink)")}>{baht(bVal(hb.pro))}</b> ({hb.pro.n})</span> : 'ชี้/แตะที่แท่งเพื่อดูรายละเอียด'}
+        </div>
+        <div onMouseLeave={() => setHover(null)} style={css("display:flex;align-items:flex-end;gap:2px;height:130px;border-bottom:1px solid var(--line)")}>
+          {d.buckets.map((b, i) => {
+            const vs = bVal(b.std), vp = bVal(b.pro), tot = vs + vp;
+            return (
+              <div key={i} onMouseEnter={() => setHover(i)} onClick={() => setHover(i)} title={b.long + ' · Standard ' + baht(vs) + ' · Pro ' + baht(vp)}
+                style={css("flex:1;min-width:0;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;cursor:pointer")}>
+                <div style={{ width: '78%', maxWidth: '30px', height: (tot > 0 ? Math.max(4, Math.round(tot / bMax * 100)) : 1) + '%', display: 'flex', flexDirection: 'column', gap: vs > 0 && vp > 0 ? '2px' : 0,
+                  opacity: hover != null && hover !== i ? .5 : 1, background: tot > 0 ? 'transparent' : 'var(--line)' }}>
+                  {vp > 0 && <div style={{ flex: vp, minHeight: '2px', background: PRO_COLOR, borderRadius: '4px 4px 0 0' }}></div>}
+                  {vs > 0 && <div style={{ flex: vs, minHeight: '2px', background: STD_COLOR, borderRadius: vp > 0 ? 0 : '4px 4px 0 0' }}></div>}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+        <div style={css("display:flex;gap:2px;margin-top:5px")}>
+          {d.buckets.map((b, i) => (
+            <div key={i} style={{ flex: 1, minWidth: 0, textAlign: 'center', fontSize: '9.5px', fontWeight: b.isNow ? 700 : 500, color: b.isNow ? 'var(--acc)' : 'var(--sub)', overflow: 'visible', whiteSpace: 'nowrap' }}>
+              {i % labelEvery === 0 || b.isNow ? b.label : ''}
+            </div>
+          ))}
+        </div>
+      </DashCard>
+
+      {/* สถานะแยกประเภท */}
+      <DashCard title={<React.Fragment>{FI.clipboard(13)} สถานะออเดอร์ในช่วงนี้</React.Fragment>}>
+        <div style={css("display:grid;grid-template-columns:62px repeat(5,minmax(0,1fr));gap:5px;align-items:center")}>
+          <span></span>
+          {[...STEPS, 'ยกเลิก'].map((l, i) => <span key={i} style={{ fontSize: '9.5px', fontWeight: 700, textAlign: 'center', lineHeight: 1.2, color: i < 4 ? STEP_COLORS[i] : '#c92a2a' }}>{l}</span>)}
+          {[['Standard', STD_COLOR, d.stdStatus, cur.std.cancelled, 'orders'], ['Pro', PRO_COLOR, d.proStatus, cur.pro.cancelled, null]].map(([l, c, st, cn, go]) => (
+            <React.Fragment key={l}>
+              <span style={css("font-size:11.5px;font-weight:700;display:flex;align-items:center;gap:5px")}><Dot c={c}/>{l}</span>
+              {[...st, cn].map((n, i) => (
+                <div key={i} style={{ background: i < 4 ? STEP_BG[i] : '#fff0f0', borderRadius: '8px', padding: '6px 0', textAlign: 'center', fontFamily: "'IBM Plex Mono',monospace", fontSize: '15px', fontWeight: 600, color: i < 4 ? STEP_COLORS[i] : '#c92a2a', opacity: n ? 1 : .55 }}>{n}</div>
+              ))}
+            </React.Fragment>
+          ))}
+        </div>
+      </DashCard>
+
+      <div style={css("display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:12px")}>
+        {/* งาน Pro */}
+        <DashCard title={<React.Fragment><Dot c={PRO_COLOR}/> งาน Pro · {PRO_PARTNER}</React.Fragment>}
+          right={<a href="commission.html" target="_blank" rel="noopener" style={css("font-size:11px;font-weight:700;color:var(--acc);text-decoration:none;white-space:nowrap")}>จัดการงาน Pro ›</a>}>
+          <div style={css("display:flex;gap:8px;margin-bottom:12px")}>
+            <div style={css("flex:1;background:var(--warnBg);border-radius:10px;padding:8px 10px")}>
+              <div style={css("font-size:10.5px;color:var(--warnInk)")}>รอตีราคา (ทั้งหมด)</div>
+              <div style={css(mono + "font-size:17px;font-weight:600;color:var(--warnInk)")}>{d.unpriced} <span style={css("font-size:10.5px;font-weight:400")}>ใบ</span></div>
+            </div>
+            <div style={css("flex:1;background:var(--soft);border-radius:10px;padding:8px 10px")}>
+              <div style={css("font-size:10.5px;color:var(--sub)")}>ค้างโอนให้ร้าน ({d.unpaid} ใบ)</div>
+              <div style={css(mono + "font-size:17px;font-weight:600")}>{baht(d.unpaidAmt)}</div>
+            </div>
+          </div>
+          <div style={css("font-size:11px;font-weight:700;color:var(--sub);margin-bottom:8px")}>ขนาด/ชนิดงานที่ขายดี (ช่วงนี้)</div>
+          <HBars items={d.papers} color={PRO_COLOR} fmt={(x) => baht(x.v) + ' · ' + x.n + ' ใบ'}/>
+        </DashCard>
+
+        {/* ลูกค้า */}
+        <DashCard title={<React.Fragment>{FI.users(13)} ลูกค้าในช่วงนี้</React.Fragment>}>
+          <div style={css("display:flex;gap:6px;margin-bottom:10px")}>
+            {[['Standard อย่างเดียว', d.onlyStd, STD_COLOR], ['ใช้ทั้ง 2 แบบ', d.both, 'var(--ink)'], ['Pro อย่างเดียว', d.onlyPro, PRO_COLOR]].map(([l, n, c], i) => (
+              <div key={i} style={css("flex:1;background:var(--soft);border-radius:10px;padding:7px 8px;min-width:0")}>
+                <div style={css(mono + "font-size:16px;font-weight:600;color:" + c)}>{n}</div>
+                <div style={css("font-size:10px;color:var(--sub);line-height:1.25")}>{l}</div>
+              </div>
+            ))}
+          </div>
+          {d.custs.length === 0 && <div style={css("font-size:12px;color:var(--sub)")}>ยังไม่มีข้อมูลในช่วงนี้</div>}
+          {[...d.custs].sort((a, b) => b.sales - a.sales || b.n - a.n).slice(0, 5).map((c, i) => (
+            <div key={c.phone} style={css("display:flex;align-items:center;gap:10px;padding:7px 0;" + (i ? "border-top:1px dashed var(--line)" : ""))}>
+              <span style={css(mono + "width:16px;font-size:12px;font-weight:700;color:" + (i === 0 ? "var(--acc)" : "var(--sub)"))}>{i + 1}</span>
+              <div style={css("flex:1;min-width:0")}>
+                <div style={css("font-size:12.5px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap")}>{c.name || 'ไม่ระบุชื่อ'}</div>
+                <div style={css("font-size:10.5px;color:var(--sub);display:flex;gap:8px")}>
+                  {c.std > 0 && <span style={css("display:flex;align-items:center;gap:3px")}><Dot c={STD_COLOR}/>Std {c.std}</span>}
+                  {c.pro > 0 && <span style={css("display:flex;align-items:center;gap:3px")}><Dot c={PRO_COLOR}/>Pro {c.pro}</span>}
+                </div>
+              </div>
+              <div style={css(mono + "font-size:12.5px;font-weight:600;color:var(--acc)")}>{baht(c.sales)}</div>
+            </div>
+          ))}
+        </DashCard>
+      </div>
+
+      <div style={css("display:flex;gap:10px")}>
+        <button onClick={() => onOpen('stats')} style={{ ...dashChip(false), flex: 1, height: '40px', borderRadius: '11px' }}>ดูรายละเอียดงาน Standard ›</button>
+        <a href="commission.html" target="_blank" rel="noopener" style={{ ...dashChip(false), flex: 1, height: '40px', borderRadius: '11px', display: 'flex', alignItems: 'center', justifyContent: 'center', textDecoration: 'none', boxSizing: 'border-box' }}>ดูรายละเอียดงาน Pro ›</a>
+      </div>
+    </React.Fragment>
+  );
+}
+
 function AdminApp(){
   const [authed, setAuthed] = React.useState(!DB);
   const [tab, setTab] = React.useState('home');
@@ -1373,7 +1639,8 @@ function AdminApp(){
   const [bnBusy, setBnBusy] = React.useState(false);
   const bnPreview = React.useMemo(() => bnFile ? URL.createObjectURL(bnFile) : null, [bnFile]); // พรีวิวรูปที่เลือก ให้เห็นเหมือนที่ลูกค้าจะเห็นก่อนกดสร้างจริง
 
-  const [histRows, setHistRows] = React.useState(null);
+  const [histAll, setHistAll] = React.useState(null); // ประวัติทุกออเดอร์ (Standard + Pro) สำหรับแท็บสรุปรวม
+  const histRows = React.useMemo(() => histAll && histAll.filter(o => o.ptype !== 'pro'), [histAll]); // เฉพาะ Standard สำหรับแท็บยอดขาย
   const [threads, setThreads] = React.useState(null); // รายการห้องแชททั้งหมด (แท็บแชท)
   const [orderMeta, setOrderMeta] = React.useState({}); // ข้อมูลย่อทุกออเดอร์รวมงาน Pro (state orders เก็บเฉพาะ Standard)
   const [chatType, setChatType] = React.useState('all'); // หมวดแชท: all | std | pro
@@ -1417,11 +1684,11 @@ function AdminApp(){
   const [purgeConfirm, setPurgeConfirm] = React.useState(false);
   const [purgeResult, setPurgeResult] = React.useState('');
 
-  // โหลดประวัติออเดอร์ทั้งหมดเมื่อเปิดแท็บยอดขาย — ดึงทีละ 1,000 แถว (Supabase ตัดที่ 1,000 ต่อครั้ง) จนครบ
+  // โหลดประวัติออเดอร์ทั้งหมดเมื่อเปิดแท็บยอดขาย/สรุปรวม — ดึงทีละ 1,000 แถว (Supabase ตัดที่ 1,000 ต่อครั้ง) จนครบ
   const [histLoading, setHistLoading] = React.useState(false);
   const [histAt, setHistAt] = React.useState(null);
   const loadHistory = React.useCallback(async () => {
-    if (!DB) { setHistRows(DEMO_ORDERS); setHistAt(new Date()); return; }
+    if (!DB) { setHistAll(DEMO_ORDERS); setHistAt(new Date()); return; }
     setHistLoading(true);
     try {
       const all = [];
@@ -1431,12 +1698,12 @@ function AdminApp(){
         all.push(...(data || []));
         if (!data || data.length < 1000) break;
       }
-      setHistRows(all.filter(o => o.ptype !== 'pro')); setHistAt(new Date());
+      setHistAll(all); setHistAt(new Date());
     } catch (e) { console.error(e); }
     setHistLoading(false);
   }, []);
   React.useEffect(() => {
-    if (tab !== 'stats' || !authed) return;
+    if ((tab !== 'stats' && tab !== 'overview') || !authed) return;
     loadHistory();
     const t = setInterval(loadHistory, 60000);
     return () => clearInterval(t);
@@ -2085,7 +2352,7 @@ function AdminApp(){
 
   const NAV = [
     ['home', FI.home(17), 'ภาพรวม'], ['orders', FI.clipboard(17), 'ออเดอร์'], ['chats', FI.chat(17), 'ข้อความ'],
-    ['stats', FI.chart(17), 'ยอดขาย'], ['customers', FI.users(17), 'ลูกค้า'], ['banners', FI.volume(17), 'โปรโมชั่น']
+    ['overview', FI.award(17), 'สรุปรวม'], ['stats', FI.chart(17), 'ยอดขาย'], ['customers', FI.users(17), 'ลูกค้า'], ['banners', FI.volume(17), 'โปรโมชั่น']
   ];
   const unreadTotal = Object.values(unreadMap).reduce((a, n) => a + n, 0);
   return (
@@ -2488,6 +2755,12 @@ function AdminApp(){
               </div>
             );
           }); })()}
+        </div>
+      )}
+
+      {tab === 'overview' && (
+        <div style={css("padding:14px 16px 40px;display:flex;flex-direction:column;gap:12px")}>
+          <OverviewDashboard rows={histAll} loading={histLoading} loadedAt={histAt} onReload={loadHistory} onOpen={setTab}/>
         </div>
       )}
 
