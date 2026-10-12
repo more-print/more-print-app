@@ -18,6 +18,7 @@
   a{color:#00b368}a:hover{color:#008a50}
   input,button,select{font-family:'Cloud Soft','IBM Plex Sans Thai',sans-serif}
   @keyframes mpPulse{0%,100%{opacity:1}50%{opacity:.35}}
+  @media(min-width:700px){ .mp-swipe-hint:not(.all){display:none} } /* จอกว้างกล่องสเปก 2 ไฟล์วางคู่กันพอดี ไม่ต้องบอกให้เลื่อน */
   @keyframes mpRing{0%,100%{transform:rotate(0)}15%{transform:rotate(-16deg)}30%{transform:rotate(14deg)}45%{transform:rotate(-10deg)}60%{transform:rotate(6deg)}75%{transform:rotate(-3deg)}} /* กระดิ่งสั่นตอนออเดอร์ใหม่เข้า */
   .mp-side{position:fixed;top:0;left:0;bottom:0;width:212px;background:#161612;z-index:60;display:flex;flex-direction:column;padding:18px 12px 14px;box-sizing:border-box;transition:transform .22s ease;overflow-y:auto}
   .mp-scrim{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:55;display:none}
@@ -174,15 +175,53 @@ const ZONE_NAMES = ['ในมอ', 'กังสดาล', 'หลังมอ
 const zoneStyleByName = (n) => n === 'ในมอ' ? ZONE_IN_CAMPUS : n === 'นอกเขต' ? ZONE_OUT : (ZONES.find(z => z.name === n) || ZONE_OUT);
 // ป้ายการเข้าเล่ม — key ตรงกับ orders.bind ที่ index.html บันทึก (coil/tape/glue เพิ่ม 2026-09-08 ฿20/ชุด · book/landscape = ออเดอร์เก่า)
 const BIND_LABELS = { book: 'เข้าเล่ม', corner: 'เย็บมุม', landscape: 'เล่มแนวนอน', coil: 'เข้าเล่มสันห่วง/สันเกลียว', tape: 'เข้าเล่มเทปผ้า (แลคซีน)', glue: 'เข้าเล่มสันกาว' };
-const optionsLabel = (o) => [
-  o.ptype ? (PTYPE_LABELS[o.ptype] || o.ptype) : (o.color ? 'ปริ้นสี' : 'ปริ้นขาวดำ'),
-  o.paper,
-  o.ptype === 'poster' ? null : (o.sides === 2 ? 'หน้า-หลัง' : 'หน้าเดียว'),
-  o.orient ? (o.orient === 'landscape' ? 'แนวนอน' : 'แนวตั้ง') : null,
-  o.nup ? o.nup + ' หน้า/แผ่น' : null,
-  BIND_LABELS[o.bind] || (o.bind && o.bind !== 'none' ? 'เข้าเล่ม ' + o.bind : (o.ptype === 'pro' ? null : 'ไม่เย็บมุม')), // เย็บมุมกับเข้าเล่มแยกกัน: ไม่ได้เลือกเข้าเล่ม = ไม่ขึ้นคำว่าเข้าเล่ม/ไม่เข้าเล่มเลย โชว์แค่สถานะเย็บมุม (เจ้าของย้ำ 2026-09-27) · bind ชื่อไทย = เข้าเล่มพับครึ่งงาน Pro
-  o.copies + ' ชุด'
-].filter(Boolean).join(' · ');
+// สเปกงาน Standard เป็นหัวข้อเรียงลงมา (เจ้าของสั่ง 2026-10-12 — แทนบรรทัดสเปกยาวต่อกัน)
+// เย็บมุมกับเข้าเล่มแยกกัน: ไม่ได้เลือกเข้าเล่ม = โชว์แค่สถานะเย็บมุม ไม่ขึ้นคำว่าไม่เข้าเล่ม (เจ้าของย้ำ 2026-09-27)
+// ประเภทรายไฟล์ของงานปริ้นผสม (files[].cmode/cpages จาก index.html): หน้าสีตามที่ลูกค้าระบุ ที่เหลือเป็นขาวดำ
+const pagesToRanges = (arr) => {
+  const a = [...arr].sort((x, y) => x - y), out = [];
+  for (let i = 0; i < a.length; i++) { let j = i; while (j + 1 < a.length && a[j + 1] === a[j] + 1) j++; out.push(i === j ? '' + a[i] : a[i] + '-' + a[j]); i = j; }
+  return out.join(', ');
+};
+const fileTypeLabel = (o, f) => {
+  if (!f || !f.cmode) return o.ptype ? (PTYPE_LABELS[o.ptype] || o.ptype) : (o.color ? 'ปริ้นสี' : 'ปริ้นขาวดำ');
+  if (f.cmode === 'color') return 'ปริ้นสี';
+  if (f.cmode !== 'pages' || !f.cpages) return 'ปริ้นขาวดำ';
+  const cs = new Set();
+  String(f.cpages).split(',').forEach(part => { const m = part.trim().match(/^(\d+)(?:-(\d+))?$/); if (m) for (let p = +m[1]; p <= +(m[2] || m[1]) && p - m[1] < 5000; p++) cs.add(p); });
+  const bw = []; for (let p = 1; p <= (f.pages || 0); p++) if (!cs.has(p)) bw.push(p);
+  return 'ปริ้นสี หน้าที่ ' + f.cpages + (bw.length ? ' , ปริ้นขาวดำ หน้าที่ ' + pagesToRanges(bw) : '');
+};
+// f = ไฟล์ (สั่งหลายไฟล์ = กล่องละไฟล์) — แนว/หน้าต่อแผ่น/เย็บมุม ลูกค้าเลือกครั้งเดียวทั้งออเดอร์ จึงเหมือนกันทุกกล่อง
+const stdSpecRows = (o, f) => [
+  ['ขนาดกระดาษ', o.paper || 'A4'],
+  ['ประเภท', fileTypeLabel(o, f)],
+  o.orient ? ['แนวกระดาษ', o.orient === 'landscape' ? 'แนวนอน' : 'แนวตั้ง'] : null,
+  o.nup ? ['หน้า/แผ่น', o.nup + ' หน้า/แผ่น'] : null,
+  (!o.bind || o.bind === 'none' || o.bind === 'corner') ? ['เย็บมุม', o.bind === 'corner' ? 'ต้องเย็บมุม' : 'ไม่เย็บมุม'] : ['เข้าเล่ม', BIND_LABELS[o.bind] || o.bind]
+].filter(Boolean);
+// กล่องสเปก: หัวข้อสีเขียว · ค่าที่ลูกค้าเลือกสีดำ · กรอบเขียวแบบกล่องราคา — ใช้แบบเดียวกันทั้ง admin/pro/commission (แก้ต้องแก้ทั้ง 3 ไฟล์)
+// title/sub = หัวกล่องรายไฟล์ (ไฟล์ 1 · ชื่อไฟล์) · grow = กล่องเรียงต่อกันไปทางขวา
+function SpecBox({ rows, title, sub, grow }){
+  return (
+    <div style={css("border:1.5px solid #00b368;background:#fff;border-radius:12px;padding:9px 13px;box-sizing:border-box;font-size:12.5px;line-height:1.5" + (grow ? ";flex:1 0 220px" : ""))}>
+      {title && (
+        <div style={css("margin-bottom:6px;padding-bottom:5px;border-bottom:1px dashed #9fdcbf;display:flex;align-items:baseline;gap:7px")}>
+          <b style={css("flex:none;color:#00b368;font-size:13px")}>{title}</b>
+          {sub && <span style={css("flex:1;min-width:0;font-size:11px;color:var(--sub);overflow:hidden;text-overflow:ellipsis;white-space:nowrap")}>{sub}</span>}
+        </div>
+      )}
+      <div style={css("display:grid;grid-template-columns:auto minmax(0,1fr);column-gap:12px;row-gap:5px")}>
+        {rows.map(([k, v], i) => (
+          <React.Fragment key={i}>
+            <span style={css("color:#00b368;font-weight:700;white-space:nowrap")}>{k}:</span>
+            <span style={css("color:var(--ink);font-weight:600;overflow-wrap:anywhere")}>{v}</span>
+          </React.Fragment>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 function AdminLogin({ onOk }){
   const [email, setEmail] = React.useState('');
@@ -500,7 +539,7 @@ function OrderCard({ o, idx, onAdvance, onRetreat, onApplyEdits, onCancel, onRem
             <span style={css("font-family:'IBM Plex Mono',monospace;font-size:13px;font-weight:700")}>{o.id}</span>
             {unread > 0 && <span style={css("flex:none;font-size:10px;font-weight:700;color:#fff;background:#c92a2a;padding:2px 8px;border-radius:99px")}>{FI.chat(9)} {unread}</span>}
           </div>
-          <div style={css("margin-top:2px;font-size:11px;color:var(--sub);overflow:hidden;text-overflow:ellipsis;white-space:nowrap")}>{FI.clock(11)} {fmtWhen(o.created_at)} · คุณ{o.customer_fname} · {optionsLabel(o)}</div>
+          <div style={css("margin-top:2px;font-size:11px;color:var(--sub);overflow:hidden;text-overflow:ellipsis;white-space:nowrap")}>{FI.clock(11)} {fmtWhen(o.created_at)} · คุณ{o.customer_fname}</div>
         </div>
         {/* ใบงานด่วน: ป้ายแดงบนแถบหัว ก่อนสถานะ+ราคา — เห็นตั้งแต่ยังไม่กางการ์ด (เจ้าของสั่ง 2026-09-17) */}
         {o.express && <span style={css("flex:none;font-size:12px;font-weight:800;color:#e03131")}>⚡ งานด่วน</span>}
@@ -510,9 +549,8 @@ function OrderCard({ o, idx, onAdvance, onRetreat, onApplyEdits, onCancel, onRem
       </div>
       {open && (
         <div style={css("border-top:1px dashed var(--line);padding:14px 16px;display:flex;flex-direction:column;gap:12px")}>
-          {/* เรียงแบบ pro.html: ป้ายรอทำ → ลูกค้า → สเปกใหญ่+ชิป → แถวข้อมูล → ปุ่ม → แชทท้ายสุด */}
+          {/* เรียงแบบ pro.html: ป้ายรอทำ → สเปกใหญ่+ชิป → แถวข้อมูล → ปุ่ม → แชทท้ายสุด · ชื่อ+เบอร์ลูกค้าย้ายไปแถวจุดส่ง (เจ้าของสั่ง 2026-10-12) */}
           {o.status === 1 && (() => { const m = Math.max(0, Math.round((Date.now() - new Date(o.created_at).getTime()) / 60000)); const tt = m < 60 ? m + ' นาที' : (m / 60).toFixed(m < 600 ? 1 : 0).replace(/\.0$/, '') + ' ชม.'; return <div><span style={css("font-size:10.5px;font-weight:700;color:#a16207;background:#fff3bf;padding:3px 10px;border-radius:99px")}>{FI.clock(11)} รอเริ่มงาน · ผ่านมา {tt}</span></div>; })()}
-          <div style={css("font-size:12px;color:var(--sub)")}>คุณ{o.customer_fname} {o.customer_lname} · <a href={'tel:' + (o.customer_phone || '').replace(/[^0-9+]/g,'')} style={css("font-family:'IBM Plex Mono',monospace;font-size:12.5px")}>{o.customer_phone}</a>{o.customer_email ? <span> · {o.customer_email}</span> : null}</div>
           {/* สเปกตัวใหญ่ + แถวชิป (โครงหน้าตาแบบ pro.html) */}
           <div>
             <div style={css("font-size:17px;font-weight:800;line-height:1.3")}>{FI.file(16)} {o.ptype ? (PTYPE_LABELS[o.ptype] || o.ptype) : (o.color ? 'ปริ้นสี' : 'ปริ้นขาวดำ')} {o.paper} <span style={css("color:#b8860b")}>× {o.copies || 1} ชุด</span></div>
@@ -528,9 +566,16 @@ function OrderCard({ o, idx, onAdvance, onRetreat, onApplyEdits, onCancel, onRem
           </div>
           {/* แถวข้อมูลสไตล์ pro — ลำดับตามเจ้าของ (ปรับ 2026-10-01): ประเภทงาน → ไฟล์งาน → สลิป → ราคา → จุดส่ง */}
           <div style={css("border-top:1px solid var(--line);padding-top:10px;display:flex;gap:10px;font-size:12px")}>
-            <span style={css("flex:none;width:64px;color:var(--sub);font-weight:600;padding-top:2px")}>{FI.printer(12)} ประเภทงาน</span>
+            <span style={css("flex:none;width:64px;color:var(--sub);font-weight:600;padding-top:9px")}>{FI.printer(12)} ประเภทงาน</span>
             <div style={css("flex:1;min-width:0")}>
-              <div style={css("font-size:12.5px;font-weight:600;line-height:1.6")}>{optionsLabel(o)}</div>
+              {(o.files || []).length > 1
+                ? <React.Fragment>
+                    <div className={"mp-swipe-hint" + (o.files.length > 2 ? " all" : "")} style={css("margin-bottom:5px;font-size:11px;font-weight:700;color:#00b368")}>สั่ง {o.files.length} ไฟล์ — เลื่อนไปทางขวาดูกล่องสเปกครบทุกไฟล์ →</div>
+                    <div style={css("display:flex;gap:8px;overflow-x:auto;padding-bottom:3px")}>{/* สั่งหลายไฟล์ = กล่องสเปกละไฟล์ เรียงไปทางขวา (เจ้าของสั่ง 2026-10-12) */}
+                      {o.files.map((f, i) => <SpecBox key={i} grow title={'ไฟล์ ' + (i + 1)} sub={f.name} rows={stdSpecRows(o, f)}/>)}
+                    </div>
+                  </React.Fragment>
+                : <SpecBox rows={stdSpecRows(o, (o.files || [])[0])}/>}
               {o.ptype === 'pro' && <div style={css("margin-top:4px;font-size:11px;font-weight:700;color:#c92a2a;line-height:1.5")}>งาน PRO ยังไม่มีเรทราคา — ตกลง/ยืนยันราคาปริ้นกับลูกค้าก่อนเริ่มงาน (ยอดที่ลูกค้าชำระแล้วคือค่าส่งเท่านั้น)</div>}
               {['coil', 'tape', 'glue', 'book'].includes(o.bind) && <div style={css("margin-top:4px;display:inline-block;font-size:11px;font-weight:700;background:#f3f0ff;color:#5f3dc4;border:1px solid #b197fc;padding:3px 10px;border-radius:8px")}>📚 งานเข้าเล่ม: {BIND_LABELS[o.bind]} × {o.copies || 1} ชุด — อย่าลืมเข้าเล่มก่อนส่งนะ</div>}
               {o.bind === 'corner' && <div style={css("margin-top:4px;display:inline-block;font-size:11px;font-weight:700;background:#fff3bf;color:#a16207;border:1px solid #f0dfa6;padding:3px 10px;border-radius:8px")}>📎 เย็บมุม × {o.copies || 1} ชุด — อย่าลืมเย็บลวดมุมซ้ายบนก่อนส่งนะ</div>}
@@ -633,6 +678,7 @@ function OrderCard({ o, idx, onAdvance, onRetreat, onApplyEdits, onCancel, onRem
           <div style={css("display:flex;gap:10px;font-size:12px")}>
             <span style={css("flex:none;width:64px;color:var(--sub);font-weight:600;padding-top:2px")}>{FI.pin(12)} จุดส่ง</span>
             <div style={css("flex:1;min-width:0")}>
+            <div style={css("font-size:13px;font-weight:700;color:var(--ink);line-height:1.5")}>คุณ{o.customer_fname} {o.customer_lname} · <a href={'tel:' + (o.customer_phone || '').replace(/[^0-9+]/g, '')} style={css("font-family:'IBM Plex Mono',monospace;font-size:13px;color:#00b368;text-decoration:underline")}>{o.customer_phone}</a>{o.customer_email ? <span style={css("font-weight:600;color:var(--sub)")}> · {o.customer_email}</span> : null}</div>
             {(() => {
               const a = o.addr || '';
               const car = a.indexOf('🚗') === 0, bike = a.indexOf('🏍️') === 0;
@@ -661,9 +707,15 @@ function OrderCard({ o, idx, onAdvance, onRetreat, onApplyEdits, onCancel, onRem
             {o.ship_note && <div style={css("margin-top:6px;background:#e7f5ff;border:1px solid #74c0fc;border-radius:10px;padding:8px 11px;font-size:12.5px;color:#1864ab;line-height:1.6")}><b>🚚 หมายเหตุการส่ง (จากลูกค้า):</b> {o.ship_note}</div>}
             <div style={css("margin-top:6px;font-size:13px;font-weight:600")}>{(o.addr || o.point || '-').replace(/^(🚗|🏍️)\s*/, '')}</div>
             {/* ใบงานด่วน: ป้าย EXPRESS สีเหลือง ตัวใหญ่ ให้แอดมินเห็นทันที (เจ้าของสั่ง 2026-09-17) · ใบปกติโชว์เวลารับเหมือนเดิม */}
-            <div style={css("font-size:12px;color:var(--sub);margin-top:2px")}>{o.express
-              ? <React.Fragment><span style={css("font-size:15px;font-weight:800;color:#f59f00")}>⚡ EXPRESS : งานด่วน — ลัดคิวเร่งผลิต</span> · </React.Fragment>
-              : o.time ? <React.Fragment>เวลารับ: <span style={css("font-family:'IBM Plex Mono',monospace")}>{o.time + ' น.'}</span> · </React.Fragment> : null}โทร <span style={css("font-family:'IBM Plex Mono',monospace")}>{o.phone}</span></div>
+            {(() => {
+              const dg = (p) => String(p || '').replace(/[^0-9]/g, '');
+              const showTel = o.phone && dg(o.phone) !== dg(o.customer_phone); // เบอร์ผู้รับซ้ำกับเบอร์ลูกค้าด้านบน = ไม่ต้องโชว์ซ้ำ
+              const head = o.express
+                ? <span style={css("font-size:15px;font-weight:800;color:#f59f00")}>⚡ EXPRESS : งานด่วน — ลัดคิวเร่งผลิต</span>
+                : o.time ? <React.Fragment>เวลารับ: <span style={css("font-family:'IBM Plex Mono',monospace")}>{o.time + ' น.'}</span></React.Fragment> : null;
+              if (!head && !showTel) return null;
+              return <div style={css("font-size:12px;color:var(--sub);margin-top:2px")}>{head}{head && showTel ? ' · ' : null}{showTel ? <React.Fragment>โทร <a href={'tel:' + o.phone.replace(/[^0-9+]/g, '')} style={css("font-family:'IBM Plex Mono',monospace;color:#00b368;text-decoration:underline")}>{o.phone}</a></React.Fragment> : null}</div>;
+            })()}
             {/* มารับเองที่ร้าน = ไม่มีที่ให้นำทางไป ซ่อนปุ่ม (เจ้าของสั่ง 2026-10-12) */}
             {!(o.pickup || (o.addr || '').indexOf('🏪') === 0) && ((o.lat != null && o.lng != null) || (o.addr || o.point)) ? (
               <a href={o.lat != null && o.lng != null

@@ -119,6 +119,62 @@ const DEMO = [
   { id: '#MP-PRO104', created_at: new Date(Date.now() - 40*24*3600000).toISOString(), status: 4, print_cost: 480, bind_cost: 0, delivery_cost: 89, night_fee: 0, slip_path: 'x/slip.jpg', payout_at: new Date().toISOString(), customer_fname: 'boat', paper: 'A2', copies: 3 }
 ];
 
+// ── สเปกงาน Pro เป็นหัวข้อเรียงลงมา (เจ้าของสั่ง 2026-10-12) ──
+// แกะจากป้าย paper ที่หน้าเว็บลูกค้าประกอบไว้ (proLabel ใน index.html: "ชนิดงาน+ขนาด · ตัวเลือก · ตัวเลือก") — แก้รูปแบบป้ายที่ index.html ต้องแก้ตัวแกะนี้ด้วย
+// ส่วนที่แกะไม่ออก (ออเดอร์รุ่นเก่า) ขึ้นหัวข้อ "รายละเอียด" ไม่มีข้อมูลหาย
+const PRO_SPEC_KEYS = [
+  [/บอร์ด/, 'บอร์ด'],
+  [/^(พีพีฟิล์ม|ไวนิล|กระดาษโฟโต้|กระดาษอาร์ต)$/, 'กระดาษ'],
+  [/^กระดาษพิเศษ$/, 'ตัวเลือกเสริม'],
+  [/เคลือบ/, 'การเคลือบ'],
+  [/^(พิมพ์)?(หน้า-หลัง|หน้าเดียว)$/, 'ด้านที่พิมพ์'],
+  [/^แนว(ตั้ง|นอน)$/, 'แนวกระดาษ'],
+  [/^\d+ หน้า$/, 'จำนวนหน้า'],
+  [/เย็บ/, 'การเย็บเล่ม'],
+  [/ขาตั้ง/, 'ขาตั้ง'],
+  [/ซม\.|ชิ้น|ลาย/, 'ขนาด/จำนวน']
+];
+function proSpecRows(o){
+  const parts = String(o.paper || '').split(' · ').map(x => x.trim()).filter(Boolean);
+  const base = parts.shift() || '';
+  const rows = [];
+  let m;
+  if ((m = base.match(/^(เพลท|โปสเตอร์) (\S+)$/))) rows.push(['ประเภทงาน', m[1]], ['ขนาด', m[2]]);
+  else if ((m = base.match(/^Postcard (\S+) \((.+)\)$/))) rows.push(['ประเภทงาน', 'Postcard'], ['ขนาด', m[1] + ' (' + m[2] + ')']);
+  else if ((m = base.match(/^พับครึ่ง เล่ม (\S+) \(กระดาษ (\S+)\)$/))) rows.push(['ประเภทงาน', 'พับครึ่ง (เข้าเล่ม/เมนู)'], ['ขนาดเล่ม', m[1]], ['ขนาดกระดาษ', m[2]]);
+  else if ((m = base.match(/^นามบัตร (\d+) ใบ ?(หน้า-หลัง|หน้าเดียว)?$/))) { rows.push(['ประเภทงาน', 'นามบัตร'], ['จำนวนใบ', m[1] + ' ใบ']); if (m[2]) rows.push(['ด้านที่พิมพ์', m[2]]); }
+  else if ((m = base.match(/^(ปริ้นสีขาวดำขนาดใหญ่.*) (A\d)$/))) rows.push(['ประเภทงาน', m[1]], ['ขนาด', m[2]]);
+  else if ((m = base.match(/^สติ๊กเกอร์ ?(.*)$/))) { rows.push(['ประเภทงาน', 'สติ๊กเกอร์']); if (m[1]) rows.push(['เนื้อสติ๊กเกอร์', m[1]]); }
+  else if (/^A\d$/.test(base)) rows.push(['ขนาด', base]); // ออเดอร์รุ่นแรกเก็บแค่ขนาดกระดาษ
+  else rows.push(['ประเภทงาน', base || 'งาน PRO']);
+  parts.forEach(p => { const k = PRO_SPEC_KEYS.find(([re]) => re.test(p)); rows.push([k ? k[1] : 'รายละเอียด', p]); });
+  if (o.bind && o.bind !== 'none') rows.push(['เข้าเล่ม', o.bind]);
+  rows.push(['จำนวนชุด', (o.copies || 1) + ' ชุด']);
+  return rows;
+}
+// กล่องสเปก: หัวข้อสีเขียว · ค่าที่ลูกค้าเลือกสีดำ · กรอบเขียวแบบกล่องราคา — ใช้แบบเดียวกันทั้ง admin/pro/commission (แก้ต้องแก้ทั้ง 3 ไฟล์)
+// title/sub = หัวกล่องรายไฟล์ (ไฟล์ 1 · ชื่อไฟล์) · grow = กล่องเรียงต่อกันไปทางขวา
+function SpecBox({ rows, title, sub, grow }){
+  return (
+    <div style={css("border:1.5px solid #00b368;background:#fff;border-radius:12px;padding:9px 13px;box-sizing:border-box;font-size:12.5px;line-height:1.5" + (grow ? ";flex:1 0 220px" : ""))}>
+      {title && (
+        <div style={css("margin-bottom:6px;padding-bottom:5px;border-bottom:1px dashed #9fdcbf;display:flex;align-items:baseline;gap:7px")}>
+          <b style={css("flex:none;color:#00b368;font-size:13px")}>{title}</b>
+          {sub && <span style={css("flex:1;min-width:0;font-size:11px;color:var(--sub);overflow:hidden;text-overflow:ellipsis;white-space:nowrap")}>{sub}</span>}
+        </div>
+      )}
+      <div style={css("display:grid;grid-template-columns:auto minmax(0,1fr);column-gap:12px;row-gap:5px")}>
+        {rows.map(([k, v], i) => (
+          <React.Fragment key={i}>
+            <span style={css("color:#00b368;font-weight:700;white-space:nowrap")}>{k}:</span>
+            <span style={css("color:var(--ink);font-weight:600;overflow-wrap:anywhere")}>{v}</span>
+          </React.Fragment>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function Login({ onOk }){
   const [email, setEmail] = React.useState('');
   const [pass, setPass] = React.useState('');
@@ -1239,6 +1295,7 @@ function Dash(){
             {cardOpen && <React.Fragment>
             {/* สเปกตัวใหญ่แบบ pro.html */}
             <div style={css("margin-top:9px;font-size:17px;font-weight:800;line-height:1.3")}>{FI.file(16)} {o.paper} <span style={css("color:#b8860b")}>× {o.copies || 1} ชุด</span></div>
+            <div style={css("margin-top:9px")}><SpecBox rows={proSpecRows(o)}/></div>
             {/* แถว 2: สถานะ */}
             <div style={css("margin-top:9px;display:flex;align-items:center;gap:8px;flex-wrap:wrap")}><span style={css("font-size:11.5px;font-weight:700")}>สถานะ:</span><Pipeline o={o}/></div>
             {/* แถว 3: ตัวเลขเงิน คั่นด้วยเส้น | อ่านกวาดตาง่าย */}
