@@ -157,7 +157,7 @@ const SIZE_BY_TYPE = { bw: ['A4'], color: ['A4'], mix: ['A4'] };
 // ตัวเลือกต่อไฟล์ของงานปริ้นผสม — การ์ดประเภทงานเวอร์ชันย่อส่วน (ดีไซน์ที่เจ้าของอนุมัติ 2026-10-08)
 const MIX_FMODES = [
   { k: 'bw', nm: '📄 ปริ้นขาวดำ', ds: 'ทั้งไฟล์นี้' },
-  { k: 'color', nm: '🌈 ปริ้นสี', ds: 'ทั้งไฟล์นี้' },
+  { k: 'color', nm: <React.Fragment>{React.cloneElement(ICON_COLORPRINT, { width: 15, height: 15, style: { verticalAlign: '-3px' } })} ปริ้นสี</React.Fragment>, ds: 'ทั้งไฟล์นี้' }, // ไอคอนเดียวกับการ์ดปริ้นสีด้านบน (เจ้าของสั่ง 2026-10-12 — เดิม 🌈)
   { k: 'pages', nm: '🎨 ปริ้นผสม', ds: 'ระบุหน้าที่พิมพ์สี' }
 ];
 // แปลงข้อความเลขหน้า "1, 5, 10-12" → เซ็ตเลขหน้า (รูปแบบ/ช่วงเพี้ยน = err ห้ามคิดเงิน)
@@ -4770,7 +4770,7 @@ class App extends React.Component {
                     : <div style={css("width:46px;height:62px;border:1px solid var(--line);border-radius:6px;background:var(--soft);display:flex;align-items:center;justify-content:center;font-size:22px;flex:none")}>{f.big ? '🗂️' : '📄'}</div>}
                   <div style={css("flex:1;min-width:0")}>
                     <div style={css("font-size:13px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap")}>{f.name}</div>
-                    <div style={css("font-size:12px;color:var(--sub);margin-top:2px")}>{f.stMode ? '🏷️ ' + (f.stText || f.qty + ' ชิ้น') : f.pages + ' หน้า'}{v.isColorType && f.scanned ? ' · 🎨 สีเยอะ ' + f.heavy + ' หน้า' : ''}{v.isMix && f.mix ? (f.mix.set.size === 0 ? ' · 📄 ขาวดำทั้งไฟล์' : f.mix.cBw === 0 ? ' · 🌈 สีทั้งไฟล์' + (f.mix.ch > 0 ? ' (สีเยอะ ' + f.mix.ch + ')' : '') : ' · 🎨 หน้าสี ' + pagesToRanges([...f.mix.set]) + ' · ที่เหลือขาวดำ') : ''}{f.big ? ' · ส่งผ่าน Google Drive' : ''}</div>
+                    <div style={css("font-size:12px;color:var(--sub);margin-top:2px")}>{f.stMode ? '🏷️ ' + (f.stText || f.qty + ' ชิ้น') : f.pages + ' หน้า'}{v.isColorType && f.scanned ? ' · 🎨 สีเยอะ ' + f.heavy + ' หน้า' : ''}{v.isMix && f.mix ? (f.mix.set.size === 0 ? ' · 📄 ขาวดำทั้งไฟล์' : f.mix.cBw === 0 ? <React.Fragment> · {React.cloneElement(ICON_COLORPRINT, { width: 14, height: 14, style: { verticalAlign: '-2px' } })} สีทั้งไฟล์{f.mix.ch > 0 ? ' (สีเยอะ ' + f.mix.ch + ')' : ''}</React.Fragment> : ' · 🎨 หน้าสี ' + pagesToRanges([...f.mix.set]) + ' · ที่เหลือขาวดำ') : ''}{f.big ? ' · ส่งผ่าน Google Drive' : ''}</div>
                     {f.thumb && <div style={css("font-size:11px;color:var(--sub)")}>↑ รูปตัวอย่างหน้าแรกจากไฟล์จริง</div>}
                   </div>
                 </div>
