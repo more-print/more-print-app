@@ -2385,15 +2385,19 @@ class App extends React.Component {
   // ── รีวิวจากลูกค้า (ตาราง reviews: anon อ่าน+เพิ่มได้เท่านั้น) ──
   loadReviews(){
     if (!this.db) return;
-    this.db.from('reviews').select('id,order_id,name,stars,comment,ptype,auto,created_at').order('id', { ascending: false }).limit(40)
+    // ดึงรีวิวทั้งหมด (เดิมจำกัด 40 แถวล่าสุด — 5 ดาวอัตโนมัติของออเดอร์ใหม่ดันรีวิวที่ลูกค้าเขียนเองหลุดจากหน้าเว็บ ทั้งที่หลังบ้านยังเห็น · เจ้าของแจ้ง 2026-10-13)
+    this.db.from('reviews').select('id,order_id,name,stars,comment,ptype,auto,created_at').order('id', { ascending: false }).limit(1000)
       .then(({ data, error }) => {
         if (error || !data) return; // ตารางยังไม่ถูกสร้าง — ซ่อนส่วนรีวิวไปเงียบๆ
-        // ออเดอร์เดียวกันแสดงรีวิวเดียว: แถวใหม่สุดชนะ (รีวิวที่ลูกค้าเขียนเองมาแทน 5 ดาวอัตโนมัติ)
-        const seen = {}; const out = [];
+        // ออเดอร์เดียวกันแสดงรีวิวเดียว: รีวิวที่ลูกค้าเขียนเองชนะ 5 ดาวอัตโนมัติเสมอ (ไม่ว่าแถวไหนใหม่กว่า) · ประเภทเดียวกัน = ใหม่สุดชนะ
+        const best = {}; const out = [];
         for (const r of data) {
-          if (r.order_id) { if (seen[r.order_id]) continue; seen[r.order_id] = 1; }
-          out.push(r);
+          if (!r.order_id) { out.push(r); continue; }
+          const cur = best[r.order_id];
+          if (!cur || (cur.auto && !r.auto)) best[r.order_id] = r;
         }
+        Object.values(best).forEach(r => out.push(r));
+        out.sort((a, b) => b.id - a.id);
         this.setState({ reviews: out, reviewsReady: true });
       });
   }
@@ -3898,7 +3902,8 @@ class App extends React.Component {
       revAll: s.revAll,
       toggleRevAll: () => this.setState({ revAll: !s.revAll }),
       ...(() => {
-        const mapped = s.reviews.slice(0, 30).map(r => ({
+        // รีวิวที่มีข้อความขึ้นก่อน (ใหม่สุดก่อน) ตามด้วยรีวิวดาวล้วน — 3 ใบแรกบนหน้าแรกเป็นคำรีวิวจริงของลูกค้า · ไม่ตัดจำนวนแล้ว กด "ดูทั้งหมด" เห็นครบ
+        const mapped = s.reviews.slice().sort((a, b) => (((b.comment || '').trim() ? 1 : 0) - ((a.comment || '').trim() ? 1 : 0)) || (b.id - a.id)).map(r => ({
           stars: Math.max(1, Math.min(5, r.stars || 5)),
           comment: r.comment || '',
           name: r.name || 'ลูกค้า',
