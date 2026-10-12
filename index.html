@@ -1562,6 +1562,7 @@ class App extends React.Component {
     const s = this.state;
     const nupLock = s.tier === 'pro' || (s.ptype === 'mix' && (f.fmode || 'bw') === 'pages');
     return {
+      sides: s.tier === 'pro' ? (s.sides === 2 ? 2 : 1) : (f.sides === 2 ? 2 : 1), // ด้านที่พิมพ์รายไฟล์ (2026-10-12) · งาน Pro ยังเลือกครั้งเดียวทั้งออเดอร์
       orient: f.orient === 'landscape' ? 'landscape' : 'portrait',
       nup: nupLock ? 1 : ([2, 4, 6].includes(f.nup) ? f.nup : 1),
       bind: (s.tier === 'pro' || s.ptype === 'poster') ? 'none' : (f.bind === 'corner' || STD_BINDS.some(b => b.k === f.bind) ? f.bind : 'none'),
@@ -1569,11 +1570,20 @@ class App extends React.Component {
     };
   }
 
-  // ค่าเข้าเล่มของไฟล์นี้ 1 เล่ม (ไม่เลือกเข้าเล่ม = 0) — แผ่นจริง = หน้า ÷ (หน้า-หลัง 2 : 1) ÷ หน้า/แผ่น ปัดขึ้น
+  // ค่าเข้าเล่มของไฟล์นี้ 1 เล่ม (ไม่เลือกเข้าเล่ม = 0) — แผ่นจริง = หน้า ÷ (หน้า-หลัง 2 : 1) ÷ หน้า/แผ่น ปัดขึ้น (ด้าน+หน้าต่อแผ่นของไฟล์นี้)
   fileBindPrice(f){
     const o = this.fileOpt(f);
     if (!STD_BINDS.some(b => b.k === o.bind)) return 0;
-    return stdBindPrice(Math.ceil((f.pages || 1) / ((this.state.sides === 2 ? 2 : 1) * o.nup)));
+    return stdBindPrice(Math.ceil((f.pages || 1) / (o.sides * o.nup)));
+  }
+  // เรทหน้าสีตามด้านที่พิมพ์: หน้าเดียว สีน้อย 5 · สีเยอะ 7 ต่อหน้า — หน้า-หลัง สีน้อยแผ่นละ 7 (หน้าละ 3.5) · สีเยอะแผ่นละ 10 (หน้าละ 5)
+  colorRates(sides){
+    return sides === 2 ? { lp: CONFIG.colorLightDuplex ?? 3.5, hp: CONFIG.colorHeavyDuplex ?? 5 } : { lp: CONFIG.colorLightPrice ?? 5, hp: CONFIG.colorHeavyPrice ?? 7 };
+  }
+  // สรุปด้านที่พิมพ์ของทุกไฟล์ไว้ใช้กับข้อความอธิบายเรท: ทุกไฟล์หน้า-หลัง / มีบางไฟล์ / ปนกัน
+  sidesMix(){
+    const sd = this.state.files.map(f => this.fileOpt(f).sides), n2 = sd.filter(x => x === 2).length;
+    return { all2: sd.length > 0 && n2 === sd.length, some2: n2 > 0, mixed: n2 > 0 && n2 < sd.length };
   }
 
   calc(){
@@ -1615,24 +1625,19 @@ class App extends React.Component {
       const heavy = s.files.reduce((a, f) => a + Math.min(f.heavy || 0, f.pages), 0);
       heavyPages = heavy * s.copies;
       lightPages = totalPages - heavyPages;
-      // หน้าเดียว: สีน้อย 5 · สีเยอะ 7 ต่อหน้า — หน้า-หลัง: สีน้อยแผ่นละ 7 (หน้าละ 3.5) · สีเยอะแผ่นละ 10 (หน้าละ 5)
-      const lpC = s.sides === 2 ? (CONFIG.colorLightDuplex ?? 3.5) : (CONFIG.colorLightPrice ?? 5);
-      const hpC = s.sides === 2 ? (CONFIG.colorHeavyDuplex ?? 5) : (CONFIG.colorHeavyPrice ?? 7);
-      // การกำหนดหน้า (nup) รายไฟล์: ราคาสีของแต่ละไฟล์หารตามหน้า/แผ่นของไฟล์นั้น (ทุกไฟล์ตั้งเท่ากัน = ผลเท่าสูตรเดิมเป๊ะ) · −1e-9 กันเศษทศนิยมลอยทำปัดเกิน
-      const colRaw = s.files.reduce((a, f) => { const h = Math.min(f.heavy || 0, f.pages); return a + ((f.pages - h) * lpC + h * hpC) / this.fileOpt(f).nup; }, 0);
+      // ด้านที่พิมพ์ + การกำหนดหน้า (nup) รายไฟล์: ราคาสีของแต่ละไฟล์ใช้เรทตามด้านของไฟล์นั้น หารตามหน้า/แผ่นของไฟล์นั้น (ทุกไฟล์ตั้งเท่ากัน = ผลเท่าสูตรเดิมเป๊ะ) · −1e-9 กันเศษทศนิยมลอยทำปัดเกิน
+      const colRaw = s.files.reduce((a, f) => { const o = this.fileOpt(f), r = this.colorRates(o.sides), h = Math.min(f.heavy || 0, f.pages); return a + ((f.pages - h) * r.lp + h * r.hp) / o.nup; }, 0);
       printCost = Math.ceil(colRaw * s.copies - 1e-9);
     }
     // ปริ้นผสม (เจ้าของสั่ง 2026-10-08): หน้าสีเรทสแกนเดิม (สีน้อย 5 / สีเยอะ 7 · หน้า-หลัง 3.5/5)
     // หน้าขาวดำทุกไฟล์รวมกันเข้าขั้นเรทปริมาณเหมือนงานขาวดำ — ห้ามใช้กับรวมหน้า (nup ถูกล็อก 1 ตอนเลือกประเภทนี้)
     if (s.ptype === 'mix' && s.tier !== 'pro') {
       const mi = this.mixInfo();
-      const lpC = s.sides === 2 ? (CONFIG.colorLightDuplex ?? 3.5) : (CONFIG.colorLightPrice ?? 5);
-      const hpC = s.sides === 2 ? (CONFIG.colorHeavyDuplex ?? 5) : (CONFIG.colorHeavyPrice ?? 7);
       heavyPages = mi.list.reduce((a, x) => a + x.ch, 0) * s.copies;
       lightPages = mi.list.reduce((a, x) => a + x.cl, 0) * s.copies;
       // หน้า/แผ่นรายไฟล์ (2026-10-12): ไฟล์ขาวดำทั้งไฟล์ = หน้าพิมพ์ ÷ nup ปัดขึ้น · ไฟล์สีทั้งไฟล์ = ราคาสี ÷ nup · ระบุหน้าสี = 1 หน้า/แผ่นเสมอ
       let mixBw = 0, mixCol = 0;
-      mi.list.forEach((x, i) => { const n = this.fileOpt(s.files[i]).nup; mixBw += Math.ceil(x.cBw / n); mixCol += (x.cl * lpC + x.ch * hpC) / n; });
+      mi.list.forEach((x, i) => { const o = this.fileOpt(s.files[i]), r = this.colorRates(o.sides), n = o.nup; mixBw += Math.ceil(x.cBw / n); mixCol += (x.cl * r.lp + x.ch * r.hp) / n; }); // เรทสีตามด้านที่พิมพ์ของแต่ละไฟล์
       sheets = mixBw * s.copies; // = จำนวนหน้าขาวดำที่คิดเงิน
       rate = bwSheetRate(sheets, s.sides, this.isNight());
       printCost = Math.ceil(sheets * rate + mixCol * s.copies - 1e-9);
@@ -1821,20 +1826,16 @@ class App extends React.Component {
       s.files.forEach((f, i) => lines.push({ name: 'ไฟล์ที่ ' + (i + 1) + ' · ' + f.name,
         desc: pgs[i] + ' หน้าพิมพ์ × ฿' + c.rate, amt: amts[i] }));
     } else if (s.ptype === 'color') {
-      const lpC = s.sides === 2 ? (CONFIG.colorLightDuplex ?? 3.5) : (CONFIG.colorLightPrice ?? 5);
-      const hpC = s.sides === 2 ? (CONFIG.colorHeavyDuplex ?? 5) : (CONFIG.colorHeavyPrice ?? 7);
       const hvs = s.files.map(f => Math.min(f.heavy || 0, f.pages));
-      const amts = alloc(s.files.map((f, i) => ((f.pages - hvs[i]) * lpC + hvs[i] * hpC) * cp / this.fileOpt(f).nup)); // หน้า/แผ่นรายไฟล์ — ต้องตรงสูตร calc
+      const amts = alloc(s.files.map((f, i) => { const o = this.fileOpt(f), r = this.colorRates(o.sides); return ((f.pages - hvs[i]) * r.lp + hvs[i] * r.hp) * cp / o.nup; })); // ด้าน+หน้า/แผ่นรายไฟล์ — ต้องตรงสูตร calc
       s.files.forEach((f, i) => lines.push({ name: 'ไฟล์ที่ ' + (i + 1) + ' · ' + f.name,
         desc: (f.pages * cp) + ' หน้า' + (hvs[i] > 0 ? ' (สีเยอะ ' + (hvs[i] * cp) + ' หน้า)' : ''), amt: amts[i] }));
     } else if (s.ptype === 'mix') {
       // ปริ้นผสม: ยอดต่อไฟล์ = หน้าขาวดำ × เรทขั้น (c.rate จาก calc) + หน้าสีตามสแกน — ปัดสะสมด้วย alloc ให้รวมเท่ายอดจริงเสมอ
       const mi = this.mixInfo();
       if (mi.err) return null; // เลขหน้ายังเพี้ยน — โชว์บรรทัดเดียวไปก่อน (ด่านไปต่อบล็อกอยู่แล้ว)
-      const lpC = s.sides === 2 ? (CONFIG.colorLightDuplex ?? 3.5) : (CONFIG.colorLightPrice ?? 5);
-      const hpC = s.sides === 2 ? (CONFIG.colorHeavyDuplex ?? 5) : (CONFIG.colorHeavyPrice ?? 7);
-      const nps = s.files.map(f => this.fileOpt(f).nup); // หน้า/แผ่นรายไฟล์ — ต้องตรงสูตร calc
-      const amts = alloc(mi.list.map((x, i) => (Math.ceil(x.cBw / nps[i]) * c.rate + (x.cl * lpC + x.ch * hpC) / nps[i]) * cp));
+      const nps = s.files.map(f => this.fileOpt(f).nup), rts = s.files.map(f => this.colorRates(this.fileOpt(f).sides)); // ด้าน+หน้า/แผ่นรายไฟล์ — ต้องตรงสูตร calc
+      const amts = alloc(mi.list.map((x, i) => (Math.ceil(x.cBw / nps[i]) * c.rate + (x.cl * rts[i].lp + x.ch * rts[i].hp) / nps[i]) * cp));
       s.files.forEach((f, i) => { const x = mi.list[i]; const cN = x.set.size * cp, bN = Math.ceil(x.cBw / nps[i]) * cp;
         lines.push({ name: 'ไฟล์ที่ ' + (i + 1) + ' · ' + f.name,
           desc: cN === 0 ? 'ขาวดำ ' + bN + ' หน้า'
@@ -1953,7 +1954,7 @@ class App extends React.Component {
           row.cpages = mx.mode === 'pages' ? pagesToRanges([...mx.set]) : null;
           row.cheavy = mx.ch || 0; row.clight = mx.cl || 0; row.cbw = mx.cBw || 0;
         }
-        if (s.tier !== 'pro') { const fo = this.fileOpt(f); row.orient = fo.orient; row.nup = fo.nup; row.bind = fo.bind; } // ตัวเลือกรายไฟล์ (2026-10-12)
+        if (s.tier !== 'pro') { const fo = this.fileOpt(f); row.sides = fo.sides; row.orient = fo.orient; row.nup = fo.nup; row.bind = fo.bind; } // ตัวเลือกรายไฟล์ (2026-10-12)
         files.push(row);
       }
       if (upFail) {
@@ -1983,7 +1984,7 @@ class App extends React.Component {
         customer_fname: u.fname || '', customer_lname: u.lname || '',
         customer_phone: u.phone || s.phone || '', customer_email: u.email || '',
         files, ptype: s.tier === 'pro' ? 'pro' : s.ptype, color: s.tier !== 'pro' && s.ptype === 'color',
-        paper: s.tier === 'pro' ? this.proLabel() : s.paper, sides: s.sides,
+        paper: s.tier === 'pro' ? this.proLabel() : s.paper, sides: s.tier === 'pro' ? s.sides : (s.files[0] ? this.fileOpt(s.files[0]).sides : 1), // Standard: ด้านละเอียดอยู่ใน files[].sides
         // คอลัมน์ระดับออเดอร์ = สรุปจากรายไฟล์ (ค่าละเอียดอยู่ใน files[].orient/nup/bind): แนว/หน้าต่อแผ่นของไฟล์แรก · bind = เข้าเล่มแบบแรกที่มี > เย็บมุม > none
         orient: s.tier === 'pro' ? null : (s.files[0] ? this.fileOpt(s.files[0]).orient : 'portrait'),
         nup: s.tier === 'pro' ? null : (s.files[0] ? this.fileOpt(s.files[0]).nup : 1),
@@ -2868,15 +2869,27 @@ class App extends React.Component {
           const sm = (sg) => ({ ...sg, st: { ...sg.st, padding: '8px 6px', flex: '1 1 0', minWidth: 0 } });
           return {
             opt: o, nupLock: o.nupLock,
-            optLabel: (o.orient === 'landscape' ? 'แนวนอน' : 'แนวตั้ง') + ' · ' + o.nup + ' หน้า/แผ่น · ' + (o.bind === 'corner' ? 'เย็บมุม' : 'ไม่เย็บมุม') + (isBook ? ' · เข้าเล่ม' + STD_BIND_SHORT[o.bind] : ''),
+            // แถวสเปกรายไฟล์บนหน้าตรวจสอบ (เจ้าของสั่ง 2026-10-12: สั่งหลายไฟล์ต้องเห็นชัดว่าไฟล์ไหนสเปกไหน)
+            reviewRows: [
+              ['ประเภท', !mi ? ((PRINT_TYPES.find(t => t.k === s.ptype) || {}).label || '')
+                : (() => { const x = mi.list[i]; if (!x || x.set.size === 0) return 'ปริ้นขาวดำทั้งไฟล์'; if (x.cBw === 0) return 'ปริ้นสีทั้งไฟล์';
+                    const bw = []; for (let p = 1; p <= f.pages; p++) if (!x.set.has(p)) bw.push(p);
+                    return 'ปริ้นสี หน้าที่ ' + pagesToRanges([...x.set]) + ' , ปริ้นขาวดำ หน้าที่ ' + pagesToRanges(bw); })()],
+              ['ด้านที่พิมพ์', o.sides === 2 ? 'หน้า-หลัง' : 'หน้าเดียว'],
+              ['แนวกระดาษ', o.orient === 'landscape' ? 'แนวนอน' : 'แนวตั้ง'],
+              ['หน้า/แผ่น', o.nup + ' หน้า/แผ่น'],
+              ['เย็บมุม', o.bind === 'corner' ? 'เย็บมุม' : 'ไม่เย็บมุม'],
+              ['เข้าเล่ม', isBook ? 'เข้าเล่ม' + STD_BIND_SHORT[o.bind] : 'ไม่เข้าเล่ม']
+            ],
+            sidesSegs: [sm(this.seg('หน้าเดียว', o.sides === 1, () => setOpt({ sides: 1 }))), sm(this.seg('หน้า-หลัง', o.sides === 2, () => setOpt({ sides: 2 })))],
             orientSegs: [sm(this.seg('แนวตั้ง', o.orient === 'portrait', () => setOpt({ orient: 'portrait' }))), sm(this.seg('แนวนอน', o.orient === 'landscape', () => setOpt({ orient: 'landscape' })))],
             nupSegs: [1, 2, 4, 6].map(n => sm(this.seg(n + ' หน้า', o.nup === n, () => setOpt({ nup: n })))),
             // เย็บมุมกับเข้าเล่มเป็นค่าเดียวกันในไฟล์ (เลือกอย่างใดอย่างหนึ่ง เหมือนช่องเดิม): เลือกเข้าเล่มแล้วเย็บมุมดับเอง และกลับกัน
             cornerSegs: [sm(this.seg('ไม่เย็บมุม', o.bind === 'none', () => setOpt({ bind: 'none' }))), sm(this.seg('เย็บมุม (ฟรี)', o.bind === 'corner', () => setOpt({ bind: 'corner' })))],
             bookSegs: [{ k: 'nobook', label: 'ไม่เข้าเล่ม', on: !isBook, pick: () => setOpt({ bind: isBook ? 'none' : o.bind }) },
               ...STD_BINDS.map(b => ({ k: b.k, label: STD_BIND_SHORT[b.k], on: o.bind === b.k, pick: () => setOpt({ bind: b.k }) }))],
-            bindBook: stdBindPrice(Math.ceil((f.pages || 1) / ((s.sides === 2 ? 2 : 1) * o.nup))),
-            bindSheets: Math.ceil((f.pages || 1) / ((s.sides === 2 ? 2 : 1) * o.nup))
+            bindBook: stdBindPrice(Math.ceil((f.pages || 1) / (o.sides * o.nup))),
+            bindSheets: Math.ceil((f.pages || 1) / (o.sides * o.nup))
           };
         })(),
         setFspec: (e) => { const v2 = e.target.value; this.setState(st => ({ files: st.files.map((x, j) => j === i ? { ...x, fspec: v2 } : x) })); },
@@ -3057,7 +3070,6 @@ class App extends React.Component {
         return this.seg(label, s.paper === sz, () => this.setState({ paper: sz }));
       }),
       showSides: s.tier !== 'pro' && (s.ptype === 'bw' || s.ptype === 'laser' || s.ptype === 'color' || s.ptype === 'mix'),
-      sidesOpts: [this.seg('หน้าเดียว', s.sides === 1, () => this.setState({ sides: 1 }), true), this.seg('หน้า-หลัง', s.sides === 2, () => this.setState({ sides: 2 }), true)],
       showBind: s.tier !== 'pro' && s.ptype !== 'poster',
       // เข้าเล่มทำได้เฉพาะช่วงเช้า — งดรับ 22:00-08:00 (นโยบายเจ้าของ 2026-08-24)
       noBindNow: (() => { const h = s.now.getHours(); return h >= 22 || h < 8; })(),
@@ -3081,32 +3093,35 @@ class App extends React.Component {
         : s.ptype === 'bw'
         ? 'เรทตอนนี้ ' + (c.rate < 1 ? Math.round(c.rate * 100) + ' สต.' : '฿' + (Math.round(c.rate * 1000) / 1000)) + '/หน้าที่พิมพ์' + (c.sheets > 0 ? ' (รวม ' + c.sheets + ' หน้าพิมพ์ — ยิ่งเยอะยิ่งถูก)' : ' — ยิ่งเยอะยิ่งถูก')
         : s.ptype === 'color'
-        ? (s.sides === 2 ? 'เรทหน้า-หลัง สีน้อยแผ่นละ ฿7 · สีเยอะแผ่นละ ฿10 (แผ่นละ 2 หน้า) — ระบบสแกนไฟล์ให้อัตโนมัติ' : 'เรท สีน้อย ฿' + (CONFIG.colorLightPrice ?? 5) + ' · สีเยอะ ฿' + (CONFIG.colorHeavyPrice ?? 7) + ' /หน้า — ระบบสแกนไฟล์ให้อัตโนมัติ')
+        ? (this.sidesMix().all2 ? 'เรทหน้า-หลัง สีน้อยแผ่นละ ฿7 · สีเยอะแผ่นละ ฿10 (แผ่นละ 2 หน้า) — ระบบสแกนไฟล์ให้อัตโนมัติ' : 'เรท สีน้อย ฿' + (CONFIG.colorLightPrice ?? 5) + ' · สีเยอะ ฿' + (CONFIG.colorHeavyPrice ?? 7) + ' /หน้า' + (this.sidesMix().mixed ? ' · ไฟล์หน้า-หลัง สีน้อยแผ่นละ ฿7 · สีเยอะแผ่นละ ฿10' : '') + ' — ระบบสแกนไฟล์ให้อัตโนมัติ')
         : s.ptype === 'mix'
-        ? ('หน้าสี: ' + (s.sides === 2 ? 'สีน้อยแผ่นละ ฿7 · สีเยอะแผ่นละ ฿10 (หน้า-หลัง)' : 'สีน้อย ฿' + (CONFIG.colorLightPrice ?? 5) + ' · สีเยอะ ฿' + (CONFIG.colorHeavyPrice ?? 7) + ' /หน้า') + ' — หน้าขาวดำเข้าขั้นเรทตามปริมาณ (ตอนนี้ ฿' + (c.rate < 1 ? Math.round(c.rate * 100) + ' สต.' : Math.round(c.rate * 1000) / 1000) + '/หน้า)')
+        ? ('หน้าสี: ' + (this.sidesMix().all2 ? 'สีน้อยแผ่นละ ฿7 · สีเยอะแผ่นละ ฿10 (หน้า-หลัง)' : 'สีน้อย ฿' + (CONFIG.colorLightPrice ?? 5) + ' · สีเยอะ ฿' + (CONFIG.colorHeavyPrice ?? 7) + ' /หน้า' + (this.sidesMix().mixed ? ' (ไฟล์หน้า-หลัง แผ่นละ ฿7/฿10)' : '')) + ' — หน้าขาวดำเข้าขั้นเรทตามปริมาณ (ตอนนี้ ฿' + (c.rate < 1 ? Math.round(c.rate * 100) + ' สต.' : Math.round(c.rate * 1000) / 1000) + '/หน้า)')
         : 'เรท ฿' + c.rate + '/' + (s.ptype === 'poster' ? 'แผ่น' : 'หน้า'),
       colorNote: s.tier === 'pro' ? ''
         : (s.ptype === 'color' || s.ptype === 'mix')
         ? (!s.files.length ? '* หน้าสีเกิน ' + (CONFIG.colorHeavyPct ?? 50) + '% ของพื้นที่ หรือเป็นรูปภาพเต็มหน้า = สีเยอะ ฿' + (CONFIG.colorHeavyPrice ?? 7)
           : s.files.some(f => !f.scanned) ? '* ไฟล์ที่ระบบสแกนสีไม่ได้ คิดเรทสีน้อยไว้ก่อน — ร้านตรวจไฟล์จริงและยืนยันราคาก่อนปริ้น'
-          : c.heavyPages > 0 ? '* สแกนไฟล์แล้ว: สีเยอะ ' + c.heavyPages + ' หน้า × ฿' + (s.sides === 2 ? (CONFIG.colorHeavyDuplex ?? 5) : (CONFIG.colorHeavyPrice ?? 7)) + ' · สีน้อย ' + c.lightPages + ' หน้า × ฿' + (s.sides === 2 ? (CONFIG.colorLightDuplex ?? 3.5) : (CONFIG.colorLightPrice ?? 5))
+          : c.heavyPages > 0 ? (this.sidesMix().mixed ? '* สแกนไฟล์แล้ว: สีเยอะ ' + c.heavyPages + ' หน้า · สีน้อย ' + c.lightPages + ' หน้า (เรทตามด้านที่พิมพ์ของแต่ละไฟล์)'
+            : '* สแกนไฟล์แล้ว: สีเยอะ ' + c.heavyPages + ' หน้า × ฿' + this.colorRates(this.sidesMix().all2 ? 2 : 1).hp + ' · สีน้อย ' + c.lightPages + ' หน้า × ฿' + this.colorRates(this.sidesMix().all2 ? 2 : 1).lp)
           : s.ptype === 'color' ? '* สแกนไฟล์แล้ว: ทุกหน้าสีน้อย ฿' + (CONFIG.colorLightPrice ?? 5) + '/หน้า' : '')
         : s.ptype === 'poster' ? '* กระดาษอาร์ตมัน/ด้าน ราคาเท่ากัน' : '',
       colorBreak: s.tier === 'pro' ? ''
         : s.ptype === 'color' && (c.heavyPages > 0 || s.files.some(f => this.fileOpt(f).nup > 1)) && c.totalPages > 0 ? (() => {
-            const lp = s.sides === 2 ? (CONFIG.colorLightDuplex ?? 3.5) : (CONFIG.colorLightPrice ?? 5), hp = s.sides === 2 ? (CONFIG.colorHeavyDuplex ?? 5) : (CONFIG.colorHeavyPrice ?? 7);
+            const sm = this.sidesMix();
+            if (sm.mixed) return '🎨 สีน้อย ' + c.lightPages + ' หน้า' + (c.heavyPages > 0 ? ' + สีเยอะ ' + c.heavyPages + ' หน้า' : '') + ' — คิดเรทตามด้านที่พิมพ์ + หน้า/แผ่นของแต่ละไฟล์ = ฿' + c.printCost; // ไฟล์ตั้งด้านต่างกัน: บิลรายไฟล์แตกให้ดูอยู่แล้ว
+            const { lp, hp } = this.colorRates(sm.all2 ? 2 : 1);
             const raw = c.lightPages * lp + c.heavyPages * hp;
-            let t = '🎨 สีน้อย ' + c.lightPages + ' หน้า × ฿' + lp + (c.heavyPages > 0 ? ' + สีเยอะ ' + c.heavyPages + ' หน้า × ฿' + hp : '') + (s.sides === 2 ? ' (หน้า-หลัง: สีน้อยแผ่นละ 7 · สีเยอะแผ่นละ 10)' : '');
+            let t = '🎨 สีน้อย ' + c.lightPages + ' หน้า × ฿' + lp + (c.heavyPages > 0 ? ' + สีเยอะ ' + c.heavyPages + ' หน้า × ฿' + hp : '') + (sm.all2 ? ' (หน้า-หลัง: สีน้อยแผ่นละ 7 · สีเยอะแผ่นละ 10)' : '');
             const nps = [...new Set(s.files.map(f => this.fileOpt(f).nup))];
             if (nps.length === 1 && nps[0] > 1) t += ' = ฿' + raw + ' ÷ ' + nps[0] + ' (เลือก ' + nps[0] + ' หน้า/แผ่น) = ฿' + c.printCost; // ราคาหารตามจำนวนหน้าต่อแผ่นแล้ว — โชว์วิธีคิดกันงง
             else if (nps.length > 1) t += ' → หารตามหน้า/แผ่นของแต่ละไฟล์ = ฿' + c.printCost;
             return t;
           })()
-        : s.ptype === 'bw' && (s.sides === 2 || s.files.some(f => this.fileOpt(f).nup > 1)) && c.sheets > 0 ? '📄 คิดตามหน้าที่พิมพ์จริง ' + c.sheets + ' หน้า × ฿' + (Math.round(c.rate * 1000) / 1000) + '/หน้า' + (s.sides === 2 ? ' (หน้า-หลังคิดทั้ง 2 ด้าน)' : '')
+        : s.ptype === 'bw' && (this.sidesMix().some2 || s.files.some(f => this.fileOpt(f).nup > 1)) && c.sheets > 0 ? '📄 คิดตามหน้าที่พิมพ์จริง ' + c.sheets + ' หน้า × ฿' + (Math.round(c.rate * 1000) / 1000) + '/หน้า' + (this.sidesMix().some2 ? ' (หน้า-หลังคิดทั้ง 2 ด้าน)' : '')
         : s.ptype === 'mix' && c.totalPages > 0 && (c.heavyPages + c.lightPages + c.sheets) > 0 ? (() => { // สรุปวิธีคิดงานผสม: สีเท่าไหร่ ขาวดำเท่าไหร่ — โปร่งใสกันงง
-            const lp = s.sides === 2 ? (CONFIG.colorLightDuplex ?? 3.5) : (CONFIG.colorLightPrice ?? 5), hp = s.sides === 2 ? (CONFIG.colorHeavyDuplex ?? 5) : (CONFIG.colorHeavyPrice ?? 7);
+            const sm = this.sidesMix(), { lp, hp } = this.colorRates(sm.all2 ? 2 : 1);
             const parts = [];
-            if (c.heavyPages + c.lightPages > 0) parts.push('🎨 สี ' + (c.heavyPages + c.lightPages) + ' หน้า (สีน้อย ' + c.lightPages + ' × ฿' + lp + (c.heavyPages > 0 ? ' · สีเยอะ ' + c.heavyPages + ' × ฿' + hp : '') + ')');
+            if (c.heavyPages + c.lightPages > 0) parts.push('🎨 สี ' + (c.heavyPages + c.lightPages) + ' หน้า (สีน้อย ' + c.lightPages + (sm.mixed ? '' : ' × ฿' + lp) + (c.heavyPages > 0 ? ' · สีเยอะ ' + c.heavyPages + (sm.mixed ? '' : ' × ฿' + hp) : '') + (sm.mixed ? ' · เรทตามด้านของแต่ละไฟล์' : '') + ')');
             if (c.sheets > 0) parts.push('📄 ขาวดำ ' + c.sheets + ' หน้า × ฿' + (Math.round(c.rate * 1000) / 1000));
             return parts.join(' + ');
           })() : '',
@@ -4383,11 +4398,10 @@ class App extends React.Component {
                 {v.colorNote && <div style={css("font-size:11.5px;color:var(--sub)")}>{v.colorNote}</div>}
               </div>
               {v.showSize && <div style={css("display:flex;flex-direction:column;gap:6px")}><div style={css("font-size:13px;font-weight:600;color:var(--ink)")}>ขนาด</div><div style={css("display:flex;gap:8px;flex-wrap:wrap")}>{v.sizeOpts.map((o, i) => <button key={i} onClick={o.pick} style={o.st}>{o.label}</button>)}</div></div>}
-              {v.showSides && <div style={css("display:flex;flex-direction:column;gap:6px")}><div style={css("font-size:13px;font-weight:600;color:var(--ink)")}>ด้านที่พิมพ์</div><div style={css("display:flex;gap:8px")}>{v.sidesOpts.map((o, i) => <button key={i} onClick={o.pick} style={o.st}>{o.label}</button>)}</div></div>}
               {/* ── ตั้งค่ารายไฟล์ (เจ้าของสั่ง 2026-10-12): แต่ละไฟล์เลือกแนวกระดาษ · หน้า/แผ่น · เย็บมุม · เข้าเล่ม ของตัวเอง — โชว์ทุกไฟล์เสมอ ── */}
               {v.showSides && (
                 <div style={css("display:flex;flex-direction:column;gap:8px")}>
-                  <div style={css("font-size:13px;font-weight:600;color:var(--ink)")}>ตั้งค่าแต่ละไฟล์ <span style={css("font-weight:400;font-size:12px;color:var(--sub)")}>· แนวกระดาษ · หน้า/แผ่น · เย็บมุม{v.showBind ? ' · เข้าเล่ม' : ''}</span></div>
+                  <div style={css("font-size:13px;font-weight:600;color:var(--ink)")}>ตั้งค่าแต่ละไฟล์ <span style={css("font-weight:400;font-size:12px;color:var(--sub)")}>· ด้านที่พิมพ์ · แนวกระดาษ · หน้า/แผ่น · เย็บมุม{v.showBind ? ' · เข้าเล่ม' : ''}</span></div>
                   {!v.files.length && <div style={css("font-size:12px;color:var(--sub);background:var(--soft);border:1px dashed var(--line);border-radius:12px;padding:10px 12px;line-height:1.6")}>แนบไฟล์ด้านบนก่อน แล้วตั้งค่าของแต่ละไฟล์ได้ตรงนี้ครับ</div>}
                   {v.files.map((f, i) => (
                     <div key={i} style={css("border:1.5px solid var(--acc);border-radius:12px;padding:10px 12px;background:var(--card)")}>
@@ -4427,6 +4441,10 @@ class App extends React.Component {
                           )}
                         </div>
                       )}
+                      <div style={css("margin-top:9px")}>
+                        <div style={css("font-size:11.5px;font-weight:700;color:var(--sub);margin-bottom:4px")}>ด้านที่พิมพ์</div>
+                        <div style={css("display:flex;gap:6px")}>{f.sidesSegs.map((o, j) => <button key={j} onClick={o.pick} style={o.st}>{o.label}</button>)}</div>
+                      </div>
                       <div style={css("margin-top:9px")}>
                         <div style={css("font-size:11.5px;font-weight:700;color:var(--sub);margin-bottom:4px")}>แนวกระดาษ</div>
                         <div style={css("display:flex;gap:6px")}>{f.orientSegs.map((o, j) => <button key={j} onClick={o.pick} style={o.st}>{o.label}</button>)}</div>
@@ -4753,7 +4771,6 @@ class App extends React.Component {
                   <div style={css("flex:1;min-width:0")}>
                     <div style={css("font-size:13px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap")}>{f.name}</div>
                     <div style={css("font-size:12px;color:var(--sub);margin-top:2px")}>{f.stMode ? '🏷️ ' + (f.stText || f.qty + ' ชิ้น') : f.pages + ' หน้า'}{v.isColorType && f.scanned ? ' · 🎨 สีเยอะ ' + f.heavy + ' หน้า' : ''}{v.isMix && f.mix ? (f.mix.set.size === 0 ? ' · 📄 ขาวดำทั้งไฟล์' : f.mix.cBw === 0 ? ' · 🌈 สีทั้งไฟล์' + (f.mix.ch > 0 ? ' (สีเยอะ ' + f.mix.ch + ')' : '') : ' · 🎨 หน้าสี ' + pagesToRanges([...f.mix.set]) + ' · ที่เหลือขาวดำ') : ''}{f.big ? ' · ส่งผ่าน Google Drive' : ''}</div>
-                    {v.showSides && <div style={css("margin-top:3px;font-size:12px;font-weight:700;color:var(--acc)")}>✓ {f.optLabel}</div>}
                     {f.thumb && <div style={css("font-size:11px;color:var(--sub)")}>↑ รูปตัวอย่างหน้าแรกจากไฟล์จริง</div>}
                   </div>
                 </div>
@@ -4763,7 +4780,7 @@ class App extends React.Component {
             <div style={css("background:var(--accSoft);border:1.5px solid var(--acc);border-radius:14px;padding:14px 16px;box-shadow:var(--shadow)")}>
               <div style={css("font-size:12px;font-weight:700;color:var(--acc);letter-spacing:.5px")}>🖨️ สเปกงานปริ้นที่คุณเลือก</div>
               <div style={css("margin-top:10px;display:flex;flex-direction:column;gap:9px")}>
-                {[['ประเภทงาน', v.typeLabel], ['ขนาดกระดาษ', v.paperLabel], ['ด้านที่พิมพ์', v.sidesLabel], ...(v.isPro ? [['การเข้าเล่ม', v.bindLabel]] : [['ตั้งค่ารายไฟล์', 'ดูที่แต่ละไฟล์ด้านบน']]), ['จำนวน', v.copies + ' ชุด']].map((p, i) => (
+                {[['ประเภทงาน', v.typeLabel], ['ขนาดกระดาษ', v.paperLabel], ...(v.isPro ? [['ด้านที่พิมพ์', v.sidesLabel], ['การเข้าเล่ม', v.bindLabel]] : []), ['จำนวน', v.copies + ' ชุด']].map((p, i) => (
                   <div key={i} style={css("display:flex;align-items:center;gap:10px")}>
                     <div style={css("width:20px;height:20px;border-radius:50%;background:var(--acc);color:#fff;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;flex:none")}>✓</div>
                     <span style={css("font-size:12.5px;color:var(--sub);min-width:88px")}>{p[0]}</span>
@@ -4771,6 +4788,24 @@ class App extends React.Component {
                   </div>
                 ))}
               </div>
+              {/* สเปกรายไฟล์ (เจ้าของสั่ง 2026-10-12): สั่งกี่ไฟล์ก็เห็นชัดว่าไฟล์ไหนตั้งค่าอะไร */}
+              {v.showSides && v.files.map((f, i) => (
+                <div key={'pf' + i} style={css("margin-top:11px;border-top:1px dashed var(--acc);padding-top:9px")}>
+                  <div style={css("display:flex;align-items:baseline;gap:7px;min-width:0")}>
+                    <span style={css("flex:none;font-size:13px;font-weight:800;color:var(--acc)")}>📄 ไฟล์ {i + 1}</span>
+                    <span style={css("flex:1;min-width:0;font-size:12px;color:var(--sub);overflow:hidden;text-overflow:ellipsis;white-space:nowrap")}>{f.name} · {f.pages} หน้า</span>
+                  </div>
+                  <div style={css("margin-top:7px;display:flex;flex-direction:column;gap:7px")}>
+                    {f.reviewRows.map((p, j) => (
+                      <div key={j} style={css("display:flex;align-items:flex-start;gap:10px")}>
+                        <div style={css("width:18px;height:18px;margin-top:1px;border-radius:50%;background:var(--acc);color:#fff;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex:none")}>✓</div>
+                        <span style={css("font-size:12.5px;color:var(--sub);min-width:88px;flex:none")}>{p[0]}</span>
+                        <span style={css("font-size:13px;font-weight:700;line-height:1.45;min-width:0;overflow-wrap:anywhere")}>{p[1]}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
               {!v.isPro && <div style={css("margin-top:10px;border-top:1px dashed var(--acc);padding-top:8px;font-size:12.5px;color:var(--acc);font-weight:600")}>💡 {v.rateHint}</div>}
             </div>
 

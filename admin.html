@@ -196,11 +196,11 @@ const fileTypeLabel = (o, f) => {
 // เย็บมุมขึ้นทุกครั้ง · เข้าเล่มขึ้นเป็นแถวสุดท้ายเฉพาะเมื่อลูกค้าเลือก (เจ้าของสั่ง 2026-10-12)
 const bindShort = (b) => (BIND_LABELS[b] || b).replace(/^เข้าเล่ม/, '').trim() || 'เข้าเล่ม';
 const stdSpecRows = (o, f) => {
-  const orient = (f && f.orient) || o.orient, nup = (f && f.nup) || o.nup, bind = (f && f.bind) || o.bind;
+  const orient = (f && f.orient) || o.orient, nup = (f && f.nup) || o.nup, bind = (f && f.bind) || o.bind, sides = (f && f.sides) || o.sides;
   return [
     ['ขนาดกระดาษ', o.paper || 'A4'],
     ['ประเภท', fileTypeLabel(o, f)],
-    o.ptype === 'poster' ? null : ['ด้านที่พิมพ์', o.sides === 2 ? 'หน้า-หลัง' : 'หน้าเดียว'],
+    o.ptype === 'poster' ? null : ['ด้านที่พิมพ์', sides === 2 ? 'หน้า-หลัง' : 'หน้าเดียว'],
     orient ? ['แนวกระดาษ', orient === 'landscape' ? 'แนวนอน' : 'แนวตั้ง'] : null,
     nup ? ['หน้า/แผ่น', nup + ' หน้า/แผ่น'] : null,
     ['จำนวน', (o.copies || 1) + ' ชุด'],
