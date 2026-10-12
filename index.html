@@ -491,16 +491,17 @@ const MP_STEPS_UI = [
   { ic: 'check', label: 'ตรวจสอบออเดอร์' },
   { ic: 'card', label: 'ชำระเงิน' },
 ];
-function MpStepper({ cur }){
+// แตะไอคอนขั้นตอนเพื่อย้อน/ไปขั้นที่เคยไปถึงแล้วได้ (เจ้าของสั่ง 2026-10-12) — max = ขั้นไกลสุดที่ลูกค้าเคยไปถึง · ขั้นที่ยังไม่เคยถึงแตะไม่ได้
+function MpStepper({ cur, max, onJump }){
   return (
     <div style={css("padding:2px 0")}>
       <div style={css("display:flex;align-items:center")}>
         {MP_STEPS_UI.map((st, i) => {
-          const n = i + 1, done = n < cur, act = n === cur;
+          const n = i + 1, act = n === cur, can = !!onJump && !act && n <= Math.max(max || 0, cur), done = n < cur || (can && n > cur);
           return (
             <React.Fragment key={st.ic}>
               {i > 0 && <div style={css("flex:1;height:2px;border-radius:2px;margin:0 4px;background:" + (n <= cur ? "var(--acc)" : "var(--line)"))}></div>}
-              <div style={{ width: act ? '44px' : '34px', height: act ? '44px' : '34px', borderRadius: '50%', flex: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all .25s',
+              <div onClick={can ? () => onJump(n) : undefined} title={can ? 'แตะเพื่อไปขั้น ' + st.label : undefined} style={{ cursor: can ? 'pointer' : 'default', width: act ? '44px' : '34px', height: act ? '44px' : '34px', borderRadius: '50%', flex: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all .25s',
                 background: act ? 'var(--acc)' : done ? 'var(--accSoft)' : 'var(--soft)',
                 border: act ? 'none' : '1.5px solid ' + (done ? 'var(--acc)' : 'var(--line)'),
                 color: act ? '#fff' : done ? 'var(--acc)' : 'var(--sub)',
@@ -548,7 +549,7 @@ function BillPrint({ v }){
 
 // ── ร่างออเดอร์ (เจ้าของสั่ง 2026-10-11): ลูกค้าสลับไปแอปธนาคารแล้วมือถือ (โดยเฉพาะเบราว์เซอร์ใน LINE) ปิดหน้าเว็บเบื้องหลังทิ้ง กลับมาเว็บโหลดใหม่ ข้อมูลหายหมด ──
 // key ทุกตัวที่ใช้สั่งงาน+คิดราคา (ตรวจแล้ว: state ที่ไม่อยู่ในนี้ไม่เกี่ยวกับออเดอร์) — เพิ่ม state ใหม่ของขั้นสั่งงานเมื่อไหร่ต้องเพิ่มที่นี่ด้วย ไม่งั้นกู้คืนแล้วราคาเพี้ยน
-const DRAFT_KEYS = ['proActive', 'tier', 'ptype', 'paper', 'sides', 'orient', 'nup', 'bind', 'copies', 'note', 'shipNote', 'recvSel', 'vehSel', 'vehicle',
+const DRAFT_KEYS = ['proActive', 'stepMax', 'tier', 'ptype', 'paper', 'sides', 'orient', 'nup', 'bind', 'copies', 'note', 'shipNote', 'recvSel', 'vehSel', 'vehicle',
   'rcOn', 'rcName', 'rcAddr', 'rcTax', 'rcPhone', 'proType', 'proSize', 'proBind', 'proQty', 'proPickup', 'stdPickup', 'proBoard', 'proGram', 'stkType',
   'proFilm', 'proPoPaper', 'proLam', 'proSpecial', 'proStaple', 'proStand', 'distKm', 'distSrc', 'point', 'addr', 'phone', 'time', 'express', 'handoff',
   'lat', 'lng', 'geoLabel', 'gmapLink', 'pinSrc', 'pinMode', 'mapLocked', 'gpsAcc', 'couponCode', 'couponOk'];
@@ -566,7 +567,7 @@ class App extends React.Component {
     let rc0 = null; try { rc0 = JSON.parse(localStorage.getItem('mp_rc') || 'null'); } catch (e) {} // ข้อมูลผู้ซื้อในใบเสร็จที่เคยกรอก
     if (!rc0) try { const m = document.cookie.match(/(?:^|;\s*)mp_rc_bk=([^;]+)/); rc0 = m ? JSON.parse(decodeURIComponent(m[1])) : null; } catch (e) {} // สำรองในคุกกี้ — เครื่องล้าง storage เองก็ยังจำได้
     this.state = {
-      screen: 'home', files: [], proActive: 0, tier: 'standard', ptype: 'bw', paper: 'A4', sides: 1, orient: 'portrait', nup: 1, bind: 'none', copies: 1, note: '', shipNote: '',
+      screen: 'home', files: [], proActive: 0, stepMax: 0, tier: 'standard', ptype: 'bw', paper: 'A4', sides: 1, orient: 'portrait', nup: 1, bind: 'none', copies: 1, note: '', shipNote: '',
       shopOpen: true, // สถานะรับออเดอร์จากหลังบ้าน (false = ร้านกดปิดรับชั่วคราว)
       shopRain: false, // โหมดฝนตก (ร้านกดจากหลังบ้าน) — ทุกงานแบบจัดส่ง (Pro+Standard) บังคับรถยนต์
       shopNightOff: false, // หลังบ้านบังคับปิดโหมดกลางคืนชั่วคราว (shop_status.night_off) — เว็บเป็นกลางวันปกติ ไว้แคปจอทำสื่อ (2026-09-12)
@@ -756,7 +757,27 @@ class App extends React.Component {
   }
   componentDidUpdate(){
     this.syncNight(); this.syncMap(); this.syncChatScroll();
+    // จำขั้นไกลสุดที่ลูกค้าเคยไปถึง (แถบ step แตะไปกลับได้ถึงขั้นนี้)
+    const si = ['order', 'delivery', 'review', 'pay'].indexOf(this.state.screen) + 1;
+    if (si > (this.state.stepMax || 0)) this.setState({ stepMax: si });
     if (this._draftReady) { clearTimeout(this._draftT); this._draftT = setTimeout(() => this.saveDraft(), 600); }
+  }
+  // แตะไอคอนบนแถบ step (เจ้าของสั่ง 2026-10-12): ย้อนไปขั้นที่ผ่านมาได้ทันที · ไปข้างหน้าได้ถึงขั้นไกลสุดที่เคยไปถึง
+  // โดยผ่านด่านเช็คของทุกขั้นเหมือนกดปุ่ม "ต่อไป" (กันข้ามการตรวจ) — ข้อมูลที่เลือก/กรอกไว้อยู่ครบเพราะแค่สลับหน้าจอ ไม่ล้าง state
+  jumpStep(n){
+    const flow = ['order', 'delivery', 'review', 'pay'], gates = [null, 'toDelivery', 'toPay', 'goPay'];
+    const cur = flow.indexOf(this.state.screen) + 1;
+    if (cur < 1 || n === cur || n < 1 || n > 4) return;
+    if (n < cur) return this.setState({ screen: flow[n - 1] }, () => { try { window.scrollTo(0, 0); } catch (e) {} });
+    if (n > Math.max(this.state.stepMax || 0, cur)) return;
+    const go = (guard) => {
+      const c = flow.indexOf(this.state.screen) + 1;
+      if (c >= n || guard > 4) { try { window.scrollTo(0, 0); } catch (e) {} return; }
+      const before = this.state.screen;
+      this.vals()[gates[c]](); // ด่านเดียวกับปุ่มต่อไป — ไม่ผ่าน = ขึ้นข้อความเตือนแล้วหยุดอยู่ขั้นนั้น
+      setTimeout(() => { if (this.state.screen !== before) go(guard + 1); }, 30);
+    };
+    go(0);
   }
   // ── เลื่อนแชทแบบมีมารยาท (เจ้าของสั่ง 2026-10-07): ลงล่างสุดเฉพาะตอนเปิดห้อง/ผู้ใช้อยู่ก้นจอ/ส่งเอง — กำลังไล่อ่านข้อความเก่าห้ามดึงลง ──
   // ตัว scroll จริงของหน้าแชทคือ "ทั้งหน้าต่าง" (เชลล์โตตามเนื้อหา กล่องแชทไม่ overflow เอง) — เลือกตัวที่ overflow จริงเสมอ
@@ -2941,6 +2962,7 @@ class App extends React.Component {
       statDelivered: s.statDelivered,
       isHome: s.screen === 'home', isOrder: s.screen === 'order', isDelivery: s.screen === 'delivery', isReview: s.screen === 'review', isPay: s.screen === 'pay', isTrack: s.screen === 'track', isAbout: s.screen === 'about', isChat: s.screen === 'chat', isProfile: s.screen === 'profile', isHistory: s.screen === 'history',
       showBack: s.screen === 'order' || s.screen === 'delivery' || s.screen === 'review' || s.screen === 'pay' || s.screen === 'chat' || s.screen === 'profile',
+      stepMax: s.stepMax || 0, jumpStep: (n) => this.jumpStep(n), // แถบ step แตะไปกลับ (2026-10-12)
       goBack: () => {
         if (s.screen === 'chat') return this.setState({ screen: s.chatFrom === 'history' ? 'history' : 'track', chatFor: null, chat: s.chatFor ? [] : s.chat });
         this.setState({ screen: s.screen === 'profile' ? 'home' : s.screen === 'pay' ? 'review' : s.screen === 'review' ? 'delivery' : s.screen === 'delivery' ? 'order' : 'home' });
@@ -3602,7 +3624,7 @@ class App extends React.Component {
           document.cookie = 'mp_rc_bk=' + encodeURIComponent(rcSave) + ';max-age=31536000;path=/;SameSite=Lax'; // สำรองคุกกี้ 1 ปี
         } catch (e) {}
         this.setState({ order: { id, total: c.grandTotal, times: [t0, '', '', ''], plabel, eta, pickup, ts, express: isExp, addr: oaddr, phone: s.phone, veh: oveh, copies: this.proMulti() ? 1 : s.copies, pages: c.totalPages, dist: s.distKm, rc: rcReq, cp: cpUsed }, trackStep: 1, cancelReason: '', screen: 'track',
-          files: [], proActive: 0, slip: null, copies: 1, bind: 'none', express: false, handoff: '', tier: 'standard', ptype: 'bw', paper: 'A4', sides: 1, orient: 'portrait', nup: 1, note: '', shipNote: '', proPickup: false, stdPickup: false, recvSel: false, vehSel: false, proLam: 'none', proSpecial: false, proStaple: false, proStand: false, vehicle: 'bike', trackOpen: false, trackMin: false, histOpen: null, chatFor: null, chatFrom: 'track', selfCancelArm: false, couponCode: '', couponOk: null });
+          files: [], proActive: 0, stepMax: 0, slip: null, copies: 1, bind: 'none', express: false, handoff: '', tier: 'standard', ptype: 'bw', paper: 'A4', sides: 1, orient: 'portrait', nup: 1, note: '', shipNote: '', proPickup: false, stdPickup: false, recvSel: false, vehSel: false, proLam: 'none', proSpecial: false, proStaple: false, proStand: false, vehicle: 'bike', trackOpen: false, trackMin: false, histOpen: null, chatFor: null, chatFrom: 'track', selfCancelArm: false, couponCode: '', couponOk: null });
         // จำออเดอร์ไว้ในเครื่อง — ปิดเว็บแล้วกลับมา การติดตามยังอยู่
         try {
           const nod = { id, total: c.grandTotal, times: [t0, '', '', ''], step: 1, plabel, eta, pickup, ts, express: isExp, addr: oaddr, phone: s.phone, veh: oveh, copies: this.proMulti() ? 1 : s.copies, pages: c.totalPages, dist: s.distKm, rc: rcReq, cp: cpUsed };
@@ -4321,7 +4343,7 @@ class App extends React.Component {
         {/* ── Order (Step 1) ── */}
         {v.isOrder && (
           <div style={css("padding:18px 20px 110px;display:flex;flex-direction:column;gap:14px")}>
-            <MpStepper cur={1}/>
+            <MpStepper cur={1} max={v.stepMax} onJump={v.jumpStep}/>
             {v.alertBn && <div style={css("background:#fff0f0;border:1px solid #ffa8a8;border-radius:12px;padding:10px 14px;font-size:13px;color:#c92a2a;font-weight:700;line-height:1.5")}>⚠️ {v.alertBn.title}</div>}
             <input type="file" multiple accept=".pdf,application/pdf" ref={this.fileRef} onChange={v.onFiles} style={css("display:none")}/>
             {/* กล่องดรอปไฟล์: แตะได้ทั้งกล่อง + รองรับลากไฟล์มาวางจริง (desktop) */}
@@ -4692,7 +4714,7 @@ class App extends React.Component {
         {/* ── Delivery (Step 2) ── */}
         {v.isDelivery && (
           <div style={css("padding:18px 20px 110px;display:flex;flex-direction:column;gap:14px")}>
-            <MpStepper cur={2}/>
+            <MpStepper cur={2} max={v.stepMax} onJump={v.jumpStep}/>
             <div style={css("background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px;box-shadow:var(--shadow)")}>
               {/* ขั้นที่ 1 การรับงาน — ใช้ร่วมทั้ง Standard และ Pro (เจ้าของสั่ง 2026-10-09 ให้เหมือนกัน) */}
               <div style={css("margin-bottom:14px")}>
@@ -4937,7 +4959,7 @@ class App extends React.Component {
         {/* ── Review (Step 3) — ตรวจสอบสเปกก่อนจ่าย ลดออเดอร์ผิด ── */}
         {v.isReview && (
           <div style={css("padding:18px 20px 110px;display:flex;flex-direction:column;gap:14px")}>
-            <MpStepper cur={3}/>
+            <MpStepper cur={3} max={v.stepMax} onJump={v.jumpStep}/>
             <div style={css("background:var(--accSoft);border:1px solid var(--acc);border-radius:12px;padding:10px 14px;font-size:12.5px;color:var(--acc);font-weight:600;line-height:1.5")}>🔎 เช็คให้ชัวร์ก่อนจ่ายเงิน — ถ้าไม่ตรงกดแก้ไขได้เลย ยังไม่เสียเงินนะครับ</div>
 
             <div style={css("background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px;box-shadow:var(--shadow)")}>
@@ -5019,7 +5041,7 @@ class App extends React.Component {
         {/* ── Pay (Step 4) ── */}
         {v.isPay && (
           <div style={css("padding:18px 20px 110px;display:flex;flex-direction:column;gap:14px")}>
-            <MpStepper cur={4}/>
+            <MpStepper cur={4} max={v.stepMax} onJump={v.jumpStep}/>
             <div style={css("background:var(--card);border-radius:4px;box-shadow:var(--shadow);padding:16px;position:relative")}>
               <div style={css("font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--sub);text-align:center;letter-spacing:2px")}>*** MORE PRINT — ORDER SUMMARY ***</div>
               <div style={css("margin-top:12px;display:flex;flex-direction:column;gap:6px;font-size:12.5px")}>
