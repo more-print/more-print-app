@@ -59,7 +59,7 @@
 // 🚗 รถยนต์ (งานใหญ่: Standy / เพลท A3 ขึ้นไป): ≤2กม. ฿69 · ≤4กม. ฿89 · ≤6กม. ฿129 · เกิน 6 กม. สั่งทาง LINE
 // ── ป๊อปอัพโปรโมชั่นตอนเปิดเว็บ (เจ้าของสั่ง 2026-10-14): โปสเตอร์ FINAL1010 ลด 10% · ขึ้นครั้งเดียวต่อการเปิดเว็บ (sessionStorage) · หมดเขตแล้วไม่ขึ้นเอง
 // เปลี่ยนโปรใหม่ = เปลี่ยน key + img + until ที่นี่จุดเดียว (key ใหม่ = ลูกค้าเห็นใหม่) · ปิดโปร = until เป็นอดีต
-const PROMO_POPUP = { key: 'final1010', img: 'assets/promo-final1010.jpg', until: '2026-10-31T23:59:59+07:00', alt: 'โปรโมชั่น FINAL EXAM ลด 10% ทุกประเภทงาน กรอกโค้ด FINAL1010 ถึง 31 ตุลาคม 69' };
+const PROMO_POPUP = { enabled: false, /* เจ้าของสั่งซ่อนไว้ก่อน 2026-10-15 — เปลี่ยนเป็น true เมื่อจะเปิดโปรอีกครั้ง */ key: 'final1010', img: 'assets/promo-final1010.jpg', until: '2026-10-31T23:59:59+07:00', alt: 'โปรโมชั่น FINAL EXAM ลด 10% ทุกประเภทงาน กรอกโค้ด FINAL1010 ถึง 31 ตุลาคม 69' };
 const CONFIG = { nightOverride: 'auto', nightFee: 19, expressFee: 20, expressEnabled: true, // งานด่วน (Express) +20 เฉพาะงาน Standard แบบจัดส่ง — ลัดคิว+เร่งผลิต เวลาคาดการณ์ = 45 นาที/150 หน้า (เปลี่ยนเป็น false เพื่อปิด)
   bindBookOn: false, // บริการเข้าเล่ม +฿40 งาน Standard: ปิดชั่วคราว (2026-08-27 ยังทำไม่ได้) — เปลี่ยนเป็น true เพื่อเปิดคืน
   shopLat: 16.4633326, shopLng: 102.8241938, // จุดร้านงาน Pro: โรงพิมพ์อุดมสุขปริ้นติ้ง (กังสดาล) — แก้ที่นี่ถ้าย้าย
@@ -762,7 +762,7 @@ class App extends React.Component {
   // ป๊อปอัพโปรโมชั่น: ขึ้นเฉพาะหน้าแรก · ยังไม่หมดเขต · ยังไม่เคยปิดในการเปิดเว็บครั้งนี้ (sessionStorage — เปิดเว็บใหม่เห็นอีก)
   maybePromo(){
     const p = PROMO_POPUP;
-    if (!p || !p.img || Date.now() > new Date(p.until).getTime()) return;
+    if (!p || p.enabled === false || !p.img || Date.now() > new Date(p.until).getTime()) return; // enabled:false = ซ่อนไว้ ยังไม่ลบ
     if (this.state.screen !== 'home' || this.state.alertPrompt) return;
     let seen = false; try { seen = sessionStorage.getItem('mp_promo_seen') === p.key; } catch (e) {}
     if (seen) return;
