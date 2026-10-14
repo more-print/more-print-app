@@ -57,6 +57,9 @@
 // ค่าส่ง 2 ชั้น คิดตามระยะทางถนนจริงจากร้าน (ระบบเลือกพาหนะเองจากประเภทงาน):
 // 🏍️ มอเตอร์ไซค์ (งานทั่วไป): ไม่เกิน 2 กม. เหมา ฿19 แล้ว +฿6/กม. ตั้งแต่ กม.ที่ 3 (ปัดเศษ กม. ขึ้น) ไม่มีเพดาน — แก้ 2026-08-24
 // 🚗 รถยนต์ (งานใหญ่: Standy / เพลท A3 ขึ้นไป): ≤2กม. ฿69 · ≤4กม. ฿89 · ≤6กม. ฿129 · เกิน 6 กม. สั่งทาง LINE
+// ── ป๊อปอัพโปรโมชั่นตอนเปิดเว็บ (เจ้าของสั่ง 2026-10-14): โปสเตอร์ FINAL1010 ลด 10% · ขึ้นครั้งเดียวต่อการเปิดเว็บ (sessionStorage) · หมดเขตแล้วไม่ขึ้นเอง
+// เปลี่ยนโปรใหม่ = เปลี่ยน key + img + until ที่นี่จุดเดียว (key ใหม่ = ลูกค้าเห็นใหม่) · ปิดโปร = until เป็นอดีต
+const PROMO_POPUP = { key: 'final1010', img: 'assets/promo-final1010.jpg', until: '2026-10-31T23:59:59+07:00', alt: 'โปรโมชั่น FINAL EXAM ลด 10% ทุกประเภทงาน กรอกโค้ด FINAL1010 ถึง 31 ตุลาคม 69' };
 const CONFIG = { nightOverride: 'auto', nightFee: 19, expressFee: 20, expressEnabled: true, // งานด่วน (Express) +20 เฉพาะงาน Standard แบบจัดส่ง — ลัดคิว+เร่งผลิต เวลาคาดการณ์ = 45 นาที/150 หน้า (เปลี่ยนเป็น false เพื่อปิด)
   bindBookOn: false, // บริการเข้าเล่ม +฿40 งาน Standard: ปิดชั่วคราว (2026-08-27 ยังทำไม่ได้) — เปลี่ยนเป็น true เพื่อเปิดคืน
   shopLat: 16.4633326, shopLng: 102.8241938, // จุดร้านงาน Pro: โรงพิมพ์อุดมสุขปริ้นติ้ง (กังสดาล) — แก้ที่นี่ถ้าย้าย
@@ -599,7 +602,7 @@ class App extends React.Component {
       selfCancelArm: false, selfCancelBusy: false,
       chat: null, chatText: '', chatBusy: false, chatOff: false, // แชทกับร้าน (ตาราง messages)
       profOpen: '', profFname: '', profLname: '', profPhone: '', // หน้า My Profile (หมวดที่กางอยู่ + ฟอร์มแก้ชื่อ/เบอร์)
-      couponCode: '', couponOk: null, couponBusy: false, // โค้ดส่วนลดที่หน้าชำระเงิน (couponOk = {code,kind,value})
+      couponCode: '', couponOk: null, couponBusy: false, promoOpen: false, // โค้ดส่วนลดที่หน้าชำระเงิน (couponOk = {code,kind,value})
       user: null, authMode: 'login', authBusy: false,
       emailIn: '', passIn: '',
       regFname: '', regLname: '', regEmail: '', regPass1: '', regPass2: ''
@@ -754,6 +757,20 @@ class App extends React.Component {
     document.addEventListener('visibilitychange', this._draftFlush);
     window.addEventListener('pagehide', () => { clearTimeout(this._draftT); this.saveDraft(); });
     setTimeout(() => this.restoreDraft(), 0);
+    setTimeout(() => this.maybePromo(), 400);
+  }
+  // ป๊อปอัพโปรโมชั่น: ขึ้นเฉพาะหน้าแรก · ยังไม่หมดเขต · ยังไม่เคยปิดในการเปิดเว็บครั้งนี้ (sessionStorage — เปิดเว็บใหม่เห็นอีก)
+  maybePromo(){
+    const p = PROMO_POPUP;
+    if (!p || !p.img || Date.now() > new Date(p.until).getTime()) return;
+    if (this.state.screen !== 'home' || this.state.alertPrompt) return;
+    let seen = false; try { seen = sessionStorage.getItem('mp_promo_seen') === p.key; } catch (e) {}
+    if (seen) return;
+    this.setState({ promoOpen: true });
+  }
+  closePromo(){
+    try { sessionStorage.setItem('mp_promo_seen', PROMO_POPUP.key); } catch (e) {}
+    this.setState({ promoOpen: false });
   }
   componentDidUpdate(){
     this.syncNight(); this.syncMap(); this.syncChatScroll();
@@ -3968,6 +3985,7 @@ class App extends React.Component {
       toast: s.toast,
       // ── โค้ดส่วนลด (หน้าชำระเงิน) ──
       couponCode: s.couponCode, couponBusy: s.couponBusy, couponOk: s.couponOk,
+      promoOpen: s.promoOpen, promoImg: PROMO_POPUP.img, promoAlt: PROMO_POPUP.alt, closePromo: () => this.closePromo(), // ป๊อปอัพโปรโมชั่น (2026-10-14)
       setCouponCode: (e) => this.setState({ couponCode: e.target.value.toUpperCase() }),
       applyCoupon: () => this.applyCoupon(),
       clearCoupon: () => this.setState({ couponOk: null, couponCode: '' }),
@@ -5566,6 +5584,16 @@ class App extends React.Component {
         )}
 
         {/* ── ป๊อปอัพประกาศแจ้งปัญหา/ล่าช้า — ถามลูกค้าก่อนเข้าหน้าสั่ง ── */}
+        {/* ── ป๊อปอัพโปรโมชั่นตอนเปิดเว็บ: พื้นหลังเทามืด · แตะที่ไหนก็ปิด · ปุ่ม ✕ มุมขวาบน (เจ้าของสั่ง 2026-10-14) ── */}
+        {v.promoOpen && (
+          <div onClick={v.closePromo} style={css("position:fixed;inset:0;background:rgba(0,0,0,.62);backdrop-filter:blur(2px);-webkit-backdrop-filter:blur(2px);z-index:1100;display:flex;align-items:center;justify-content:center;padding:22px 18px")}>
+            <div style={css("position:relative;width:100%;max-width:380px;max-height:100%;display:flex;flex-direction:column;align-items:center")}>
+              <button onClick={v.closePromo} aria-label="ปิด" style={css("position:absolute;top:-14px;right:-6px;z-index:2;width:38px;height:38px;border-radius:50%;border:2px solid #fff;background:#111;color:#fff;font-size:18px;font-weight:800;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 14px rgba(0,0,0,.45);font-family:inherit")}>✕</button>
+              <img src={v.promoImg} alt={v.promoAlt} style={css("display:block;width:100%;max-height:82vh;object-fit:contain;border-radius:18px;box-shadow:0 18px 50px rgba(0,0,0,.5);background:#fff")}/>
+              <div style={css("margin-top:12px;font-size:12.5px;font-weight:700;color:#fff;opacity:.92")}>แตะที่ไหนก็ได้เพื่อปิด</div>
+            </div>
+          </div>
+        )}
         {v.alertPrompt && v.alertBn && (
           <div style={css("position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:60;display:flex;align-items:center;justify-content:center;padding:24px")}>
             <div style={css("background:var(--card);border-radius:18px;max-width:340px;width:100%;padding:20px;box-shadow:0 10px 40px rgba(0,0,0,.4)")}>
