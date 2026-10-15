@@ -1836,7 +1836,7 @@ class App extends React.Component {
         const lamFee = lamOk ? (s.proLam === 'two' ? PRO_LAM_TWO : s.proLam === 'one' ? PRO_LAM_ONE : 0) : 0;
         rate = base + lamFee + (s.proSpecial ? PRO_SPECIAL_PAPER : 0); // เพลทรวมค่าบอร์ดในราคาแผ่นแล้ว ไม่บวกแยก (revert 2026-09-13)
         pc = rate * shPro;
-      } else if (s.proType === 'postcard') { rate = PRO_POSTCARD_SHEET; pc = rate * shPro; }
+      } else if (s.proType === 'postcard') { rate = PRO_POSTCARD_SHEET * (s.sides === 2 ? 2 : 1); pc = rate * shPro; } // Postcard หน้า-หลัง ×2 (เจ้าของสั่ง 2026-10-15)
       else if (s.proType === 'sticker') {
         // สติ๊กเกอร์ v3: จำนวนแผ่นที่ลูกค้าเลือก (PP 13"×19" / PVC ตร.ม.) × เรทตามเนื้อ — ชิ้นคำนวณอัตโนมัติ ดู stickerInfo()
         const si = this.stickerInfo();
@@ -2079,6 +2079,9 @@ class App extends React.Component {
       if (s.proType === 'poster') ex.push({ pp: 'พีพีฟิล์ม', vinyl: 'ไวนิล', photo: 'กระดาษโฟโต้' }[s.proPoPaper] || 'กระดาษอาร์ต');
       if (s.proSpecial) ex.push('กระดาษพิเศษ');
       if (s.proType === 'poster' && s.sides === 2) ex.push('หน้า-หลัง');
+    }
+    if (s.proType === 'postcard') ex.push(s.sides === 2 ? 'หน้า-หลัง' : 'หน้าเดียว'); // Postcard บอกด้านในป้ายเสมอ (2026-10-15)
+    if ((s.proType === 'plate' || s.proType === 'poster')) {
       // ระบุชนิดฟิล์มเคลือบ (โปสเตอร์+เพลท) — เคลือบมีเฉพาะขนาด A4/A3 (2026-09-13); เพลทมีแค่ลามิเนต ฟิล์มแข็งเป็นของโปสเตอร์
       if (['A4', 'A3'].includes(s.proSize)) {
         if (s.proLam === 'one') ex.push('เคลือบฟิล์มลามิเนตด้านหน้า');
@@ -3173,11 +3176,11 @@ class App extends React.Component {
         return this.seg(lbl, s.proSize === sz, () => this.setState(st => ({ proSize: sz,
           ...(((st.proType === 'plate' && !['A4', 'A3'].includes(sz)) || (st.proType === 'poster' && sz !== 'A4')) ? { proLam: 'none', proFilm: 'lam' } : {}) })), true);
       }),
-      proShowSides: s.proType === 'poster' || s.proType === 'portfolio' || s.proType === 'namecard' || s.proType === 'foldbook', // พับครึ่งเลือกด้านได้แล้ว (เจ้าของสั่ง 2026-10-09) — เรทต่อหน้าเท่ากันทั้งสองแบบ
+      proShowSides: s.proType === 'poster' || s.proType === 'portfolio' || s.proType === 'namecard' || s.proType === 'foldbook' || s.proType === 'postcard', // Postcard เลือกด้านได้ หน้า-หลัง ×2 (เจ้าของสั่ง 2026-10-15) // พับครึ่งเลือกด้านได้แล้ว (เจ้าของสั่ง 2026-10-09) — เรทต่อหน้าเท่ากันทั้งสองแบบ
       proSidesOpts: [
         // นามบัตรไม่โชว์ราคาท้ายปุ่มด้าน (เจ้าของสั่ง 2026-09-15 — ราคาบนปุ่มไม่ขยับตามจำนวนใบ ลูกค้างง ให้ดูราคาที่ตัวเลือก "จำนวน" แทน)
-        this.seg('ด้านหน้าอย่างเดียว' + (s.proType === 'portfolio' ? ' ฿' + PRO_PORTFOLIO.one + '/แผ่น' : s.proType === 'poster' ? ' ฿' + (POSTER_SHEET[s.proSize] ?? 0) + '/แผ่น' : s.proType === 'foldbook' ? ' ฿' + (FOLDBOOK_SHEET[s.proSize] ?? 0) + '/แผ่น' : ''), s.sides === 1, () => this.setState({ sides: 1 }), true),
-        this.seg('หน้า-หลัง' + (s.proType === 'portfolio' ? ' ฿' + PRO_PORTFOLIO.two + '/แผ่น' : s.proType === 'poster' ? ' ฿' + (POSTER_SHEET[s.proSize] ?? 0) * 2 + '/แผ่น' : s.proType === 'foldbook' ? ' ฿' + (FOLDBOOK_SHEET[s.proSize] ?? 0) * 2 + '/แผ่น' : ''), s.sides === 2, () => this.setState({ sides: 2 }), true)
+        this.seg('ด้านหน้าอย่างเดียว' + (s.proType === 'portfolio' ? ' ฿' + PRO_PORTFOLIO.one + '/แผ่น' : s.proType === 'poster' ? ' ฿' + (POSTER_SHEET[s.proSize] ?? 0) + '/แผ่น' : s.proType === 'foldbook' ? ' ฿' + (FOLDBOOK_SHEET[s.proSize] ?? 0) + '/แผ่น' : s.proType === 'postcard' ? ' ฿' + PRO_POSTCARD_SHEET + '/แผ่น' : ''), s.sides === 1, () => this.setState({ sides: 1 }), true),
+        this.seg('หน้า-หลัง' + (s.proType === 'portfolio' ? ' ฿' + PRO_PORTFOLIO.two + '/แผ่น' : s.proType === 'poster' ? ' ฿' + (POSTER_SHEET[s.proSize] ?? 0) * 2 + '/แผ่น' : s.proType === 'foldbook' ? ' ฿' + (FOLDBOOK_SHEET[s.proSize] ?? 0) * 2 + '/แผ่น' : s.proType === 'postcard' ? ' ฿' + PRO_POSTCARD_SHEET * 2 + '/แผ่น' : ''), s.sides === 2, () => this.setState({ sides: 2 }), true)
       ],
       proShowBind: s.proType === 'foldbook',
       proBindOpts: PRO_BINDS.map(b => this.seg(b, s.proBind === b, () => this.setState({ proBind: b }))),
@@ -3243,7 +3246,7 @@ class App extends React.Component {
       ]) : [],
       proHint: s.proType === 'foldbook' ? '📖 เข้าเล่มทุกแบบ +฿' + PRO_FOLDBOOK_BIND + '/เล่ม · พิมพ์หน้า-หลังทั้งเล่ม'
         : s.proType === 'plate' ? '🪧 เพลทรวมติดบอร์ดแล้ว · พิมพ์ด้านหน้าอย่างเดียว'
-        : s.proType === 'postcard' ? <React.Fragment>ขนาด 4*6 นิ้ว (กว้าง * ยาว)<span style={{ display: 'block' }}>💌 1 แผ่น A3 = 9 ใบ · ฿{PRO_POSTCARD_SHEET}/แผ่น</span></React.Fragment>
+        : s.proType === 'postcard' ? <React.Fragment>ขนาด 4*6 นิ้ว (กว้าง * ยาว)<span style={{ display: 'block' }}>💌 1 แผ่น A3 = 9 ใบ · หน้าเดียว ฿{PRO_POSTCARD_SHEET}/แผ่น · หน้า-หลัง ฿{PRO_POSTCARD_SHEET * 2}/แผ่น</span></React.Fragment>
         : s.proType === 'sticker' ? '🏷️ 1 ไฟล์ = 1 ลาย (รูปเดียว)'
         : s.proType === 'namecard' ? '💳 ราคาต่อ 100 ใบ (A3 4 แผ่น)'
         : s.proType === 'standee' ? '🧍 ขนาดกว้าง 60 × สูง 120 ซม.'
