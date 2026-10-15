@@ -2122,6 +2122,26 @@ class App extends React.Component {
           handoff: this.handoffLabel(), forceCar: this.forceCar(), night: this.isNight() };
       })();
       const pItems = D.pItems; // Pro หลายไฟล์: สเปก/ป้าย/ราคารายไฟล์ (บันทึกลง files[] ให้หลังบ้านเห็นทีละไฟล์)
+      // ── ขั้นที่ 1 (sync ล้วน — ห้ามมี await ก่อนจบบล็อกนี้): สร้างข้อมูลรายไฟล์ทุกช่องจาก snapshot ──
+      // กติกาถาวร (2026-10-15): ทุกค่าที่ "ลูกค้าเลือก" ต้องถูกเขียนลง files[] ตรงนี้ก่อน await แรกเท่านั้น — เพิ่มฟิลด์ใหม่ให้เพิ่มในบล็อกนี้ ห้ามไปอ่าน this.state หลังจากนี้
+      for (let i = 0; i < s.files.length; i++) {
+        const f = s.files[i];
+        // qty/w/h/sh = จำนวนชิ้น (ระบบคำนวณ = cap×แผ่น)·ขนาด (ซม.)·จำนวนแผ่น (PP 13"×19" / PVC ตร.ม.) ต่อลาย — บันทึกเฉพาะออเดอร์สติ๊กเกอร์เท่านั้น
+        const sti = (pItems ? pItems[i].spec.proType === 'sticker' : (s.tier === 'pro' && s.proType === 'sticker')) ? (D.si && D.si.list[i]) : null;
+        const row = { name: f.name, pages: f.pages, path: null, drive_url: f.big ? (f.b2Url || null) : null, auto: !!f.auto, heavy: f.heavy || 0, scanned: !!f.scanned, qty: sti ? Math.max(1, sti.q || 1) : null };
+        if (sti && sti.ok) { row.w = sti.w; row.h = sti.h; row.sh = sti.sheets; row.stk = sti.t || null; } // stk = เนื้อของลายนี้ (pp/pvc)
+        // งานปริ้นผสม: บันทึกต่อไฟล์ว่าพิมพ์แบบไหน + หน้าสีหน้าไหน — หลังบ้าน/ทีมผลิตอ่านจากการ์ดได้เลย (เจ้าของสั่ง 2026-10-08)
+        if (s.tier !== 'pro' && s.ptype === 'mix') {
+          const mx = (D.mi && D.mi.list[i]) || {};
+          row.cmode = mx.mode || 'bw'; // bw = ขาวดำทั้งไฟล์ · color = สีทั้งไฟล์ · pages = ระบุหน้าสีเอง
+          row.cpages = mx.mode === 'pages' ? pagesToRanges([...mx.set]) : null;
+          row.cheavy = mx.ch || 0; row.clight = mx.cl || 0; row.cbw = mx.cBw || 0;
+        }
+        if (s.tier !== 'pro') { const fo = D.fos[i]; row.sides = fo.sides; row.orient = fo.orient; row.nup = fo.nup; row.bind = fo.bind; } // ตัวเลือกรายไฟล์ (2026-10-12)
+        if (pItems) { const it = pItems[i]; row.paper = it.label; row.protype = it.spec.proType; row.copies = it.spec.proType === 'sticker' ? 1 : Math.max(1, it.spec.copies || 1); /* สติ๊กเกอร์หลายไฟล์คิดเงินไฟล์ละ 1 ชุดเสมอ (proItems ล็อก copies=1) — ต้องบันทึก 1 ให้ตรงกับที่ลูกค้าเห็น/จ่าย ไม่งั้นหลังบ้านขึ้นจำนวนชุดเกินจริง (ตรวจพบ 2026-10-15) */ row.sides = it.spec.sides === 2 ? 2 : 1; row.bind = it.spec.proType === 'foldbook' ? it.spec.proBind : 'none'; row.pcost = it.cost; } // Pro รายไฟล์ (2026-10-12)
+        files.push(row);
+      }
+      // ── ขั้นที่ 2 (มี await): อัปโหลด/หา path ของแต่ละไฟล์ แล้วเติมลงแถวที่สร้างไว้ — ไม่แตะค่าอื่นอีก ──
       for (let i = 0; i < s.files.length; i++) {
         const f = s.files[i];
         let path = null;
@@ -2139,20 +2159,7 @@ class App extends React.Component {
             if (error) { console.error('upload:', error); path = null; upFail++; failIdx.push({ i, name: f.name }); }
           }
         }
-        // qty/w/h/sh = จำนวนชิ้น (ระบบคำนวณ = cap×แผ่น)·ขนาด (ซม.)·จำนวนแผ่น (PP 13"×19" / PVC ตร.ม.) ต่อลาย — บันทึกเฉพาะออเดอร์สติ๊กเกอร์เท่านั้น
-        const sti = (pItems ? pItems[i].spec.proType === 'sticker' : (s.tier === 'pro' && s.proType === 'sticker')) ? (D.si && D.si.list[i]) : null;
-        const row = { name: f.name, pages: f.pages, path, drive_url: f.big ? (f.b2Url || null) : null, auto: !!f.auto, heavy: f.heavy || 0, scanned: !!f.scanned, qty: sti ? Math.max(1, sti.q || 1) : null };
-        if (sti && sti.ok) { row.w = sti.w; row.h = sti.h; row.sh = sti.sheets; row.stk = sti.t || null; } // stk = เนื้อของลายนี้ (pp/pvc)
-        // งานปริ้นผสม: บันทึกต่อไฟล์ว่าพิมพ์แบบไหน + หน้าสีหน้าไหน — หลังบ้าน/ทีมผลิตอ่านจากการ์ดได้เลย (เจ้าของสั่ง 2026-10-08)
-        if (s.tier !== 'pro' && s.ptype === 'mix') {
-          const mx = (D.mi && D.mi.list[i]) || {};
-          row.cmode = mx.mode || 'bw'; // bw = ขาวดำทั้งไฟล์ · color = สีทั้งไฟล์ · pages = ระบุหน้าสีเอง
-          row.cpages = mx.mode === 'pages' ? pagesToRanges([...mx.set]) : null;
-          row.cheavy = mx.ch || 0; row.clight = mx.cl || 0; row.cbw = mx.cBw || 0;
-        }
-        if (s.tier !== 'pro') { const fo = D.fos[i]; row.sides = fo.sides; row.orient = fo.orient; row.nup = fo.nup; row.bind = fo.bind; } // ตัวเลือกรายไฟล์ (2026-10-12)
-        if (pItems) { const it = pItems[i]; row.paper = it.label; row.protype = it.spec.proType; row.copies = Math.max(1, it.spec.copies || 1); row.sides = it.spec.sides === 2 ? 2 : 1; row.bind = it.spec.proType === 'foldbook' ? it.spec.proBind : 'none'; row.pcost = it.cost; } // Pro รายไฟล์ (2026-10-12)
-        files.push(row);
+        files[i].path = path;
       }
       if (upFail) {
         setTimeout(() => this.showToast('⚠️ ไฟล์แนบอัปโหลดไม่สำเร็จ ' + upFail + ' ไฟล์ — กดส่งใหม่ได้ที่หน้าติดตามเลยครับ'), 1200);
