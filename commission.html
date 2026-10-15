@@ -26,6 +26,7 @@
   @media(max-width:900px){ .mp-side{transform:translateX(-105%)} .mp-side.open{transform:translateX(0)} .mp-scrim.show{display:block} .mp-burger{display:flex} }
   /* จอคอมกว้าง: ขยายคอลัมน์เนื้อหาให้ใช้พื้นที่มากขึ้น (เจ้าของสั่ง 2026-09-15) — มือถือ/แท็บเล็ตคงเดิม */
   @media(min-width:1200px){ .mp-content{max-width:1020px !important} }
+  .mp-kpis{grid-template-columns:repeat(2,minmax(0,1fr))} @media(min-width:700px){ .mp-kpis{grid-template-columns:repeat(3,minmax(0,1fr))} } /* การ์ดตัวเลขหลักแดชบอร์ดรายได้ (2026-10-15) */
   img{max-width:100%}
 </style>
 <script src="./config.js"></script>
@@ -674,9 +675,419 @@ function Manage({ o, onPrice, onPayout, onAdvance, onRetreat, onApplyEdits, onCa
   );
 }
 
+// ═══ แดชบอร์ดรายได้งาน PRO — รูปแบบเดียวกับแท็บ "ยอดขาย" ของ admin.html (เจ้าของสั่ง 2026-10-15) ═══
+// ต่างกันที่ "รายได้" = รายได้ของเรา (คอมจากค่างาน + ค่าส่ง + ค่ากลางคืน) รับรู้เมื่องานจบ (สถานะ 4) ตามกติกาเดิมของหน้านี้
+const DASH_MONTHS = TH_MONTHS;
+const DASH_DAYS = ['อา', 'จ', 'อ', 'พ', 'พฤ', 'ศ', 'ส'];
+const DASH_PERIODS = [['today', 'วันนี้'], ['7d', '7 วัน'], ['30d', '30 วัน'], ['month', 'เดือนนี้'], ['year', 'ปีนี้'], ['custom', 'กำหนดเอง']];
+const STEP_COLORS = ['#8a6d1a', '#0b7285', '#9c36b5', '#00b368'];
+const STEP_BG = ['#fff7e0', '#e3fafc', '#f8f0fc', '#e6f7ef'];
+const isPickup = (o) => !!o.pickup || String(o.addr || '').indexOf('🏪') === 0;
+const custKey = (o) => o.customer_phone || o.phone || '?';
+const ymd = (d) => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+const shipOfO = (o) => (Number(o.delivery_cost) || 0) + (Number(o.night_fee) || 0); // ค่าส่ง+กลางคืน = ของเราเต็ม (สูตรเดียวกับการ์ดรายได้)
+const ourOf = (o) => (jobValue(o) > 0 ? commOf(o) : 0) + shipOfO(o); // รายได้ของเราต่อใบ (นับเมื่องานจบ)
+// ชนิดงาน Pro จากป้าย paper — หลายไฟล์ ("โปสเตอร์ A3 + สติ๊กเกอร์") แยกชนิดแล้วต่อด้วย +
+const proKindOf = (o) => {
+  const one = (b) => {
+    b = b.trim();
+    let m;
+    if ((m = b.match(/^(เพลท|โปสเตอร์)/))) return m[1];
+    if (/^Postcard/.test(b)) return 'Postcard';
+    if (/^พับครึ่ง/.test(b)) return 'พับครึ่ง (เข้าเล่ม/เมนู)';
+    if (/^นามบัตร/.test(b)) return 'นามบัตร';
+    if (/^ปริ้นสีขาวดำขนาดใหญ่/.test(b)) return 'ปริ้นสีขาวดำขนาดใหญ่';
+    if (/^สติ๊กเกอร์/.test(b)) return 'สติ๊กเกอร์';
+    if (/^Portfolio/i.test(b)) return 'Portfolio';
+    if (/Standy|สแตนดี้/.test(b)) return 'Standy';
+    if (/^A\d$/.test(b)) return 'งาน PRO ' + b;
+    return b || 'งาน PRO';
+  };
+  const base = String(o.paper || '').split(' · ')[0];
+  return [...new Set(base.split(' + ').map(one))].join(' + ');
+};
+
+// ── แบ่งโซนส่งของจากพิกัดหมุดลูกค้า (สูตรเดียวกับ admin.html) ──
+const ZONES = [
+  { name: 'กังสดาล', lat: 16.4585, lng: 102.8150 },
+  { name: 'โคลัมโบ', lat: 16.4796, lng: 102.8039 },
+  { name: 'หลังมอ', lat: 16.4883, lng: 102.8145 },
+];
+function zoneOf(lat, lng){
+  if (lat == null || lng == null) return null;
+  if (lat >= 16.4645 && lat <= 16.4825 && lng >= 102.8145 && lng <= 102.8390) return { name: 'ในมอ' };
+  let best = null, bd = Infinity;
+  for (const z of ZONES) { const d = Math.hypot((lat - z.lat) * 111, (lng - z.lng) * 105); if (d < bd) { bd = d; best = z; } }
+  return bd > 3.5 ? { name: 'นอกเขต' } : best;
+}
+
+// ช่วงเวลาที่เลือก + ช่วงก่อนหน้าความยาวเท่ากัน (ไว้เทียบ ▲▼) + ขนาดแท่งกราฟ
+function dashRange(key, from, to){
+  const now = new Date();
+  const d0 = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const addD = (d, n) => new Date(d.getFullYear(), d.getMonth(), d.getDate() + n);
+  let start, end = now, prevStart, bucket = 'day';
+  if (key === 'today') { start = d0; prevStart = addD(d0, -1); bucket = 'hour'; }
+  else if (key === '7d') { start = addD(d0, -6); prevStart = addD(start, -7); }
+  else if (key === '30d') { start = addD(d0, -29); prevStart = addD(start, -30); }
+  else if (key === 'month') { start = new Date(now.getFullYear(), now.getMonth(), 1); prevStart = new Date(now.getFullYear(), now.getMonth() - 1, 1); }
+  else if (key === 'year') { start = new Date(now.getFullYear(), 0, 1); prevStart = new Date(now.getFullYear() - 1, 0, 1); bucket = 'month'; }
+  else {
+    const a = from ? new Date(from + 'T00:00:00') : addD(d0, -6);
+    const b = to ? new Date(to + 'T00:00:00') : d0;
+    start = a <= b ? a : b; end = addD(a <= b ? b : a, 1);
+    const days = Math.round((end - start) / 86400000);
+    prevStart = addD(start, -days);
+    bucket = days <= 1 ? 'hour' : days <= 62 ? 'day' : 'month';
+  }
+  const prevEnd = new Date(prevStart.getTime() + (end - start));
+  return { start, end, prevStart, prevEnd, bucket };
+}
+// นาทีตั้งแต่ลูกค้าสั่ง → ส่งถึง (times[3] = HH:MM)
+function leadMinutes(o){
+  const t = o.times && o.times[3];
+  if (o.status !== 4 || !t || !/^\d{1,2}:\d{2}$/.test(t)) return null;
+  const c = new Date(o.created_at);
+  const [h, m] = t.split(':').map(Number);
+  let mins = (h * 60 + m) - (c.getHours() * 60 + c.getMinutes());
+  if (mins < 0) mins += 1440;
+  return mins <= 1440 ? mins : null;
+}
+function dashSummary(rows, start, end){
+  const inR = rows.filter(o => { const t = new Date(o.created_at); return t >= start && t < end; });
+  const valid = inR.filter(o => o.status !== 0);
+  const cancelled = inR.filter(o => o.status === 0);
+  const done = valid.filter(o => o.status === 4);
+  const revenue = done.reduce((a, o) => a + ourOf(o), 0);
+  const custs = new Set(valid.map(custKey));
+  return { inR, valid, cancelled, done, revenue, orders: valid.length, avg: done.length ? revenue / done.length : 0,
+    customers: custs.size, gross: valid.reduce((a, o) => a + (Number(o.total) || (jobValue(o) + shipOfO(o))), 0),
+    pendingOur: valid.filter(o => o.status < 4).reduce((a, o) => a + ourOf(o), 0), pendingN: valid.filter(o => o.status < 4).length,
+    cancelValue: cancelled.reduce((a, o) => a + (Number(o.total) || 0), 0) };
+}
+function DashCard({ title, right, children, accent }){
+  return (
+    <div style={css("background:var(--card);border:" + (accent ? "1.5px solid var(--acc)" : "1px solid var(--line)") + ";border-radius:14px;padding:14px 16px;box-shadow:var(--shadow);min-width:0")}>
+      {(title || right) && <div style={css("display:flex;align-items:center;gap:8px;margin-bottom:10px")}><div style={css("font-size:12.5px;font-weight:700;flex:1;display:flex;align-items:center;gap:6px")}>{title}</div>{right}</div>}
+      {children}
+    </div>
+  );
+}
+function Delta({ cur, prev, invert }){
+  if (!prev && !cur) return <span style={css("font-size:10.5px;color:var(--sub)")}>—</span>;
+  if (!prev) return <span style={css("font-size:10.5px;font-weight:700;color:var(--green)")}>ใหม่</span>;
+  const pct = Math.round((cur - prev) / prev * 100);
+  const good = invert ? pct <= 0 : pct >= 0;
+  return <span style={css("font-size:10.5px;font-weight:700;color:" + (pct === 0 ? "var(--sub)" : good ? "var(--green)" : "#c92a2a"))}>{pct > 0 ? '▲' : pct < 0 ? '▼' : '•'} {Math.abs(pct)}%</span>;
+}
+function HBars({ items, fmt, color }){
+  if (!items.length) return <div style={css("font-size:12px;color:var(--sub)")}>ยังไม่มีข้อมูลในช่วงนี้</div>;
+  const max = Math.max(...items.map(x => x.v), 1);
+  return (
+    <div style={css("display:flex;flex-direction:column;gap:9px")}>
+      {items.map((x, i) => (
+        <div key={i} title={x.label + ' · ' + fmt(x)}>
+          <div style={css("display:flex;justify-content:space-between;gap:8px;font-size:12px")}><span style={css("font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap")}>{x.label}</span><span style={css("font-family:'IBM Plex Mono',monospace;color:var(--sub);white-space:nowrap")}>{fmt(x)}</span></div>
+          <div style={css("margin-top:4px;height:6px;background:var(--soft);border-radius:99px;overflow:hidden")}><div style={{ height: '100%', borderRadius: '99px', background: color || 'var(--acc)', width: Math.max(2, Math.round(x.v / max * 100)) + '%' }}></div></div>
+        </div>
+      ))}
+    </div>
+  );
+}
+const dashChip = (on) => ({ height: '30px', padding: '0 12px', borderRadius: '99px', border: '1px solid ' + (on ? 'var(--acc)' : 'var(--line)'), background: on ? 'var(--acc)' : 'var(--card)', color: on ? '#fff' : 'var(--ink)', fontSize: '12px', fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0, fontFamily: 'inherit' });
+const csvCell = (v) => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
+function downloadCsv(name, head, lines){
+  const blob = new Blob(['﻿' + [head, ...lines].map(r => r.map(csvCell).join(',')).join('\r\n')], { type: 'text/csv;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = name;
+  a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+}
+function useDashPeriod(){
+  const [pkey, setPkey] = React.useState('7d');
+  const [from, setFrom] = React.useState(() => ymd(new Date(Date.now() - 6 * 86400000)));
+  const [to, setTo] = React.useState(() => ymd(new Date()));
+  return { pkey, setPkey, from, setFrom, to, setTo };
+}
+function DashHeader({ title, P, R, loading, loadedAt, onReload, onCsv, csvOn }){
+  const e = new Date(R.end.getTime() - 1);
+  const f = (t) => t.getDate() + ' ' + DASH_MONTHS[t.getMonth()] + ' ' + ((t.getFullYear() + 543) % 100);
+  const rangeText = R.start.toDateString() === e.toDateString() ? f(R.start) : f(R.start) + ' – ' + f(e);
+  const dateIn = css("flex:1;min-width:0;height:34px;border:1px solid var(--line);border-radius:9px;padding:0 8px;background:var(--card);color:var(--ink);font-family:inherit");
+  return (
+    <div style={css("display:flex;flex-direction:column;gap:8px")}>
+      <div style={css("display:flex;align-items:center;gap:8px")}>
+        <div style={css("flex:1;min-width:0")}>
+          <div style={css("font-size:16px;font-weight:700")}>{title}</div>
+          <div style={css("font-size:11px;color:var(--sub)")}>{rangeText} · เทียบช่วงก่อนหน้าเท่ากัน{loadedAt ? ' · อัปเดต ' + loadedAt.toTimeString().slice(0, 5) : ''}</div>
+        </div>
+        <button onClick={onReload} disabled={loading} title="โหลดข้อมูลล่าสุด" style={dashChip(false)}>{loading ? '⏳' : '↻'} รีเฟรช</button>
+        <button onClick={onCsv} disabled={!csvOn} title="ดาวน์โหลดรายการงาน PRO ในช่วงนี้ (เปิดด้วย Excel/Google Sheets)" style={{ ...dashChip(false), display: 'flex', alignItems: 'center', gap: '5px', opacity: csvOn ? 1 : .5 }}>{FI.download(13)} CSV</button>
+      </div>
+      <div style={css("display:flex;gap:6px;overflow-x:auto;padding-bottom:2px")}>
+        {DASH_PERIODS.map(([k, l]) => <button key={k} onClick={() => P.setPkey(k)} style={dashChip(P.pkey === k)}>{l}</button>)}
+      </div>
+      {P.pkey === 'custom' && (
+        <div style={css("display:flex;align-items:center;gap:8px;font-size:12px")}>
+          <input type="date" value={P.from} max={P.to} onChange={ev => P.setFrom(ev.target.value)} style={dateIn}/>
+          <span style={css("color:var(--sub)")}>ถึง</span>
+          <input type="date" value={P.to} min={P.from} onChange={ev => P.setTo(ev.target.value)} style={dateIn}/>
+        </div>
+      )}
+      {loading && !loadedAt && <div style={css("padding:30px 0;text-align:center;font-size:12.5px;color:var(--sub)")}>⏳ กำลังโหลดประวัติงาน PRO ทั้งหมด…</div>}
+    </div>
+  );
+}
+
+function IncomeDashboard({ rows, loading, loadedAt, onReload }){
+  const P = useDashPeriod();
+  const { pkey, from, to } = P;
+  const [hover, setHover] = React.useState(null);
+  const [jobBy, setJobBy] = React.useState('revenue');
+  const STEPS = stepsOf({ pickup: false });
+
+  const d = React.useMemo(() => {
+    const all = rows || [];
+    const R = dashRange(pkey, from, to);
+    const cur = dashSummary(all, R.start, R.end);
+    const prev = dashSummary(all, R.prevStart, R.prevEnd);
+
+    const buckets = [];
+    if (R.bucket === 'hour') {
+      for (let h = 0; h < 24; h++) buckets.push({ s: new Date(R.start.getFullYear(), R.start.getMonth(), R.start.getDate(), h), label: String(h).padStart(2, '0'), long: String(h).padStart(2, '0') + ':00–' + String(h).padStart(2, '0') + ':59' });
+    } else if (R.bucket === 'day') {
+      for (let t = new Date(R.start); t < R.end; t = new Date(t.getFullYear(), t.getMonth(), t.getDate() + 1)) buckets.push({ s: t, label: String(t.getDate()), long: DASH_DAYS[t.getDay()] + ' ' + t.getDate() + ' ' + DASH_MONTHS[t.getMonth()] });
+    } else {
+      for (let t = new Date(R.start.getFullYear(), R.start.getMonth(), 1); t < R.end; t = new Date(t.getFullYear(), t.getMonth() + 1, 1)) buckets.push({ s: t, label: DASH_MONTHS[t.getMonth()], long: DASH_MONTHS[t.getMonth()] + ' ' + (t.getFullYear() + 543) });
+    }
+    const keyOf = (t) => R.bucket === 'hour' ? t.getHours() : R.bucket === 'day' ? t.toDateString() : t.getFullYear() * 100 + t.getMonth();
+    const idx = {}; buckets.forEach((b, i) => { b.v = 0; b.n = 0; idx[keyOf(b.s)] = i; });
+    cur.valid.forEach(o => { const i = idx[keyOf(new Date(o.created_at))]; if (i != null) { buckets[i].n++; if (o.status === 4) buckets[i].v += ourOf(o); } });
+    const nowK = keyOf(new Date());
+    buckets.forEach(b => { b.isNow = keyOf(b.s) === nowK && R.end > new Date(Date.now() - 60000); });
+    const bMax = Math.max(1, ...buckets.map(b => b.v));
+    const best = buckets.reduce((a, b) => (b.v > (a ? a.v : 0) ? b : a), null);
+
+    const status = [1, 2, 3, 4].map(s => cur.inR.filter(o => o.status === s).length);
+
+    const jm = {};
+    cur.valid.forEach(o => { const k = proKindOf(o); if (!jm[k]) jm[k] = { label: k, n: 0, rev: 0 }; jm[k].n++; jm[k].rev += Number(o.total) || (jobValue(o) + shipOfO(o)); });
+    const jobs = Object.values(jm);
+
+    // องค์ประกอบรายได้ของเรา (เฉพาะงานที่จบ) + ส่วนที่ให้ร้านพาร์ทเนอร์
+    const comp = { comm: 0, ship: 0, night: 0, partner: 0, job: 0 };
+    cur.done.forEach(o => {
+      if (jobValue(o) > 0) { comp.comm += commOf(o); comp.partner += partnerOf(o); comp.job += jobNet(o); }
+      comp.ship += Number(o.delivery_cost) || 0; comp.night += Number(o.night_fee) || 0;
+    });
+
+    const pick = cur.valid.filter(isPickup);
+    const zm = {}, pm = {};
+    cur.valid.forEach(o => {
+      if (isPickup(o)) return;
+      const z = zoneOf(o.lat, o.lng); const zn = z ? z.name : 'ไม่ระบุ';
+      zm[zn] = (zm[zn] || 0) + 1;
+      if (o.point) pm[o.point] = (pm[o.point] || 0) + 1;
+    });
+
+    const heat = [...Array(7)].map(() => Array(24).fill(0));
+    cur.valid.forEach(o => { const t = new Date(o.created_at); heat[t.getDay()][t.getHours()]++; });
+    const heatMax = Math.max(1, ...heat.flat());
+    const hourTot = Array(24).fill(0); heat.forEach(r => r.forEach((n, h) => { hourTot[h] += n; }));
+    const peakH = hourTot.indexOf(Math.max(...hourTot));
+
+    const first = {};
+    all.forEach(o => { if (o.status === 0) return; const k = custKey(o); if (!first[k] || o.created_at < first[k]) first[k] = o.created_at; });
+    const cm = {};
+    cur.valid.forEach(o => {
+      const k = custKey(o);
+      if (!cm[k]) cm[k] = { name: ('คุณ' + (o.customer_fname || '') + ' ' + (o.customer_lname || '')).trim(), phone: k, n: 0, rev: 0 };
+      cm[k].n++; cm[k].rev += Number(o.total) || (jobValue(o) + shipOfO(o));
+    });
+    const custList = Object.values(cm);
+    const newCust = custList.filter(c => new Date(first[c.phone]) >= R.start).length;
+
+    const leads = cur.valid.map(leadMinutes).filter(x => x != null);
+    const leadAvg = leads.length ? Math.round(leads.reduce((a, x) => a + x, 0) / leads.length) : null;
+
+    return { R, cur, prev, buckets, bMax, best, status, jobs, comp, pick, zm, pm, heat, heatMax, peakH, hourTot, custList, newCust, leadAvg,
+      night: cur.valid.filter(o => (Number(o.night_fee) || 0) > 0).length, paid: cur.done.filter(o => o.payout_at).length };
+  }, [rows, pkey, from, to]);
+
+  const exportCsv = () => {
+    const STAT = ['ยกเลิก', ...STEPS];
+    const head = ['รหัสออเดอร์', 'วันที่', 'เวลา', 'ลูกค้า', 'เบอร์โทร', 'งานที่สั่ง', 'ชนิดงาน', 'สถานะ', 'รับงาน', 'ยอดงานปริ้น (สุทธิ)', 'คอมเรา', 'ให้ร้านพาร์ทเนอร์', 'ค่าส่ง', 'ค่ากลางคืน', 'ลูกค้าจ่ายรวม', 'รายได้ของเรา (เมื่องานจบ)', 'โอนให้ร้านแล้ว'];
+    const lines = [...d.cur.inR].sort((a, b) => (a.created_at > b.created_at ? 1 : -1)).map(o => {
+      const t = new Date(o.created_at);
+      return [o.id, ymd(t), t.toTimeString().slice(0, 5), ((o.customer_fname || '') + ' ' + (o.customer_lname || '')).trim(), custKey(o), o.paper || '', proKindOf(o),
+        STAT[o.status] || o.status, isPickup(o) ? 'มารับเอง' : 'จัดส่ง', Math.round(jobNet(o) * 100) / 100, Math.round(commOf(o) * 100) / 100, Math.round(partnerOf(o) * 100) / 100,
+        o.delivery_cost || 0, o.night_fee || 0, o.total || 0, o.status === 4 ? Math.round(ourOf(o) * 100) / 100 : 0, o.payout_at ? 'โอนแล้ว' : ''];
+    });
+    downloadCsv('moreprint-pro_' + ymd(d.R.start) + '_' + ymd(new Date(d.R.end.getTime() - 1)) + '.csv', head, lines);
+  };
+
+  const { cur, prev } = d;
+  const mono = "font-family:'IBM Plex Mono',monospace;";
+  const KPIS = [
+    [FI.baht(11), 'รายได้ของเรา (งานจบแล้ว)', baht(cur.revenue), cur.revenue, prev.revenue, true],
+    [FI.receipt(11), 'ออเดอร์', cur.orders.toLocaleString(), cur.orders, prev.orders],
+    [FI.chart(11), 'เฉลี่ย/งานที่จบ', baht(cur.avg), cur.avg, prev.avg],
+    [FI.users(11), 'ลูกค้า (ไม่ซ้ำ)', cur.customers.toLocaleString(), cur.customers, prev.customers],
+    [FI.printer(11), 'ยอดลูกค้าจ่ายรวม', baht(cur.gross), cur.gross, prev.gross],
+    [FI.x(11), 'ยกเลิก', cur.cancelled.length + ' (' + baht(cur.cancelValue) + ')', cur.cancelled.length, prev.cancelled.length, false, true]
+  ];
+  const jobsSorted = [...d.jobs].sort((a, b) => jobBy === 'revenue' ? b.rev - a.rev : b.n - a.n);
+  const chip = dashChip;
+  const hb = hover != null ? d.buckets[hover] : null;
+  const labelEvery = Math.ceil(d.buckets.length / 12);
+
+  return (
+    <React.Fragment>
+      <DashHeader title="สรุปรายได้งาน PRO" P={P} R={d.R} loading={loading} loadedAt={loadedAt} onReload={onReload} onCsv={exportCsv} csvOn={cur.inR.length > 0}/>
+
+      <div className="mp-kpis" style={css("display:grid;gap:10px")}>
+        {KPIS.map(([ic, label, val, c, p, hero, inv], i) => (
+          <div key={i} style={css("background:var(--card);border:" + (hero ? "1.5px solid var(--acc)" : "1px solid var(--line)") + ";border-radius:14px;padding:12px 14px;box-shadow:var(--shadow);min-width:0")}>
+            <div style={css("font-size:11px;font-weight:600;color:var(--sub);display:flex;align-items:center;gap:5px")}>{ic} {label}</div>
+            <div style={css(mono + "margin-top:4px;font-size:" + (hero ? "22px" : "18px") + ";font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:" + (hero ? "var(--green)" : "var(--ink)"))}>{val}</div>
+            <div style={css("margin-top:2px;display:flex;align-items:center;gap:5px")}><Delta cur={c} prev={p} invert={inv}/><span style={css("font-size:10px;color:var(--sub)")}>เทียบช่วงก่อน</span></div>
+          </div>
+        ))}
+      </div>
+      {cur.pendingN > 0 && <div style={css("background:var(--card);border:1.5px dashed var(--acc);border-radius:12px;padding:9px 14px;font-size:12px;display:flex;align-items:center;gap:10px")}>
+        <span style={css("font-size:18px")}>⏳</span>
+        <span style={css("flex:1;color:var(--sub)")}>รอรับจากงานในช่วงนี้ที่ยังไม่จบ <b style={css("color:var(--ink)")}>{cur.pendingN} งาน</b> — เข้ายอดเมื่อส่งถึงมือลูกค้า</span>
+        <b style={css(mono + "font-size:15px;color:var(--acc)")}>{baht(cur.pendingOur)}</b>
+      </div>}
+
+      <DashCard title={<React.Fragment>{FI.chart(13)} รายได้ของเรา{d.R.bucket === 'hour' ? 'รายชั่วโมง' : d.R.bucket === 'day' ? 'รายวัน' : 'รายเดือน'}</React.Fragment>}
+        right={d.best && d.best.v > 0 && <span style={css("font-size:10.5px;color:var(--sub)")}>สูงสุด <b style={css("color:var(--ink)")}>{d.best.long}</b> {baht(d.best.v)}</span>}>
+        <div style={css("height:16px;font-size:11px;color:var(--sub);margin-bottom:4px")}>
+          {hb ? <span><b style={css("color:var(--ink)")}>{hb.long}</b> · <span style={css(mono + "color:var(--green);font-weight:600")}>{baht(hb.v)}</span> · {hb.n} ออเดอร์</span> : 'ชี้/แตะที่แท่งเพื่อดูรายละเอียด · นับตามวันที่สั่ง รายได้นับเฉพาะงานที่จบแล้ว'}
+        </div>
+        <div onMouseLeave={() => setHover(null)} style={css("display:flex;align-items:flex-end;gap:2px;height:130px;border-bottom:1px solid var(--line)")}>
+          {d.buckets.map((b, i) => (
+            <div key={i} onMouseEnter={() => setHover(i)} onClick={() => setHover(i)} title={b.long + ' · ' + baht(b.v) + ' · ' + b.n + ' ออเดอร์'}
+              style={css("flex:1;min-width:0;height:100%;display:flex;align-items:flex-end;justify-content:center;cursor:pointer")}>
+              <div style={{ width: '78%', maxWidth: '30px', borderRadius: '4px 4px 0 0', height: (b.v > 0 ? Math.max(4, Math.round(b.v / d.bMax * 100)) : 1) + '%',
+                background: hover === i || b.isNow ? 'var(--green)' : '#8fd6b2', opacity: hover != null && hover !== i ? .55 : 1 }}></div>
+            </div>
+          ))}
+        </div>
+        <div style={css("display:flex;gap:2px;margin-top:5px")}>
+          {d.buckets.map((b, i) => (
+            <div key={i} style={{ flex: 1, minWidth: 0, textAlign: 'center', fontSize: '9.5px', fontWeight: b.isNow ? 700 : 500, color: b.isNow ? 'var(--green)' : 'var(--sub)', overflow: 'visible', whiteSpace: 'nowrap' }}>
+              {i % labelEvery === 0 || b.isNow ? b.label : ''}
+            </div>
+          ))}
+        </div>
+      </DashCard>
+
+      <DashCard title={<React.Fragment>{FI.clipboard(13)} สถานะงานในช่วงนี้</React.Fragment>} right={<span style={css("font-size:10.5px;color:var(--sub)")}>{cur.inR.length} ใบ</span>}>
+        <div style={css("display:grid;grid-template-columns:repeat(5,1fr);gap:6px")}>
+          {[...STEPS.map((s, i) => [s, d.status[i], STEP_COLORS[i], STEP_BG[i]]), ['ยกเลิก', cur.cancelled.length, '#c92a2a', '#fff0f0']].map(([l, n, fg, bg], i) => (
+            <div key={i} style={{ background: bg, borderRadius: '10px', padding: '8px 4px', textAlign: 'center', minWidth: 0 }}>
+              <div style={css(mono + "font-size:18px;font-weight:600;color:" + fg)}>{n}</div>
+              <div style={{ fontSize: '10px', fontWeight: 700, color: fg, lineHeight: 1.25 }}>{l}</div>
+            </div>
+          ))}
+        </div>
+        <div style={css("margin-top:10px;display:flex;flex-wrap:wrap;gap:6px 14px;font-size:11.5px;color:var(--sub)")}>
+          <span>อัตรายกเลิก <b style={css("color:var(--ink)")}>{cur.inR.length ? Math.round(cur.cancelled.length / cur.inR.length * 100) : 0}%</b></span>
+          <span>{FI.clock(11)} สั่ง→ส่งถึง เฉลี่ย <b style={css("color:var(--ink)")}>{d.leadAvg == null ? '—' : d.leadAvg >= 60 ? Math.floor(d.leadAvg / 60) + ' ชม. ' + (d.leadAvg % 60) + ' นาที' : d.leadAvg + ' นาที'}</b></span>
+          <span>{FI.check(11)} โอนให้ร้านแล้ว <b style={css("color:var(--ink)")}>{d.paid}/{cur.done.length}</b> งานที่จบ</span>
+        </div>
+      </DashCard>
+
+      <div style={css("display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:12px")}>
+        <DashCard title={<React.Fragment>{FI.printer(13)} ประเภทงาน</React.Fragment>}
+          right={<div style={css("display:flex;gap:4px")}>{[['revenue', 'ยอดงาน'], ['count', 'จำนวน']].map(([k, l]) => <button key={k} onClick={() => setJobBy(k)} style={{ ...chip(jobBy === k), height: '24px', padding: '0 9px', fontSize: '10.5px' }}>{l}</button>)}</div>}>
+          <HBars items={jobsSorted.map(j => ({ label: j.label, v: jobBy === 'revenue' ? j.rev : j.n, n: j.n, rev: j.rev }))}
+            fmt={(x) => jobBy === 'revenue' ? baht(x.rev) + ' · ' + (cur.gross ? Math.round(x.rev / cur.gross * 100) : 0) + '%' : x.n + ' ใบ · ' + (cur.orders ? Math.round(x.n / cur.orders * 100) : 0) + '%'}/>
+        </DashCard>
+
+        <DashCard title={<React.Fragment>{FI.baht(13)} รายได้ของเรามาจากไหน</React.Fragment>}>
+          <div style={css("display:flex;flex-direction:column;gap:7px;font-size:12.5px")}>
+            {[['คอมจากค่างาน', d.comp.comm], ['ค่าจัดส่ง (ของเราเต็ม)', d.comp.ship], ['ค่าบริการกลางคืน', d.comp.night]].map(([l, v], i) => (
+              <div key={i} style={css("display:flex;justify-content:space-between;gap:8px")}>
+                <span style={css("color:var(--sub)")}>{l}</span>
+                <span style={css(mono + "font-weight:600")}>{baht(v)} <span style={css("color:var(--sub);font-weight:400;font-size:10.5px")}>{cur.revenue ? Math.round(v / cur.revenue * 100) : 0}%</span></span>
+              </div>
+            ))}
+            <div style={css("display:flex;justify-content:space-between;border-top:1px dashed var(--line);padding-top:7px;font-weight:700")}><span>รวมรายได้ของเรา</span><span style={css(mono + "color:var(--green)")}>{baht(cur.revenue)}</span></div>
+            <div style={css("display:flex;justify-content:space-between;gap:8px;color:var(--sub);font-size:11.5px")}><span>ยอดงานปริ้นสุทธิ (งานที่จบ)</span><span style={css(mono)}>{baht(d.comp.job)}</span></div>
+            <div style={css("display:flex;justify-content:space-between;gap:8px;color:var(--purple);font-size:11.5px")}><span>ส่วนที่ให้{PARTNER_NAME}</span><span style={css(mono + "font-weight:600")}>{baht(d.comp.partner)}</span></div>
+          </div>
+          <div style={css("margin-top:10px;display:flex;flex-wrap:wrap;gap:6px")}>
+            {[[FI.bag(11), 'มารับเอง', d.pick.length], [FI.clock(11), 'กลางคืน', d.night]].map(([ic, l, n], i) => (
+              <span key={i} style={css("display:inline-flex;align-items:center;gap:4px;font-size:11px;background:var(--soft);border-radius:8px;padding:3px 9px")}>{ic} {l} <b style={css(mono)}>{n}</b></span>
+            ))}
+          </div>
+        </DashCard>
+
+        <DashCard title={<React.Fragment>{FI.truck(13)} รับงาน & พื้นที่ส่ง</React.Fragment>}>
+          <div style={css("display:flex;gap:8px;margin-bottom:12px")}>
+            {[[FI.truck(13), 'จัดส่ง', cur.orders - d.pick.length], [FI.bag(13), 'มารับเองที่ร้าน', d.pick.length]].map(([ic, l, n], i) => (
+              <div key={i} style={css("flex:1;background:var(--soft);border-radius:10px;padding:8px 10px")}>
+                <div style={css("font-size:10.5px;color:var(--sub);display:flex;align-items:center;gap:4px")}>{ic} {l}</div>
+                <div style={css(mono + "font-size:17px;font-weight:600")}>{n} <span style={css("font-size:10.5px;color:var(--sub);font-weight:400")}>{cur.orders ? Math.round(n / cur.orders * 100) : 0}%</span></div>
+              </div>
+            ))}
+          </div>
+          <HBars items={Object.entries(d.zm).sort((a, b) => b[1] - a[1]).map(([k, n]) => ({ label: k, v: n }))} fmt={(x) => x.v + ' ใบ'}/>
+        </DashCard>
+
+        <DashCard title={<React.Fragment>{FI.pin(13)} จุดส่งยอดนิยม</React.Fragment>}>
+          <HBars items={Object.entries(d.pm).sort((a, b) => b[1] - a[1]).slice(0, 6).map(([k, n]) => ({ label: k, v: n }))} fmt={(x) => x.v + ' ใบ'}/>
+        </DashCard>
+      </div>
+
+      <DashCard title={<React.Fragment>{FI.clock(13)} ช่วงเวลาที่ลูกค้าสั่งเยอะ</React.Fragment>}
+        right={d.hourTot[d.peakH] > 0 && <span style={css("font-size:10.5px;color:var(--sub)")}>พีค <b style={css("color:var(--ink)")}>{String(d.peakH).padStart(2, '0')}:00–{String(d.peakH).padStart(2, '0')}:59</b></span>}>
+        <div style={css("display:flex;flex-direction:column;gap:2px")}>
+          {[1, 2, 3, 4, 5, 6, 0].map(day => (
+            <div key={day} style={css("display:flex;align-items:center;gap:2px")}>
+              <span style={css("width:20px;flex-shrink:0;font-size:9.5px;color:var(--sub)")}>{DASH_DAYS[day]}</span>
+              {d.heat[day].map((n, h) => (
+                <div key={h} title={DASH_DAYS[day] + ' ' + String(h).padStart(2, '0') + ':00 · ' + n + ' ออเดอร์'}
+                  style={{ flex: 1, minWidth: 0, height: '14px', borderRadius: '3px', background: n ? 'var(--acc)' : 'var(--soft)', opacity: n ? 0.18 + 0.82 * n / d.heatMax : 1 }}></div>
+              ))}
+            </div>
+          ))}
+          <div style={css("display:flex;gap:2px;margin-top:3px")}>
+            <span style={css("width:20px;flex-shrink:0")}></span>
+            {[...Array(24)].map((_, h) => <span key={h} style={css("flex:1;min-width:0;font-size:9px;color:var(--sub);text-align:center;overflow:hidden")}>{h % 3 === 0 ? h : ''}</span>)}
+          </div>
+        </div>
+        <div style={css("margin-top:8px;display:flex;align-items:center;gap:6px;font-size:10px;color:var(--sub)")}>
+          น้อย {[0.18, 0.45, 0.72, 1].map((a, i) => <span key={i} style={{ width: '14px', height: '10px', borderRadius: '2px', background: 'var(--acc)', opacity: a }}></span>)} มาก · นับจำนวนออเดอร์ตามเวลาที่สั่ง
+        </div>
+      </DashCard>
+
+      <DashCard title={<React.Fragment>{FI.users(13)} ลูกค้าในช่วงนี้</React.Fragment>}
+        right={<span style={css("font-size:10.5px;color:var(--sub)")}>ใหม่ <b style={css("color:var(--green)")}>{d.newCust}</b> · กลับมาซื้อซ้ำ <b style={css("color:var(--ink)")}>{d.custList.length - d.newCust}</b></span>}>
+        {d.custList.length === 0 && <div style={css("font-size:12px;color:var(--sub)")}>ยังไม่มีข้อมูลในช่วงนี้</div>}
+        {[...d.custList].sort((a, b) => b.rev - a.rev || b.n - a.n).slice(0, 5).map((c, i) => (
+          <div key={c.phone} style={css("display:flex;align-items:center;gap:10px;padding:7px 0;" + (i ? "border-top:1px dashed var(--line)" : ""))}>
+            <span style={css(mono + "width:18px;font-size:12px;font-weight:700;color:" + (i === 0 ? "var(--acc)" : "var(--sub)"))}>{i + 1}</span>
+            <div style={css("flex:1;min-width:0")}>
+              <div style={css("font-size:12.5px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap")}>{c.name || 'ไม่ระบุชื่อ'}</div>
+              <div style={css(mono + "font-size:10.5px;color:var(--sub)")}>{c.phone}</div>
+            </div>
+            <div style={css("text-align:right")}>
+              <div style={css(mono + "font-size:12.5px;font-weight:600;color:var(--acc)")}>{baht(c.rev)}</div>
+              <div style={css("font-size:10.5px;color:var(--sub)")}>{c.n} ออเดอร์ · ยอดงาน</div>
+            </div>
+          </div>
+        ))}
+      </DashCard>
+    </React.Fragment>
+  );
+}
+
 function Dash(){
   const [orders, setOrders] = React.useState(DB ? [] : DEMO);
   const [loading, setLoading] = React.useState(!!DB);
+  const [loadedAt, setLoadedAt] = React.useState(null); // เวลาโหลดล่าสุด (โชว์บนแดชบอร์ดรายได้)
   const [bill, setBill] = React.useState(null); // {y, m} = เปิดหน้าบิลของเดือนนั้น
   const [period, setPeriod] = React.useState('day');
   const [filter, setFilter] = React.useState('active');
@@ -749,7 +1160,7 @@ function Dash(){
     let r = await DB.from('orders').select(colsFull + ',cancelled_at,note,coupon,discount,adjustments,comm_rate').eq('ptype', 'pro').order('created_at', { ascending: false }).limit(3000); // comm_rate = เรทคอมรายใบ (ยังไม่รัน SQL = ตกลง fallback ล่าง)
     if (r.error) r = await DB.from('orders').select(colsFull).eq('ptype', 'pro').order('created_at', { ascending: false }).limit(3000); // ยังไม่รัน SQL ลบอัตโนมัติ
     if (r.error) r = await DB.from('orders').select(cols).eq('ptype', 'pro').order('created_at', { ascending: false }).limit(3000);
-    if (!r.error && r.data) { setOrders(r.data.filter(o => !cancelledExpired(o))); purgeCancelled(r.data); }
+    if (!r.error && r.data) { setOrders(r.data.filter(o => !cancelledExpired(o))); purgeCancelled(r.data); setLoadedAt(new Date()); }
     setLoading(false);
   }, []);
 
@@ -1067,7 +1478,7 @@ function Dash(){
       <div className="mp-content" style={css("padding:14px 16px 40px;display:flex;flex-direction:column;gap:12px;max-width:760px;margin:0 auto")}>
         {!DB && <div style={css("background:var(--accSoft);border:1px solid var(--line);border-radius:12px;padding:10px 14px;font-size:12px;color:var(--acc)")}>⚠️ โหมดตัวอย่าง — ข้อมูลเป็นเพียงตัวอย่าง</div>}
 
-        {(page === 'home' || page === 'income') && <React.Fragment>
+        {page === 'home' && <React.Fragment>
         {/* รายได้ — เลือกดูทีละช่วงเวลา */}
         <div style={css("background:var(--card);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow);overflow:hidden")}>
           <div style={css("display:flex;border-bottom:1px solid var(--line)")}>
@@ -1096,30 +1507,7 @@ function Dash(){
         </div>
 
         </React.Fragment>}
-        {page === 'income' && <React.Fragment>
-        {/* กราฟรายได้ของเรา */}
-        <div style={css("background:var(--card);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow);padding:14px 16px")}>
-          <div style={css("display:flex;align-items:center;gap:8px")}>
-            <div style={css("font-size:13px;font-weight:700;flex:1")}>{FI.chart(13)} กราฟรายได้ของเรา</div>
-            {[['d', 'รายวัน'], ['m', 'รายเดือน'], ['y', 'รายปี']].map(([k, label]) => (
-              <button key={k} onClick={() => setChartMode(k)} style={{ height: '30px', padding: '0 12px', borderRadius: '99px', cursor: 'pointer', fontSize: '11.5px', fontWeight: 700, fontFamily: 'inherit',
-                border: chartMode === k ? '1.5px solid var(--acc)' : '1px solid var(--line)',
-                background: chartMode === k ? 'var(--accSoft)' : 'var(--soft)', color: chartMode === k ? 'var(--acc)' : 'var(--sub)' }}>{label}</button>
-            ))}
-          </div>
-          <div style={css("margin-top:12px;display:flex;align-items:flex-end;gap:8px;height:150px")}>
-            {chartData.map((b, i) => (
-              <div key={i} style={css("flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;min-width:0")}>
-                <div style={css("font-family:'IBM Plex Mono',monospace;font-size:10px;font-weight:600;color:" + (b.v ? "var(--green)" : "var(--sub)") + ";margin-bottom:3px;white-space:nowrap")}>{b.v ? (b.v >= 1000 ? (Math.round(b.v / 100) / 10) + 'k' : b.v) : '-'}</div>
-                <div style={{ width: '70%', maxWidth: '38px', height: Math.max(3, b.h) + '%', borderRadius: '6px 6px 2px 2px', background: b.v ? 'var(--green)' : 'var(--line)', opacity: b.v ? (i === chartData.length - 1 ? 1 : .75) : .5 }}></div>
-                <div style={css("margin-top:5px;font-size:10px;color:var(--sub);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%")}>{b.label}</div>
-              </div>
-            ))}
-          </div>
-          <div style={css("margin-top:8px;font-size:10.5px;color:var(--sub)")}>คอม {Math.round(COMMISSION * 100)}% + ค่าส่ง จากงานที่จบแล้ว (นับตามวันที่สั่ง)</div>
-        </div>
-
-        </React.Fragment>}
+        {page === 'income' && <IncomeDashboard rows={orders} loading={loading} loadedAt={loadedAt} onReload={load}/>}{/* แดชบอร์ดรูปแบบเดียวกับแท็บยอดขายของ admin.html (เจ้าของสั่ง 2026-10-15) */}
         {page === 'home' && <React.Fragment>
         {/* คอมรอรับจากงานที่ยังไม่จบ */}
         <div style={css("background:var(--card);border:1.5px dashed var(--acc);border-radius:14px;padding:12px 16px;display:flex;align-items:center;gap:12px")}>
