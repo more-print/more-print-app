@@ -85,6 +85,8 @@ const FI = {
   file: (z) => fi(<React.Fragment><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><polyline points="13 2 13 9 20 9"/></React.Fragment>, z),
   download: (z) => fi(<React.Fragment><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></React.Fragment>, z),
   truck: (z) => fi(<React.Fragment><rect x="1" y="3" width="15" height="13" rx="1"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></React.Fragment>, z),
+  moto: (z) => fi(<React.Fragment><circle cx="5.5" cy="17" r="3.5"/><circle cx="18.5" cy="17" r="3.5"/><path d="M5.5 17l3.5-6h5l4.5 6"/><path d="M14 11l1.5-3H19"/><path d="M9 11H6"/></React.Fragment>, z), // มอเตอร์ไซค์ (เจ้าของสั่ง 2026-10-15 — แยกจากรถยนต์)
+  user: (z) => fi(<React.Fragment><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></React.Fragment>, z),
   bag: (z) => fi(<React.Fragment><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></React.Fragment>, z),
   pin: (z) => fi(<React.Fragment><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></React.Fragment>, z),
   nav: (z) => fi(<polygon points="3 11 22 2 13 21 11 13 3 11"/>, z),
@@ -393,6 +395,13 @@ function ProOrder({ o, idx, isOwner, payoutReady, onPrice, onPayout, onAdvance, 
       {o.status === 1 && (() => { const m = Math.max(0, Math.round((Date.now() - new Date(o.created_at).getTime()) / 60000)); const t = m < 60 ? m + ' นาที' : (m / 60).toFixed(m < 600 ? 1 : 0).replace(/\.0$/, '') + ' ชม.'; return <div style={css("margin-bottom:8px")}><span style={css("font-size:10.5px;font-weight:700;color:var(--gold);background:var(--goldBg);padding:3px 10px;border-radius:99px")}>{FI.clock(11)} รอรับงาน · ผ่านมา {t}</span></div>; })()}
       {/* หัวสเปกตัวใหญ่ + แถวชิป ลบแล้ว — ข้อมูลอยู่ในกล่องสเปก · วิธีรับงานอยู่แถวการรับงาน · สถานะโอนอยู่ใต้ยอดเงิน (เจ้าของสั่ง 2026-10-12) */}
       <div style={css("margin-top:11px;border-top:1px solid var(--line);padding-top:10px;display:flex;flex-direction:column;gap:8px")}>
+        {/* ลูกค้า (ชื่อ+เบอร์) ขึ้นบนสุดก่อนไฟล์ — เฉพาะเจ้าของ ร้านพาร์ทเนอร์ไม่เห็นตัวตนลูกค้า (เจ้าของสั่ง 2026-10-15) */}
+        {isOwner && (
+          <div style={css("display:flex;gap:10px;font-size:12px")}>
+            <span style={css("flex:none;width:76px;color:var(--sub);font-weight:600;padding-top:3px")}>{FI.user(13)} ลูกค้า</span>
+            <div style={css("flex:1;min-width:0;font-size:14px;font-weight:700;color:var(--ink);line-height:1.5")}>คุณ{o.customer_fname} {o.customer_lname || ''}{o.customer_phone ? <span> · <a href={'tel:' + String(o.customer_phone || '').replace(/[^0-9+]/g, '')} style={css("font-family:'IBM Plex Mono',monospace;font-size:14px;color:#00b368;text-decoration:underline")}>{o.customer_phone}</a></span> : null}</div>
+          </div>
+        )}
         {/* ลำดับ (เจ้าของสั่ง 2026-10-12): ไฟล์บนสุด → สรุปสติ๊กเกอร์ → สเปกงาน */}
         {(o.files || []).length > 0 && (
           <div style={css("display:flex;gap:10px;font-size:12px")}>
@@ -446,21 +455,28 @@ function ProOrder({ o, idx, isOwner, payoutReady, onPrice, onPayout, onAdvance, 
       {full && <div style={css("margin-top:10px;border-top:1px dashed var(--line);padding-top:10px;display:flex;flex-direction:column;gap:8px")}>
         {/* แยกหมายเหตุชัดเจน (เจ้าของสั่ง 2026-10-07): การปริ้น = เหลือง · การส่ง = ฟ้า */}
         {o.note && <div style={css("background:#fff7e0;border:1px solid #f0c36d;border-radius:10px;padding:8px 11px;font-size:12px;color:#8a6d1a;line-height:1.6")}><b>{FI.file(11)} หมายเหตุการปริ้น (จากลูกค้า):</b> {o.note}</div>}
-        {o.ship_note && <div style={css("background:#e7f5ff;border:1px solid #74c0fc;border-radius:10px;padding:8px 11px;font-size:12px;color:#1864ab;line-height:1.6")}><b>🚚 หมายเหตุการส่ง (จากลูกค้า):</b> {o.ship_note}</div>}
         <div style={css("display:flex;gap:10px;font-size:12px")}>
           <span style={css("flex:none;width:76px;color:var(--sub);font-weight:600")}>{FI.truck(13)} การรับงาน</span>
           <div style={css("flex:1;min-width:0;line-height:1.6")}>
-            {isOwner && <div style={css("margin-bottom:2px;font-size:13px;font-weight:700;color:var(--ink)")}>คุณ{o.customer_fname} {o.customer_lname || ''}{o.customer_phone ? <span> · <a href={'tel:' + String(o.customer_phone || '').replace(/[^0-9+]/g, '')} style={css("font-family:'IBM Plex Mono',monospace;color:#00b368;text-decoration:underline")}>{o.customer_phone}</a></span> : null}</div>}
-            {(o.pickup || (o.addr || '').indexOf('🏪') === 0)
-              ? <b>ลูกค้ามารับเองที่ร้าน — ไม่ต้องจัดส่ง</b>
-              : <span><b>ทีมงาน MORE PRINT ไปรับที่ร้าน แล้วจัดส่งให้ลูกค้าเอง</b>
-                  {/🤝 รับกับมือ|📦 วางไว้จุดวางของ/.test(o.addr || '') && <span style={css("display:block;margin-top:2px;font-weight:700;color:" + ((o.addr || '').includes('📦') ? "#b8860b" : "var(--acc)"))}>{(o.addr || '').includes('📦') ? '📦 ลูกค้าให้วางไว้จุดวางของ' : '🤝 ลูกค้าขอรับกับมือ'}</span>}
-                  {(o.addr || o.point) && <span style={css("display:block;color:var(--sub)")}>{FI.pin(11)} {(o.addr || o.point || '').replace(/^(🚗|🏍️)\s*/, '')}
-                    <a href={o.lat != null && o.lng != null
+            {(() => {
+              const a = o.addr || '', pk = !!o.pickup || a.indexOf('🏪') === 0, car = a.indexOf('🚗') === 0;
+              const addrTxt = String(o.addr || o.point || '').replace(/^(🚗|🏍️)\s*/, '');
+              return (
+                <React.Fragment>
+                  {/* รายละเอียดจุดส่งขึ้นบนสุด + หมายเหตุการส่งตัวใหญ่ + ไอคอนพาหนะแยกมอเตอร์ไซค์/รถยนต์ ไม่โชว์ค่าส่ง (เจ้าของสั่ง 2026-10-15) */}
+                  {!pk && addrTxt && <div style={css("font-size:14.5px;font-weight:800;color:var(--ink);line-height:1.5")}>{FI.pin(12)} {addrTxt}</div>}
+                  {o.ship_note && <div style={css("margin-top:6px;background:#e7f5ff;border:1.5px solid #74c0fc;border-radius:10px;padding:9px 12px;color:#1864ab;line-height:1.5")}><div style={css("font-size:11.5px;font-weight:700")}>🚚 หมายเหตุการส่ง (จากลูกค้า)</div><div style={css("font-size:16px;font-weight:800")}>{o.ship_note}</div></div>}
+                  {pk
+                    ? <div style={css("margin-top:6px;display:inline-flex;align-items:center;gap:7px;border:1.5px solid var(--acc);border-radius:10px;padding:5px 10px;font-size:12px;font-weight:700;color:var(--acc)")}><span style={{ lineHeight: 0 }}>{FI.bag(15)}</span>ลูกค้ามารับเองที่ร้าน — ไม่ต้องจัดส่ง</div>
+                    : <div style={css("margin-top:6px;display:inline-flex;align-items:center;gap:7px;border:1.5px solid " + (car ? "#7048e8" : "#1971c2") + ";border-radius:10px;padding:5px 10px;font-size:12px;font-weight:700;color:" + (car ? "#7048e8" : "#1971c2"))}><span style={{ lineHeight: 0 }}>{car ? FI.truck(15) : FI.moto(16)}</span>{car ? 'ส่งด้วยรถยนต์' : 'ส่งด้วยมอเตอร์ไซค์'} · ทีมงาน MORE PRINT ไปรับที่ร้านแล้วจัดส่งให้ลูกค้าเอง</div>}
+                  {!pk && /🤝 รับกับมือ|📦 วางไว้จุดวางของ/.test(a) && <div style={css("margin-top:4px;font-weight:700;color:" + (a.includes('📦') ? "#b8860b" : "var(--acc)"))}>{a.includes('📦') ? '📦 ลูกค้าให้วางไว้จุดวางของ' : '🤝 ลูกค้าขอรับกับมือ'}</div>}
+                  {!pk && ((o.lat != null && o.lng != null) || addrTxt) && <a href={o.lat != null && o.lng != null
                         ? 'https://www.google.com/maps?q=' + o.lat + ',' + o.lng
-                        : 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(String(o.addr || o.point || '').replace(/^(🚗|🏍️)\s*/, ''))}
-                      target="_blank" rel="noreferrer" style={css("margin-left:8px;font-weight:700;color:var(--acc)")}>{FI.nav(12)} นำทาง</a></span>}
-                </span>}
+                        : 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(addrTxt)}
+                      target="_blank" rel="noreferrer" style={css("display:inline-block;margin-top:6px;font-weight:700;color:var(--acc)")}>{FI.nav(12)} นำทาง</a>}
+                </React.Fragment>
+              );
+            })()}
           </div>
         </div>
         {o.slip_path && !o.files_purged_at && fileUrl(o.slip_path) && (

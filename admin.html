@@ -128,6 +128,7 @@ const FI = {
   file: (z) => fi(<React.Fragment><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><polyline points="13 2 13 9 20 9"/></React.Fragment>, z),
   download: (z) => fi(<React.Fragment><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></React.Fragment>, z),
   truck: (z) => fi(<React.Fragment><rect x="1" y="3" width="15" height="13" rx="1"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></React.Fragment>, z),
+  moto: (z) => fi(<React.Fragment><circle cx="5.5" cy="17" r="3.5"/><circle cx="18.5" cy="17" r="3.5"/><path d="M5.5 17l3.5-6h5l4.5 6"/><path d="M14 11l1.5-3H19"/><path d="M9 11H6"/></React.Fragment>, z), // มอเตอร์ไซค์ (เจ้าของสั่ง 2026-10-15 — แยกจากรถยนต์)
   bag: (z) => fi(<React.Fragment><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></React.Fragment>, z),
   pin: (z) => fi(<React.Fragment><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></React.Fragment>, z),
   nav: (z) => fi(<polygon points="3 11 22 2 13 21 11 13 3 11"/>, z),
@@ -564,6 +565,11 @@ function OrderCard({ o, idx, onAdvance, onRetreat, onApplyEdits, onCancel, onRem
           {/* ป้ายรอทำ → แถวข้อมูล → ปุ่ม → แชทท้ายสุด · หัวสเปกตัวใหญ่+แถวชิป+ป้ายเตือนเย็บ/เข้าเล่ม ลบแล้ว ข้อมูลอยู่ในกล่องสเปก (เจ้าของสั่ง 2026-10-12) · ชื่อ+เบอร์ลูกค้าอยู่แถวจุดส่ง */}
           {o.status === 1 && (() => { const m = Math.max(0, Math.round((Date.now() - new Date(o.created_at).getTime()) / 60000)); const tt = m < 60 ? m + ' นาที' : (m / 60).toFixed(m < 600 ? 1 : 0).replace(/\.0$/, '') + ' ชม.'; return <div><span style={css("font-size:10.5px;font-weight:700;color:#a16207;background:#fff3bf;padding:3px 10px;border-radius:99px")}>{FI.clock(11)} รอเริ่มงาน · ผ่านมา {tt}</span></div>; })()}
           {/* แถวข้อมูล — ลำดับตามเจ้าของ (ปรับ 2026-10-12): ไฟล์งาน → ประเภทงาน (กล่องสเปก) → สลิป → ราคา → จุดส่ง */}
+          {/* ลูกค้า (ชื่อ+เบอร์) ขึ้นบนสุดก่อนไฟล์งาน — เจ้าของสั่ง 2026-10-15 (ย้ายมาจากจุดส่ง) */}
+          <div style={css("display:flex;gap:10px;font-size:12px")}>
+            <span style={css("flex:none;width:64px;color:var(--sub);font-weight:600;padding-top:3px")}>{FI.user(12)} ลูกค้า</span>
+            <div style={css("flex:1;min-width:0;font-size:14px;font-weight:700;color:var(--ink);line-height:1.5")}>คุณ{o.customer_fname} {o.customer_lname} · <a href={'tel:' + (o.customer_phone || '').replace(/[^0-9+]/g, '')} style={css("font-family:'IBM Plex Mono',monospace;font-size:14px;color:#00b368;text-decoration:underline")}>{o.customer_phone}</a>{o.customer_email ? <span style={css("font-weight:600;font-size:12px;color:var(--sub)")}> · {o.customer_email}</span> : null}</div>
+          </div>
           <div style={css("display:flex;gap:10px;font-size:12px")}>
             <span style={css("flex:none;width:64px;color:var(--sub);font-weight:600;padding-top:4px")}>{FI.file(12)} ไฟล์งาน ({(o.files || []).length})</span>
             <div style={css("flex:1;min-width:0;display:flex;flex-direction:column;gap:6px")}>
@@ -678,7 +684,9 @@ function OrderCard({ o, idx, onAdvance, onRetreat, onApplyEdits, onCancel, onRem
           <div style={css("display:flex;gap:10px;font-size:12px")}>
             <span style={css("flex:none;width:64px;color:var(--sub);font-weight:600;padding-top:2px")}>{FI.pin(12)} จุดส่ง</span>
             <div style={css("flex:1;min-width:0")}>
-            <div style={css("font-size:13px;font-weight:700;color:var(--ink);line-height:1.5")}>คุณ{o.customer_fname} {o.customer_lname} · <a href={'tel:' + (o.customer_phone || '').replace(/[^0-9+]/g, '')} style={css("font-family:'IBM Plex Mono',monospace;font-size:13px;color:#00b368;text-decoration:underline")}>{o.customer_phone}</a>{o.customer_email ? <span style={css("font-weight:600;color:var(--sub)")}> · {o.customer_email}</span> : null}</div>
+            {/* รายละเอียดจุดส่งขึ้นบนสุด + หมายเหตุการส่งตัวใหญ่ (เจ้าของสั่ง 2026-10-15) */}
+            <div style={css("font-size:14.5px;font-weight:800;color:var(--ink);line-height:1.5")}>{(o.addr || o.point || '-').replace(/^(🚗|🏍️)\s*/, '')}</div>
+            {o.ship_note && <div style={css("margin-top:6px;background:#e7f5ff;border:1.5px solid #74c0fc;border-radius:10px;padding:9px 12px;color:#1864ab;line-height:1.5")}><div style={css("font-size:11.5px;font-weight:700")}>🚚 หมายเหตุการส่ง (จากลูกค้า)</div><div style={css("font-size:16px;font-weight:800")}>{o.ship_note}</div></div>}
             {(() => {
               const a = o.addr || '';
               const car = a.indexOf('🚗') === 0, bike = a.indexOf('🏍️') === 0;
@@ -688,12 +696,9 @@ function OrderCard({ o, idx, onAdvance, onRetreat, onApplyEdits, onCancel, onRem
               return (
                 <React.Fragment>
                 <div style={css("margin-top:6px;display:inline-flex;align-items:center;gap:7px;background:var(--card);border:1.5px solid " + (pickup ? "var(--acc)" : car ? "#7048e8" : "#1971c2") + ";border-radius:10px;padding:5px 10px")}>
-                  <span style={css("font-size:15px")}>{pickup ? FI.bag(15) : FI.truck(15)}</span>
+                  <span style={css("font-size:15px;line-height:0")}>{pickup ? FI.bag(15) : car ? FI.truck(15) : FI.moto(16)}</span>{/* มอเตอร์ไซค์ = ไอคอนมอเตอร์ไซค์ · รถยนต์ = ไอคอนเดิม (เจ้าของสั่ง 2026-10-15) */}
                   <span style={css("font-size:12px;font-weight:700;color:" + (pickup ? "var(--acc)" : car ? "#7048e8" : "#1971c2"))}>
                     {pickup ? 'ลูกค้ามารับเองที่ร้าน' : car ? 'ส่งด้วยรถยนต์' : bike ? 'ส่งด้วยมอเตอร์ไซค์' : 'ส่งด้วยมอเตอร์ไซค์ (ออเดอร์เก่า)'}
-                  </span>
-                  <span style={css("font-size:11px;color:var(--sub)")}>
-                    · ค่าส่ง ฿{o.delivery_cost || 0} {pickup ? '(ไม่มีค่าส่ง)' : car ? '(เหมาตามระยะ 69/89/129)' : '(ไม่เกิน 2 กม. ฿19 แล้ว +6/กม.)'}
                   </span>
                 </div>
                 {/* โซนไรเดอร์ (เดิมเป็นชิปบนหัวการ์ด — ย้ายมาอยู่คู่จุดส่ง 2026-10-12) */}
@@ -706,8 +711,6 @@ function OrderCard({ o, idx, onAdvance, onRetreat, onApplyEdits, onCancel, onRem
                 </React.Fragment>
               );
             })()}
-            {o.ship_note && <div style={css("margin-top:6px;background:#e7f5ff;border:1px solid #74c0fc;border-radius:10px;padding:8px 11px;font-size:12.5px;color:#1864ab;line-height:1.6")}><b>🚚 หมายเหตุการส่ง (จากลูกค้า):</b> {o.ship_note}</div>}
-            <div style={css("margin-top:6px;font-size:13px;font-weight:600")}>{(o.addr || o.point || '-').replace(/^(🚗|🏍️)\s*/, '')}</div>
             {/* ใบงานด่วน: ป้าย EXPRESS สีเหลือง ตัวใหญ่ ให้แอดมินเห็นทันที (เจ้าของสั่ง 2026-09-17) · ใบปกติโชว์เวลารับเหมือนเดิม */}
             {(() => {
               const dg = (p) => String(p || '').replace(/[^0-9]/g, '');
