@@ -150,6 +150,8 @@ const FI = {
   bell: (z) => fi(<React.Fragment><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></React.Fragment>, z),
   bellOff: (z) => fi(<React.Fragment><path d="M13.73 21a2 2 0 0 1-3.46 0"/><path d="M18.63 13A17.89 17.89 0 0 1 18 8"/><path d="M6.26 6.26A5.86 5.86 0 0 0 6 8c0 7-3 9-3 9h14"/><path d="M18 8a6 6 0 0 0-9.33-5"/><line x1="1" y1="1" x2="23" y2="23"/></React.Fragment>, z)
 };
+// บั๊กบันทึกออเดอร์ (index.html แก้ 1bac151 ขึ้นเว็บ 2026-10-15 ~15:20) เคยบันทึกไฟล์สีของงานปริ้นผสมเป็นขาวดำ — ใช้เตือนบนการ์ดออเดอร์ก่อนหน้านั้น
+const MIX_BUG_FIXED_AT = Date.parse('2026-10-15T15:20:00+07:00');
 const PTYPE_LABELS = { bw: 'ปริ้นขาวดำ', laser: 'ขาวดำเลเซอร์', color: 'ปริ้นสี', mix: 'ปริ้นผสม', portfolio: 'Portfolio', poster: 'โปสเตอร์', pro: 'PRO พรีเมียม' };
 
 // ── แบ่งโซนส่งของจากพิกัดหมุดลูกค้า (สำหรับจ่ายงานไรเดอร์) ──
@@ -183,14 +185,16 @@ const pagesToRanges = (arr) => {
   for (let i = 0; i < a.length; i++) { let j = i; while (j + 1 < a.length && a[j + 1] === a[j] + 1) j++; out.push(i === j ? '' + a[i] : a[i] + '-' + a[j]); i = j; }
   return out.join(', ');
 };
+// ออเดอร์ "ปริ้นผสม" ขึ้นคำว่าปริ้นผสมนำหน้าเสมอ แล้วตามด้วยสิ่งที่ลูกค้าเลือกของไฟล์นั้น (เจ้าของสั่ง 2026-10-15 — การ์ดต้องบอกชัดว่าเป็นงานผสม หน้าไหนสี)
 const fileTypeLabel = (o, f) => {
   if (!f || !f.cmode) return o.ptype ? (PTYPE_LABELS[o.ptype] || o.ptype) : (o.color ? 'ปริ้นสี' : 'ปริ้นขาวดำ');
-  if (f.cmode === 'color') return 'ปริ้นสี';
-  if (f.cmode !== 'pages' || !f.cpages) return 'ปริ้นขาวดำ';
+  const mix = o.ptype === 'mix' ? 'ปริ้นผสม — ' : '';
+  if (f.cmode === 'color') return mix ? mix + 'ปริ้นสีทั้งไฟล์ (' + (f.pages || 0) + ' หน้า)' : 'ปริ้นสี';
+  if (f.cmode !== 'pages' || !f.cpages) return mix ? mix + 'ปริ้นขาวดำทั้งไฟล์ (' + (f.pages || 0) + ' หน้า)' : 'ปริ้นขาวดำ';
   const cs = new Set();
   String(f.cpages).split(',').forEach(part => { const m = part.trim().match(/^(\d+)(?:-(\d+))?$/); if (m) for (let p = +m[1]; p <= +(m[2] || m[1]) && p - m[1] < 5000; p++) cs.add(p); });
   const bw = []; for (let p = 1; p <= (f.pages || 0); p++) if (!cs.has(p)) bw.push(p);
-  return 'ปริ้นสี หน้าที่ ' + f.cpages + (bw.length ? ' , ปริ้นขาวดำ หน้าที่ ' + pagesToRanges(bw) : '');
+  return mix + 'ปริ้นสี หน้าที่ ' + f.cpages + (bw.length ? ' , ปริ้นขาวดำ หน้าที่ ' + pagesToRanges(bw) : '');
 };
 // f = ไฟล์ (สั่งหลายไฟล์ = กล่องละไฟล์) — ออเดอร์ที่ลูกค้าตั้งค่ารายไฟล์ใช้ files[].orient/nup/bind · ออเดอร์เก่าใช้ค่าทั้งออเดอร์
 // เย็บมุมขึ้นทุกครั้ง · เข้าเล่มขึ้นเป็นแถวสุดท้ายเฉพาะเมื่อลูกค้าเลือก (เจ้าของสั่ง 2026-10-12)
@@ -624,6 +628,9 @@ function OrderCard({ o, idx, onAdvance, onRetreat, onApplyEdits, onCancel, onRem
                     </div>
                   </React.Fragment>
                 : <SpecBox rows={stdSpecRows(o, (o.files || [])[0])}/>}
+              {o.ptype === 'mix' && new Date(o.created_at) < MIX_BUG_FIXED_AT && (o.files || []).length > 0 && (o.files || []).every(f => !f.cmode || f.cmode === 'bw') && (
+                <div style={css("margin-top:6px;background:#ffe3e3;border:1.5px solid #c92a2a;border-radius:10px;padding:7px 11px;font-size:11.5px;font-weight:700;color:#c92a2a;line-height:1.6")}>⚠️ ออเดอร์ปริ้นผสมก่อน 15 ต.ค. 69 — ระบบเคยบันทึกไฟล์ที่ลูกค้าเลือก "สี" เป็นขาวดำผิด (แก้แล้ว) ค่าปริ้น ฿{o.print_cost} คิดจากที่ลูกค้าเลือกจริง ถ้ามากกว่าจำนวนหน้าขาวดำแปลว่ามีไฟล์สี → เช็คกับลูกค้าก่อนปริ้นว่าไฟล์ไหน/หน้าไหนสี</div>
+              )}
               {o.ptype === 'pro' && <div style={css("margin-top:4px;font-size:11px;font-weight:700;color:#c92a2a;line-height:1.5")}>งาน PRO ยังไม่มีเรทราคา — ตกลง/ยืนยันราคาปริ้นกับลูกค้าก่อนเริ่มงาน (ยอดที่ลูกค้าชำระแล้วคือค่าส่งเท่านั้น)</div>}
               {/* หมายเหตุการปริ้นอยู่คู่ประเภทงาน · หมายเหตุการส่งอยู่คู่จุดส่ง — แยกชัดเจน (เจ้าของสั่ง 2026-10-07) */}
               {o.note && <div style={css("margin-top:6px;background:#fff7e0;border:1px solid #f0c36d;border-radius:10px;padding:8px 11px;font-size:12.5px;color:#8a6d1a;line-height:1.6")}><b>📝 หมายเหตุการปริ้น (จากลูกค้า):</b> {o.note}</div>}
