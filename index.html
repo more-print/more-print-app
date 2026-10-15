@@ -2112,7 +2112,16 @@ class App extends React.Component {
       const files = [];
       let upFail = 0;
       const failIdx = []; // ไฟล์ที่อัปไม่สำเร็จ — ให้ลูกค้าส่งใหม่ได้จากหน้าติดตาม
-      const pItems = this.proMulti() ? this.proItems() : null; // Pro หลายไฟล์: สเปก/ป้าย/ราคารายไฟล์ (บันทึกลง files[] ให้หลังบ้านเห็นทีละไฟล์)
+      // ⚠️ confirmPay รีเซ็ตฟอร์มทันทีหลังเรียก saveOrder (ไม่ได้ await) — ระหว่างอัปโหลด this.state จะกลายเป็นฟอร์มเปล่า
+      // ทุกค่าที่คำนวณจาก state ของออเดอร์นี้ต้องคิดตรงนี้ก่อน await แรก (เคสจริง #MP-FTGRG9Q5 2026-10-15: คิดเงินไฟล์สีถูก แต่ cmode ถูกบันทึกเป็นขาวดำ)
+      const D = (() => {
+        const pItems = this.proMulti() ? this.proItems() : null;
+        const stkOn = pItems ? pItems.some(x => x.spec.proType === 'sticker') : (s.tier === 'pro' && s.proType === 'sticker');
+        return { pItems, mi: (s.tier !== 'pro' && s.ptype === 'mix') ? this.mixInfo() : null, si: stkOn ? this.stickerInfo() : null,
+          fos: s.files.map(f => this.fileOpt(f)), paperLabel: s.tier === 'pro' ? this.proOrderLabel() : s.paper,
+          handoff: this.handoffLabel(), forceCar: this.forceCar(), night: this.isNight() };
+      })();
+      const pItems = D.pItems; // Pro หลายไฟล์: สเปก/ป้าย/ราคารายไฟล์ (บันทึกลง files[] ให้หลังบ้านเห็นทีละไฟล์)
       for (let i = 0; i < s.files.length; i++) {
         const f = s.files[i];
         let path = null;
@@ -2131,17 +2140,17 @@ class App extends React.Component {
           }
         }
         // qty/w/h/sh = จำนวนชิ้น (ระบบคำนวณ = cap×แผ่น)·ขนาด (ซม.)·จำนวนแผ่น (PP 13"×19" / PVC ตร.ม.) ต่อลาย — บันทึกเฉพาะออเดอร์สติ๊กเกอร์เท่านั้น
-        const sti = (pItems ? pItems[i].spec.proType === 'sticker' : (s.tier === 'pro' && s.proType === 'sticker')) ? this.stickerInfo().list[i] : null;
+        const sti = (pItems ? pItems[i].spec.proType === 'sticker' : (s.tier === 'pro' && s.proType === 'sticker')) ? (D.si && D.si.list[i]) : null;
         const row = { name: f.name, pages: f.pages, path, drive_url: f.big ? (f.b2Url || null) : null, auto: !!f.auto, heavy: f.heavy || 0, scanned: !!f.scanned, qty: sti ? Math.max(1, sti.q || 1) : null };
         if (sti && sti.ok) { row.w = sti.w; row.h = sti.h; row.sh = sti.sheets; row.stk = sti.t || null; } // stk = เนื้อของลายนี้ (pp/pvc)
         // งานปริ้นผสม: บันทึกต่อไฟล์ว่าพิมพ์แบบไหน + หน้าสีหน้าไหน — หลังบ้าน/ทีมผลิตอ่านจากการ์ดได้เลย (เจ้าของสั่ง 2026-10-08)
         if (s.tier !== 'pro' && s.ptype === 'mix') {
-          const mx = this.mixInfo().list[i] || {};
+          const mx = (D.mi && D.mi.list[i]) || {};
           row.cmode = mx.mode || 'bw'; // bw = ขาวดำทั้งไฟล์ · color = สีทั้งไฟล์ · pages = ระบุหน้าสีเอง
           row.cpages = mx.mode === 'pages' ? pagesToRanges([...mx.set]) : null;
           row.cheavy = mx.ch || 0; row.clight = mx.cl || 0; row.cbw = mx.cBw || 0;
         }
-        if (s.tier !== 'pro') { const fo = this.fileOpt(f); row.sides = fo.sides; row.orient = fo.orient; row.nup = fo.nup; row.bind = fo.bind; } // ตัวเลือกรายไฟล์ (2026-10-12)
+        if (s.tier !== 'pro') { const fo = D.fos[i]; row.sides = fo.sides; row.orient = fo.orient; row.nup = fo.nup; row.bind = fo.bind; } // ตัวเลือกรายไฟล์ (2026-10-12)
         if (pItems) { const it = pItems[i]; row.paper = it.label; row.protype = it.spec.proType; row.copies = Math.max(1, it.spec.copies || 1); row.sides = it.spec.sides === 2 ? 2 : 1; row.bind = it.spec.proType === 'foldbook' ? it.spec.proBind : 'none'; row.pcost = it.cost; } // Pro รายไฟล์ (2026-10-12)
         files.push(row);
       }
@@ -2172,17 +2181,17 @@ class App extends React.Component {
         customer_fname: u.fname || '', customer_lname: u.lname || '',
         customer_phone: u.phone || s.phone || '', customer_email: u.email || '',
         files, ptype: s.tier === 'pro' ? 'pro' : s.ptype, color: s.tier !== 'pro' && s.ptype === 'color',
-        paper: s.tier === 'pro' ? this.proOrderLabel() : s.paper, sides: s.tier === 'pro' ? (pItems ? (pItems[0].spec.sides === 2 ? 2 : 1) : s.sides) : (s.files[0] ? this.fileOpt(s.files[0]).sides : 1), // Standard/Pro หลายไฟล์: ค่าละเอียดอยู่ใน files[]
+        paper: D.paperLabel, sides: s.tier === 'pro' ? (pItems ? (pItems[0].spec.sides === 2 ? 2 : 1) : s.sides) : (D.fos[0] ? D.fos[0].sides : 1), // Standard/Pro หลายไฟล์: ค่าละเอียดอยู่ใน files[]
         // คอลัมน์ระดับออเดอร์ = สรุปจากรายไฟล์ (ค่าละเอียดอยู่ใน files[].orient/nup/bind): แนว/หน้าต่อแผ่นของไฟล์แรก · bind = เข้าเล่มแบบแรกที่มี > เย็บมุม > none
-        orient: s.tier === 'pro' ? null : (s.files[0] ? this.fileOpt(s.files[0]).orient : 'portrait'),
-        nup: s.tier === 'pro' ? null : (s.files[0] ? this.fileOpt(s.files[0]).nup : 1),
-        bind: s.tier === 'pro' ? (pItems ? ((pItems.find(x => x.spec.proType === 'foldbook') || {}).spec || {}).proBind || 'none' : (s.proType === 'foldbook' ? s.proBind : 'none')) : (() => { const bs = s.files.map(f => this.fileOpt(f).bind); return bs.find(b => STD_BINDS.some(x => x.k === b)) || (bs.includes('corner') ? 'corner' : 'none'); })(), copies: pItems ? 1 : s.copies, // Pro หลายไฟล์: จำนวนชุดอยู่รายไฟล์ (files[].copies)
+        orient: s.tier === 'pro' ? null : (D.fos[0] ? D.fos[0].orient : 'portrait'),
+        nup: s.tier === 'pro' ? null : (D.fos[0] ? D.fos[0].nup : 1),
+        bind: s.tier === 'pro' ? (pItems ? ((pItems.find(x => x.spec.proType === 'foldbook') || {}).spec || {}).proBind || 'none' : (s.proType === 'foldbook' ? s.proBind : 'none')) : (() => { const bs = D.fos.map(fo => fo.bind); return bs.find(b => STD_BINDS.some(x => x.k === b)) || (bs.includes('corner') ? 'corner' : 'none'); })(), copies: pItems ? 1 : s.copies, // Pro หลายไฟล์: จำนวนชุดอยู่รายไฟล์ (files[].copies)
         point: s.geoLabel || '', lat: s.lat, lng: s.lng,
         pickup: s.tier === 'pro' ? s.proPickup : s.stdPickup,
         line_uid: (s.user && s.user.line_uid) || null, // ไว้แจ้งเตือนลูกค้าทาง LINE (เฉพาะคนล็อกอินด้วย LINE)
         // นำหน้าที่อยู่ด้วยพาหนะที่ลูกค้าเลือก — ไรเดอร์/หลังบ้านเห็นทันทีว่าต้องใช้รถอะไร (ไม่ต้องเพิ่มคอลัมน์ใหม่)
-        addr: (s.tier === 'pro' && s.proPickup) ? '🏪 มารับเองที่ร้านอุดมสุขปริ้นติ้ง' : (s.tier !== 'pro' && s.stdPickup) ? '🏪 รับหน้าร้าน MORE PRINT (หอพักบริบูรณ์เพลส)' : ((s.vehicle === 'car' || this.forceCar()) ? '🚗 ' : '🏍️ ') + s.addr + (this.handoffLabel() ? ' · ' + this.handoffLabel() : ''), // งานบังคับรถยนต์ป้ายต้องตรง · วิธีรับของต่อท้าย (หลังบ้านแกะจากข้อความนี้)
-        phone: s.phone, time: '', express: (c.expressFee || 0) > 0, night: this.isNight(), // express ตามที่คิดเงินจริงตอนกดจ่าย (เฉพาะ Standard แบบจัดส่ง)
+        addr: (s.tier === 'pro' && s.proPickup) ? '🏪 มารับเองที่ร้านอุดมสุขปริ้นติ้ง' : (s.tier !== 'pro' && s.stdPickup) ? '🏪 รับหน้าร้าน MORE PRINT (หอพักบริบูรณ์เพลส)' : ((s.vehicle === 'car' || D.forceCar) ? '🚗 ' : '🏍️ ') + s.addr + (D.handoff ? ' · ' + D.handoff : ''), // งานบังคับรถยนต์ป้ายต้องตรง · วิธีรับของต่อท้าย (หลังบ้านแกะจากข้อความนี้)
+        phone: s.phone, time: '', express: (c.expressFee || 0) > 0, night: D.night, // express ตามที่คิดเงินจริงตอนกดจ่าย (เฉพาะ Standard แบบจัดส่ง)
         print_cost: c.printCost, bind_cost: c.bindCost, delivery_cost: c.deliveryCost,
         night_fee: c.nightFee || 0, // ตามสูตรจริง — งาน Pro = 0 (Standard คิดทุกแบบรวมมารับเอง ตั้งแต่ 2026-09-17)
         total: c.grandTotal, status: 1, times: [t0, '', '', ''],
