@@ -151,6 +151,7 @@ const ICON_COLORPRINT = (
 
 // ── ประเภทงานปริ้น + เรทราคา (ตามป้ายราคาหน้าร้าน) ──
 // งาน Standard มีแค่ 2 ประเภท (งานใหญ่/พิเศษไปทาง Pro) — ptype เก่า laser/portfolio/poster ยังแสดงในหลังบ้านได้
+const PRO_CLOSED_MSG = 'ขออภัยครับ ตอนนี้ปิดรับงาน PRO ชั่วคราว 🙏 งาน Standard สั่งได้ปกติ'; // สวิตช์ปิดรับเฉพาะงาน PRO จากหลังบ้าน (shop_status.pro_open — 2026-10-17)
 const PRINT_TYPES = [
   { k: 'bw', icon: '📄', label: 'ปริ้นขาวดำ', desc: 'หน้าละ ฿1 · เกิน 75 หน้า 75 สต. · เกิน 150 หน้า 50 สต.' }, // คำกำกับจริงถูกแทนที่แบบไดนามิกใน typeOpts — กลางคืนใช้ขั้น 100/200 (2026-09-17)
   { k: 'color', icon: ICON_COLORPRINT, label: 'ปริ้นสี', desc: '฿5-7/หน้า ตามปริมาณสี สแกนให้อัตโนมัติ' },
@@ -572,6 +573,7 @@ class App extends React.Component {
     this.state = {
       screen: 'home', files: [], proActive: 0, stepMax: 0, tier: 'standard', ptype: 'bw', paper: 'A4', sides: 1, orient: 'portrait', nup: 1, bind: 'none', copies: 1, note: '', shipNote: '',
       shopOpen: true, // สถานะรับออเดอร์จากหลังบ้าน (false = ร้านกดปิดรับชั่วคราว)
+      shopProOpen: true, // ปิดรับเฉพาะงาน PRO จากหลังบ้าน (shop_status.pro_open — 2026-10-17) · Standard ยังสั่งได้
       shopRain: false, // โหมดฝนตก (ร้านกดจากหลังบ้าน) — ทุกงานแบบจัดส่ง (Pro+Standard) บังคับรถยนต์
       shopNightOff: false, // หลังบ้านบังคับปิดโหมดกลางคืนชั่วคราว (shop_status.night_off) — เว็บเป็นกลางวันปกติ ไว้แคปจอทำสื่อ (2026-09-12)
       prevOk: {}, prevOpen: false, // ตัวอย่างงาน Pro: ประเภทที่มีรูปจริง (พรีโหลดเช็คตอนเปิดเว็บ) + สถานะขยายรูปเต็มจอ
@@ -632,14 +634,18 @@ class App extends React.Component {
       this.loadReviews();
       // สถานะเปิด/ปิดรับออเดอร์ (ร้านกดจากหลังบ้าน) — เช็คตอนเปิดเว็บ + ทุก 60 วิ
       const chkShop = () => { try {
+        this.db.from('shop_status').select('open,rain,night_off,pro_open').eq('id', 1).single().then(({ data: dp, error: ep }) => {
+          if (!ep && dp) return this.setState({ shopOpen: !!dp.open, shopRain: !!dp.rain, shopNightOff: dp.night_off === true, shopProOpen: dp.pro_open !== false }, () => this.syncForcedVehicle());
+          // คอลัมน์ pro_open ยังไม่ถูกสร้าง (สวิตช์ปิดรับงาน PRO 2026-10-17) — ถอยไปชุดเดิม งาน PRO เปิดรับตามปกติ
         this.db.from('shop_status').select('open,rain,night_off').eq('id', 1).single().then(({ data, error }) => {
-          if (!error && data) return this.setState({ shopOpen: !!data.open, shopRain: !!data.rain, shopNightOff: data.night_off === true }, () => this.syncForcedVehicle());
+          if (!error && data) return this.setState({ shopOpen: !!data.open, shopRain: !!data.rain, shopNightOff: data.night_off === true, shopProOpen: true }, () => this.syncForcedVehicle());
           // คอลัมน์ night_off ยังไม่ถูกสร้าง — ถอยลงทีละขั้น เว็บห้ามพัง
           this.db.from('shop_status').select('open,rain').eq('id', 1).single().then(({ data: d1, error: e1 }) => {
             if (!e1 && d1) return this.setState({ shopOpen: !!d1.open, shopRain: !!d1.rain, shopNightOff: false }, () => this.syncForcedVehicle());
             // คอลัมน์ rain ก็ยังไม่ถูกสร้าง — ถอยไปเช็คเฉพาะเปิด/ปิดร้าน
             this.db.from('shop_status').select('open').eq('id', 1).single().then(({ data: d2, error: e2 }) => { if (!e2 && d2) this.setState({ shopOpen: !!d2.open, shopRain: false, shopNightOff: false }); }).catch(() => {});
           }).catch(() => {});
+        }).catch(() => {});
         }).catch(() => {});
       } catch (e) {} };
       chkShop(); this._shopTimer = setInterval(chkShop, 20000); // poll สำรองทุก 20 วิ
@@ -657,7 +663,7 @@ class App extends React.Component {
         this.db.channel('shop-status-live')
           .on('postgres_changes', { event: '*', schema: 'public', table: 'shop_status' }, (payload) => {
             const r = payload && payload.new;
-            if (r && r.id === 1) this.setState({ shopOpen: r.open !== false, shopRain: r.rain === true, shopNightOff: r.night_off === true }, () => this.syncForcedVehicle());
+            if (r && r.id === 1) this.setState({ shopOpen: r.open !== false, shopRain: r.rain === true, shopNightOff: r.night_off === true, shopProOpen: r.pro_open !== false }, () => this.syncForcedVehicle());
           })
           .on('postgres_changes', { event: '*', schema: 'public', table: 'pop_spots' }, () => loadSpots()) // หลังบ้านเพิ่ม/ลบจุด — หน้าเว็บอัปเดตทันที
           .subscribe();
@@ -3141,10 +3147,11 @@ class App extends React.Component {
         return n.getDate() + '/' + (n.getMonth() + 1) + '/' + String(n.getFullYear() + 543).slice(-2);
       })(),
       shopClosed: s.shopOpen === false, // ร้านกดปิดรับออเดอร์จากหลังบ้าน
+      proClosed: s.shopOpen !== false && s.shopProOpen === false, // ปิดรับเฉพาะงาน PRO (สวิตช์แยกในหลังบ้าน 2026-10-17)
       rainMode: s.shopRain === true, // โหมดฝนตก — ทุกงานแบบจัดส่งบังคับรถยนต์
       proAfter17: s.now.getHours() >= 17, // แยกข้อความ: หลัง 17:00 = ผลิตพรุ่งนี้ · ก่อน 08:30 = ผลิตเช้านี้
       pickStandard: () => this.setState({ tier: 'standard', paper: SIZE_BY_TYPE[s.ptype][0], recvSel: false }, () => this.remeasureOrigin()), // สลับประเภทงาน = ต้นทางค่าส่งเปลี่ยน — วัดระยะใหม่ถ้าปักหมุดค้างไว้ · การรับงานให้เลือกใหม่ (ขั้น 1 หน้าจุดส่ง)
-      pickPro: () => this.setState({ tier: 'pro', sides: (s.proType === 'poster' || s.proType === 'portfolio' || s.proType === 'namecard' || s.proType === 'foldbook') ? s.sides : 1, copies: s.proType === 'sticker' ? 1 : s.copies, recvSel: false }, () => this.remeasureOrigin()), // ประเภทที่พิมพ์หน้าเดียว ห้ามติดค่าหน้า-หลังค้างจาก Standard · สติ๊กเกอร์ล็อก 1 ชุดเสมอ (จำนวนชิ้นรายไฟล์คือตัวกำหนด)
+      pickPro: () => s.shopProOpen === false ? this.showToast(PRO_CLOSED_MSG) : this.setState({ tier: 'pro', sides: (s.proType === 'poster' || s.proType === 'portfolio' || s.proType === 'namecard' || s.proType === 'foldbook') ? s.sides : 1, copies: s.proType === 'sticker' ? 1 : s.copies, recvSel: false }, () => this.remeasureOrigin()), // ประเภทที่พิมพ์หน้าเดียว ห้ามติดค่าหน้า-หลังค้างจาก Standard · สติ๊กเกอร์ล็อก 1 ชุดเสมอ (จำนวนชิ้นรายไฟล์คือตัวกำหนด)
       proTypeOpts: PRO_TYPES.map(t => ({
         k: t.k, on: s.proType === t.k, // การ์ดกริด 2 คอลัมน์ใช้ on จัดสไตล์เอง (2026-09-11 เลิกใช้สไตล์ seg)
         ...this.seg(t.label, s.proType === t.k,
@@ -3398,6 +3405,7 @@ class App extends React.Component {
           date: ('0' + d.getDate()).slice(-2) + '/' + ('0' + (d.getMonth() + 1)).slice(-2) + '/' + (d.getFullYear() + 543) } });
       },
       toDelivery: () => {
+        if (s.tier === 'pro' && s.shopProOpen === false) return this.showToast(PRO_CLOSED_MSG);
         if (s.shopOpen === false) return this.showToast('ขออภัยครับ ตอนนี้ร้านปิดรับออเดอร์ชั่วคราว 🙏 เปิดรับอีกครั้งเร็ว ๆ นี้ครับ');
         if (!s.files.length) return this.showToast('เพิ่มไฟล์ก่อนนะครับ 📄');
         if (s.files.some(f => f.counting)) return this.showToast('รอระบบอ่านไฟล์แป๊บนึงครับ ⏳');
@@ -3601,6 +3609,7 @@ class App extends React.Component {
       slipChecking: s.slipChecking,
       confirmPay: () => {
         if (this._payTs && Date.now() - this._payTs < 5000) return; // กันกดยืนยันรัว/เบิ้ล — ออเดอร์ต้องไม่ซ้ำ
+        if (s.tier === 'pro' && s.shopProOpen === false) return this.showToast(PRO_CLOSED_MSG + ' ยังไม่หักเงินนะครับ');
         if (s.shopOpen === false) return this.showToast('ขออภัยครับ ตอนนี้ร้านปิดรับออเดอร์ชั่วคราว 🙏 ยังไม่หักเงินนะครับ — เปิดรับอีกครั้งเร็ว ๆ นี้');
         if (s.slipChecking) return this.showToast('กำลังตรวจสลิปอยู่ แป๊บนึงครับ ⏳');
         // ด่านไฟล์ก่อนสร้างออเดอร์: สำรองเข้าคลังไม่สำเร็จ = ไม่ปล่อยผ่าน (ต้นเหตุเคสไฟล์หาย 2026-10-09) — ลองอัปใหม่ให้อัตโนมัติ
@@ -4107,6 +4116,16 @@ class App extends React.Component {
           </div>
         )}
 
+        {/* ── ป้ายปิดรับเฉพาะงาน PRO (สวิตช์แยกในหลังบ้าน 2026-10-17) ── */}
+        {v.proClosed && (
+          <div style={css("margin:14px 20px 0;background:#fff4e6;border:1.5px solid #ffa94d;border-radius:12px;padding:11px 14px;display:flex;gap:10px;align-items:center")}>
+            <span style={css("flex:none;display:flex;color:#d9480f")}>{fi('alert', 17)}</span><div style={css("min-width:0")}>
+              <div style={css("font-size:12.5px;color:#d9480f;font-weight:800;line-height:1.5")}>ขออภัยครับ ตอนนี้ปิดรับงาน PRO ชั่วคราว</div>
+              <div style={css("margin-top:2px;font-size:12.5px;color:#d9480f;font-weight:600;line-height:1.5")}>งาน Standard (ปริ้นเอกสาร A4) ยังสั่งได้ปกติ · งาน PRO เปิดรับอีกครั้งเร็ว ๆ นี้</div>
+            </div>
+          </div>
+        )}
+
         {/* ── ป้ายโหมดฝนตก (ร้านกดเปิดจากหลังบ้าน) ── */}
         {v.rainMode && (
           <div style={css("margin:14px 20px 0;background:#e7f5ff;border:1.5px solid #74c0fc;border-radius:12px;padding:11px 14px;display:flex;gap:10px;align-items:center")}>
@@ -4480,6 +4499,7 @@ class App extends React.Component {
                 <div style={{ flex: 'none', lineHeight: 0 }}>{ICON_CMYK}</div>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: '13.5px', fontWeight: 700, color: v.isPro ? 'var(--acc)' : 'var(--ink)' }}>Pro — งานพิมพ์พิเศษ (ร้านอุดมสุขปริ้นติ้ง)</div>
+                  {v.proClosed && <div style={{ fontSize: '12px', color: '#c92a2a', fontWeight: 800, marginTop: '2px' }}>⛔ ปิดรับงาน PRO ชั่วคราว — เปิดรับอีกครั้งเร็ว ๆ นี้</div>}
                   <div style={{ fontSize: '12px', color: 'var(--sub)', marginTop: '1px', lineHeight: 1.55 }}>งานใหญ่ถึง A0 · สั่งได้ 24 ชม.<span style={{ display: 'block' }}>(สั่งหลัง 17.00 น. เริ่มผลิต 8.30 น. วันถัดไป - หยุดทุกวันอาทิตย์ครับ)</span></div>
                 </div>
                 <div style={{ width: '20px', height: '20px', borderRadius: '50%', flex: 'none', boxSizing: 'border-box',

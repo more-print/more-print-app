@@ -1819,14 +1819,18 @@ function AdminApp(){
   // ── สวิตช์เปิด/ปิดรับออเดอร์หน้าเว็บลูกค้า (ตาราง shop_status แถวเดียว — ลูกค้าทุกคนเห็นพร้อมกัน) ──
   const [shopOpen, setShopOpen] = React.useState(null); // null = ยังไม่รู้/ยังไม่รัน SQL
   const [shopBusy, setShopBusy] = React.useState(false);
+  // สวิตช์ปิดรับเฉพาะงาน PRO (shop_status.pro_open — เจ้าของสั่ง 2026-10-17): Standard ยังสั่งได้ · null = ยังไม่รัน SQL เพิ่มคอลัมน์
+  const [shopProOpen, setShopProOpen] = React.useState(null);
+  const [proBusy, setProBusy] = React.useState(false);
   const loadShopStatus = React.useCallback(async () => {
-    if (!DB) { setShopOpen(true); return; }
+    if (!DB) { setShopOpen(true); setShopProOpen(true); return; } // โหมดตัวอย่าง: สวิตช์ทั้งสองใช้ได้ (ไม่บันทึกจริง)
     const stamp = shopStamp.current; // ผลที่มาช้ากว่าการกดสวิตช์ล่าสุด = ทิ้ง (กันสวิตช์เด้งกลับหลอกตา)
     try {
-      let { data, error } = await DB.from('shop_status').select('open,rain,night_off').eq('id', 1).single();
-      if (error) { const r1 = await DB.from('shop_status').select('open,rain').eq('id', 1).single(); data = r1.data; error = r1.error; if (data) data.night_off = null; } // ยังไม่รัน SQL เพิ่มคอลัมน์ night_off
-      if (error) { const r2 = await DB.from('shop_status').select('open').eq('id', 1).single(); data = r2.data; error = r2.error; if (data) { data.rain = null; data.night_off = null; } } // ยังไม่รัน SQL เพิ่มคอลัมน์ rain
-      if (!error && data && stamp === shopStamp.current) { setShopOpen(!!data.open); setShopRain(data.rain == null ? null : !!data.rain); setShopNightOff(data.night_off == null ? null : !!data.night_off); }
+      let { data, error } = await DB.from('shop_status').select('open,rain,night_off,pro_open').eq('id', 1).single();
+      if (error) { const r0 = await DB.from('shop_status').select('open,rain,night_off').eq('id', 1).single(); data = r0.data; error = r0.error; if (data) data.pro_open = null; } // ยังไม่รัน SQL เพิ่มคอลัมน์ pro_open
+      if (error) { const r1 = await DB.from('shop_status').select('open,rain').eq('id', 1).single(); data = r1.data; error = r1.error; if (data) { data.night_off = null; data.pro_open = null; } } // ยังไม่รัน SQL เพิ่มคอลัมน์ night_off
+      if (error) { const r2 = await DB.from('shop_status').select('open').eq('id', 1).single(); data = r2.data; error = r2.error; if (data) { data.rain = null; data.night_off = null; data.pro_open = null; } } // ยังไม่รัน SQL เพิ่มคอลัมน์ rain
+      if (!error && data && stamp === shopStamp.current) { setShopOpen(!!data.open); setShopRain(data.rain == null ? null : !!data.rain); setShopNightOff(data.night_off == null ? null : !!data.night_off); setShopProOpen(data.pro_open == null ? null : !!data.pro_open); }
     } catch (e) {}
   }, []);
   React.useEffect(() => { if (authed) { loadShopStatus(); const t = setInterval(loadShopStatus, 30000); return () => clearInterval(t); } }, [authed, loadShopStatus]);
@@ -1869,6 +1873,19 @@ function AdminApp(){
     setShopBusy(false);
     if (error) return alert('ยังใช้สวิตช์ไม่ได้ — ต้องรัน SQL สร้างตาราง shop_status ก่อนครับ');
     setShopOpen(next);
+  };
+  // ปิด/เปิดรับเฉพาะงาน PRO — หน้าเว็บลูกค้าเลือก Pro ไม่ได้และยืนยันออเดอร์ Pro ไม่ได้ · Standard ปกติ (เจ้าของสั่ง 2026-10-17)
+  const toggleProOpen = async () => {
+    if (proBusy || shopProOpen === null) return;
+    shopStamp.current++;
+    const next = !shopProOpen;
+    if (!next && !window.confirm('ปิดรับงาน PRO หน้าเว็บลูกค้าตอนนี้เลยไหม? ลูกค้าจะสั่งงาน PRO ไม่ได้ (งาน Standard ยังสั่งได้ปกติ) จนกว่าจะกดเปิดอีกครั้ง')) return;
+    if (!DB) { setShopProOpen(next); return; }
+    setProBusy(true);
+    const { error } = await DB.from('shop_status').update({ pro_open: next, updated_at: new Date().toISOString() }).eq('id', 1);
+    setProBusy(false);
+    if (error) return alert('ยังใช้สวิตช์นี้ไม่ได้ — ต้องรัน SQL เพิ่มคอลัมน์ pro_open ก่อนครับ');
+    setShopProOpen(next);
   };
 
   // ── รีวิวลูกค้า (ลบรีวิวไม่เหมาะสมได้) ──
@@ -2448,12 +2465,24 @@ function AdminApp(){
           <div style={css("background:var(--card);border:1.5px solid " + (shopOpen === false ? "#ffa8a8" : "var(--line)") + ";border-radius:14px;padding:13px 15px;box-shadow:var(--shadow);display:flex;align-items:center;gap:12px")}>
             <div style={css("width:12px;height:12px;border-radius:50%;flex:none;background:" + (shopOpen === false ? "#e03131" : shopOpen ? "#2f9e44" : "var(--line)") + (shopOpen !== false ? ";animation:mpPulse 2s infinite" : ""))}></div>
             <div style={css("flex:1;min-width:0")}>
-              <div style={css("font-size:13.5px;font-weight:800")}>หน้าเว็บลูกค้า: {shopOpen === false ? 'ปิดรับออเดอร์อยู่' : shopOpen ? 'เปิดรับออเดอร์ปกติ' : 'กำลังเช็คสถานะ…'}</div>
+              <div style={css("font-size:13.5px;font-weight:800")}>หน้าเว็บลูกค้า (ทั้ง Standard + PRO): {shopOpen === false ? 'ปิดรับออเดอร์อยู่' : shopOpen ? 'เปิดรับออเดอร์ปกติ' : 'กำลังเช็คสถานะ…'}</div>
               <div style={css("margin-top:1px;font-size:10.5px;color:var(--sub)")}>{shopOpen === false ? 'ลูกค้าเห็นป้ายปิดรับชั่วคราว สั่งงานไม่ได้ — กดเปิดเมื่อพร้อมรับงาน' : 'ไม่พร้อมรับงานเมื่อไหร่ กดปิดได้เลย ลูกค้าจะสั่งไม่ได้จนกว่าจะเปิดใหม่'}</div>
             </div>
             <button onClick={toggleShop} disabled={shopBusy || shopOpen === null}
               style={css("flex:none;height:40px;padding:0 18px;border:none;border-radius:10px;font-size:13px;font-weight:800;cursor:pointer;font-family:inherit;color:#fff;background:" + (shopOpen === false ? "#2f9e44" : "#e03131") + ((shopBusy || shopOpen === null) ? ";opacity:.5" : ""))}>
               {shopBusy ? '⏳' : shopOpen === false ? 'เปิดรับออเดอร์' : 'ปิดรับออเดอร์'}</button>
+          </div>
+
+          {/* สวิตช์ปิดรับเฉพาะงาน PRO (เจ้าของสั่ง 2026-10-17) — แยกจากสวิตช์ด้านบนซึ่งปิดทั้งหมด */}
+          <div style={css("background:" + (shopProOpen === false ? "#fff4e6" : "var(--card)") + ";border:1.5px solid " + (shopProOpen === false ? "#ffa94d" : "var(--line)") + ";border-radius:14px;padding:13px 15px;box-shadow:var(--shadow);display:flex;align-items:center;gap:12px")}>
+            <div style={css("width:12px;height:12px;border-radius:50%;flex:none;background:" + (shopProOpen === false ? "#e8590c" : shopProOpen ? "#2f9e44" : "var(--line)"))}></div>
+            <div style={css("flex:1;min-width:0")}>
+              <div style={css("font-size:13.5px;font-weight:800;" + (shopProOpen === false ? "color:#d9480f" : ""))}>งาน PRO: {shopProOpen === false ? 'ปิดรับงาน PRO อยู่' : shopProOpen ? 'เปิดรับปกติ' : 'ยังใช้ไม่ได้'}</div>
+              <div style={css("margin-top:1px;font-size:10.5px;color:var(--sub)")}>{shopProOpen === null ? 'ต้องรัน SQL เพิ่มคอลัมน์ pro_open ในตาราง shop_status ก่อน (ถามผู้ช่วยได้)' : shopProOpen === false ? 'ลูกค้าเลือกงาน PRO ไม่ได้ เห็นป้ายปิดรับงาน PRO ชั่วคราว — งาน Standard ยังสั่งได้ปกติ' : 'ปิดเฉพาะงาน PRO เมื่อร้านพาร์ทเนอร์ไม่พร้อมผลิต — งาน Standard ยังรับตามปกติ'}</div>
+            </div>
+            <button onClick={toggleProOpen} disabled={proBusy || shopProOpen === null}
+              style={css("flex:none;height:40px;padding:0 18px;border:none;border-radius:10px;font-size:13px;font-weight:800;cursor:pointer;font-family:inherit;color:#fff;background:" + (shopProOpen === false ? "#2f9e44" : "#e8590c") + ((proBusy || shopProOpen === null) ? ";opacity:.5" : ""))}>
+              {proBusy ? '⏳' : shopProOpen === false ? 'เปิดรับงาน PRO' : 'ปิดรับงาน PRO'}</button>
           </div>
 
           {/* โหมดฝนตก: ทุกงานแบบจัดส่ง (Pro+Standard) บังคับรถยนต์ทุกใบ (นโยบาย 2026-09-05) */}
