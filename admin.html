@@ -1866,7 +1866,7 @@ function AdminApp(){
     if (shopBusy) return;
     shopStamp.current++;
     const next = !shopOpen;
-    if (!next && !window.confirm('ปิดรับออเดอร์หน้าเว็บลูกค้าตอนนี้เลยไหม? ลูกค้าจะสั่งงานไม่ได้จนกว่าจะกดเปิดอีกครั้ง')) return;
+    if (!next && !window.confirm('ปิดรับงาน Standard หน้าเว็บลูกค้าตอนนี้เลยไหม? ลูกค้าจะสั่งงาน Standard ไม่ได้ (งาน PRO ยังสั่งได้ปกติ) จนกว่าจะกดเปิดอีกครั้ง')) return;
     if (!DB) { setShopOpen(next); return; }
     setShopBusy(true);
     const { error } = await DB.from('shop_status').update({ open: next, updated_at: new Date().toISOString() }).eq('id', 1);
@@ -2461,16 +2461,16 @@ function AdminApp(){
             <div style={css("font-size:11px;color:var(--sub);margin-top:2px")}>{new Date().toLocaleDateString('th-TH', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</div>
           </div>
 
-          {/* สวิตช์เปิด/ปิดรับออเดอร์หน้าเว็บลูกค้า */}
+          {/* สวิตช์ปิดรับงาน Standard (shop_status.open) — แยกจากสวิตช์งาน PRO ด้านล่าง · ปิดทั้งร้าน = ปิดทั้ง 2 (เจ้าของสั่ง 2026-10-17) */}
           <div style={css("background:var(--card);border:1.5px solid " + (shopOpen === false ? "#ffa8a8" : "var(--line)") + ";border-radius:14px;padding:13px 15px;box-shadow:var(--shadow);display:flex;align-items:center;gap:12px")}>
             <div style={css("width:12px;height:12px;border-radius:50%;flex:none;background:" + (shopOpen === false ? "#e03131" : shopOpen ? "#2f9e44" : "var(--line)") + (shopOpen !== false ? ";animation:mpPulse 2s infinite" : ""))}></div>
             <div style={css("flex:1;min-width:0")}>
-              <div style={css("font-size:13.5px;font-weight:800")}>หน้าเว็บลูกค้า (ทั้ง Standard + PRO): {shopOpen === false ? 'ปิดรับออเดอร์อยู่' : shopOpen ? 'เปิดรับออเดอร์ปกติ' : 'กำลังเช็คสถานะ…'}</div>
-              <div style={css("margin-top:1px;font-size:10.5px;color:var(--sub)")}>{shopOpen === false ? 'ลูกค้าเห็นป้ายปิดรับชั่วคราว สั่งงานไม่ได้ — กดเปิดเมื่อพร้อมรับงาน' : 'ไม่พร้อมรับงานเมื่อไหร่ กดปิดได้เลย ลูกค้าจะสั่งไม่ได้จนกว่าจะเปิดใหม่'}</div>
+              <div style={css("font-size:13.5px;font-weight:800")}>งาน Standard: {shopOpen === false ? 'ปิดรับงาน Standard อยู่' : shopOpen ? 'เปิดรับปกติ' : 'กำลังเช็คสถานะ…'}</div>
+              <div style={css("margin-top:1px;font-size:10.5px;color:var(--sub)")}>{shopOpen === false ? 'ลูกค้าเลือกงาน Standard ไม่ได้ เห็นป้ายปิดรับงาน Standard ชั่วคราว — งาน PRO ยังสั่งได้ปกติ (ปิดทั้งร้าน = กดปิดทั้ง 2 ปุ่ม)' : 'ปิดเฉพาะงาน Standard (ปริ้นเอกสาร A4 ที่เราทำเอง) — งาน PRO ยังรับตามปกติ · ปิดทั้งร้าน = กดปิดทั้ง 2 ปุ่ม'}</div>
             </div>
             <button onClick={toggleShop} disabled={shopBusy || shopOpen === null}
               style={css("flex:none;height:40px;padding:0 18px;border:none;border-radius:10px;font-size:13px;font-weight:800;cursor:pointer;font-family:inherit;color:#fff;background:" + (shopOpen === false ? "#2f9e44" : "#e03131") + ((shopBusy || shopOpen === null) ? ";opacity:.5" : ""))}>
-              {shopBusy ? '⏳' : shopOpen === false ? 'เปิดรับออเดอร์' : 'ปิดรับออเดอร์'}</button>
+              {shopBusy ? '⏳' : shopOpen === false ? 'เปิดรับงาน Standard' : 'ปิดรับงาน Standard'}</button>
           </div>
 
           {/* สวิตช์ปิดรับเฉพาะงาน PRO (เจ้าของสั่ง 2026-10-17) — แยกจากสวิตช์ด้านบนซึ่งปิดทั้งหมด */}
