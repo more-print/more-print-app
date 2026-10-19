@@ -27,6 +27,9 @@
   img{max-width:100%}
   @keyframes mpRing{0%,100%{transform:rotate(0)}15%{transform:rotate(-16deg)}30%{transform:rotate(14deg)}45%{transform:rotate(-10deg)}60%{transform:rotate(6deg)}75%{transform:rotate(-3deg)}} /* กระดิ่งสั่นตอนออเดอร์ใหม่เข้า */
   .mp-kpis{grid-template-columns:repeat(2,minmax(0,1fr))} @media(min-width:700px){ .mp-kpis{grid-template-columns:repeat(3,minmax(0,1fr))} } /* การ์ดตัวเลขหลักแดชบอร์ดยอดขาย (2026-10-15) */
+  /* พิมพ์ใบเสร็จที่ร้านออกเอง (ReceiptTool 2026-10-19): สั่งพิมพ์แล้วเห็นเฉพาะใบเสร็จ */
+  @media print{ body *{visibility:hidden !important} #mpRcSheet,#mpRcSheet *{visibility:visible !important} #mpRcSheet{position:fixed !important;left:0 !important;top:0 !important;width:100% !important;margin:0 !important;box-shadow:none !important;border-radius:0 !important} }
+  @page{ size:A4; margin:12mm }
 </style>
 <script src="./config.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -323,6 +326,159 @@ function MpChat({ o, me, title }){
   );
 }
 
+// ═══ ออกใบเสร็จรับเงินโดยร้าน (เจ้าของสั่ง 2026-10-19): ร้านกรอกข้อมูลผู้ซื้อเอง เผื่อลูกค้าลืมกดขอใบเสร็จตอนสั่ง ═══
+// เลขที่ใบเสร็จขอจาก RPC issue_receipt (ชุดเดียวกับที่ลูกค้าขอเองหน้าเว็บ — ออเดอร์เดียวได้เลขเดียว ไม่ซ้ำ) · พิมพ์/บันทึก PDF ด้วยหน้าต่างพิมพ์ของเบราว์เซอร์
+// รายการสร้างอัตโนมัติจากออเดอร์ (ค่าปริ้นรายไฟล์ · เข้าเล่ม · ค่าส่ง · งานด่วน · กลางคืน · รายการปรับ) แก้ไขได้ทุกบรรทัดก่อนพิมพ์
+const RC_PTYPE = { bw: 'ปริ้นขาวดำ', laser: 'ขาวดำเลเซอร์', color: 'ปริ้นสี', mix: 'ปริ้นผสม', portfolio: 'Portfolio', poster: 'โปสเตอร์' };
+const rcMoney = (n) => (Math.round((Number(n) || 0) * 100) / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const rcToday = () => { const d = new Date(); return d.getDate() + '/' + (d.getMonth() + 1) + '/' + (d.getFullYear() + 543); };
+function rcLinesOf(o, isPro){
+  const L = []; const files = o.files || []; const cp = o.copies || 1;
+  const push = (desc, amt) => L.push({ desc, amt: Math.round((Number(amt) || 0) * 100) / 100 });
+  if (isPro) {
+    const multi = files.length > 1 && files.some(f => f.paper);
+    if (multi) {
+      files.forEach((f, i) => push('ไฟล์ที่ ' + (i + 1) + ' ' + (f.paper || 'งาน PRO') + (f.protype === 'sticker' ? '' : ' × ' + (f.copies || 1) + ' ชุด'), f.pcost || 0));
+      const sum = L.reduce((a, x) => a + x.amt, 0), diff = (o.print_cost || 0) - sum; // ยอดรวมรายไฟล์ต้องเท่าค่าปริ้นที่ตั้งไว้ — ต่างกัน (เช่นเจ้าของตั้งราคาใหม่) ปรับที่บรรทัดสุดท้าย
+      if (Math.abs(diff) >= 0.5 && L.length) L[L.length - 1].amt = Math.round((L[L.length - 1].amt + diff) * 100) / 100;
+    } else push('งาน PRO: ' + (o.paper || '') + (cp > 1 ? ' × ' + cp + ' ชุด' : ''), o.print_cost || 0);
+    if (o.bind_cost > 0) push('ค่าเข้าเล่ม', o.bind_cost);
+  } else {
+    const typeOf = (f) => (o.ptype === 'mix' && f && f.cmode) ? (f.cmode === 'color' ? 'ปริ้นสี' : f.cmode === 'pages' ? 'ปริ้นผสม (สีหน้าที่ ' + (f.cpages || '-') + ')' : 'ปริ้นขาวดำ') : (RC_PTYPE[o.ptype] || (o.color ? 'ปริ้นสี' : 'ปริ้นขาวดำ'));
+    const descOf = (f) => { const sides = f.sides || o.sides, nup = f.nup || o.nup; return typeOf(f) + ' ' + (f.pages || 0) + ' หน้า' + (sides === 2 ? ' (หน้า-หลัง)' : '') + (nup > 1 ? ' ' + nup + ' หน้า/แผ่น' : '') + ' × ' + cp + ' ชุด'; };
+    const w = files.map(f => Number(f.pages) || 0), tot = w.reduce((a, x) => a + x, 0) || 1; let cum = 0, prev = 0;
+    files.forEach((f, i) => { cum += (o.print_cost || 0) * w[i] / tot; const amt = Math.round(cum) - Math.round(prev); prev = cum; push(descOf(f), amt); }); // แบ่งค่าปริ้นตามสัดส่วนหน้า รวมเท่าค่าปริ้นเป๊ะ
+    if (!files.length) push((RC_PTYPE[o.ptype] || 'งานปริ้น') + (cp > 1 ? ' × ' + cp + ' ชุด' : ''), o.print_cost || 0);
+    if (o.bind_cost > 0) push('ค่าเข้าเล่ม/เย็บ', o.bind_cost);
+  }
+  const ex = o.express ? 20 : 0, ship = Math.max(0, (Number(o.delivery_cost) || 0) - ex);
+  if (ship > 0) push('ค่าจัดส่ง', ship);
+  if (ex > 0) push('ค่างานด่วน (Express)', ex);
+  if (o.night_fee > 0) push('ค่าบริการกลางคืน (22:00–06:00 น.)', o.night_fee);
+  (o.adjustments || []).forEach(a => push(a.label || 'ปรับราคา', a.amt));
+  return L.slice(0, 8);
+}
+function ReceiptTool({ o, isPro, onClose }){
+  const cleanAddr = (o.pickup || String(o.addr || '').indexOf('🏪') === 0) ? '' : String(o.addr || '').replace(/^(🚗|🏍️)\s*/, '').replace(/\s*·\s*(🤝 รับกับมือ|📦 วางไว้จุดวางของ)\s*$/, '');
+  const [f, setF] = React.useState({ date: rcToday(), no: '', name: ('คุณ' + (o.customer_fname || '') + ' ' + (o.customer_lname || '')).trim(), addr: cleanAddr, tax: '', phone: o.customer_phone || '',
+    payee: (() => { try { return localStorage.getItem('mp_rc_payee') || 'ธกฤต อามาตย์'; } catch (e) { return 'ธกฤต อามาตย์'; } })(), discount: Number(o.discount) || 0 });
+  const [lines, setLines] = React.useState(() => rcLinesOf(o, isPro));
+  const [busy, setBusy] = React.useState(false);
+  const [msg, setMsg] = React.useState('');
+  const set = (k) => (e) => setF(v => ({ ...v, [k]: e.target.value }));
+  const subtotal = lines.reduce((a, x) => a + (Number(x.amt) || 0), 0);
+  const total = Math.round((subtotal - (Number(f.discount) || 0)) * 100) / 100;
+  const paid = Number(o.total) || 0;
+  const mismatch = Math.abs(total - paid) >= 1;
+  React.useEffect(() => { try { localStorage.setItem('mp_rc_payee', f.payee); } catch (e) {} }, [f.payee]);
+  // ขอเลขที่จากระบบ (ชุดเดียวกับใบเสร็จที่ลูกค้าขอเอง) — ออเดอร์ที่เคยมีเลขแล้วจะได้เลขเดิม
+  const fetchNo = async () => {
+    if (busy) return f.no;
+    if (!DB) { let n = 0; try { n = parseInt(localStorage.getItem('mp_rc_demo') || '0', 10) || 0; localStorage.setItem('mp_rc_demo', String(n + 1)); } catch (e) {} const no = 'MP' + String(n + 1).padStart(3, '0'); setF(v => ({ ...v, no })); return no; }
+    setBusy(true); setMsg('');
+    try {
+      const { data, error } = await DB.rpc('issue_receipt', { oid: o.id, bname: f.name, baddr: f.addr || '-', btax: f.tax || '-', bphone: f.phone });
+      if (error || !/^MP\d/.test(String(data || ''))) { setMsg('ขอเลขที่อัตโนมัติไม่สำเร็จ (' + (error ? error.message : 'ไม่มีคำตอบ') + ') — พิมพ์เลขที่เองในช่องได้เลย'); setBusy(false); return ''; }
+      setF(v => ({ ...v, no: data })); setBusy(false); return data;
+    } catch (e) { setMsg('ขอเลขที่ไม่สำเร็จ — พิมพ์เลขที่เองในช่องได้เลย'); setBusy(false); return ''; }
+  };
+  const doPrint = async () => {
+    let no = f.no.trim();
+    if (!no) { no = await fetchNo(); if (!no) return; }
+    setTimeout(() => { try { window.print(); } catch (e) {} }, 150);
+  };
+  const inp = css("width:100%;box-sizing:border-box;height:36px;border:1px solid var(--line);border-radius:9px;padding:0 10px;font-size:13px;font-family:inherit;background:var(--card);color:var(--ink)");
+  const lab = css("font-size:11px;font-weight:700;color:var(--sub);margin-bottom:3px");
+  const rows = [...Array(8)].map((_, i) => lines[i] || null);
+  const dot = { borderBottom: '1px dotted #777', flex: 1, minWidth: 0, padding: '0 6px', minHeight: '20px' };
+  const cell = { border: '1px solid #444', padding: '7px 8px', fontSize: '13px' };
+  return (
+    <div style={css("position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:200;overflow-y:auto;padding:14px")} onClick={onClose}>
+      <div style={css("max-width:720px;margin:0 auto;display:flex;flex-direction:column;gap:12px")} onClick={e => e.stopPropagation()}>
+        {/* ── ฟอร์มกรอก (ไม่พิมพ์) ── */}
+        <div className="mp-rc-form" style={css("background:var(--card);border-radius:14px;padding:14px 16px;box-shadow:0 10px 40px rgba(0,0,0,.35)")}>
+          <div style={css("display:flex;align-items:center;gap:8px")}>
+            <div style={css("flex:1;font-size:14px;font-weight:800")}>🧾 ออกใบเสร็จรับเงิน — {o.id}</div>
+            <button onClick={onClose} style={css("height:32px;padding:0 12px;border:1px solid var(--line);border-radius:9px;background:var(--soft);color:var(--sub);font-size:12px;font-weight:700;cursor:pointer;font-family:inherit")}>ปิด</button>
+          </div>
+          <div style={css("margin-top:4px;font-size:11px;color:var(--sub);line-height:1.5")}>ร้านกรอกข้อมูลผู้ซื้อเอง (ลูกค้าลืมกดขอตอนสั่ง) · ระบบเติมรายการ/ราคาจากออเดอร์ให้ แก้ได้ทุกช่อง · เลขที่ขอจากระบบอัตโนมัติ (ชุดเดียวกับที่ลูกค้าขอเอง)</div>
+          <div style={css("margin-top:10px;display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px")}>
+            <div><div style={lab}>วันที่</div><input value={f.date} onChange={set('date')} style={inp}/></div>
+            <div><div style={lab}>เลขที่</div><div style={css("display:flex;gap:6px")}><input value={f.no} onChange={set('no')} placeholder="กดขอเลข →" style={inp}/><button onClick={fetchNo} disabled={busy} style={css("flex:none;height:36px;padding:0 10px;border:1px solid var(--line);border-radius:9px;background:var(--soft);font-size:11.5px;font-weight:700;cursor:pointer;font-family:inherit;color:var(--ink)")}>{busy ? '⏳' : 'ขอเลข'}</button></div></div>
+            <div style={css("grid-column:1 / -1")}><div style={lab}>ชื่อผู้ซื้อ</div><input value={f.name} onChange={set('name')} style={inp}/></div>
+            <div style={css("grid-column:1 / -1")}><div style={lab}>ที่อยู่</div><input value={f.addr} onChange={set('addr')} placeholder="ที่อยู่ผู้ซื้อ" style={inp}/></div>
+            <div><div style={lab}>เลขประจำตัวผู้เสียภาษี (ถ้ามี)</div><input value={f.tax} onChange={set('tax')} placeholder="ไม่มี = เว้นว่าง จะพิมพ์ -" style={inp}/></div>
+            <div><div style={lab}>โทรศัพท์</div><input value={f.phone} onChange={set('phone')} style={inp}/></div>
+            <div><div style={lab}>ผู้รับเงิน (ลงชื่อ)</div><input value={f.payee} onChange={set('payee')} style={inp}/></div>
+            <div><div style={lab}>ส่วนลด (บาท)</div><input value={f.discount} onChange={set('discount')} type="number" style={inp}/></div>
+          </div>
+          <div style={css("margin-top:10px")}>
+            <div style={lab}>รายการ (สูงสุด 8 บรรทัด)</div>
+            {lines.map((ln, i) => (
+              <div key={i} style={css("display:flex;gap:6px;margin-bottom:6px")}>
+                <input value={ln.desc} onChange={e => setLines(ls => ls.map((x, j) => j === i ? { ...x, desc: e.target.value } : x))} style={{ ...inp, flex: 1 }}/>
+                <input value={ln.amt} onChange={e => setLines(ls => ls.map((x, j) => j === i ? { ...x, amt: e.target.value } : x))} type="number" style={{ ...inp, width: '96px', flex: 'none', textAlign: 'right' }}/>
+                <button onClick={() => setLines(ls => ls.filter((_, j) => j !== i))} title="ลบบรรทัด" style={css("flex:none;width:36px;height:36px;border:1px solid var(--line);border-radius:9px;background:var(--soft);cursor:pointer;color:#c92a2a;font-weight:800")}>✕</button>
+              </div>
+            ))}
+            {lines.length < 8 && <button onClick={() => setLines(ls => [...ls, { desc: '', amt: 0 }])} style={css("height:32px;padding:0 12px;border:1px dashed var(--line);border-radius:9px;background:none;color:var(--sub);font-size:11.5px;font-weight:700;cursor:pointer;font-family:inherit")}>＋ เพิ่มบรรทัด</button>}
+          </div>
+          <div style={css("margin-top:8px;font-size:12px;line-height:1.6;" + (mismatch ? "color:#c92a2a;font-weight:700" : "color:var(--sub)"))}>
+            ยอดรวมในใบเสร็จ ฿{rcMoney(total)} · ลูกค้าจ่ายจริง ฿{rcMoney(paid)}{mismatch ? ' — ไม่ตรงกัน ตรวจรายการ/ส่วนลดก่อนพิมพ์' : ' ✓ ตรงกัน'}
+          </div>
+          {msg && <div style={css("margin-top:6px;font-size:11.5px;color:#c92a2a;font-weight:700")}>{msg}</div>}
+          <button onClick={doPrint} disabled={busy} style={css("margin-top:10px;width:100%;height:44px;border:none;border-radius:11px;background:#00b368;color:#fff;font-size:14px;font-weight:800;cursor:pointer;font-family:inherit")}>🖨️ พิมพ์ / บันทึกเป็น PDF</button>
+          <div style={css("margin-top:5px;font-size:10.5px;color:var(--sub)")}>ในหน้าต่างพิมพ์เลือก "บันทึกเป็น PDF" (iPhone: แชร์ → พิมพ์ → ถ่างนิ้วที่ภาพตัวอย่าง → บันทึก)</div>
+        </div>
+        {/* ── ใบเสร็จ (ส่วนที่พิมพ์ออก — ดีไซน์เดียวกับบิลเปล่า MORE PRINT) ── */}
+        <div id="mpRcSheet" style={{ background: '#fff', color: '#111', borderRadius: '10px', padding: '28px 30px 22px', boxShadow: '0 10px 40px rgba(0,0,0,.35)', fontFamily: "'Thonburi','Sukhumvit Set','Noto Sans Thai','Sarabun',sans-serif", width: '100%', boxSizing: 'border-box' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <img src="assets/logo-icon.png" alt="" onError={(e) => { e.target.style.display = 'none'; }} style={{ height: '46px', width: 'auto', display: 'block' }}/>
+            <div style={{ fontFamily: "'Montserrat','Avenir Next',sans-serif", fontSize: '24px', fontWeight: 900, letterSpacing: '1px', flex: 1 }}>MORE <span style={{ color: '#00b368' }}>PRINT</span></div>
+            <div style={{ fontSize: '20px', fontWeight: 800, flex: 'none' }}>ใบเสร็จรับเงิน</div>
+          </div>
+          <div style={{ marginTop: '26px', display: 'flex', gap: '24px', fontSize: '14px' }}>
+            <div style={{ flex: 1, display: 'flex', alignItems: 'baseline', gap: '6px' }}><span style={{ flex: 'none' }}>วันที่</span><span style={dot}>{f.date}</span></div>
+            <div style={{ flex: 1, display: 'flex', alignItems: 'baseline', gap: '6px' }}><span style={{ flex: 'none' }}>เลขที่</span><span style={{ ...dot, fontWeight: 700 }}>{f.no || ' '}</span></div>
+          </div>
+          <div style={{ marginTop: '14px', display: 'flex', alignItems: 'baseline', gap: '6px', fontSize: '14px' }}><span style={{ flex: 'none' }}>ชื่อผู้ซื้อ</span><span style={dot}>{f.name}</span></div>
+          <div style={{ marginTop: '14px', display: 'flex', alignItems: 'baseline', gap: '6px', fontSize: '14px' }}><span style={{ flex: 'none' }}>ที่อยู่</span><span style={dot}>{f.addr || ' '}</span></div>
+          <div style={{ marginTop: '14px', display: 'flex', gap: '24px', fontSize: '14px', flexWrap: 'wrap' }}>
+            <div style={{ flex: '1 1 260px', display: 'flex', alignItems: 'baseline', gap: '6px' }}><span style={{ flex: 'none' }}>เลขประจำตัวผู้เสียภาษี (ถ้ามี)</span><span style={dot}>{f.tax.trim() || '-'}</span></div>
+            <div style={{ flex: '1 1 180px', display: 'flex', alignItems: 'baseline', gap: '6px' }}><span style={{ flex: 'none' }}>โทรศัพท์</span><span style={dot}>{f.phone}</span></div>
+          </div>
+          <table style={{ marginTop: '22px', width: '100%', borderCollapse: 'collapse' }}>
+            <thead><tr>
+              <th style={{ ...cell, width: '46px', fontWeight: 700, background: '#f4f4f4' }}>ลำดับ</th>
+              <th style={{ ...cell, fontWeight: 700, background: '#f4f4f4' }}>รายการ</th>
+              <th style={{ ...cell, width: '110px', fontWeight: 700, background: '#f4f4f4' }}>จำนวนเงิน (บาท)</th>
+            </tr></thead>
+            <tbody>
+              {rows.map((ln, i) => (
+                <tr key={i}>
+                  <td style={{ ...cell, textAlign: 'center', color: '#444', height: '22px' }}>{i + 1}</td>
+                  <td style={cell}>{ln ? ln.desc : ''}</td>
+                  <td style={{ ...cell, textAlign: 'right', fontFamily: "'IBM Plex Mono',monospace" }}>{ln ? rcMoney(ln.amt) : ''}</td>
+                </tr>
+              ))}
+              <tr><td colSpan={2} style={{ ...cell, textAlign: 'right', color: '#333' }}>ราคาสุทธิ</td><td style={{ ...cell, textAlign: 'right', fontFamily: "'IBM Plex Mono',monospace" }}>{rcMoney(subtotal)}</td></tr>
+              <tr><td colSpan={2} style={{ ...cell, textAlign: 'right', color: '#333' }}>ส่วนลด{o.coupon && Number(f.discount) > 0 ? ' (โค้ด ' + o.coupon + ')' : ''}</td><td style={{ ...cell, textAlign: 'right', fontFamily: "'IBM Plex Mono',monospace" }}>{Number(f.discount) > 0 ? rcMoney(f.discount) : '-'}</td></tr>
+              <tr><td colSpan={2} style={{ ...cell, textAlign: 'right', fontWeight: 800 }}>ยอดรวม</td><td style={{ ...cell, textAlign: 'right', fontFamily: "'IBM Plex Mono',monospace", fontWeight: 800, fontSize: '15px' }}>{rcMoney(total)}</td></tr>
+            </tbody>
+          </table>
+          <div style={{ marginTop: '34px', display: 'flex', alignItems: 'flex-end', gap: '20px', fontSize: '11.5px', color: '#333' }}>
+            <div style={{ flex: 1, lineHeight: 1.6 }}>หน่วยเงิน: บาท · MORE PRINT — เว็บปริ้นเอกสารพร้อมส่ง 24 ชม. รอบ มข.<br/>อ้างอิงออเดอร์ <span style={{ fontFamily: "'IBM Plex Mono',monospace" }}>{o.id}</span></div>
+            <div style={{ flex: 'none', width: '220px', textAlign: 'center' }}>
+              <div style={{ fontSize: '14px', borderBottom: '1px dotted #777', paddingBottom: '2px', minHeight: '20px' }}>{f.payee}</div>
+              <div style={{ marginTop: '5px', fontSize: '12.5px' }}>ผู้รับเงิน (ลงชื่อ)</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function ProOrder({ o, idx, isOwner, payoutReady, onPrice, onPayout, onAdvance, onRetreat, onApplyEdits, onCancel, onPartnerAdvance, onPartnerRetreat, onPartnerCancel, onPartnerRemove }){
   // การรับงาน/จุดส่ง ในแผงแก้ไขออเดอร์ (มารับเอง ↔ จัดส่ง / แก้ที่อยู่-ค่าส่ง — 2026-09-15)
   const [sdMode, setSdMode] = React.useState(o.pickup ? 'pickup' : 'delivery');
@@ -345,6 +501,7 @@ function ProOrder({ o, idx, isOwner, payoutReady, onPrice, onPayout, onAdvance, 
   };
   // ── ปรับแต่งออเดอร์ (เฉพาะเจ้าของ MORE PRINT): แผงพับเก็บ ไม่บังปุ่มหลัก ──
   const [adjOpen, setAdjOpen] = React.useState(false);
+  const [rcOpen, setRcOpen] = React.useState(false); // ออกใบเสร็จโดยร้าน (2026-10-19)
   const [adjMode, setAdjMode] = React.useState('add');
   const [adjLabel, setAdjLabel] = React.useState('');
   const [adjAmt, setAdjAmt] = React.useState('');
@@ -593,6 +750,11 @@ function ProOrder({ o, idx, isOwner, payoutReady, onPrice, onPayout, onAdvance, 
           ↩ กดผิด? ย้อนสถานะกลับเป็น "{stepsOf(o)[o.status - 2]}"
         </button>
       )}
+      {/* ออกใบเสร็จโดยร้าน (เจ้าของสั่ง 2026-10-19) — เฉพาะเจ้าของ */}
+      {isOwner && o.status !== 0 && (
+        <button onClick={() => setRcOpen(true)} style={css("margin-top:9px;width:100%;height:38px;border:1.5px solid #00b368;border-radius:12px;background:#e6f7ef;color:#00744a;font-size:12.5px;font-weight:800;cursor:pointer;font-family:inherit")}>🧾 ออกใบเสร็จให้ลูกค้า (ร้านกรอกเอง)</button>
+      )}
+      {rcOpen && <ReceiptTool o={o} isPro={true} onClose={() => setRcOpen(false)}/>}
       {/* ปรับแต่งออเดอร์ + การรับงาน/จุดส่ง รวมแผงเดียว (เฉพาะเจ้าของ — เจ้าของสั่งรวม 2026-09-15) */}
       {isOwner && o.status !== 0 && (
         <div style={css("margin-top:9px;border:1px dashed var(--line);border-radius:10px;overflow:hidden")}>
