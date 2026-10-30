@@ -112,6 +112,52 @@ const fmtWhen = (iso) => {
 };
 const UNSENT_MSG = '⊘ ยกเลิกการส่งข้อความแล้ว'; // ป้ายข้อความถูก unsend — ต้องตรงกับ index.html + RPC unsend_message เป๊ะ
 const fileUrl = (path) => path && CFG.SUPABASE_URL ? CFG.SUPABASE_URL + '/storage/v1/object/public/uploads/' + path : null;
+
+// ── ไฟล์ในคลังอาจหายได้ (ล้างตามรอบ / เจ้าของลบเองในหน้า Supabase) — เปิด/แสดงแบบไม่พัง (2026-10-30) ──
+// เปิด PDF: เช็คก่อนว่ายังมีไฟล์ (คำขอ HEAD เล็กมาก ไม่ดาวน์โหลดไฟล์) — ไม่มี = แจ้ง "ไฟล์ไม่พร้อมใช้งาน" แทนหน้า error
+const openStored = (url) => (e) => {
+  if (e) e.preventDefault();
+  const w = window.open('', '_blank');
+  const go = () => { if (w) w.location.href = url; else window.open(url, '_blank'); };
+  fetch(url, { method: 'HEAD' }).then(r => {
+    if (r.ok) return go();
+    if (w) w.close();
+    alert('ไฟล์ไม่พร้อมใช้งาน — ไฟล์นี้ถูกลบออกจากคลังแล้ว (ทักแชทขอไฟล์จากลูกค้าได้)');
+  }).catch(go);
+};
+// รูปจากคลัง (สลิป/รูปแชท): โหลดไม่ได้ = ข้อความแทนรูปแตก
+// ภาพปกคลิป: จับเฟรมจากวิดีโอ (ไฟล์ในเครื่อง หรือ URL) → JPEG กว้าง 360px — หน้าแรกโชว์ภาพนี้แทนการเล่นวิดีโออัตโนมัติ (2026-10-30)
+function makeVideoPoster(src){
+  return new Promise((resolve) => {
+    let done = false, v = null;
+    const fin = (b) => { if (done) return; done = true; clearTimeout(t); try { v.removeAttribute('src'); v.load(); } catch (e) {} resolve(b); };
+    const t = setTimeout(() => fin(null), 20000);
+    v = document.createElement('video');
+    v.muted = true; v.playsInline = true; v.preload = 'auto'; v.crossOrigin = 'anonymous';
+    v.onloadeddata = () => { try { v.currentTime = Math.min(0.8, (v.duration || 2) / 3); } catch (e) { fin(null); } };
+    v.onseeked = () => {
+      try {
+        const w = 360, h = Math.round(w * (v.videoHeight || 640) / (v.videoWidth || 360));
+        const c = document.createElement('canvas'); c.width = w; c.height = h;
+        c.getContext('2d').drawImage(v, 0, 0, w, h);
+        c.toBlob(b => fin(b), 'image/jpeg', 0.78);
+      } catch (e) { fin(null); }
+    };
+    v.onerror = () => fin(null);
+    v.src = typeof src === 'string' ? src : URL.createObjectURL(src);
+  });
+}
+function StoredImg({ url, alt, style, caption, fallback }){
+  const [bad, setBad] = React.useState(false);
+  React.useEffect(() => { setBad(false); }, [url]);
+  if (!url || bad) return <div style={css("font-size:11.5px;color:var(--sub);background:var(--soft);border:1px dashed var(--line);border-radius:9px;padding:6px 10px;display:inline-block;line-height:1.5")}>{fallback || '🖼️ ไฟล์ไม่พร้อมใช้งาน (ถูกลบออกจากคลังแล้ว)'}</div>;
+  return (
+    <a href={url} target="_blank" rel="noreferrer" style={{ display: 'inline-block', textDecoration: 'none' }}>
+      <img src={url} alt={alt || ''} onError={() => setBad(true)} style={style}/>
+      {caption}
+    </a>
+  );
+}
 // ── ชุดไอคอนเส้น (สไตล์ Feather — MIT, ฝังในไฟล์) ใช้แทนอิโมจิทั้งเว็บ เพื่อความเป็นทางการ ──
 const fi = (paths, size) => (
   <svg width={size || 15} height={size || 15} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{ flex: 'none', verticalAlign: '-2px' }}>{paths}</svg>
@@ -419,9 +465,7 @@ function Chat({ o, onSeen, tall }){
                 style={{ maxWidth: '78%', background: unsent ? 'var(--soft)' : mine ? 'var(--acc)' : 'var(--card)', color: unsent ? 'var(--sub)' : mine ? '#fff' : 'var(--ink)',
                 border: unsent ? '1px dashed var(--line)' : mine ? 'none' : '1px solid var(--line)', borderRadius: '12px', padding: '7px 11px', fontSize: '12.5px', lineHeight: 1.5, whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontStyle: unsent ? 'italic' : 'normal', WebkitTouchCallout: canUnsend ? 'none' : 'default' }}>
                 {(m.img || m.img_url) && !unsent && (
-                  <a href={m.img_url || fileUrl(m.img)} target="_blank" rel="noreferrer" style={{ display: 'block', marginBottom: '5px' }}>
-                    <img src={m.img_url || fileUrl(m.img)} alt="" style={{ maxWidth: '190px', maxHeight: '230px', borderRadius: '9px', display: 'block', background: 'var(--soft)' }}/>
-                  </a>
+                  <div style={css("margin-bottom:5px")}><StoredImg url={m.img_url || fileUrl(m.img)} alt="" style={{ maxWidth: '190px', maxHeight: '230px', borderRadius: '9px', display: 'block', background: 'var(--soft)' }} fallback="🖼️ รูปนี้ไม่พร้อมใช้งานแล้ว"/></div>
                 )}
                 {m.body}
                 <div style={{ marginTop: '3px', fontSize: '9.5px', opacity: .7, fontFamily: "'IBM Plex Mono',monospace" }}>{fmtWhen(m.created_at)}</div>
@@ -752,10 +796,10 @@ function OrderCard({ o, idx, onAdvance, onRetreat, onApplyEdits, onCancel, onRem
                     {(o.ptype === 'color' || o.color) && f.scanned && <span style={css("flex:none;font-size:10.5px;font-weight:700;background:#e7f5ff;color:#1971c2;padding:3px 8px;border-radius:8px")}>{FI.drop(10)} สีเยอะ {f.heavy || 0}/{f.pages}</span>}
                     {f.drive_url
                       ? <a href={f.drive_url} target="_blank" rel="noreferrer" style={css("flex:none;font-size:11.5px;font-weight:700;background:#fff7e0;color:#a16207;border:1px solid #f0b429;padding:4px 10px;border-radius:8px;text-decoration:none")}>⬇ เปิดไฟล์ใหญ่</a>
-                      : o.files_purged_at
+                      : (o.files_purged_at || o.pdf_purged_at)
                         ? <span style={css("flex:none;font-size:11px;font-weight:700;color:var(--sub);background:var(--soft);border:1px solid var(--line);padding:3px 9px;border-radius:8px")}>🧹 ไฟล์ถูกล้างตามรอบเก็บ 7 วัน</span>
                         : fileUrl(f.path)
-                          ? <a href={fileUrl(f.path)} target="_blank" rel="noreferrer" style={css("flex:none;font-size:11.5px;font-weight:600;background:var(--accSoft);color:var(--acc);padding:4px 10px;border-radius:8px;text-decoration:none")}>⬇ เปิดไฟล์</a>
+                          ? <a href={fileUrl(f.path)} onClick={openStored(fileUrl(f.path))} target="_blank" rel="noreferrer" style={css("flex:none;font-size:11.5px;font-weight:600;background:var(--accSoft);color:var(--acc);padding:4px 10px;border-radius:8px;text-decoration:none")}>⬇ เปิดไฟล์</a>
                           : <span style={css("flex:none;max-width:100%;box-sizing:border-box;line-height:1.5;font-size:11px;font-weight:700;color:#c92a2a;background:#ffe3e3;padding:3px 9px;border-radius:8px")}>⚠️ ไฟล์อัปไม่สำเร็จ — ทักแชทขอไฟล์จากลูกค้า</span>}
                   </div>
                   {f.drive_url && (
@@ -805,10 +849,7 @@ function OrderCard({ o, idx, onAdvance, onRetreat, onApplyEdits, onCancel, onRem
             {o.files_purged_at
               ? <div style={css("margin-top:4px;font-size:11.5px;color:var(--sub)")}>🧹 สลิปถูกล้างตามรอบเก็บไฟล์ 7 วันหลังส่งสำเร็จ</div>
               : fileUrl(o.slip_path)
-              ? <a href={fileUrl(o.slip_path)} target="_blank" rel="noreferrer" style={css("display:inline-block;margin-top:6px;text-decoration:none")}>
-                  <img src={fileUrl(o.slip_path)} alt="สลิปโอนเงิน" style={css("max-width:170px;max-height:220px;border-radius:10px;border:1px solid var(--line);display:block;background:var(--soft)")}/>
-                  <div style={css("font-size:11px;color:var(--acc);margin-top:4px;font-weight:600")}>แตะเพื่อดูรูปเต็ม</div>
-                </a>
+              ? <div style={css("margin-top:6px")}><StoredImg url={fileUrl(o.slip_path)} alt="สลิปโอนเงิน" style={css("max-width:170px;max-height:220px;border-radius:10px;border:1px solid var(--line);display:block;background:var(--soft)")} caption={<div style={css("font-size:11px;color:var(--acc);margin-top:4px;font-weight:600")}>แตะเพื่อดูรูปเต็ม</div>} fallback="🧾 ไฟล์สลิปไม่พร้อมใช้งาน (ถูกลบออกจากคลังแล้ว) — ยอดเงินในระบบยังอยู่ครบ"/></div>
               : <div>
                   {/* สลิปแนบครั้งแรกไม่สำเร็จ — ลองหาไฟล์ที่ลูกค้ากดส่งใหม่ (<รหัส>/slip-re.jpg): โหลดได้ = โชว์แทน + ซ่อนป้ายเตือน (2026-09-15) */}
                   <a href={fileUrl(o.id.replace('#', '') + '/slip-re.jpg')} target="_blank" rel="noreferrer" style={css("display:none;margin-top:6px;text-decoration:none")}>
@@ -2074,7 +2115,7 @@ function AdminApp(){
     if (bnFile && DB) {
       const safe = bnFile.name.replace(/[^a-zA-Z0-9._-]/g, '_');
       image_path = 'banners/' + Date.now() + '_' + safe;
-      const { error } = await DB.storage.from('uploads').upload(image_path, bnFile);
+      const { error } = await DB.storage.from('uploads').upload(image_path, bnFile, { cacheControl: '31536000' }); // แคช 1 ปี — ลด Cached Egress (2026-10-30)
       if (error) { console.error(error); image_path = null; }
     }
     if (DB) {
@@ -2092,7 +2133,7 @@ function AdminApp(){
   };
   const delBanner = async (b) => {
     if (DB) {
-      if (b.image_path) { try { await DB.storage.from('uploads').remove([b.image_path]); } catch (e) {} } // ลบไฟล์รูปทิ้งด้วย กันรกถัง (ลบไม่ได้ก็ข้าม ไม่บล็อกการลบแบนเนอร์)
+      if (b.image_path) { try { await DB.storage.from('uploads').remove(b.color === 'clip' ? [b.image_path, b.image_path + '.jpg'] : [b.image_path]); } catch (e) {} } // ลบไฟล์รูปทิ้งด้วย กันรกถัง (ลบไม่ได้ก็ข้าม ไม่บล็อกการลบแบนเนอร์)
       await DB.from('banners').delete().eq('id', b.id); await loadBanners();
     }
     else setBanners(l => l.filter(x => x.id !== b.id));
@@ -2112,7 +2153,7 @@ function AdminApp(){
     if (DB) {
       const safe = shFile.name.replace(/[^a-zA-Z0-9._-]/g, '_');
       const image_path = 'banners/showcase_' + Date.now() + '_' + safe; // โฟลเดอร์เดียวกับรูปแบนเนอร์ — ใช้สิทธิ์ storage เดิมได้เลย
-      const { error } = await DB.storage.from('uploads').upload(image_path, shFile);
+      const { error } = await DB.storage.from('uploads').upload(image_path, shFile, { cacheControl: '31536000' });
       if (error) { setShBusy(false); return alert('อัปโหลดรูปไม่สำเร็จ ลองอีกครั้งครับ: ' + error.message); }
       const { error: ie } = await DB.from('banners').insert({ title: shCap.trim(), subtitle: '', emoji: '📸', color: 'showcase', image_path });
       if (ie) { setShBusy(false); return alert('บันทึกรูปงานไม่สำเร็จ ลองอีกครั้งครับ: ' + ie.message); }
@@ -2143,8 +2184,10 @@ function AdminApp(){
     if (DB) {
       const safe = clFile.name.replace(/[^a-zA-Z0-9._-]/g, '_');
       const image_path = 'banners/clip_' + Date.now() + '_' + safe; // โฟลเดอร์เดียวกับแบนเนอร์ — สิทธิ์ storage เดิม
-      const { error } = await DB.storage.from('uploads').upload(image_path, clFile);
+      const { error } = await DB.storage.from('uploads').upload(image_path, clFile, { cacheControl: '31536000' });
       if (error) { setClBusy(false); return alert('อัปโหลดคลิปไม่สำเร็จ ลองอีกครั้งครับ: ' + error.message); }
+      // ภาพปกจากไฟล์ในเครื่อง (ไม่เสียแบนด์วิดท์) — หน้าแรกโชว์ภาพนี้ วิดีโอโหลดเฉพาะตอนลูกค้าแตะ
+      try { const pb = await makeVideoPoster(clFile); if (pb) await DB.storage.from('uploads').upload(image_path + '.jpg', pb, { contentType: 'image/jpeg', cacheControl: '31536000' }); } catch (e) {}
       const { error: ie } = await DB.from('banners').insert({ title: clCap.trim(), subtitle: '', emoji: '🎬', color: 'clip', image_path });
       if (ie) { setClBusy(false); return alert('บันทึกคลิปไม่สำเร็จ ลองอีกครั้งครับ: ' + ie.message); }
       await loadBanners();
@@ -2158,6 +2201,24 @@ function AdminApp(){
     setClDelId(null);
     await delBanner(b);
   };
+  // คลิปเดิมที่ยังไม่มีภาพปก: สร้างให้อัตโนมัติครั้งเดียวตอนเปิดแท็บโปรโมชั่น (2026-10-30) — หลังจากนั้นหน้าแรกไม่ต้องโหลดวิดีโอเลย
+  React.useEffect(() => {
+    if (tab !== 'banners' || !DB) return;
+    let stop = false;
+    (async () => {
+      for (const b of banners.filter(x => x.color === 'clip' && x.image_path)) {
+        if (stop) return;
+        const key = 'mp_poster_' + b.image_path;
+        try { if (localStorage.getItem(key)) continue; } catch (e) {}
+        try { const r = await fetch(fileUrl(b.image_path + '.jpg'), { method: 'HEAD' }); if (r.ok) { try { localStorage.setItem(key, '1'); } catch (e) {} continue; } } catch (e) { continue; }
+        const pb = await makeVideoPoster(fileUrl(b.image_path));
+        if (!pb || stop) continue;
+        const { error } = await DB.storage.from('uploads').upload(b.image_path + '.jpg', pb, { contentType: 'image/jpeg', cacheControl: '31536000' });
+        if (!error || /exist|duplicate/i.test(String(error.message || ''))) { try { localStorage.setItem(key, '1'); } catch (e) {} }
+      }
+    })();
+    return () => { stop = true; };
+  }, [tab, banners]);
 
   // ── ประกาศแจ้งปัญหา/งานล่าช้า (แบนเนอร์ชนิด alert: ลูกค้าเจอป๊อปอัพเตือนก่อนสั่ง + แถบแดงบนเว็บ) ──
   const [alOpen, setAlOpen] = React.useState(false);
@@ -2199,25 +2260,23 @@ function AdminApp(){
   };
 
   // ── ลบไฟล์ของออเดอร์ที่ส่งสำเร็จเกิน 7 วัน (นโยบายเจ้าของ 2026-10-09) — กันคลังไฟล์ 1GB เต็มจนอัปโหลดพังทั้งเว็บ ──
-  // ลบเฉพาะตัวไฟล์ PDF+สลิปในคลัง: แถวออเดอร์/ยอดเงิน/ประวัติอยู่ครบ แล้วตีตรา files_purged_at ให้หลังบ้านขึ้นป้าย 🧹 แทนปุ่มเปิดไฟล์
+  // (2026-10-30) ลบเฉพาะไฟล์ PDF เก็บสลิปไว้เสมอ แล้วตีตรา pdf_purged_at — ป้ายเดิม files_purged_at = ออเดอร์ที่ล้างแบบเก่า (สลิปหายไปแล้ว)
+  // ลบเฉพาะตัวไฟล์ PDF+สลิปในคลัง (แบบเก่า): แถวออเดอร์/ยอดเงิน/ประวัติอยู่ครบ แล้วตีตรา files_purged_at ให้หลังบ้านขึ้นป้าย 🧹 แทนปุ่มเปิดไฟล์
   // (ไฟล์ใหญ่บน B2 ไม่แตะ — คลังแยก 10GB) ทำงานเงียบ ๆ ตอนเปิดหลังบ้าน ครั้งละ ≤5 ใบ เหมือนระบบลบออเดอร์ยกเลิก
   const FILE_KEEP_MS = 7 * 24 * 60 * 60 * 1000;
   const autoPurgeFiles = async (rows) => {
     if (window.__purgeFilesOff) return;
     if (!window.__purgeColOk) {
-      const { error } = await DB.from('orders').select('files_purged_at').limit(1);
-      if (error) { window.__purgeFilesOff = true; return; } // คอลัมน์ยังไม่ถูกเพิ่ม (รอ SQL เจ้าของ) — ห้ามลบไฟล์ก่อนตีตราได้ เดี๋ยวป้ายเพี้ยนเป็น "อัปไม่สำเร็จ"
+      const { error } = await DB.from('orders').select('pdf_purged_at').limit(1);
+      if (error) { window.__purgeFilesOff = true; return; } // ยังไม่รัน SQL เพิ่มคอลัมน์ pdf_purged_at — ไม่ลบอะไรจนกว่าจะมีที่ตีตรา
       window.__purgeColOk = true;
     }
-    const due = rows.filter(o => o.status === 4 && !o.files_purged_at && o.created_at && (Date.now() - new Date(o.created_at).getTime() > FILE_KEEP_MS));
+    const due = rows.filter(o => o.status === 4 && !o.files_purged_at && !o.pdf_purged_at && o.created_at && (Date.now() - new Date(o.created_at).getTime() > FILE_KEEP_MS));
     for (const o of due.slice(0, 5)) {
       try {
-        const paths = (o.files || []).map(f => f.path).filter(Boolean);
-        if (o.slip_path) paths.push(o.slip_path);
-        paths.push(o.id.replace('#', '') + '/slip-re.jpg'); // สลิปที่ลูกค้าส่งใหม่ path ตายตัว ไม่อยู่ในแถว — ลบเผื่อไว้ (ไม่มีไฟล์ = ระบบข้ามเอง)
-        const { error: se } = await DB.storage.from('uploads').remove(paths);
-        if (se) continue; // ลบไฟล์ไม่สำเร็จ = ข้ามใบนี้รอบนี้ กันตีตราทั้งที่ไฟล์ยังอยู่
-        await DB.from('orders').update({ files_purged_at: new Date().toISOString() }).eq('id', o.id);
+        const paths = (o.files || []).map(f => f.path).filter(Boolean); // เฉพาะไฟล์ PDF — ห้ามแตะสลิป (เจ้าของสั่ง 2026-10-30)
+        if (paths.length) { const { error: se } = await DB.storage.from('uploads').remove(paths); if (se) continue; } // ลบไม่สำเร็จ = ข้ามใบนี้ ห้ามตีตรา
+        await DB.from('orders').update({ pdf_purged_at: new Date().toISOString() }).eq('id', o.id);
       } catch (e) {}
     }
   };
@@ -2443,29 +2502,27 @@ function AdminApp(){
     if (!DB) { setPurgeResult('โหมดตัวอย่าง — ไม่มีไฟล์จริงให้ล้าง'); return; }
     setPurgeBusy(true); setPurgeResult('');
     try {
-      const probe = await DB.from('orders').select('files_purged_at').limit(1);
-      if (probe.error) { setPurgeResult('ยังใช้ไม่ได้ — ต้องรัน SQL เพิ่มคอลัมน์ files_purged_at ก่อนครับ'); setPurgeBusy(false); return; }
+      const probe = await DB.from('orders').select('pdf_purged_at').limit(1);
+      if (probe.error) { setPurgeResult('ยังใช้ไม่ได้ — ต้องรัน SQL เพิ่มคอลัมน์ pdf_purged_at ก่อนครับ'); setPurgeBusy(false); return; }
       const cutoff = new Date(Date.now() - FILE_KEEP_MS).toISOString();
-      const { data } = await DB.from('orders').select('id,files,slip_path')
-        .in('status', [0, 4]).is('files_purged_at', null).lt('created_at', cutoff).limit(500);
+      const { data } = await DB.from('orders').select('id,files')
+        .eq('status', 4).is('files_purged_at', null).is('pdf_purged_at', null).lt('created_at', cutoff).limit(500);
       let nFiles = 0, nOrders = 0;
       for (const o of (data || [])) {
-        const paths = [];
-        (o.files || []).forEach(f => { if (f.path) paths.push(f.path); });
-        if (o.slip_path) paths.push(o.slip_path);
-        const real = paths.length;
-        paths.push(o.id.replace('#', '') + '/slip-re.jpg'); // สลิปส่งใหม่ path ตายตัว — ลบเผื่อ (ไม่มี = ระบบข้ามเอง)
-        const { error } = await DB.storage.from('uploads').remove(paths);
-        if (!error) {
-          nFiles += real; nOrders++;
-          await DB.from('orders').update({ files_purged_at: new Date().toISOString() }).eq('id', o.id);
+        const paths = (o.files || []).map(f => f.path).filter(Boolean); // เฉพาะ PDF — สลิปเก็บไว้เสมอ (2026-10-30)
+        let ok = true;
+        if (paths.length) { const { error } = await DB.storage.from('uploads').remove(paths); ok = !error; }
+        if (ok) {
+          nFiles += paths.length; nOrders++;
+          await DB.from('orders').update({ pdf_purged_at: new Date().toISOString() }).eq('id', o.id);
         }
       }
-      setPurgeResult(nOrders ? '✓ ล้างแล้ว ' + nFiles + ' ไฟล์ จาก ' + nOrders + ' ออเดอร์ — ข้อมูลยอดขายอยู่ครบทุกรายการ' : 'ยังไม่มีไฟล์เก่าเกิน 7 วันให้ล้างครับ');
+      setPurgeResult(nOrders ? '✓ ล้างไฟล์ PDF แล้ว ' + nFiles + ' ไฟล์ จาก ' + nOrders + ' ออเดอร์ — สลิปและข้อมูลยอดขายอยู่ครบ' : 'ยังไม่มีไฟล์ PDF ที่ครบกำหนดล้าง');
       await refresh();
     } catch (e) { console.error(e); setPurgeResult('เกิดข้อผิดพลาด ลองอีกครั้งครับ'); }
     setPurgeBusy(false);
   };
+
 
   // สถิติ (ไม่นับออเดอร์ที่ยกเลิก)
   const today = new Date().toDateString();
@@ -2998,11 +3055,11 @@ function AdminApp(){
 
           <div style={css("background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px")}>
             <div style={css("font-size:12px;font-weight:700")}>{FI.trash(12)} คืนพื้นที่ไฟล์</div>
-            <div style={css("margin-top:4px;font-size:11.5px;color:var(--sub);line-height:1.5")}>ระบบ<b>ล้างอัตโนมัติ</b>ทุกครั้งที่เปิดหลังบ้าน: ลบเฉพาะ<b>ไฟล์ PDF และรูปสลิป</b>ของออเดอร์ที่ส่งสำเร็จเกิน 7 วัน — ตัวเลขยอดขาย สถิติ และประวัติลูกค้า<b>อยู่ครบไม่หายไปไหน</b> (ปุ่มนี้ไว้กดกวาดทั้งหมดทันที)</div>
+            <div style={css("margin-top:4px;font-size:11.5px;color:var(--sub);line-height:1.5")}>ระบบ<b>ล้างอัตโนมัติ</b>ทุกครั้งที่เปิดหลังบ้าน: ลบเฉพาะ<b>ไฟล์ PDF</b> ของออเดอร์ที่ส่งสำเร็จเกิน 7 วัน (<b>สลิปเก็บไว้เสมอ</b>) — ตัวเลขยอดขาย สถิติ และประวัติลูกค้า<b>อยู่ครบไม่หายไปไหน</b> (ปุ่มนี้ไว้กดกวาดทั้งหมดทันที)</div>
             <button disabled={purgeBusy} onClick={purgeOldFiles}
               style={{ marginTop: '10px', width: '100%', height: '42px', border: 'none', borderRadius: '11px', fontSize: '13px', fontWeight: 700, cursor: 'pointer',
                 background: purgeConfirm ? '#d9480f' : 'var(--soft)', color: purgeConfirm ? '#fff' : 'var(--ink)' }}>
-              {purgeBusy ? '⏳ กำลังล้างไฟล์…' : purgeConfirm ? '⚠️ แน่ใจนะ? กดอีกครั้งเพื่อล้างไฟล์เก่า' : 'ล้างไฟล์ออเดอร์ที่จบแล้วเกิน 7 วัน (ทั้งหมดทันที)'}
+              {purgeBusy ? '⏳ กำลังล้างไฟล์…' : purgeConfirm ? '⚠️ แน่ใจนะ? กดอีกครั้งเพื่อล้างไฟล์เก่า' : 'ล้างไฟล์ PDF ของออเดอร์ที่ส่งแล้วเกิน 7 วัน (ทั้งหมดทันที)'}
             </button>
             {purgeResult && <div style={css("margin-top:8px;font-size:12px;color:var(--acc);font-weight:600")}>{purgeResult}</div>}
           </div>

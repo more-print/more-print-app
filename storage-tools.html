@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>MORE PRINT — เครื่องมือคืนพื้นที่ไฟล์</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  /* เครื่องมือคืนพื้นที่คลังไฟล์ Supabase (2026-10-30) — ใช้ล็อกอินเดียวกับหลังบ้าน (storageKey mp-admin)
+     กติกาความปลอดภัย: ทุกการลบเป็น DRY-RUN ก่อนเสมอ · ลบจริงต้องพิมพ์ go · ลบทีละชุดเล็ก · จด log ทุกไฟล์ · รันซ้ำได้ปลอดภัย
+     ลบผ่าน Storage API (storage.remove) เท่านั้น — ห้ามลบแถวใน storage.objects ด้วย SQL (ไฟล์จริงไม่หาย พื้นที่ไม่คืน) */
+  body{margin:0;background:#f4f4f2;color:#111;font-family:'IBM Plex Sans Thai',sans-serif;
+    --card:#fff;--sub:#77776f;--line:#e4e4e0;--soft:#efefec;--acc:#00b368;--accSoft:#e6f7ef;--red:#c92a2a;--redSoft:#fff0f0;--warn:#8a6d1a;--warnSoft:#fff7e0}
+  input,button,select,textarea{font-family:inherit}
+  table{border-collapse:collapse;width:100%}
+  td,th{padding:5px 8px;border-bottom:1px solid var(--line);font-size:12px;text-align:left;vertical-align:top}
+  th{color:var(--sub);font-weight:600;background:var(--soft);position:sticky;top:0}
+  .mono{font-family:'IBM Plex Mono',monospace}
+</style>
+<script src="./config.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script crossorigin src="https://unpkg.com/react@18.3.1/umd/react.production.min.js"></script>
+<script crossorigin src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel" data-presets="react">
+const CFG = window.MP_CONFIG || {};
+const DB = (CFG.SUPABASE_URL && CFG.SUPABASE_ANON_KEY && window.supabase)
+  ? window.supabase.createClient(CFG.SUPABASE_URL, CFG.SUPABASE_ANON_KEY, { auth: { storageKey: 'mp-admin' } }) : null;
+const BUCKET = 'uploads';
+const BATCH = 10; // ลบครั้งละไม่เกิน 10 ไฟล์
+const publicUrl = (p) => CFG.SUPABASE_URL + '/storage/v1/object/public/' + BUCKET + '/' + p;
+const mb = (n) => n == null ? '—' : (n / 1048576).toFixed(n >= 104857600 ? 0 : 2) + ' MB';
+const STATUS = { 0: 'ยกเลิก', 1: 'รับออเดอร์', 2: 'กำลังปริ้น', 3: 'กำลังจัดส่ง', 4: 'ส่งแล้ว/รับแล้ว' };
+const fmtD = (iso) => { if (!iso) return '-'; const d = new Date(iso); return d.getDate() + '/' + (d.getMonth() + 1) + '/' + String(d.getFullYear() + 543).slice(-2) + ' ' + String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); };
+function css(str){ const o = {}; String(str).split(';').forEach(d => { const i = d.indexOf(':'); if (i < 0) return; const k = d.slice(0, i).trim(); if (!k) return; o[k.replace(/-([a-z])/g, (_, c) => c.toUpperCase())] = d.slice(i + 1).trim(); }); return o; }
+function download(name, text, type){ const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([text], { type: type || 'text/plain;charset=utf-8' })); a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 3000); }
+const stamp = () => new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+
+// SQL ที่เจ้าของต้องรันครั้งเดียวใน Supabase (อ่านอย่างเดียว + คอลัมน์ป้าย + สิทธิ์แอดมิน — ไม่ลบข้อมูลใด ๆ)
+const SETUP_SQL = `-- MORE PRINT: เครื่องมือคืนพื้นที่ไฟล์ (รันครั้งเดียว ปลอดภัย รันซ้ำได้)
+alter table public.orders add column if not exists pdf_purged_at timestamptz;
+
+create or replace function public.admin_storage_inventory()
+returns table(name text, size bigint, created_at timestamptz)
+language sql security definer set search_path = public, storage as $$
+  select o.name, coalesce((o.metadata->>'size')::bigint, 0), o.created_at
+  from storage.objects o
+  where o.bucket_id = 'uploads' and public.is_admin();
+$$;
+revoke all on function public.admin_storage_inventory() from public, anon;
+grant execute on function public.admin_storage_inventory() to authenticated;
+
+drop policy if exists mp_admin_delete_uploads on storage.objects;
+create policy mp_admin_delete_uploads on storage.objects for delete to authenticated
+  using (bucket_id = 'uploads' and public.is_admin());`;
+
+// ── ข้อมูลตัวอย่าง (เปิดไฟล์นี้โดยไม่มี config = โหมดเดโม่ ทดสอบปุ่ม/ขั้นตอนได้ ไม่แตะของจริง) ──
+const DEMO = (() => {
+  const now = Date.now(), day = 86400000, iso = (d) => new Date(now - d * day).toISOString();
+  const orders = [
+    { id: '#MP-DONE001', status: 4, created_at: iso(9), customer_fname: 'สมชาย', files: [{ name: 'รายงาน.pdf', path: 'pre/a1/f_report.pdf' }, { name: 'สไลด์.pdf', path: 'pre/a2/f_slide.pdf' }], slip_path: 'pre/a3/slip.jpg' },
+    { id: '#MP-DONE002', status: 4, created_at: iso(5), customer_fname: 'มินตรา', files: [{ name: 'thesis.pdf', path: 'pre/b1/f_thesis.pdf' }], slip_path: 'pre/b2/slip.png' },
+    { id: '#MP-DONE003', status: 4, created_at: iso(4), customer_fname: 'ต้นกล้า', files: [{ name: 'ไฟล์ที่ถูกลบมือแล้ว.pdf', path: 'pre/c1/f_gone.pdf' }], slip_path: 'pre/c2/slip.jpg' },
+    { id: '#MP-NEW004', status: 1, created_at: iso(0.1), customer_fname: 'วรรณ', files: [{ name: 'ใหม่.pdf', path: 'pre/d1/f_new.pdf' }], slip_path: 'pre/d2/slip.jpg' },
+    { id: '#MP-PRINT005', status: 2, created_at: iso(3), customer_fname: 'ปอ', files: [{ name: 'กำลังปริ้น.pdf', path: 'pre/e1/f_printing.pdf' }], slip_path: 'pre/e2/slip.jpg' },
+    { id: '#MP-SHIP006', status: 3, created_at: iso(3), customer_fname: 'บี', files: [{ name: 'กำลังส่ง.pdf', path: 'pre/f1/f_ship.pdf' }], slip_path: 'pre/f2/slip.jpg' },
+    { id: '#MP-DONE007', status: 4, created_at: iso(1), customer_fname: 'ใหม่เมื่อวาน', files: [{ name: 'เพิ่งส่ง.pdf', path: 'pre/g1/f_recent.pdf' }], slip_path: 'pre/g2/slip.jpg' },
+    { id: '#MP-BIG008', status: 4, created_at: iso(12), customer_fname: 'ไฟล์ใหญ่', files: [{ name: 'big.pdf', drive_url: 'https://b2.example/big.pdf' }], slip_path: 'pre/h2/slip.jpg' },
+    { id: '#MP-OLD009', status: 4, created_at: iso(30), customer_fname: 'ล้างแบบเก่า', files: [{ name: 'old.pdf', path: 'pre/i1/f_old.pdf' }], slip_path: 'pre/i2/slip.jpg', files_purged_at: iso(20) },
+  ];
+  const sz = (k) => Math.round((k * 1.37 + 0.3) * 1048576);
+  const inv = [
+    ['pre/a1/f_report.pdf', 3.2, 9], ['pre/a2/f_slide.pdf', 6.1, 9], ['pre/a3/slip.jpg', 0.3, 9], ['pre/b1/f_thesis.pdf', 12.4, 5], ['pre/b2/slip.png', 0.5, 5],
+    ['pre/c2/slip.jpg', 0.2, 4], ['pre/d1/f_new.pdf', 1.1, 0.1], ['pre/d2/slip.jpg', 0.2, 0.1], ['pre/e1/f_printing.pdf', 2.2, 3], ['pre/e2/slip.jpg', 0.2, 3],
+    ['pre/f1/f_ship.pdf', 2.0, 3], ['pre/f2/slip.jpg', 0.2, 3], ['pre/g1/f_recent.pdf', 4.4, 1], ['pre/g2/slip.jpg', 0.2, 1], ['pre/h2/slip.jpg', 0.2, 12], ['pre/i2/slip.jpg', 0.2, 30],
+    ['pre/zz1/f_abandoned.pdf', 8.8, 10], ['pre/zz2/f_abandoned2.pdf', 3.3, 6], ['pre/zz3/slip.jpg', 0.4, 6], ['pre/zz4/f_today.pdf', 1.5, 0.5],
+    ['banners/clip_1_a.mp4', 5.4, 40], ['banners/clip_2_b.mp4', 9.3, 39], ['chat/MP-DONE001/1.jpg', 0.4, 9], ['payouts/x1.jpg', 0.3, 7],
+  ].map(([name, m, d]) => ({ name, size: Math.round(m * 1048576), created_at: iso(d) }));
+  return { orders, inv };
+})();
+
+function useAdmin(){
+  const [state, setState] = React.useState(DB ? 'checking' : 'demo');
+  const [msg, setMsg] = React.useState('');
+  const verify = async () => {
+    const r = await DB.rpc('is_admin');
+    if (r.data) setState('ok'); else { setState('login'); setMsg(r.error ? 'เช็คสิทธิ์ไม่ได้: ' + r.error.message : 'บัญชีนี้ไม่ใช่เจ้าของร้าน'); }
+  };
+  React.useEffect(() => { if (!DB) return; DB.auth.getSession().then(({ data }) => { if (data.session) verify(); else setState('login'); }); }, []);
+  const login = async (email, pass) => {
+    setMsg('');
+    const { error } = await DB.auth.signInWithPassword({ email: email.trim().toLowerCase(), password: pass });
+    if (error) return setMsg('อีเมลหรือรหัสผ่านไม่ถูกต้อง');
+    await verify();
+  };
+  return { state, msg, login };
+}
+
+function Login({ onLogin, msg }){
+  const [e, setE] = React.useState(''); const [p, setP] = React.useState('');
+  const inp = css("width:100%;box-sizing:border-box;height:44px;border:1px solid var(--line);border-radius:11px;padding:0 12px;font-size:14px;margin-top:8px");
+  return (
+    <div style={css("max-width:340px;margin:60px auto;background:var(--card);border-radius:16px;padding:24px;box-shadow:0 2px 10px rgba(0,0,0,.06)")}>
+      <div style={css("font-weight:700;font-size:16px")}>🧹 เครื่องมือคืนพื้นที่ไฟล์</div>
+      <div style={css("font-size:12px;color:var(--sub);margin-top:4px")}>ล็อกอินบัญชีเจ้าของร้าน (บัญชีเดียวกับหลังบ้าน)</div>
+      <input style={inp} value={e} onChange={x => setE(x.target.value)} placeholder="อีเมล" autoComplete="email"/>
+      <input style={inp} type="password" value={p} onChange={x => setP(x.target.value)} onKeyDown={x => x.key === 'Enter' && onLogin(e, p)} placeholder="รหัสผ่าน" autoComplete="current-password"/>
+      {msg && <div style={css("margin-top:8px;font-size:12px;color:var(--red)")}>{msg}</div>}
+      <button onClick={() => onLogin(e, p)} style={css("margin-top:12px;width:100%;height:44px;border:none;border-radius:11px;background:var(--acc);color:#fff;font-weight:700;font-size:14px;cursor:pointer")}>เข้าสู่ระบบ</button>
+    </div>
+  );
+}
+
+function Card({ title, children, tone }){
+  const bg = tone === 'red' ? 'var(--redSoft)' : tone === 'warn' ? 'var(--warnSoft)' : 'var(--card)';
+  return <div style={css("background:" + bg + ";border:1px solid var(--line);border-radius:14px;padding:14px 16px;margin-top:12px")}>{title && <div style={css("font-weight:700;font-size:14px;margin-bottom:8px")}>{title}</div>}{children}</div>;
+}
+const btn = (bg, fg, dis) => css("height:38px;padding:0 14px;border:" + (bg === 'none' ? '1px solid var(--line)' : 'none') + ";border-radius:10px;background:" + (bg === 'none' ? 'var(--card)' : bg) + ";color:" + (fg || '#fff') + ";font-weight:700;font-size:12.5px;cursor:" + (dis ? 'not-allowed' : 'pointer') + ";opacity:" + (dis ? .45 : 1) + ";margin:4px 6px 0 0");
+
+function App(){
+  const auth = useAdmin();
+  const demo = !DB;
+  const [inv, setInv] = React.useState(null);        // { map: name→{size,created_at}, list, err }
+  const [orders, setOrders] = React.useState(null);  // แถวออเดอร์ทั้งหมด
+  const [loadMsg, setLoadMsg] = React.useState('');
+  const [log, setLog] = React.useState(() => { try { return JSON.parse(localStorage.getItem('mp_cleanup_log') || '[]'); } catch (e) { return []; } });
+  const addLog = (lines) => setLog(l => { const n = [...l, ...lines]; try { localStorage.setItem('mp_cleanup_log', JSON.stringify(n.slice(-5000))); } catch (e) {} return n; });
+  const demoInv = React.useRef(DEMO.inv.map(x => ({ ...x })));
+  const demoOrders = React.useRef(DEMO.orders.map(x => ({ ...x })));
+
+  const loadAll = async () => {
+    setLoadMsg('⏳ กำลังโหลดรายการไฟล์และออเดอร์…');
+    if (demo) {
+      const map = {}; demoInv.current.forEach(o => { map[o.name] = o; });
+      setInv({ map, list: [...demoInv.current], err: null }); setOrders(demoOrders.current.map(x => ({ ...x }))); setLoadMsg(''); return;
+    }
+    // รายการไฟล์ทั้งคลัง (RPC อ่านอย่างเดียว — ต้องรัน SQL ด้านล่างก่อน)
+    let list = [], err = null;
+    for (let from = 0; from < 200000; from += 1000) {
+      const r = await DB.rpc('admin_storage_inventory').range(from, from + 999);
+      if (r.error) { err = r.error.message; break; }
+      list.push(...(r.data || []));
+      if (!r.data || r.data.length < 1000) break;
+    }
+    const map = {}; list.forEach(o => { map[o.name] = o; });
+    setInv({ map, list, err });
+    // ออเดอร์ทั้งหมด (เฉพาะคอลัมน์ที่ใช้)
+    let rows = [], oerr = null;
+    for (let from = 0; from < 200000; from += 1000) {
+      let r = await DB.from('orders').select('id,status,created_at,customer_fname,ptype,files,slip_path,files_purged_at,pdf_purged_at').order('created_at', { ascending: true }).range(from, from + 999);
+      if (r.error && /pdf_purged_at/.test(r.error.message || '')) { oerr = 'ยังไม่มีคอลัมน์ pdf_purged_at — รัน SQL ด้านล่างก่อน'; break; }
+      if (r.error) { oerr = r.error.message; break; }
+      rows.push(...(r.data || []));
+      if (!r.data || r.data.length < 1000) break;
+    }
+    setOrders(oerr ? null : rows);
+    setLoadMsg(oerr ? '⚠️ ' + oerr : err ? '⚠️ อ่านรายการไฟล์ไม่ได้ (' + err + ') — รัน SQL ด้านล่างก่อน' : '');
+  };
+  React.useEffect(() => { if (auth.state === 'ok' || auth.state === 'demo') loadAll(); }, [auth.state]);
+
+  if (auth.state === 'checking') return <div style={css("padding:40px;text-align:center;color:var(--sub)")}>⏳ กำลังเช็คสิทธิ์…</div>;
+  if (auth.state === 'login') return <Login onLogin={auth.login} msg={auth.msg}/>;
+
+  return (
+    <div style={css("max-width:980px;margin:0 auto;padding:14px 14px 60px")}>
+      <div style={css("display:flex;align-items:center;gap:10px")}>
+        <div style={css("flex:1")}>
+          <div style={css("font-size:18px;font-weight:700")}>🧹 เครื่องมือคืนพื้นที่ไฟล์ (Supabase Storage)</div>
+          <div style={css("font-size:12px;color:var(--sub)")}>ทุกปุ่มเป็น DRY-RUN (ดูรายการเฉย ๆ) · ลบจริงต้องพิมพ์ go · ลบทีละ {BATCH} ไฟล์ · จด log ทุกไฟล์ · สลิปไม่ถูกลบในขั้นนี้</div>
+        </div>
+        <a href="admin.html" style={css("font-size:12px;font-weight:700;color:var(--acc);text-decoration:none")}>← หลังบ้าน</a>
+      </div>
+      {demo && <Card tone="warn"><b>โหมดตัวอย่าง</b> — ไม่ได้เชื่อมฐานข้อมูล ตัวเลข/ไฟล์ทั้งหมดเป็นของปลอมไว้ทดสอบขั้นตอน</Card>}
+      {loadMsg && <Card tone={loadMsg.startsWith('⚠️') ? 'red' : null}>{loadMsg}</Card>}
+      <Card title="① SQL ที่ต้องรันครั้งเดียว (ใน Supabase → SQL Editor บน Safari)">
+        <div style={css("font-size:12px;color:var(--sub);margin-bottom:6px")}>อ่านรายการไฟล์ (อ่านอย่างเดียว) · เพิ่มคอลัมน์ป้าย pdf_purged_at · ให้สิทธิ์ลบไฟล์เฉพาะบัญชีเจ้าของ — ไม่ลบข้อมูลใด ๆ</div>
+        <textarea readOnly value={SETUP_SQL} style={css("width:100%;box-sizing:border-box;height:150px;font-family:'IBM Plex Mono',monospace;font-size:11px;border:1px solid var(--line);border-radius:10px;padding:8px")}/>
+        <button onClick={() => { try { navigator.clipboard.writeText(SETUP_SQL); } catch (e) {} }} style={btn('none', '#111')}>คัดลอก SQL</button>
+        <button onClick={loadAll} style={btn('none', '#111')}>↻ โหลดข้อมูลใหม่</button>
+      </Card>
+      {inv && !inv.err && <Inventory inv={inv} orders={orders}/>}
+      {inv && !inv.err && orders && <CleanupA inv={inv} orders={orders} demo={demo} demoInv={demoInv} demoOrders={demoOrders} addLog={addLog} reload={loadAll}/>}
+      {inv && !inv.err && orders && <CleanupOrphans inv={inv} orders={orders} demo={demo} demoInv={demoInv} addLog={addLog} reload={loadAll}/>}
+      <Card title={'📜 Log การลบ (' + log.length + ' บรรทัด · เก็บในเครื่องนี้)'}>
+        <div style={css("max-height:180px;overflow:auto;background:var(--soft);border-radius:9px;padding:8px")} className="mono">
+          {log.length === 0 ? <div style={css("font-size:12px;color:var(--sub)")}>ยังไม่มีการลบ</div> : log.slice(-300).map((l, i) => <div key={i} style={css("font-size:11px;white-space:pre-wrap")}>{l}</div>)}
+        </div>
+        <button disabled={!log.length} onClick={() => download('moreprint-delete-log_' + stamp() + '.txt', log.join('\n'))} style={btn('none', '#111', !log.length)}>ดาวน์โหลด log</button>
+      </Card>
+    </div>
+  );
+}
+
+function Inventory({ inv, orders }){
+  const groups = {};
+  inv.list.forEach(o => { const top = o.name.includes('/') ? o.name.split('/')[0] + '/' : '(ราก)'; const k = /^MP-/.test(top) ? 'โฟลเดอร์รหัสออเดอร์ (MP-…/)' : top; groups[k] = groups[k] || { n: 0, size: 0 }; groups[k].n++; groups[k].size += o.size; });
+  const total = inv.list.reduce((a, o) => a + o.size, 0);
+  const referenced = new Set(); (orders || []).forEach(o => { (o.files || []).forEach(f => f.path && referenced.add(f.path)); if (o.slip_path) referenced.add(o.slip_path); });
+  const missing = [...referenced].filter(p => !inv.map[p]).length;
+  return (
+    <Card title={'② ภาพรวมคลังไฟล์ตอนนี้: ' + inv.list.length.toLocaleString() + ' ไฟล์ · ' + mb(total) + ' (โควตาฟรี 1,024 MB)'}>
+      <table><thead><tr><th>โฟลเดอร์</th><th>จำนวนไฟล์</th><th>ขนาด</th></tr></thead>
+        <tbody>{Object.entries(groups).sort((a, b) => b[1].size - a[1].size).map(([k, g]) => <tr key={k}><td>{k}</td><td>{g.n}</td><td className="mono">{mb(g.size)}</td></tr>)}</tbody></table>
+      {orders && <div style={css("margin-top:8px;font-size:12px;color:var(--sub)")}>ออเดอร์อ้างถึงไฟล์ {referenced.size} ไฟล์ · ในจำนวนนี้ <b>{missing}</b> ไฟล์ไม่มีในคลังแล้ว (ถูกลบไปก่อนหน้า — หน้าหลังบ้านจะขึ้น "ไฟล์ไม่พร้อมใช้งาน")</div>}
+    </Card>
+  );
+}
+
+// ── ส่วนกลาง: ตาราง dry-run + สำรองไฟล์ + ลบจริงหลังพิมพ์ go ──
+function RunPanel({ items, demo, demoInv, addLog, onDone, label, afterDelete }){
+  const [goText, setGoText] = React.useState('');
+  const [busy, setBusy] = React.useState(false);
+  const [prog, setProg] = React.useState('');
+  const [backupMsg, setBackupMsg] = React.useState('');
+  const existing = items.filter(x => x.exists);
+  const total = existing.reduce((a, x) => a + (x.size || 0), 0);
+  const csv = () => download('moreprint-dryrun-' + label + '_' + stamp() + '.csv', '﻿' + [['order', 'status', 'created', 'file', 'path', 'size_bytes', 'exists'].join(','), ...items.map(x => [x.oid || '', x.status == null ? '' : STATUS[x.status], x.created || '', '"' + String(x.fname || '').replace(/"/g, '""') + '"', x.path, x.size || 0, x.exists ? 'yes' : 'missing'].join(','))].join('\n'), 'text/csv;charset=utf-8');
+  const backup = async () => {
+    if (!existing.length) return;
+    if (!window.confirm('สำรองไฟล์ ' + existing.length + ' ไฟล์ (' + mb(total) + ') ลงเครื่องเป็น ZIP?\n\n⚠️ การดาวน์โหลดนับเป็น Egress ของ Supabase ตามขนาดไฟล์ — ควรทำบนคอมพิวเตอร์')) return;
+    if (demo) { setBackupMsg('โหมดตัวอย่าง — ไม่มีไฟล์จริงให้สำรอง'); return; }
+    setBusy(true);
+    const zip = new JSZip(); let ok = 0, bad = 0;
+    for (let i = 0; i < existing.length; i++) {
+      setBackupMsg('⏳ ดาวน์โหลด ' + (i + 1) + '/' + existing.length + ' …');
+      try { const r = await fetch(publicUrl(existing[i].path)); if (!r.ok) throw new Error(r.status); zip.file(existing[i].path, await r.blob()); ok++; } catch (e) { bad++; }
+    }
+    setBackupMsg('⏳ กำลังรวมเป็น ZIP …');
+    const blob = await zip.generateAsync({ type: 'blob' });
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'moreprint-backup-' + label + '_' + stamp() + '.zip'; a.click();
+    setBackupMsg('✓ สำรองแล้ว ' + ok + ' ไฟล์' + (bad ? ' · ดาวน์โหลดไม่ได้ ' + bad + ' ไฟล์' : '') + ' — เก็บไฟล์ ZIP ไว้ก่อนกดลบ');
+    setBusy(false);
+  };
+  const run = async () => {
+    if (goText.trim() !== 'go' || busy) return;
+    setBusy(true); setGoText('');
+    const t0 = new Date().toISOString();
+    addLog(['=== ' + t0 + ' เริ่มลบจริง [' + label + '] ' + existing.length + ' ไฟล์ · ' + mb(total) + ' ===']);
+    let deleted = 0, freed = 0, failed = 0;
+    const doneOk = new Set();
+    for (let i = 0; i < existing.length; i += BATCH) {
+      const batch = existing.slice(i, i + BATCH);
+      setProg('⏳ ลบชุดที่ ' + (Math.floor(i / BATCH) + 1) + ' (' + Math.min(i + BATCH, existing.length) + '/' + existing.length + ')');
+      let gone = [];
+      if (demo) { const names = batch.map(x => x.path); demoInv.current = demoInv.current.filter(o => !names.includes(o.name)); gone = names; }
+      else {
+        const { data, error } = await DB.storage.from(BUCKET).remove(batch.map(x => x.path));
+        if (error) { addLog(batch.map(x => new Date().toISOString() + ' FAIL  ' + x.path + ' — ' + error.message)); failed += batch.length; continue; }
+        gone = (data || []).map(o => o.name);
+      }
+      const goneSet = new Set(gone);
+      const lines = [];
+      batch.forEach(x => {
+        if (goneSet.has(x.path)) { deleted++; freed += x.size || 0; doneOk.add(x.path); lines.push(new Date().toISOString() + ' DELETED ' + x.path + ' (' + (x.size || 0) + ' bytes)' + (x.oid ? ' ' + x.oid : '')); }
+        else { failed++; lines.push(new Date().toISOString() + ' NOT-DELETED ' + x.path + ' — ระบบไม่ยืนยันการลบ (สิทธิ์ไม่พอ หรือไฟล์ถูกลบไปแล้ว)'); }
+      });
+      addLog(lines);
+      if (!demo && gone.length === 0) { addLog(['หยุด: ชุดนี้ลบไม่ได้เลย — น่าจะยังไม่ได้รัน SQL สิทธิ์ลบ (mp_admin_delete_uploads)']); break; }
+    }
+    if (afterDelete) await afterDelete(doneOk, addLog);
+    addLog(['=== จบ [' + label + '] ลบสำเร็จ ' + deleted + ' ไฟล์ · คืนพื้นที่ ' + mb(freed) + (failed ? ' · ไม่สำเร็จ ' + failed : '') + ' ===']);
+    setProg('✓ ลบสำเร็จ ' + deleted + ' ไฟล์ · คืนพื้นที่ประมาณ ' + mb(freed) + (failed ? ' · ไม่สำเร็จ ' + failed + ' ไฟล์ (ดู log)' : ''));
+    setBusy(false);
+    onDone && onDone();
+  };
+  return (
+    <div style={css("margin-top:10px")}>
+      <div style={css("font-size:13px")}><b>DRY-RUN:</b> จะลบ <b>{existing.length}</b> ไฟล์ · รวม <b>{mb(total)}</b>{items.length !== existing.length ? ' · อีก ' + (items.length - existing.length) + ' ไฟล์ไม่มีในคลังแล้ว (ข้าม แต่จะตีป้ายว่าไฟล์ถูกลบ)' : ''}</div>
+      <div style={css("margin-top:8px;max-height:320px;overflow:auto;border:1px solid var(--line);border-radius:10px;background:var(--card)")}>
+        <table><thead><tr><th>ออเดอร์</th><th>สถานะ</th><th>สั่งเมื่อ</th><th>ไฟล์</th><th>ขนาด</th></tr></thead>
+          <tbody>{items.map((x, i) => <tr key={i} style={{ opacity: x.exists ? 1 : .5 }}><td className="mono">{x.oid || '—'}</td><td>{x.status == null ? '—' : STATUS[x.status]}</td><td>{fmtD(x.created)}</td><td style={{ wordBreak: 'break-all' }}>{x.fname || x.path}<div className="mono" style={css("font-size:10px;color:var(--sub)")}>{x.path}</div></td><td className="mono">{x.exists ? mb(x.size) : 'ไม่มีแล้ว'}</td></tr>)}</tbody></table>
+      </div>
+      <button onClick={csv} disabled={!items.length} style={btn('none', '#111', !items.length)}>ดาวน์โหลดรายการ (CSV)</button>
+      <button onClick={backup} disabled={!existing.length || busy} style={btn('#1971c2', '#fff', !existing.length || busy)}>💾 สำรองไฟล์ในรายการลงเครื่อง (ZIP)</button>
+      {backupMsg && <div style={css("margin-top:6px;font-size:12px;color:#1971c2;font-weight:600")}>{backupMsg}</div>}
+      <div style={css("margin-top:12px;background:var(--redSoft);border:1px solid #ffc9c9;border-radius:10px;padding:10px 12px")}>
+        <div style={css("font-size:12.5px;font-weight:700;color:var(--red)")}>⚠️ ลบจริง (ย้อนกลับไม่ได้) — อ่านรายการด้านบนให้ครบก่อน · แนะนำให้กดสำรองไฟล์ก่อน</div>
+        <div style={css("display:flex;gap:8px;margin-top:8px;align-items:center;flex-wrap:wrap")}>
+          <input value={goText} onChange={e => setGoText(e.target.value)} placeholder='พิมพ์ go เพื่อยืนยัน' style={css("height:38px;border:1px solid #ffa8a8;border-radius:10px;padding:0 10px;width:170px")}/>
+          <button onClick={run} disabled={goText.trim() !== 'go' || busy || !items.length} style={btn('#c92a2a', '#fff', goText.trim() !== 'go' || busy || !items.length)}>{busy ? '⏳ กำลังทำงาน…' : 'ลบจริง ' + existing.length + ' ไฟล์'}</button>
+        </div>
+        {prog && <div style={css("margin-top:8px;font-size:12.5px;font-weight:700")}>{prog}</div>}
+      </div>
+    </div>
+  );
+}
+
+// ── CLEANUP A: ลบเฉพาะ PDF ของออเดอร์ที่ "ส่งแล้ว" (status 4) · ห้ามแตะสลิป · ตีป้าย pdf_purged_at ──
+function CleanupA({ inv, orders, demo, demoInv, demoOrders, addLog, reload }){
+  const [days, setDays] = React.useState(2);
+  const cutoff = Date.now() - Math.max(0, Number(days) || 0) * 86400000;
+  const protect = new Set(); // path ที่ออเดอร์ยังไม่เสร็จหรือสลิปใด ๆ อ้างถึง = ห้ามลบเด็ดขาด
+  orders.forEach(o => { if (o.slip_path) protect.add(o.slip_path); if (o.status !== 4) (o.files || []).forEach(f => f.path && protect.add(f.path)); });
+  const done = orders.filter(o => o.status === 4 && !o.pdf_purged_at && !o.files_purged_at && new Date(o.created_at).getTime() < cutoff);
+  const items = [];
+  done.forEach(o => (o.files || []).forEach(f => { if (!f.path || f.drive_url || protect.has(f.path)) return; const x = inv.map[f.path]; items.push({ oid: o.id, status: o.status, created: o.created_at, fname: f.name, path: f.path, size: x ? x.size : 0, exists: !!x }); }));
+  const notDone = orders.filter(o => o.status !== 4 && o.status !== 0).length;
+  const markOrders = async (doneOk, addLogFn) => {
+    // ตีป้าย "ไฟล์ PDF ถูกล้าง" เฉพาะออเดอร์ที่ทุกไฟล์ลบสำเร็จหรือไม่มีในคลังแล้ว
+    const ts = new Date().toISOString(); const lines = [];
+    for (const o of done) {
+      const paths = (o.files || []).filter(f => f.path && !f.drive_url && !protect.has(f.path)).map(f => f.path);
+      if (!paths.length) continue;
+      if (!paths.every(p => doneOk.has(p) || !inv.map[p])) continue;
+      if (demo) { const d = demoOrders.current.find(x => x.id === o.id); if (d) d.pdf_purged_at = ts; lines.push(ts + ' MARK pdf_purged_at ' + o.id); continue; }
+      const { error } = await DB.from('orders').update({ pdf_purged_at: ts }).eq('id', o.id);
+      lines.push(ts + (error ? ' MARK-FAIL ' : ' MARK pdf_purged_at ') + o.id + (error ? ' — ' + error.message : ''));
+    }
+    addLogFn(lines);
+  };
+  return (
+    <Card title="③ STEP 2 · Cleanup A — ลบไฟล์ PDF ของออเดอร์ที่เสร็จแล้ว (เก็บสลิปไว้ทั้งหมด)">
+      <div style={css("font-size:12.5px;line-height:1.7")}>
+        นับว่า <b>"เสร็จแล้ว"</b> = status 4 (ส่งแล้ว/ลูกค้ารับแล้ว) เท่านั้น และสั่งมาเกิน
+        <input type="number" min="0" value={days} onChange={e => setDays(e.target.value)} style={css("width:54px;height:28px;margin:0 6px;border:1px solid var(--line);border-radius:7px;padding:0 6px")}/>วัน
+        <div style={css("color:var(--sub);font-size:12px")}>ข้ามเสมอ: status 1 รับออเดอร์ · 2 กำลังปริ้น · 3 กำลังจัดส่ง ({notDone} ออเดอร์) · ออเดอร์ยกเลิก · ไฟล์ใหญ่บน B2 · <b>สลิปทุกไฟล์</b> · ไฟล์ที่ออเดอร์ยังไม่เสร็จใช้ร่วมอยู่</div>
+        <div style={css("color:var(--sub);font-size:12px")}>หลังลบ: ตีป้าย pdf_purged_at ให้ออเดอร์นั้น หลังบ้านจะขึ้น "🧹 ไฟล์ถูกล้าง" แทนปุ่มเปิดไฟล์ ส่วนสลิปยังโชว์ปกติ</div>
+      </div>
+      <RunPanel items={items} demo={demo} demoInv={demoInv} addLog={addLog} label="cleanupA" afterDelete={markOrders} onDone={reload}/>
+      {items.length === 0 && done.length > 0 && <div style={css("margin-top:6px;font-size:12px;color:var(--sub)")}>ออเดอร์ที่ครบเงื่อนไขไม่มีไฟล์ PDF ในคลังแล้ว</div>}
+    </Card>
+  );
+}
+
+// ── ไฟล์กำพร้าใน pre/: ลูกค้าแนบไฟล์แล้วไม่ได้สั่ง (ไม่มีออเดอร์ไหนอ้างถึง) · ข้ามไฟล์ชื่อ slip.* เป็นค่าเริ่มต้น ──
+function CleanupOrphans({ inv, orders, demo, demoInv, addLog, reload }){
+  const [days, setDays] = React.useState(3);
+  const [withSlips, setWithSlips] = React.useState(false);
+  const cutoff = Date.now() - Math.max(1, Number(days) || 1) * 86400000;
+  const referenced = new Set(); orders.forEach(o => { (o.files || []).forEach(f => f.path && referenced.add(f.path)); if (o.slip_path) referenced.add(o.slip_path); });
+  const items = inv.list.filter(o => o.name.startsWith('pre/') && !referenced.has(o.name) && new Date(o.created_at).getTime() < cutoff && (withSlips || !/\/slip\.[a-z0-9]+$/i.test(o.name)))
+    .map(o => ({ oid: null, status: null, created: o.created_at, fname: o.name.split('/').pop(), path: o.name, size: o.size, exists: true }));
+  const skippedSlips = inv.list.filter(o => o.name.startsWith('pre/') && !referenced.has(o.name) && new Date(o.created_at).getTime() < cutoff && /\/slip\.[a-z0-9]+$/i.test(o.name)).length;
+  return (
+    <Card title="④ (เพิ่ม) ไฟล์ค้างในโฟลเดอร์ pre/ ที่ไม่มีออเดอร์ไหนใช้ — ลูกค้าแนบแล้วไม่ได้สั่ง">
+      <div style={css("font-size:12.5px;line-height:1.7")}>
+        เงื่อนไข: อยู่ใน pre/ · <b>ไม่มีออเดอร์ใดอ้างถึง</b> (ทุกสถานะ) · อัปโหลดมาเกิน
+        <input type="number" min="1" value={days} onChange={e => setDays(e.target.value)} style={css("width:54px;height:28px;margin:0 6px;border:1px solid var(--line);border-radius:7px;padding:0 6px")}/>วัน
+        <div><label style={css("font-size:12px;color:var(--sub)")}><input type="checkbox" checked={withSlips} onChange={e => setWithSlips(e.target.checked)}/> รวมรูปสลิปที่ไม่มีออเดอร์ด้วย ({skippedSlips} ไฟล์ — ค่าเริ่มต้นไม่รวม ตามกติกาห้ามลบสลิป)</label></div>
+      </div>
+      <RunPanel items={items} demo={demo} demoInv={demoInv} addLog={addLog} label="orphans-pre" onDone={reload}/>
+    </Card>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
+</body>
+</html>
