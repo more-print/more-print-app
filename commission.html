@@ -76,32 +76,68 @@ const partnerOf = (o) => jobNet(o) - commOf(o);
 const netBill = (o) => Number(o.total) || Math.max(0, jobValue(o) + (o.delivery_cost || 0) + (o.night_fee || 0) + (o.adjustments || []).reduce((s, a) => s + (Number(a.amt) || 0), 0) - (o.discount || 0));
 const fmtDate = (iso) => { const d = new Date(iso); return d.getDate() + ' ' + TH_MONTHS[d.getMonth()] + ' ' + ((d.getFullYear() + 543) % 100); };
 const fmtHM = (d) => String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
-const fileUrl = (path) => path && CFG.SUPABASE_URL ? CFG.SUPABASE_URL + '/storage/v1/object/public/uploads/' + path : null;
-
+// ── ที่เก็บไฟล์ 2 แห่ง (2026-10-30): path ขึ้นต้น "r2:" = ไฟล์ใหม่บน Cloudflare R2 (เปิดผ่านลิงก์ชั่วคราวจาก Edge Function r2-sign — ต้องล็อกอินเจ้าของ/พาร์ทเนอร์)
+//    path แบบเดิม = ไฟล์เก่าใน Supabase Storage (ลิงก์สาธารณะ) — อ่านได้ทั้งคู่จนกว่าจะย้ายไฟล์เก่าเสร็จ
+const R2_FN = (CFG.SUPABASE_URL || '') + '/functions/v1/r2-sign';
+const isR2 = (p) => typeof p === 'string' && p.indexOf('r2:') === 0;
+const fileUrl = (path) => !path ? null : isR2(path) ? path : (CFG.SUPABASE_URL ? CFG.SUPABASE_URL + '/storage/v1/object/public/uploads/' + path : null);
+const R2_URLS = {};
+async function r2Call(body){
+  let tok = CFG.SUPABASE_ANON_KEY;
+  try { const { data } = await DB.auth.getSession(); if (data && data.session) tok = data.session.access_token; } catch (e) {}
+  const r = await fetch(R2_FN, { method: 'POST', headers: { apikey: CFG.SUPABASE_ANON_KEY, Authorization: 'Bearer ' + tok, 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(j.error || ('HTTP ' + r.status));
+  return j;
+}
+// url จาก fileUrl(): ไฟล์ R2 → ลิงก์ชั่วคราว 1 ชม. (จำไว้ 50 นาที ไม่ขอซ้ำทุกครั้งที่วาดจอ) · ไฟล์ Supabase คืนตามเดิม
+async function signedUrl(url){
+  if (!isR2(url)) return url;
+  const key = url.slice(3), c = R2_URLS[key];
+  if (c && c.exp > Date.now()) return c.url;
+  const j = await r2Call({ action: 'get', key });
+  R2_URLS[key] = { url: j.url, exp: Date.now() + 50 * 60 * 1000 };
+  return j.url;
+}
+// ลบไฟล์ตาม path ในออเดอร์: Supabase → storage.remove · R2 → Edge Function (ลบได้เฉพาะ PDF — สลิปบน R2 เก็บไว้เสมอ) — คืน { error } แบบ storage.remove เดิม
+async function removeStored(paths){
+  const sb = (paths || []).filter(p => p && !isR2(p));
+  const r2 = (paths || []).filter(p => isR2(p) && p.slice(3).indexOf('pdf/') === 0).map(p => p.slice(3));
+  if (sb.length) { const { error } = await DB.storage.from('uploads').remove(sb); if (error) return { error }; }
+  if (r2.length) { try { const j = await r2Call({ action: 'delete', keys: r2 }); if ((j.failed || []).length) return { error: new Error('ลบไฟล์บน R2 ไม่สำเร็จ ' + j.failed.length + ' ไฟล์') }; } catch (e) { return { error: e }; } }
+  return { error: null };
+}
 // ── ไฟล์ในคลังอาจหายได้ (ล้างตามรอบ / เจ้าของลบเองในหน้า Supabase) — เปิด/แสดงแบบไม่พัง (2026-10-30) ──
-// เปิด PDF: เช็คก่อนว่ายังมีไฟล์ (คำขอ HEAD เล็กมาก ไม่ดาวน์โหลดไฟล์) — ไม่มี = แจ้ง "ไฟล์ไม่พร้อมใช้งาน" แทนหน้า error
+// เปิดไฟล์: R2 = ขอลิงก์ชั่วคราวก่อนเปิด · Supabase = เช็คก่อนว่ายังมีไฟล์ (คำขอ HEAD เล็กมาก) · ไม่มี = แจ้ง "ไฟล์ไม่พร้อมใช้งาน" แทนหน้า error
 const openStored = (url) => (e) => {
   if (e) e.preventDefault();
   const w = window.open('', '_blank');
-  const go = () => { if (w) w.location.href = url; else window.open(url, '_blank'); };
-  fetch(url, { method: 'HEAD' }).then(r => {
-    if (r.ok) return go();
-    if (w) w.close();
-    alert('ไฟล์ไม่พร้อมใช้งาน — ไฟล์นี้ถูกลบออกจากคลังแล้ว (ทักแชทขอไฟล์จากลูกค้าได้)');
-  }).catch(go);
+  const go = (u) => { if (w) w.location.href = u; else window.open(u, '_blank'); };
+  const gone = () => { if (w) w.close(); alert('ไฟล์ไม่พร้อมใช้งาน — ไฟล์นี้ถูกลบออกจากคลังแล้ว (ทักแชทขอไฟล์จากลูกค้าได้)'); };
+  if (isR2(url)) { signedUrl(url).then(go).catch(gone); return; }
+  fetch(url, { method: 'HEAD' }).then(r => (r.ok ? go(url) : gone())).catch(() => go(url));
 };
-// รูปจากคลัง (สลิป/รูปแชท): โหลดไม่ได้ = ข้อความแทนรูปแตก
+// รูปจากคลัง (สลิป/รูปแชท): R2 = ขอลิงก์ชั่วคราวก่อนแสดง · โหลดไม่ได้ = ข้อความแทนรูปแตก
 function StoredImg({ url, alt, style, caption, fallback }){
   const [bad, setBad] = React.useState(false);
-  React.useEffect(() => { setBad(false); }, [url]);
+  const [src, setSrc] = React.useState(isR2(url) ? null : url);
+  React.useEffect(() => {
+    setBad(false);
+    if (!isR2(url)) { setSrc(url); return; }
+    let on = true; setSrc(null);
+    signedUrl(url).then(u => { if (on) setSrc(u); }).catch(() => { if (on) setBad(true); });
+    return () => { on = false; };
+  }, [url]);
   if (!url || bad) return <div style={css("font-size:11.5px;color:var(--sub);background:var(--soft);border:1px dashed var(--line);border-radius:9px;padding:6px 10px;display:inline-block;line-height:1.5")}>{fallback || '🖼️ ไฟล์ไม่พร้อมใช้งาน (ถูกลบออกจากคลังแล้ว)'}</div>;
+  if (!src) return <div style={css("font-size:11.5px;color:var(--sub);padding:6px 0")}>⏳ กำลังโหลดรูป…</div>;
   return (
-    <a href={url} target="_blank" rel="noreferrer" style={{ display: 'inline-block', textDecoration: 'none' }}>
-      <img src={url} alt={alt || ''} onError={() => setBad(true)} style={style}/>
+    <a href={src} target="_blank" rel="noreferrer" style={{ display: 'inline-block', textDecoration: 'none' }}>
+      <img src={src} alt={alt || ''} onError={() => setBad(true)} style={style}/>
       {caption}
     </a>
   );
 }
+
 // ── ชุดไอคอนเส้น (สไตล์ Feather — MIT, ฝังในไฟล์) ใช้แทนอิโมจิทั้งเว็บ เพื่อความเป็นทางการ ──
 const fi = (paths, size) => (
   <svg width={size || 15} height={size || 15} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{ flex: 'none', verticalAlign: '-2px' }}>{paths}</svg>
@@ -1167,7 +1203,7 @@ function Dash(){
       try {
         const paths = (o.files || []).map(f => f.path).filter(Boolean);
         if (o.slip_path) paths.push(o.slip_path);
-        if (paths.length) await DB.storage.from('uploads').remove(paths);
+        if (paths.length) await removeStored(paths);
         await DB.from('orders').delete().eq('id', o.id);
       } catch (e) {}
     });
@@ -1265,7 +1301,7 @@ function Dash(){
         const paths = [];
         (o.files || []).forEach(f => { if (f.path) paths.push(f.path); });
         if (o.slip_path) paths.push(o.slip_path);
-        if (paths.length) await DB.storage.from('uploads').remove(paths);
+        if (paths.length) await removeStored(paths);
         await DB.from('orders').delete().eq('id', o.id);
         await load();
       } catch (e) { alert('ลบไม่สำเร็จ: ' + e.message); }

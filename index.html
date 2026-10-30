@@ -415,6 +415,10 @@ const stepsFor = (od) => !od ? null : od.pickup ? STEPS_PRO_PICKUP : (od.plabel 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 const UNSENT_MSG = '⊘ ยกเลิกการส่งข้อความแล้ว'; // ป้ายแทนข้อความที่ถูก unsend (ตรงกับ admin.html + RPC unsend_message — ห้ามแก้ข้างเดียว)
 const FILE_BASE = (window.MP_CONFIG || {}).SUPABASE_URL ? (window.MP_CONFIG.SUPABASE_URL + '/storage/v1/object/public/uploads/') : '';
+// ไฟล์งาน PDF + สลิปของออเดอร์ใหม่ → Cloudflare R2 (2026-10-30): เบราว์เซอร์อัปตรงเข้า R2 ด้วยลิงก์ชั่วคราวจาก Edge Function r2-sign
+// ไม่กินพื้นที่/แบนด์วิดท์ Supabase · เปิดใช้ด้วย MP_CONFIG.R2_UPLOADS = true · บันทึก path ขึ้นต้น "r2:" · R2 ล่ม = ถอยไปอัป Supabase แบบเดิมอัตโนมัติ
+const R2_ON = !!(window.MP_CONFIG || {}).R2_UPLOADS && !!(window.MP_CONFIG || {}).SUPABASE_URL;
+const R2_FN = ((window.MP_CONFIG || {}).SUPABASE_URL || '') + '/functions/v1/r2-sign';
 
 // ── กล่องไฮไลต์ 3 ใบใต้ปุ่ม "เริ่มสั่งปริ้น" หน้าแรก ──
 // ตอนนี้ซ่อนอยู่ (array ว่าง) — อยากให้กลับมาโชว์ ใส่ข้อความตามตัวอย่างนี้ได้เลย (กี่ใบก็ได้):
@@ -1445,6 +1449,29 @@ class App extends React.Component {
   }
 
   // อัปโหลดเข้าคลังแบบลองซ้ำ 3 รอบ เว้นจังหวะให้เน็ตฟื้น (1.2/3 วิ) — รอบหลังเจอ "already exists" ถือว่าสำเร็จ (ห้าม upsert ตามกติกา RLS)
+  // อัปไฟล์ 1 ไฟล์เข้า R2: ขอลิงก์ชั่วคราว (ฟังก์ชันสร้างคีย์สุ่มเอง + ลงนามขนาดไฟล์) แล้ว PUT ตรงจากเบราว์เซอร์ — คืน "r2:<key>"
+  async r2Put(kind, file){
+    const K = (window.MP_CONFIG || {}).SUPABASE_ANON_KEY || '';
+    const type = file.type || (kind === 'pdf' ? 'application/pdf' : 'image/jpeg');
+    const r = await fetch(R2_FN, { method: 'POST', headers: { apikey: K, Authorization: 'Bearer ' + K, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'put', kind, name: file.name || (kind + '.bin'), size: file.size, contentType: type }) });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok || !j.url) throw new Error('r2-sign: ' + (j.error || r.status));
+    const p = await fetch(j.url, { method: 'PUT', headers: { ...(j.headers || {}), 'Content-Type': type }, body: file });
+    if (!p.ok) throw new Error('r2-put: ' + p.status);
+    return 'r2:' + j.key;
+  }
+  // เก็บไฟล์ของออเดอร์: R2 ก่อน (ลองซ้ำ 3 รอบ) · ไม่สำเร็จ/ยังไม่เปิดใช้ = Supabase ที่ path เดิม — คืน { path, error }
+  async storeFile(kind, path, file){
+    if (R2_ON) {
+      for (let a = 0; a < 3; a++) {
+        if (a) await new Promise(r => setTimeout(r, a === 1 ? 1200 : 3000));
+        try { return { path: await this.r2Put(kind, file), error: null }; } catch (e) { console.error('r2 upload:', e); }
+      }
+    }
+    const error = await this.uploadRetry(path, file);
+    return { path: error ? null : path, error };
+  }
   async uploadRetry(path, file){
     let error = null;
     for (let a = 0; a < 3; a++) {
@@ -1467,9 +1494,9 @@ class App extends React.Component {
       setF({ up: 1, upErr: false, upDone: false });
       const safe = it.name.replace(/[^a-zA-Z0-9._-]/g, '_');
       const path = 'pre/' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8) + '/f_' + safe;
-      const err = await this.uploadRetry(path, it.file);
+      const st = await this.storeFile('pdf', path, it.file); const err = st.error; // R2 ก่อน (2026-10-30) — path ที่ได้จริงอยู่ใน st.path
       if (err) { console.error('pre-upload:', err); rec.err = true; setF({ upErr: true, up: 0, upTries: (it.upTries || 0) + 1 }); }
-      else { rec.path = path; setF({ up: 100, upDone: true, prePath: path }); } // prePath อยู่ในตัวไฟล์ด้วย — ร่างออเดอร์กู้คืนไฟล์ได้โดยไม่ต้องแนบใหม่
+      else { rec.path = st.path; setF({ up: 100, upDone: true, prePath: st.path }); } // prePath อยู่ในตัวไฟล์ด้วย — ร่างออเดอร์กู้คืนไฟล์ได้โดยไม่ต้องแนบใหม่
     })();
   }
 
@@ -1545,9 +1572,9 @@ class App extends React.Component {
     rec.promise = (async () => {
       const ext = (f.name.split('.').pop() || 'jpg').replace(/[^a-zA-Z0-9]/g, '').slice(0, 5) || 'jpg';
       const path = 'pre/' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8) + '/slip.' + ext;
-      const err = await this.uploadRetry(path, f);
+      const st = await this.storeFile('slip', path, f); const err = st.error; // R2 ก่อน (2026-10-30)
       if (err) { console.error('pre-slip:', err); rec.err = true; }
-      else rec.path = path;
+      else rec.path = st.path;
     })();
   }
 
@@ -2165,8 +2192,9 @@ class App extends React.Component {
             // สำรองล่วงหน้าไม่สำเร็จ/ไม่มี — อัปตรงนี้อีกชุด (ลองซ้ำ 3 รอบเว้นจังหวะ)
             const safe = f.name.replace(/[^a-zA-Z0-9._-]/g, '_');
             path = id.replace('#', '') + '/f' + i + '_' + safe;
-            const error = await this.uploadRetry(path, f.file);
+            const st = await this.storeFile('pdf', path, f.file); const error = st.error; // R2 ก่อน (2026-10-30)
             if (error) { console.error('upload:', error); path = null; upFail++; failIdx.push({ i, name: f.name }); }
+            else path = st.path;
           }
         }
         files[i].path = path;
@@ -2188,8 +2216,8 @@ class App extends React.Component {
         else {
           const ext = (s.slip.name.split('.').pop() || 'jpg').replace(/[^a-zA-Z0-9]/g, '').slice(0, 5) || 'jpg';
           slip_path = id.replace('#', '') + '/slip.' + ext;
-          const se = await this.uploadRetry(slip_path, s.slip);
-          if (se) { console.error('slip:', se); slip_path = null; this.markSlipFail(id, true); } // ขึ้นป้าย+ปุ่มส่งสลิปใหม่บนหน้าติดตาม (2026-09-15 เคสจริง #MP-V6RXTVBS)
+          const sst = await this.storeFile('slip', slip_path, s.slip); const se = sst.error; // R2 ก่อน (2026-10-30)
+          if (se) { console.error('slip:', se); slip_path = null; this.markSlipFail(id, true); } else slip_path = sst.path; // ขึ้นป้าย+ปุ่มส่งสลิปใหม่บนหน้าติดตาม (2026-09-15 เคสจริง #MP-V6RXTVBS)
         }
       }
       const u = s.user || {};

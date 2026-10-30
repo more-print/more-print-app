@@ -7,5 +7,6 @@ window.MP_CONFIG = {
   ADMIN_PIN: '2468',       // รหัสเข้าหน้าหลังบ้าน (เปลี่ยนได้)
   LIFF_ID: '2010897028-o3azGJrL', // LINE Login (LIFF) ของ channel MORE PRINT
   LINE_OA_ID: '@346kifvy', // LINE OA ของร้าน
-  LINE_OA_URL: 'https://line.me/R/ti/p/@346kifvy'
+  LINE_OA_URL: 'https://line.me/R/ti/p/@346kifvy',
+  R2_UPLOADS: true          // ไฟล์งาน PDF + สลิปของออเดอร์ใหม่อัปเข้า Cloudflare R2 ผ่าน Edge Function r2-sign (2026-10-30) — false = กลับไปใช้ Supabase Storage
 };

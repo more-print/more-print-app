@@ -33,6 +33,7 @@ const DB = (CFG.SUPABASE_URL && CFG.SUPABASE_ANON_KEY && window.supabase)
   ? window.supabase.createClient(CFG.SUPABASE_URL, CFG.SUPABASE_ANON_KEY, { auth: { storageKey: 'mp-admin' } }) : null;
 const BUCKET = 'uploads';
 const BATCH = 10; // ลบครั้งละไม่เกิน 10 ไฟล์
+const isR2 = (p) => typeof p === 'string' && p.indexOf('r2:') === 0; // ไฟล์บน Cloudflare R2 (2026-10-30) — เครื่องมือนี้จัดการเฉพาะไฟล์ใน Supabase ห้ามแตะ
 const publicUrl = (p) => CFG.SUPABASE_URL + '/storage/v1/object/public/' + BUCKET + '/' + p;
 const mb = (n) => n == null ? '—' : (n / 1048576).toFixed(n >= 104857600 ? 0 : 2) + ' MB';
 const STATUS = { 0: 'ยกเลิก', 1: 'รับออเดอร์', 2: 'กำลังปริ้น', 3: 'กำลังจัดส่ง', 4: 'ส่งแล้ว/รับแล้ว' };
@@ -201,12 +202,13 @@ function Inventory({ inv, orders }){
   inv.list.forEach(o => { const top = o.name.includes('/') ? o.name.split('/')[0] + '/' : '(ราก)'; const k = /^MP-/.test(top) ? 'โฟลเดอร์รหัสออเดอร์ (MP-…/)' : top; groups[k] = groups[k] || { n: 0, size: 0 }; groups[k].n++; groups[k].size += o.size; });
   const total = inv.list.reduce((a, o) => a + o.size, 0);
   const referenced = new Set(); (orders || []).forEach(o => { (o.files || []).forEach(f => f.path && referenced.add(f.path)); if (o.slip_path) referenced.add(o.slip_path); });
-  const missing = [...referenced].filter(p => !inv.map[p]).length;
+  const missing = [...referenced].filter(p => !isR2(p) && !inv.map[p]).length;
+  const onR2 = [...referenced].filter(isR2).length;
   return (
     <Card title={'② ภาพรวมคลังไฟล์ตอนนี้: ' + inv.list.length.toLocaleString() + ' ไฟล์ · ' + mb(total) + ' (โควตาฟรี 1,024 MB)'}>
       <table><thead><tr><th>โฟลเดอร์</th><th>จำนวนไฟล์</th><th>ขนาด</th></tr></thead>
         <tbody>{Object.entries(groups).sort((a, b) => b[1].size - a[1].size).map(([k, g]) => <tr key={k}><td>{k}</td><td>{g.n}</td><td className="mono">{mb(g.size)}</td></tr>)}</tbody></table>
-      {orders && <div style={css("margin-top:8px;font-size:12px;color:var(--sub)")}>ออเดอร์อ้างถึงไฟล์ {referenced.size} ไฟล์ · ในจำนวนนี้ <b>{missing}</b> ไฟล์ไม่มีในคลังแล้ว (ถูกลบไปก่อนหน้า — หน้าหลังบ้านจะขึ้น "ไฟล์ไม่พร้อมใช้งาน")</div>}
+      {orders && <div style={css("margin-top:8px;font-size:12px;color:var(--sub)")}>ออเดอร์อ้างถึงไฟล์ {referenced.size} ไฟล์ · ในจำนวนนี้ <b>{missing}</b> ไฟล์ไม่มีในคลังแล้ว (ถูกลบไปก่อนหน้า — หน้าหลังบ้านจะขึ้น "ไฟล์ไม่พร้อมใช้งาน"){onR2 ? ' · อยู่บน R2 แล้ว ' + onR2 + ' ไฟล์ (ไม่นับในคลังนี้)' : ''}</div>}
     </Card>
   );
 }
@@ -298,13 +300,13 @@ function CleanupA({ inv, orders, demo, demoInv, demoOrders, addLog, reload }){
   orders.forEach(o => { if (o.slip_path) protect.add(o.slip_path); if (o.status !== 4) (o.files || []).forEach(f => f.path && protect.add(f.path)); });
   const done = orders.filter(o => o.status === 4 && !o.pdf_purged_at && !o.files_purged_at && new Date(o.created_at).getTime() < cutoff);
   const items = [];
-  done.forEach(o => (o.files || []).forEach(f => { if (!f.path || f.drive_url || protect.has(f.path)) return; const x = inv.map[f.path]; items.push({ oid: o.id, status: o.status, created: o.created_at, fname: f.name, path: f.path, size: x ? x.size : 0, exists: !!x }); }));
+  done.forEach(o => (o.files || []).forEach(f => { if (!f.path || f.drive_url || isR2(f.path) || protect.has(f.path)) return; const x = inv.map[f.path]; items.push({ oid: o.id, status: o.status, created: o.created_at, fname: f.name, path: f.path, size: x ? x.size : 0, exists: !!x }); }));
   const notDone = orders.filter(o => o.status !== 4 && o.status !== 0).length;
   const markOrders = async (doneOk, addLogFn) => {
     // ตีป้าย "ไฟล์ PDF ถูกล้าง" เฉพาะออเดอร์ที่ทุกไฟล์ลบสำเร็จหรือไม่มีในคลังแล้ว
     const ts = new Date().toISOString(); const lines = [];
     for (const o of done) {
-      const paths = (o.files || []).filter(f => f.path && !f.drive_url && !protect.has(f.path)).map(f => f.path);
+      const paths = (o.files || []).filter(f => f.path && !f.drive_url && !isR2(f.path) && !protect.has(f.path)).map(f => f.path);
       if (!paths.length) continue;
       if (!paths.every(p => doneOk.has(p) || !inv.map[p])) continue;
       if (demo) { const d = demoOrders.current.find(x => x.id === o.id); if (d) d.pdf_purged_at = ts; lines.push(ts + ' MARK pdf_purged_at ' + o.id); continue; }
