@@ -113,23 +113,70 @@ const openStored = (url) => (e) => {
   fetch(url, { method: 'HEAD' }).then(r => (r.ok ? go(url) : gone())).catch(() => go(url));
 };
 // รูปจากคลัง (สลิป/รูปแชท): R2 = ขอลิงก์ชั่วคราวก่อนแสดง · โหลดไม่ได้ = ข้อความแทนรูปแตก
-// iPhone/iPad: Safari แสดงไฟล์จากลิงก์ R2 ตรง ๆ ไม่ได้ (เปิดแล้วหน้าขาว — เจ้าของทดสอบ 2026-10-30 คอมเปิดได้ มือถือ/iPad ไม่ได้)
-// → ดาวน์โหลดไฟล์มาในหน้าเดิมก่อน แล้วเปิดเป็นไฟล์ในเครื่อง (blob) ในแท็บเดิม พร้อมระบุชนิดไฟล์ชัดเจน · กดย้อนกลับ = กลับมาหลังบ้าน
+// ตัวเปิด PDF/รูปในหน้า (2026-10-30): มือถือ/iPad/แอป LINE เปิดไฟล์จากลิงก์ตรงไม่ได้ (หน้าขาว — เจ้าของทดสอบ)
+// → โหลดไฟล์ด้วย pdf.js แล้ววาดทุกหน้าในหน้าหลังบ้านเลย ไม่เปิดแท็บใหม่ ไม่ใช้ blob = ใช้ได้ทุกเบราว์เซอร์ · คอมยังเปิดแท็บใหม่ตามเดิม
+const IN_APP = /Line\/|FBAN|FBAV|Instagram/i.test(navigator.userAgent);
 const IS_IOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-function openR2Inline(signed, key){
+const IS_TOUCH = IS_IOS || IN_APP || /Android/i.test(navigator.userAgent);
+let _pdfjs = null;
+function loadPdfJs(){
+  if (_pdfjs) return _pdfjs;
+  _pdfjs = new Promise((res, rej) => {
+    const sc = document.createElement('script');
+    sc.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+    sc.onload = () => { window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js'; res(window.pdfjsLib); };
+    sc.onerror = () => { _pdfjs = null; rej(new Error('pdfjs')); };
+    document.head.appendChild(sc);
+  });
+  return _pdfjs;
+}
+function openInlineViewer(src, kind){
   const box = document.createElement('div');
-  box.setAttribute('style', 'position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;font-family:inherit');
-  box.innerHTML = '<div style="background:#fff;border-radius:14px;padding:18px 20px;max-width:280px;text-align:center;font-size:14px;line-height:1.6">⏳ กำลังเปิดไฟล์…<div style="font-size:12px;color:#777">ไฟล์ใหญ่อาจใช้เวลาสักครู่</div><button style="margin-top:10px;height:36px;padding:0 16px;border:1px solid #ddd;border-radius:9px;background:#f4f4f2;font-size:13px">ยกเลิก</button></div>';
-  let cancelled = false;
-  box.querySelector('button').onclick = () => { cancelled = true; box.remove(); };
+  box.setAttribute('style', 'position:fixed;inset:0;z-index:99999;background:#3a3a38;display:flex;flex-direction:column');
+  box.innerHTML = '<div style="flex:none;display:flex;align-items:center;gap:8px;padding:10px 12px;background:#161612;color:#fff;font-size:13px"><span data-t style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">⏳ กำลังเปิดไฟล์… (ไฟล์ใหญ่อาจใช้เวลาสักครู่)</span><button data-x style="flex:none;height:34px;padding:0 14px;border:none;border-radius:9px;background:#00b368;color:#fff;font-size:13px;font-weight:700">✕ ปิด</button></div><div data-b style="flex:1;overflow:auto;-webkit-overflow-scrolling:touch;padding:10px 0;display:flex;flex-direction:column;align-items:center;gap:10px"></div>';
+  const title = box.querySelector('[data-t]'), body = box.querySelector('[data-b]');
+  let closed = false;
+  const prevOverflow = document.body.style.overflow;
+  box.querySelector('[data-x]').onclick = () => { closed = true; box.remove(); document.body.style.overflow = prevOverflow; };
+  document.body.style.overflow = 'hidden';
   document.body.appendChild(box);
-  fetch(signed).then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.blob(); }).then(b => {
-    if (cancelled) return;
-    const type = /^pdf\//.test(key) ? 'application/pdf' : (b.type && b.type !== 'application/octet-stream' ? b.type : 'image/jpeg');
-    const u = URL.createObjectURL(new Blob([b], { type }));
-    box.remove();
-    window.location.href = u;
-  }).catch(() => { if (cancelled) return; box.remove(); alert('เปิดไฟล์ไม่สำเร็จ — ลองใหม่อีกครั้ง หรือเปิดจากคอมพิวเตอร์'); });
+  if (kind !== 'pdf') {
+    const img = document.createElement('img');
+    img.style.cssText = 'max-width:100%;height:auto;display:block';
+    img.onload = () => { title.textContent = '🖼️ แตะ ✕ ปิด เพื่อกลับ'; };
+    img.onerror = () => { title.textContent = '⚠️ เปิดรูปไม่สำเร็จ'; };
+    img.src = src; body.appendChild(img);
+    return;
+  }
+  Promise.all([loadPdfJs(), fetch(src).then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.arrayBuffer(); })])
+    .then(([lib, buf]) => lib.getDocument({ data: buf }).promise)
+    .then(async (doc) => {
+      if (closed) return;
+      title.textContent = '📄 ' + doc.numPages + ' หน้า — เลื่อนลงดูได้';
+      const width = Math.max(200, Math.min(body.clientWidth - 16, 900)), dpr = Math.min(window.devicePixelRatio || 1, 2);
+      const draw = async (holder) => {
+        try {
+          const page = await doc.getPage(+holder.dataset.p);
+          const v1 = page.getViewport({ scale: 1 }), vp = page.getViewport({ scale: (width / v1.width) * dpr });
+          const cv = document.createElement('canvas'); cv.width = vp.width; cv.height = vp.height;
+          cv.style.cssText = 'width:' + Math.round(vp.width / dpr) + 'px;height:' + Math.round(vp.height / dpr) + 'px;display:block;background:#fff';
+          await page.render({ canvasContext: cv.getContext('2d'), viewport: vp }).promise;
+          holder.innerHTML = ''; holder.style.minHeight = '0'; holder.appendChild(cv);
+        } catch (e) { holder.textContent = 'วาดหน้านี้ไม่สำเร็จ'; }
+      };
+      // วาดเฉพาะหน้าที่เลื่อนมาใกล้ — ไฟล์หลายร้อยหน้าไม่ทำให้เครื่องค้าง
+      const io = 'IntersectionObserver' in window ? new IntersectionObserver(ents => ents.forEach(en => { if (en.isIntersecting) { io.unobserve(en.target); draw(en.target); } }), { root: body, rootMargin: '800px 0px' }) : null;
+      const p1 = (await doc.getPage(1)).getViewport({ scale: 1 }), h = Math.round(width * p1.height / p1.width);
+      for (let p = 1; p <= doc.numPages; p++) {
+        if (closed) return;
+        const holder = document.createElement('div'); holder.dataset.p = p;
+        holder.style.cssText = 'width:' + width + 'px;min-height:' + h + 'px;background:#fff;display:flex;align-items:center;justify-content:center;color:#999;font-size:12px;box-shadow:0 2px 8px rgba(0,0,0,.3)';
+        holder.textContent = 'หน้า ' + p;
+        body.appendChild(holder);
+        if (io) io.observe(holder); else if (p <= 3) draw(holder);
+      }
+    })
+    .catch(() => { if (!closed) title.textContent = '⚠️ เปิดไฟล์ไม่สำเร็จ — ลองใหม่ หรือเปิดจากคอมพิวเตอร์'; });
 }
 function StoredImg({ url, alt, style, caption, fallback }){
   const [bad, setBad] = React.useState(false);
@@ -144,7 +191,7 @@ function StoredImg({ url, alt, style, caption, fallback }){
   if (!url || bad) return <div style={css("font-size:11.5px;color:var(--sub);background:var(--soft);border:1px dashed var(--line);border-radius:9px;padding:6px 10px;display:inline-block;line-height:1.5")}>{fallback || '🖼️ ไฟล์ไม่พร้อมใช้งาน (ถูกลบออกจากคลังแล้ว)'}</div>;
   if (!src) return <div style={css("font-size:11.5px;color:var(--sub);padding:6px 0")}>⏳ กำลังโหลดรูป…</div>;
   return (
-    <a href={src} target="_blank" rel="noreferrer" onClick={(e) => { if (IS_IOS && isR2(url)) { e.preventDefault(); openR2Inline(src, url.slice(3)); } }} style={{ display: 'inline-block', textDecoration: 'none' }}>
+    <a href={src} target="_blank" rel="noreferrer" onClick={(e) => { if (IS_TOUCH) { e.preventDefault(); openInlineViewer(src, 'img'); } }} style={{ display: 'inline-block', textDecoration: 'none' }}>
       <img src={src} alt={alt || ''} onError={() => setBad(true)} style={style}/>
       {caption}
     </a>
@@ -168,11 +215,13 @@ function StoredLink({ url, style, children, missingLabel }){
   if (gone) return <span style={css("flex:none;font-size:11px;font-weight:700;color:var(--sub);background:var(--soft);border:1px dashed var(--line);padding:4px 10px;border-radius:8px")}>{missingLabel || '⚠️ ไฟล์ไม่พร้อมใช้งาน'}</span>;
   if (!href) return <span style={{ ...(style || {}), opacity: 0.55 }}>⏳ กำลังเตรียมไฟล์…</span>;
   // ลิงก์ R2 หมดอายุระหว่างเปิดหน้าค้างไว้ = ขอใหม่ตอนกด (ทางสำรอง)
+  const kindOf = () => (isR2(url) ? /^r2:pdf\//.test(url) : /\.pdf(\?|$)/i.test(url)) ? 'pdf' : 'img';
   const onClick = (e) => {
-    if (!isR2(url)) return;
-    const c = R2_URLS[url.slice(3)];
-    if (!c || c.exp < Date.now()) { e.preventDefault(); openStored(url)(); return; }
-    if (IS_IOS) { e.preventDefault(); openR2Inline(href, url.slice(3)); }
+    if (isR2(url)) {
+      const c = R2_URLS[url.slice(3)];
+      if (!c || c.exp < Date.now()) { e.preventDefault(); openStored(url)(); return; }
+    }
+    if (IS_TOUCH) { e.preventDefault(); openInlineViewer(href, kindOf()); }
   };
   return <a href={href} onClick={onClick} target="_blank" rel="noreferrer" style={style}>{children}</a>;
 }
