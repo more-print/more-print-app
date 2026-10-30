@@ -133,6 +133,27 @@ function StoredImg({ url, alt, style, caption, fallback }){
   );
 }
 
+// ลิงก์เปิดไฟล์ (PDF/สลิป): เตรียมลิงก์จริงไว้ก่อนกด (2026-10-30) — เดิมเปิดแท็บใหม่ก่อนแล้วค่อยขอลิงก์ มือถือพักแท็บเดิมทันที แท็บใหม่ค้างหน้าขาว
+// R2 = ขอลิงก์ชั่วคราวล่วงหน้า (จำไว้ 50 นาที) · Supabase = เช็คล่วงหน้าว่ายังมีไฟล์ (HEAD เล็กมาก) · ไม่มีไฟล์ = ป้าย "ไฟล์ไม่พร้อมใช้งาน" แทนปุ่ม
+const HEAD_OK = {};
+const headOk = (u) => HEAD_OK[u] || (HEAD_OK[u] = fetch(u, { method: 'HEAD' }).then(r => r.ok).catch(() => true));
+function StoredLink({ url, style, children, missingLabel }){
+  const [href, setHref] = React.useState(isR2(url) ? null : url);
+  const [gone, setGone] = React.useState(false);
+  React.useEffect(() => {
+    let on = true; setGone(false);
+    if (!url) { setGone(true); return; }
+    if (isR2(url)) { setHref(null); signedUrl(url).then(u => { if (on) setHref(u); }).catch(() => { if (on) setGone(true); }); }
+    else { setHref(url); headOk(url).then(ok => { if (on && !ok) setGone(true); }); }
+    return () => { on = false; };
+  }, [url]);
+  if (gone) return <span style={css("flex:none;font-size:11px;font-weight:700;color:var(--sub);background:var(--soft);border:1px dashed var(--line);padding:4px 10px;border-radius:8px")}>{missingLabel || '⚠️ ไฟล์ไม่พร้อมใช้งาน'}</span>;
+  if (!href) return <span style={{ ...(style || {}), opacity: 0.55 }}>⏳ กำลังเตรียมไฟล์…</span>;
+  // ลิงก์ R2 หมดอายุระหว่างเปิดหน้าค้างไว้ = ขอใหม่ตอนกด (ทางสำรอง)
+  const onClick = (e) => { if (isR2(url)) { const c = R2_URLS[url.slice(3)]; if (!c || c.exp < Date.now()) { e.preventDefault(); openStored(url)(); } } };
+  return <a href={href} onClick={onClick} target="_blank" rel="noreferrer" style={style}>{children}</a>;
+}
+
 // ── ชุดไอคอนเส้น (สไตล์ Feather — MIT, ฝังในไฟล์) ใช้แทนอิโมจิทั้งเว็บ เพื่อความเป็นทางการ ──
 const fi = (paths, size) => (
   <svg width={size || 15} height={size || 15} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{ flex: 'none', verticalAlign: '-2px' }}>{paths}</svg>
@@ -638,7 +659,7 @@ function ProOrder({ o, idx, isOwner, payoutReady, onPrice, onPayout, onAdvance, 
                     : (o.files_purged_at || o.pdf_purged_at)
                       ? <span style={css("flex:none;font-size:10.5px;font-weight:700;color:var(--sub);background:var(--soft);border:1px solid var(--line);padding:3px 9px;border-radius:8px")}>🧹 ไฟล์ถูกล้างตามรอบเก็บ 7 วัน</span>
                       : fileUrl(f.path)
-                        ? <a href={fileUrl(f.path)} onClick={openStored(fileUrl(f.path))} target="_blank" rel="noreferrer" style={css("flex:none;font-size:13.5px;font-weight:800;color:#fff;text-decoration:none;background:var(--acc);padding:10px 18px;border-radius:10px;box-shadow:var(--shadow)")}>{FI.download(15)} เปิดไฟล์</a>
+                        ? <StoredLink url={fileUrl(f.path)} style={css("flex:none;font-size:13.5px;font-weight:800;color:#fff;text-decoration:none;background:var(--acc);padding:10px 18px;border-radius:10px;box-shadow:var(--shadow)")} missingLabel="⚠️ ไฟล์ไม่พร้อมใช้งาน (ถูกลบแล้ว)">{FI.download(15)} เปิดไฟล์</StoredLink>
                         : <span style={css("flex:none;font-size:10.5px;font-weight:700;color:#c92a2a;background:#ffe3e3;padding:3px 9px;border-radius:8px")}>{FI.alert(12)} ไฟล์อัปไม่สำเร็จ — แจ้ง MORE PRINT ขอไฟล์จากลูกค้า</span>}
                 </div>
               ))}
@@ -703,7 +724,7 @@ function ProOrder({ o, idx, isOwner, payoutReady, onPrice, onPayout, onAdvance, 
             <span style={css("flex:none;width:76px;color:var(--sub);font-weight:600")}>{FI.receipt(13)} สลิป</span>
             {isOwner
               ? <StoredImg url={fileUrl(o.slip_path)} alt="สลิป" style={css("max-width:110px;max-height:140px;border-radius:9px;border:1px solid var(--line);display:block;background:var(--soft)")} caption={<span style={css("font-size:10.5px;color:var(--acc);font-weight:600")}>เปิดดูเต็มจอ</span>} fallback="🧾 ไฟล์สลิปไม่พร้อมใช้งาน (ถูกลบออกจากคลังแล้ว)"/>
-              : <a href={fileUrl(o.slip_path)} onClick={openStored(fileUrl(o.slip_path))} target="_blank" rel="noreferrer" style={css("font-weight:700;color:var(--acc)")}>เปิดดูสลิปโอนเงินของลูกค้า →</a>}
+              : <StoredLink url={fileUrl(o.slip_path)} style={css("font-weight:700;color:var(--acc)")} missingLabel="🧾 ไฟล์สลิปไม่พร้อมใช้งาน">เปิดดูสลิปโอนเงินของลูกค้า →</StoredLink>}
           </div>
         )}
         {/* ไม่มีสลิปในออเดอร์ (แนบครั้งแรกไม่สำเร็จ) — ลองหาไฟล์ที่ลูกค้ากดส่งใหม่ <รหัส>/slip-re.jpg: โหลดได้ค่อยโชว์ทั้งแถว (2026-09-15) */}
