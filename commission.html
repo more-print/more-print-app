@@ -118,6 +118,24 @@ const openStored = (url) => (e) => {
   fetch(url, { method: 'HEAD' }).then(r => (r.ok ? go(url) : gone())).catch(() => go(url));
 };
 // รูปจากคลัง (สลิป/รูปแชท): R2 = ขอลิงก์ชั่วคราวก่อนแสดง · โหลดไม่ได้ = ข้อความแทนรูปแตก
+// iPhone/iPad: Safari แสดงไฟล์จากลิงก์ R2 ตรง ๆ ไม่ได้ (เปิดแล้วหน้าขาว — เจ้าของทดสอบ 2026-10-30 คอมเปิดได้ มือถือ/iPad ไม่ได้)
+// → ดาวน์โหลดไฟล์มาในหน้าเดิมก่อน แล้วเปิดเป็นไฟล์ในเครื่อง (blob) ในแท็บเดิม พร้อมระบุชนิดไฟล์ชัดเจน · กดย้อนกลับ = กลับมาหลังบ้าน
+const IS_IOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+function openR2Inline(signed, key){
+  const box = document.createElement('div');
+  box.setAttribute('style', 'position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;font-family:inherit');
+  box.innerHTML = '<div style="background:#fff;border-radius:14px;padding:18px 20px;max-width:280px;text-align:center;font-size:14px;line-height:1.6">⏳ กำลังเปิดไฟล์…<div style="font-size:12px;color:#777">ไฟล์ใหญ่อาจใช้เวลาสักครู่</div><button style="margin-top:10px;height:36px;padding:0 16px;border:1px solid #ddd;border-radius:9px;background:#f4f4f2;font-size:13px">ยกเลิก</button></div>';
+  let cancelled = false;
+  box.querySelector('button').onclick = () => { cancelled = true; box.remove(); };
+  document.body.appendChild(box);
+  fetch(signed).then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.blob(); }).then(b => {
+    if (cancelled) return;
+    const type = /^pdf\//.test(key) ? 'application/pdf' : (b.type && b.type !== 'application/octet-stream' ? b.type : 'image/jpeg');
+    const u = URL.createObjectURL(new Blob([b], { type }));
+    box.remove();
+    window.location.href = u;
+  }).catch(() => { if (cancelled) return; box.remove(); alert('เปิดไฟล์ไม่สำเร็จ — ลองใหม่อีกครั้ง หรือเปิดจากคอมพิวเตอร์'); });
+}
 function StoredImg({ url, alt, style, caption, fallback }){
   const [bad, setBad] = React.useState(false);
   const [src, setSrc] = React.useState(isR2(url) ? null : url);
@@ -131,7 +149,7 @@ function StoredImg({ url, alt, style, caption, fallback }){
   if (!url || bad) return <div style={css("font-size:11.5px;color:var(--sub);background:var(--soft);border:1px dashed var(--line);border-radius:9px;padding:6px 10px;display:inline-block;line-height:1.5")}>{fallback || '🖼️ ไฟล์ไม่พร้อมใช้งาน (ถูกลบออกจากคลังแล้ว)'}</div>;
   if (!src) return <div style={css("font-size:11.5px;color:var(--sub);padding:6px 0")}>⏳ กำลังโหลดรูป…</div>;
   return (
-    <a href={src} target="_blank" rel="noreferrer" style={{ display: 'inline-block', textDecoration: 'none' }}>
+    <a href={src} target="_blank" rel="noreferrer" onClick={(e) => { if (IS_IOS && isR2(url)) { e.preventDefault(); openR2Inline(src, url.slice(3)); } }} style={{ display: 'inline-block', textDecoration: 'none' }}>
       <img src={src} alt={alt || ''} onError={() => setBad(true)} style={style}/>
       {caption}
     </a>
@@ -155,7 +173,12 @@ function StoredLink({ url, style, children, missingLabel }){
   if (gone) return <span style={css("flex:none;font-size:11px;font-weight:700;color:var(--sub);background:var(--soft);border:1px dashed var(--line);padding:4px 10px;border-radius:8px")}>{missingLabel || '⚠️ ไฟล์ไม่พร้อมใช้งาน'}</span>;
   if (!href) return <span style={{ ...(style || {}), opacity: 0.55 }}>⏳ กำลังเตรียมไฟล์…</span>;
   // ลิงก์ R2 หมดอายุระหว่างเปิดหน้าค้างไว้ = ขอใหม่ตอนกด (ทางสำรอง)
-  const onClick = (e) => { if (isR2(url)) { const c = R2_URLS[url.slice(3)]; if (!c || c.exp < Date.now()) { e.preventDefault(); openStored(url)(); } } };
+  const onClick = (e) => {
+    if (!isR2(url)) return;
+    const c = R2_URLS[url.slice(3)];
+    if (!c || c.exp < Date.now()) { e.preventDefault(); openStored(url)(); return; }
+    if (IS_IOS) { e.preventDefault(); openR2Inline(href, url.slice(3)); }
+  };
   return <a href={href} onClick={onClick} target="_blank" rel="noreferrer" style={style}>{children}</a>;
 }
 
