@@ -129,6 +129,7 @@ function App(){
   const [inv, setInv] = React.useState(null);        // { map: name→{size,created_at}, list, err }
   const [orders, setOrders] = React.useState(null);  // แถวออเดอร์ทั้งหมด
   const [loadMsg, setLoadMsg] = React.useState('');
+  const [migOk, setMigOk] = React.useState(false); // มีคอลัมน์สำรองของ STEP 4 แล้วหรือยัง
   const [log, setLog] = React.useState(() => { try { return JSON.parse(localStorage.getItem('mp_cleanup_log') || '[]'); } catch (e) { return []; } });
   const addLog = (lines) => setLog(l => { const n = [...l, ...lines]; try { localStorage.setItem('mp_cleanup_log', JSON.stringify(n.slice(-5000))); } catch (e) {} return n; });
   const demoInv = React.useRef(DEMO.inv.map(x => ({ ...x })));
@@ -138,7 +139,7 @@ function App(){
     setLoadMsg('⏳ กำลังโหลดรายการไฟล์และออเดอร์…');
     if (demo) {
       const map = {}; demoInv.current.forEach(o => { map[o.name] = o; });
-      setInv({ map, list: [...demoInv.current], err: null }); setOrders(demoOrders.current.map(x => ({ ...x }))); setLoadMsg(''); return;
+      setInv({ map, list: [...demoInv.current], err: null }); setOrders(demoOrders.current.map(x => ({ ...x }))); setMigOk(true); setLoadMsg(''); return;
     }
     // รายการไฟล์ทั้งคลัง (RPC อ่านอย่างเดียว — ต้องรัน SQL ด้านล่างก่อน)
     let list = [], err = null;
@@ -151,15 +152,17 @@ function App(){
     const map = {}; list.forEach(o => { map[o.name] = o; });
     setInv({ map, list, err });
     // ออเดอร์ทั้งหมด (เฉพาะคอลัมน์ที่ใช้)
-    let rows = [], oerr = null;
+    let rows = [], oerr = null, mok = true;
     for (let from = 0; from < 200000; from += 1000) {
-      let r = await DB.from('orders').select('id,status,created_at,customer_fname,ptype,files,slip_path,files_purged_at,pdf_purged_at').order('created_at', { ascending: true }).range(from, from + 999);
+      const base = 'id,status,created_at,customer_fname,ptype,files,slip_path,files_purged_at,pdf_purged_at';
+      let r = await DB.from('orders').select(base + ',files_backup,slip_path_old,r2_migrated_at').order('created_at', { ascending: true }).range(from, from + 999);
+      if (r.error && /files_backup|slip_path_old|r2_migrated_at/.test(r.error.message || '')) { mok = false; r = await DB.from('orders').select(base).order('created_at', { ascending: true }).range(from, from + 999); }
       if (r.error && /pdf_purged_at/.test(r.error.message || '')) { oerr = 'ยังไม่มีคอลัมน์ pdf_purged_at — รัน SQL ด้านล่างก่อน'; break; }
       if (r.error) { oerr = r.error.message; break; }
       rows.push(...(r.data || []));
       if (!r.data || r.data.length < 1000) break;
     }
-    setOrders(oerr ? null : rows);
+    setOrders(oerr ? null : rows); setMigOk(!oerr && mok);
     setLoadMsg(oerr ? '⚠️ ' + oerr : err ? '⚠️ อ่านรายการไฟล์ไม่ได้ (' + err + ') — รัน SQL ด้านล่างก่อน' : '');
   };
   React.useEffect(() => { if (auth.state === 'ok' || auth.state === 'demo') loadAll(); }, [auth.state]);
@@ -187,6 +190,7 @@ function App(){
       {inv && !inv.err && <Inventory inv={inv} orders={orders}/>}
       {inv && !inv.err && orders && <CleanupA inv={inv} orders={orders} demo={demo} demoInv={demoInv} demoOrders={demoOrders} addLog={addLog} reload={loadAll}/>}
       {inv && !inv.err && orders && <CleanupOrphans inv={inv} orders={orders} demo={demo} demoInv={demoInv} addLog={addLog} reload={loadAll}/>}
+      {inv && !inv.err && orders && <Migrate inv={inv} orders={orders} migOk={migOk} demo={demo} demoOrders={demoOrders} addLog={addLog} reload={loadAll}/>}
       <Card title={'📜 Log การลบ (' + log.length + ' บรรทัด · เก็บในเครื่องนี้)'}>
         <div style={css("max-height:180px;overflow:auto;background:var(--soft);border-radius:9px;padding:8px")} className="mono">
           {log.length === 0 ? <div style={css("font-size:12px;color:var(--sub)")}>ยังไม่มีการลบ</div> : log.slice(-300).map((l, i) => <div key={i} style={css("font-size:11px;white-space:pre-wrap")}>{l}</div>)}
@@ -346,6 +350,135 @@ function CleanupOrphans({ inv, orders, demo, demoInv, addLog, reload }){
         <div><label style={css("font-size:12px;color:var(--sub)")}><input type="checkbox" checked={withSlips} onChange={e => setWithSlips(e.target.checked)}/> รวมรูปสลิปที่ไม่มีออเดอร์ด้วย ({skippedSlips} ไฟล์ — ค่าเริ่มต้นไม่รวม ตามกติกาห้ามลบสลิป)</label></div>
       </div>
       <RunPanel items={items} demo={demo} demoInv={demoInv} addLog={addLog} label="orphans-pre" onDone={reload}/>
+    </Card>
+  );
+}
+
+// ── STEP 4: ย้ายไฟล์เก่า (PDF + สลิป) จาก Supabase ไป R2 — คัดลอกอย่างเดียว ห้ามลบ (2026-10-30) ──
+// ต่อไฟล์: ดาวน์โหลดจาก Supabase → เช็คขนาดตรงคลัง → อัปเข้า R2 (r2-sign put) → ตรวจขนาดบน R2 (head) → โหลดกลับมาเทียบ SHA-256
+// ผ่านครบทุกไฟล์ของออเดอร์ = ค่อยแก้ path ในฐานข้อมูลเป็น r2: · เก็บของเดิมใน files_backup / slip_path_old · ตีเวลา r2_migrated_at
+// รันซ้ำปลอดภัย: ออเดอร์ที่ path เป็น r2: แล้วถูกข้าม · ไฟล์ที่คัดลอกผ่านแล้วแต่ยังไม่ได้แก้ฐานข้อมูล จำคีย์ไว้ในเครื่อง (mp_mig_map) ใช้ซ้ำหลังตรวจ head
+const MIG_SQL = `-- STEP 4: คอลัมน์สำรอง path เดิม (รันครั้งเดียว ปลอดภัย ไม่ลบข้อมูล)
+alter table public.orders add column if not exists files_backup jsonb;
+alter table public.orders add column if not exists slip_path_old text;
+alter table public.orders add column if not exists r2_migrated_at timestamptz;`;
+const R2_FN = (CFG.SUPABASE_URL || '') + '/functions/v1/r2-sign';
+async function r2Call(body){
+  let tok = CFG.SUPABASE_ANON_KEY;
+  try { const { data } = await DB.auth.getSession(); if (data && data.session) tok = data.session.access_token; } catch (e) {}
+  const r = await fetch(R2_FN, { method: 'POST', headers: { apikey: CFG.SUPABASE_ANON_KEY, Authorization: 'Bearer ' + tok, 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error('r2-sign ' + (j.error || r.status));
+  return j;
+}
+const sha256Hex = async (buf) => [...new Uint8Array(await crypto.subtle.digest('SHA-256', buf))].map(b => b.toString(16).padStart(2, '0')).join('');
+const loadMigMap = () => { try { return JSON.parse(localStorage.getItem('mp_mig_map') || '{}'); } catch (e) { return {}; } };
+const saveMigMap = (m) => { try { localStorage.setItem('mp_mig_map', JSON.stringify(m)); } catch (e) {} };
+
+function Migrate({ inv, orders, migOk, demo, demoOrders, addLog, reload }){
+  const [goText, setGoText] = React.useState('');
+  const [busy, setBusy] = React.useState(false);
+  const [prog, setProg] = React.useState('');
+  const stopRef = React.useRef(false);
+  // รายการที่จะย้าย: ทุกออเดอร์ที่ไม่ถูกยกเลิก · เฉพาะไฟล์ที่ยังอยู่ใน Supabase จริง · ไม่ใช่ไฟล์ใหญ่ B2 · ไม่ใช่ r2: อยู่แล้ว
+  const plan = [], skipped = { missing: 0, cancelled: 0 };
+  orders.forEach(o => {
+    if (o.status === 0) { skipped.cancelled++; return; }
+    const its = [];
+    (o.files || []).forEach((f, i) => {
+      if (!f.path || f.drive_url || isR2(f.path)) return;
+      const x = inv.map[f.path]; if (!x) { skipped.missing++; return; }
+      its.push({ kind: 'pdf', idx: i, path: f.path, size: x.size, fname: f.name });
+    });
+    if (o.slip_path && !isR2(o.slip_path)) { const x = inv.map[o.slip_path]; if (x) its.push({ kind: 'slip', idx: -1, path: o.slip_path, size: x.size, fname: 'สลิป' }); else skipped.missing++; }
+    if (its.length) plan.push({ o, its });
+  });
+  const nFiles = plan.reduce((a, p) => a + p.its.length, 0), total = plan.reduce((a, p) => a + p.its.reduce((b, x) => b + x.size, 0), 0);
+  const copyOne = async (it, map) => {
+    if (demo) { await new Promise(r => setTimeout(r, 60)); return { key: it.kind + '/202610/demo' + Math.random().toString(36).slice(2, 8) + '/' + it.path.split('/').pop() }; }
+    const known = map[it.path];
+    if (known) { try { const h = await r2Call({ action: 'head', key: known }); if (h.exists && h.size === it.size) return { key: known, reused: true }; } catch (e) {} }
+    const r = await fetch(publicUrl(it.path), { cache: 'no-store' });
+    if (!r.ok) throw new Error('ดาวน์โหลดจาก Supabase ไม่ได้ (HTTP ' + r.status + ')');
+    const buf = await r.arrayBuffer();
+    if (buf.byteLength !== it.size) throw new Error('ขนาดที่ดาวน์โหลด ' + buf.byteLength + ' ≠ คลัง ' + it.size);
+    const ct = r.headers.get('content-type') || '';
+    const type = it.kind === 'pdf' ? 'application/pdf' : (/^image\//.test(ct) ? ct : 'image/jpeg');
+    const s = await r2Call({ action: 'put', kind: it.kind, name: it.path.split('/').pop(), size: buf.byteLength, contentType: type });
+    const p = await fetch(s.url, { method: 'PUT', headers: { ...(s.headers || {}), 'Content-Type': type }, body: buf });
+    if (!p.ok) throw new Error('อัปเข้า R2 ไม่ได้ (HTTP ' + p.status + ')');
+    const h = await r2Call({ action: 'head', key: s.key });
+    if (!h.exists || h.size !== buf.byteLength) throw new Error('ตรวจขนาดบน R2 ไม่ผ่าน (' + h.size + ')');
+    const g = await r2Call({ action: 'get', key: s.key });
+    const back = await (await fetch(g.url, { cache: 'no-store' })).arrayBuffer();
+    if (await sha256Hex(back) !== await sha256Hex(buf)) throw new Error('checksum (SHA-256) ไม่ตรง');
+    map[it.path] = s.key; saveMigMap(map); // จำไว้ก่อนแก้ฐานข้อมูล — รันซ้ำไม่ต้องคัดลอกใหม่
+    return { key: s.key };
+  };
+  const run = async () => {
+    if (goText.trim() !== 'go' || busy) return;
+    setBusy(true); setGoText(''); stopRef.current = false;
+    const map = loadMigMap();
+    addLog(['=== ' + new Date().toISOString() + ' เริ่มย้ายไฟล์ไป R2 (คัดลอกอย่างเดียว) ' + nFiles + ' ไฟล์ · ' + mb(total) + ' ===']);
+    let ok = 0, fail = 0, bytes = 0, rows = 0;
+    for (let pi = 0; pi < plan.length; pi++) {
+      if (stopRef.current) { addLog(['หยุดตามที่สั่ง — รันใหม่ได้ ระบบข้ามไฟล์ที่ย้ายแล้ว']); break; }
+      const { o, its } = plan[pi];
+      setProg('⏳ ออเดอร์ ' + (pi + 1) + '/' + plan.length + ' · ไฟล์สำเร็จ ' + ok + '/' + nFiles + (fail ? ' · ไม่สำเร็จ ' + fail : ''));
+      const done = [];
+      for (const it of its) {
+        try { const res = await copyOne(it, map); done.push({ ...it, key: res.key }); ok++; bytes += it.size; addLog([new Date().toISOString() + ' COPIED ' + it.path + ' → r2:' + res.key + ' (' + it.size + ' bytes' + (res.reused ? ', ใช้สำเนาเดิม' : ', ตรวจขนาด+SHA-256 ผ่าน') + ') ' + o.id]); }
+        catch (e) { fail++; addLog([new Date().toISOString() + ' FAIL   ' + it.path + ' ' + o.id + ' — ' + e.message]); }
+      }
+      if (!done.length) continue;
+      // แก้ฐานข้อมูลเฉพาะไฟล์ที่ตรวจผ่าน · อ่านแถวล่าสุดก่อนแก้ (กันทับข้อมูลที่เพิ่งเปลี่ยน)
+      const allOk = done.length === its.length, ts = new Date().toISOString();
+      if (demo) { const d = demoOrders.current.find(x => x.id === o.id); if (d) { d.files_backup = d.files_backup || d.files; d.files = (d.files || []).map((f, i) => { const m = done.find(x => x.kind === 'pdf' && x.idx === i && x.path === f.path); return m ? { ...f, path: 'r2:' + m.key } : f; }); const sm = done.find(x => x.kind === 'slip'); if (sm) { d.slip_path_old = d.slip_path_old || d.slip_path; d.slip_path = 'r2:' + sm.key; } if (allOk) d.r2_migrated_at = ts; } addLog([ts + ' DB ' + o.id + ' (เดโม่)']); rows++; continue; }
+      const { data: cur, error: re } = await DB.from('orders').select('files,slip_path,files_backup,slip_path_old').eq('id', o.id).single();
+      if (re || !cur) { addLog([ts + ' DB-SKIP ' + o.id + ' — อ่านแถวล่าสุดไม่ได้ (' + (re ? re.message : 'ไม่พบ') + ') ไฟล์บน R2 เก็บไว้แล้ว รันซ้ำจะใช้สำเนาเดิม']); continue; }
+      const newFiles = (cur.files || []).map((f, i) => { const m = done.find(x => x.kind === 'pdf' && x.idx === i && x.path === f.path); return m ? { ...f, path: 'r2:' + m.key } : f; });
+      const sm = done.find(x => x.kind === 'slip' && x.path === cur.slip_path);
+      const patch = { files: newFiles };
+      if (!cur.files_backup) patch.files_backup = cur.files;
+      if (sm) { patch.slip_path = 'r2:' + sm.key; if (!cur.slip_path_old) patch.slip_path_old = cur.slip_path; }
+      if (allOk) patch.r2_migrated_at = ts;
+      const { error: ue } = await DB.from('orders').update(patch).eq('id', o.id);
+      addLog([ts + (ue ? ' DB-FAIL ' : ' DB     ') + o.id + (ue ? ' — ' + ue.message : ' path → r2: ' + done.length + ' ไฟล์ (สำรองของเดิมไว้แล้ว)')]);
+      if (!ue) rows++;
+    }
+    addLog(['=== จบ: คัดลอกสำเร็จ ' + ok + ' ไฟล์ · ' + mb(bytes) + ' · แก้ฐานข้อมูล ' + rows + ' ออเดอร์' + (fail ? ' · ไม่สำเร็จ ' + fail + ' ไฟล์ (รันซ้ำได้)' : '') + ' · ยังไม่ได้ลบอะไรจาก Supabase ===']);
+    setProg('✓ คัดลอกสำเร็จ ' + ok + ' ไฟล์ (' + mb(bytes) + ') · แก้ฐานข้อมูล ' + rows + ' ออเดอร์' + (fail ? ' · ไม่สำเร็จ ' + fail + ' ไฟล์ — กดรันซ้ำได้' : '') + ' · ยังไม่ได้ลบอะไร');
+    setBusy(false);
+    reload && reload();
+  };
+  const csv = () => download('moreprint-migrate-dryrun_' + stamp() + '.csv', '﻿' + [['order', 'status', 'kind', 'path', 'size_bytes'].join(','), ...plan.flatMap(p => p.its.map(x => [p.o.id, STATUS[p.o.status], x.kind, x.path, x.size].join(',')))].join('\n'), 'text/csv;charset=utf-8');
+  return (
+    <Card title="⑤ STEP 4 · ย้ายไฟล์เก่า (PDF + สลิป) จาก Supabase ไป R2 — คัดลอกอย่างเดียว ไม่ลบ">
+      {!migOk && <div style={css("background:var(--warnSoft);border:1px solid #f0dfa6;border-radius:10px;padding:10px 12px;font-size:12.5px;margin-bottom:8px")}>
+        <b>ต้องรัน SQL นี้ก่อน 1 ครั้ง</b> (คอลัมน์เก็บ path เดิมไว้สำรอง):
+        <textarea readOnly value={MIG_SQL} style={css("margin-top:6px;width:100%;box-sizing:border-box;height:78px;font-family:'IBM Plex Mono',monospace;font-size:11px;border:1px solid var(--line);border-radius:8px;padding:6px")}/>
+        <button onClick={() => { try { navigator.clipboard.writeText(MIG_SQL); } catch (e) {} }} style={btn('none', '#111')}>คัดลอก SQL</button>
+      </div>}
+      <div style={css("font-size:12.5px;line-height:1.7")}>
+        ย้ายไฟล์ของทุกออเดอร์ที่ไม่ถูกยกเลิก เฉพาะไฟล์ที่ยังอยู่ใน Supabase · ทุกไฟล์ตรวจขนาด + SHA-256 ก่อน แล้วค่อยแก้ path ในฐานข้อมูล (เก็บ path เดิมไว้ในคอลัมน์สำรอง) · <b>ไม่ลบไฟล์ใน Supabase</b> (ลบใน STEP 5 หลังใช้งานจริง 1-2 สัปดาห์)
+        <div style={css("color:var(--sub);font-size:12px")}>ข้าม: ออเดอร์ยกเลิก {skipped.cancelled} ใบ · ไฟล์ที่ไม่มีใน Supabase แล้ว {skipped.missing} ไฟล์ · ไฟล์ใหญ่บน B2 · ไฟล์ที่อยู่บน R2 แล้ว</div>
+        <div style={css("color:#d9480f;font-size:12px;font-weight:600")}>⚠️ การย้ายต้องดาวน์โหลดไฟล์ออกจาก Supabase ประมาณ {mb(total)} ซึ่งนับเป็น Egress ของ Supabase · ทำบนคอมพิวเตอร์ที่เน็ตเสถียร เปิดหน้านี้ค้างไว้จนจบ</div>
+      </div>
+      <div style={css("margin-top:8px;font-size:13px")}><b>DRY-RUN:</b> จะคัดลอก <b>{nFiles}</b> ไฟล์ จาก <b>{plan.length}</b> ออเดอร์ · รวม <b>{mb(total)}</b></div>
+      <div style={css("margin-top:8px;max-height:300px;overflow:auto;border:1px solid var(--line);border-radius:10px;background:var(--card)")}>
+        <table><thead><tr><th>ออเดอร์</th><th>สถานะ</th><th>ชนิด</th><th>ไฟล์</th><th>ขนาด</th></tr></thead>
+          <tbody>{plan.flatMap(p => p.its.map((x, i) => <tr key={p.o.id + i}><td className="mono">{p.o.id}</td><td>{STATUS[p.o.status]}</td><td>{x.kind === 'pdf' ? 'PDF' : 'สลิป'}</td><td style={{ wordBreak: 'break-all' }}>{x.fname}<div className="mono" style={css("font-size:10px;color:var(--sub)")}>{x.path}</div></td><td className="mono">{mb(x.size)}</td></tr>))}</tbody></table>
+      </div>
+      <button onClick={csv} disabled={!nFiles} style={btn('none', '#111', !nFiles)}>ดาวน์โหลดรายการ (CSV)</button>
+      <div style={css("margin-top:12px;background:var(--accSoft);border:1px solid #b2e5cb;border-radius:10px;padding:10px 12px")}>
+        <div style={css("font-size:12.5px;font-weight:700;color:#00744a")}>เริ่มย้ายจริง (คัดลอกอย่างเดียว · หยุดกลางทางแล้วรันต่อได้)</div>
+        <div style={css("display:flex;gap:8px;margin-top:8px;align-items:center;flex-wrap:wrap")}>
+          <input value={goText} onChange={e => setGoText(e.target.value)} placeholder='พิมพ์ go เพื่อเริ่ม' disabled={!migOk} style={css("height:38px;border:1px solid #b2e5cb;border-radius:10px;padding:0 10px;width:170px")}/>
+          <button onClick={run} disabled={!migOk || goText.trim() !== 'go' || busy || !nFiles} style={btn('#00b368', '#fff', !migOk || goText.trim() !== 'go' || busy || !nFiles)}>{busy ? '⏳ กำลังย้าย…' : 'เริ่มคัดลอก ' + nFiles + ' ไฟล์'}</button>
+          {busy && <button onClick={() => { stopRef.current = true; }} style={btn('none', '#c92a2a')}>หยุดหลังออเดอร์นี้</button>}
+        </div>
+        {prog && <div style={css("margin-top:8px;font-size:12.5px;font-weight:700")}>{prog}</div>}
+      </div>
     </Card>
   );
 }
