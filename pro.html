@@ -118,6 +118,8 @@ const openStored = (url) => (e) => {
 const IN_APP = /Line\/|FBAN|FBAV|Instagram/i.test(navigator.userAgent);
 const IS_IOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 const IS_TOUCH = IS_IOS || IN_APP || /Android/i.test(navigator.userAgent);
+// ลิงก์สาธารณะ (ไฟล์ใหญ่บน B2/ไฟล์เก่าใน Supabase) ในแอป LINE: ให้ LINE เปิดด้วยเบราว์เซอร์ปกติแทน (พารามิเตอร์ openExternalBrowser=1 ของ LINE)
+const extUrl = (u) => (!u || !IN_APP) ? u : u + (u.indexOf('?') >= 0 ? '&' : '?') + 'openExternalBrowser=1';
 let _pdfjs = null;
 function loadPdfJs(){
   if (_pdfjs) return _pdfjs;
@@ -148,7 +150,22 @@ function openInlineViewer(src, kind){
     img.src = src; body.appendChild(img);
     return;
   }
-  Promise.all([loadPdfJs(), fetch(src).then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.arrayBuffer(); })])
+  const fetchBuf = async (u) => {
+    const r = await fetch(u);
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const total = +r.headers.get('content-length') || 0;
+    if (!r.body || !r.body.getReader) return r.arrayBuffer();
+    const rd = r.body.getReader(), chunks = []; let got = 0;
+    for (;;) {
+      const { done, value } = await rd.read();
+      if (done) break;
+      chunks.push(value); got += value.length;
+      if (!closed) title.textContent = '⏳ กำลังโหลดไฟล์ ' + (got / 1048576).toFixed(1) + (total ? ' / ' + (total / 1048576).toFixed(1) : '') + ' MB';
+    }
+    const out = new Uint8Array(got); let o = 0; chunks.forEach(c => { out.set(c, o); o += c.length; });
+    return out.buffer;
+  };
+  Promise.all([loadPdfJs(), fetchBuf(src)])
     .then(([lib, buf]) => lib.getDocument({ data: buf }).promise)
     .then(async (doc) => {
       if (closed) return;
@@ -176,7 +193,7 @@ function openInlineViewer(src, kind){
         if (io) io.observe(holder); else if (p <= 3) draw(holder);
       }
     })
-    .catch(() => { if (!closed) title.textContent = '⚠️ เปิดไฟล์ไม่สำเร็จ — ลองใหม่ หรือเปิดจากคอมพิวเตอร์'; });
+    .catch((e) => { console.error('viewer:', e); if (!closed) title.textContent = '⚠️ เปิดไฟล์ไม่สำเร็จ: ' + whyFail(String((e && e.message) || e)) + ' — ปิดแล้วลองใหม่ หรือเปิดจากคอมพิวเตอร์'; });
 }
 function StoredImg({ url, alt, style, caption, fallback }){
   const [bad, setBad] = React.useState(false);
@@ -201,18 +218,30 @@ function StoredImg({ url, alt, style, caption, fallback }){
 // ลิงก์เปิดไฟล์ (PDF/สลิป): เตรียมลิงก์จริงไว้ก่อนกด (2026-10-30) — เดิมเปิดแท็บใหม่ก่อนแล้วค่อยขอลิงก์ มือถือพักแท็บเดิมทันที แท็บใหม่ค้างหน้าขาว
 // R2 = ขอลิงก์ชั่วคราวล่วงหน้า (จำไว้ 50 นาที) · Supabase = เช็คล่วงหน้าว่ายังมีไฟล์ (HEAD เล็กมาก) · ไม่มีไฟล์ = ป้าย "ไฟล์ไม่พร้อมใช้งาน" แทนปุ่ม
 const HEAD_OK = {};
-const headOk = (u) => HEAD_OK[u] || (HEAD_OK[u] = fetch(u, { method: 'HEAD' }).then(r => r.ok).catch(() => true));
+// เช็คล่วงหน้าว่าไฟล์ใน Supabase ยังอยู่ไหม — คืนเลข HTTP (0 = เช็คไม่ได้ ถือว่ายังอยู่)
+const headStatus = (u) => HEAD_OK[u] || (HEAD_OK[u] = fetch(u, { method: 'HEAD' }).then(r => r.status).catch(() => 0));
+// แปลสาเหตุที่เปิดไฟล์ไม่ได้เป็นภาษาคน (2026-11-01 — ป้ายบอกสาเหตุชัด ไว้ไล่ปัญหาได้ทันที)
+const whyFail = (m) => /forbidden/.test(m) ? 'ไม่มีสิทธิ์เปิด (ลองออกจากระบบแล้วเข้าใหม่)' : /missing-secrets/.test(m) ? 'ระบบ R2 ยังตั้งค่าไม่ครบ' : /Failed to fetch|NetworkError|Load failed/i.test(m) ? 'เน็ตหลุด/ต่อระบบไม่ได้' : (m || 'ไม่ทราบสาเหตุ');
 function StoredLink({ url, style, children, missingLabel }){
   const [href, setHref] = React.useState(isR2(url) ? null : url);
   const [gone, setGone] = React.useState(false);
+  const [err, setErr] = React.useState('');
+  const [tick, setTick] = React.useState(0); // กดลองใหม่
   React.useEffect(() => {
-    let on = true; setGone(false);
+    let on = true; setGone(false); setErr('');
     if (!url) { setGone(true); return; }
-    if (isR2(url)) { setHref(null); signedUrl(url).then(u => { if (on) setHref(u); }).catch(() => { if (on) setGone(true); }); }
-    else { setHref(url); headOk(url).then(ok => { if (on && !ok) setGone(true); }); }
+    if (isR2(url)) {
+      setHref(null);
+      signedUrl(url).then(u => { if (on) setHref(u); }).catch(e => { console.error('sign:', url, e); if (on) setErr(whyFail(String((e && e.message) || e))); });
+    } else {
+      setHref(url);
+      headStatus(url).then(st => { if (!on) return; if (st === 404 || st === 400) setGone(true); else if (st >= 401 && st !== 0) setErr('คลังตอบกลับ HTTP ' + st); });
+    }
     return () => { on = false; };
-  }, [url]);
+  }, [url, tick]);
+  const retry = () => { if (isR2(url)) delete R2_URLS[url.slice(3)]; else delete HEAD_OK[url]; setTick(t => t + 1); };
   if (gone) return <span style={css("flex:none;font-size:11px;font-weight:700;color:var(--sub);background:var(--soft);border:1px dashed var(--line);padding:4px 10px;border-radius:8px")}>{missingLabel || '⚠️ ไฟล์ไม่พร้อมใช้งาน'}</span>;
+  if (err) return <span onClick={retry} title="แตะเพื่อลองใหม่" style={css("flex:none;cursor:pointer;font-size:11px;font-weight:700;color:#c92a2a;background:#fff0f0;border:1px solid #ffc9c9;padding:4px 10px;border-radius:8px;line-height:1.5")}>⚠️ เปิดไฟล์ไม่ได้: {err} · แตะลองใหม่</span>;
   if (!href) return <span style={{ ...(style || {}), opacity: 0.55 }}>⏳ กำลังเตรียมไฟล์…</span>;
   // ลิงก์ R2 หมดอายุระหว่างเปิดหน้าค้างไว้ = ขอใหม่ตอนกด (ทางสำรอง)
   const kindOf = () => (isR2(url) ? /^r2:pdf\//.test(url) : /\.pdf(\?|$)/i.test(url)) ? 'pdf' : 'img';
@@ -727,7 +756,7 @@ function ProOrder({ o, idx, isOwner, payoutReady, onPrice, onPayout, onAdvance, 
                     ? <span style={css("flex:none;font-size:11.5px;font-weight:800;color:#fff;background:var(--acc);padding:5px 11px;border-radius:8px")}>ไฟล์ที่ {i + 1} · {f.stk ? f.stk.toUpperCase() + ' · ' : ''}{f.w && f.h ? f.w + '×' + f.h + ' ซม. · ' : ''}{f.qty} ชิ้น ({f.sh || Math.ceil(f.qty / 9)} {f.stk === 'pvc' ? 'ตร.ม.' : 'แผ่น'})</span>
                     : <span style={css("font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:var(--sub);flex:none")}>{f.pages} หน้า</span>}
                   {f.drive_url
-                    ? <a href={f.drive_url} target="_blank" rel="noreferrer" style={css("flex:none;font-size:13.5px;font-weight:800;color:#fff;text-decoration:none;background:var(--gold);padding:10px 18px;border-radius:10px;box-shadow:var(--shadow)")}>{FI.download(15)} เปิดไฟล์ใหญ่</a>
+                    ? <a href={extUrl(f.drive_url)} target="_blank" rel="noreferrer" style={css("flex:none;font-size:13.5px;font-weight:800;color:#fff;text-decoration:none;background:var(--gold);padding:10px 18px;border-radius:10px;box-shadow:var(--shadow)")}>{FI.download(15)} เปิดไฟล์ใหญ่</a>
                     : (o.files_purged_at || o.pdf_purged_at)
                       ? <span style={css("flex:none;font-size:10.5px;font-weight:700;color:var(--sub);background:var(--soft);border:1px solid var(--line);padding:3px 9px;border-radius:8px")}>🧹 ไฟล์ถูกล้างตามรอบเก็บ 7 วัน</span>
                       : fileUrl(f.path)
