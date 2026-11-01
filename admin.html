@@ -422,7 +422,9 @@ const stdSpecRows = (o, f) => {
     nup ? ['หน้า/แผ่น', nup + ' หน้า/แผ่น'] : null,
     ['จำนวน', (o.copies || 1) + ' ชุด'],
     ['เย็บมุม', bind === 'corner' ? 'ต้องเย็บมุม' : 'ไม่เย็บมุม'],
-    bind && bind !== 'none' && bind !== 'corner' ? ['เข้าเล่ม', bindShort(bind)] : null
+    bind && bind !== 'none' && bind !== 'corner' ? ['เข้าเล่ม', bindShort(bind)] : null,
+    // หน้าพื้นสีเต็ม (สไลด์) ที่ลูกค้าพิมพ์ขาวดำ — คิดหน้าละ ฿sprice (index.html บันทึก files[].slide/spages/sprice ตั้งแต่ 2026-11-01) · ข้อความต้องตรงกับ reviewRows หน้าบ้าน
+    f && f.slide > 0 && f.spages ? ['หน้าพื้นสีเต็ม', 'หน้าที่ ' + f.spages + ' (ขาวดำ ฿' + (f.sprice || 3) + '/หน้า)'] : null
   ].filter(Boolean);
 };
 // กล่องสเปก: หัวข้อสีเขียว · ค่าที่ลูกค้าเลือกสีดำ · กรอบเขียวแบบกล่องราคา — ใช้แบบเดียวกันทั้ง admin/pro/commission (แก้ต้องแก้ทั้ง 3 ไฟล์)
