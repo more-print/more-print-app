@@ -420,7 +420,7 @@ const stdSpecRows = (o, f) => {
     o.ptype === 'poster' ? null : ['ด้านที่พิมพ์', sides === 2 ? 'หน้า-หลัง' : 'หน้าเดียว'],
     orient ? ['แนวกระดาษ', orient === 'landscape' ? 'แนวนอน' : 'แนวตั้ง'] : null,
     nup ? ['หน้า/แผ่น', nup + ' หน้า/แผ่น'] : null,
-    ['จำนวน', (o.copies || 1) + ' ชุด'],
+    ['จำนวน', ((f && f.copies) || o.copies || 1) + ' ชุด'], // จำนวนชุดรายไฟล์ (index.html บันทึก files[].copies ตั้งแต่ 2026-11-02) · ออเดอร์เก่าใช้ค่าทั้งออเดอร์
     ['เย็บมุม', bind === 'corner' ? 'ต้องเย็บมุม' : 'ไม่เย็บมุม'],
     bind && bind !== 'none' && bind !== 'corner' ? ['เข้าเล่ม', bindShort(bind)] : null,
     // หน้าพื้นสีเต็ม (สไลด์) ที่ลูกค้าพิมพ์ขาวดำ — คิดหน้าละ ฿sprice (index.html บันทึก files[].slide/spages/sprice ตั้งแต่ 2026-11-01) · ข้อความต้องตรงกับ reviewRows หน้าบ้าน
@@ -720,8 +720,8 @@ function rcLinesOf(o, isPro){
     if (o.bind_cost > 0) push('ค่าเข้าเล่ม', o.bind_cost);
   } else {
     const typeOf = (f) => (o.ptype === 'mix' && f && f.cmode) ? (f.cmode === 'color' ? 'ปริ้นสี' : f.cmode === 'pages' ? 'ปริ้นผสม (สีหน้าที่ ' + (f.cpages || '-') + ')' : 'ปริ้นขาวดำ') : (RC_PTYPE[o.ptype] || (o.color ? 'ปริ้นสี' : 'ปริ้นขาวดำ'));
-    const descOf = (f) => { const sides = f.sides || o.sides, nup = f.nup || o.nup; return typeOf(f) + ' ' + (f.pages || 0) + ' หน้า' + (sides === 2 ? ' (หน้า-หลัง)' : '') + (nup > 1 ? ' ' + nup + ' หน้า/แผ่น' : '') + ' × ' + cp + ' ชุด'; };
-    const w = files.map(f => Number(f.pages) || 0), tot = w.reduce((a, x) => a + x, 0) || 1; let cum = 0, prev = 0;
+    const descOf = (f) => { const sides = f.sides || o.sides, nup = f.nup || o.nup; return typeOf(f) + ' ' + (f.pages || 0) + ' หน้า' + (sides === 2 ? ' (หน้า-หลัง)' : '') + (nup > 1 ? ' ' + nup + ' หน้า/แผ่น' : '') + ' × ' + (f.copies || cp) + ' ชุด'; };
+    const w = files.map(f => (Number(f.pages) || 0) * (f.copies || cp)), tot = w.reduce((a, x) => a + x, 0) || 1; let cum = 0, prev = 0; // สัดส่วน = หน้า × ชุดของไฟล์นั้น
     files.forEach((f, i) => { cum += (o.print_cost || 0) * w[i] / tot; const amt = Math.round(cum) - Math.round(prev); prev = cum; push(descOf(f), amt); }); // แบ่งค่าปริ้นตามสัดส่วนหน้า รวมเท่าค่าปริ้นเป๊ะ
     if (!files.length) push((RC_PTYPE[o.ptype] || 'งานปริ้น') + (cp > 1 ? ' × ' + cp + ' ชุด' : ''), o.print_cost || 0);
     if (o.bind_cost > 0) push('ค่าเข้าเล่ม/เย็บ', o.bind_cost);
@@ -1253,7 +1253,7 @@ const DASH_PERIODS = [['today', 'วันนี้'], ['7d', '7 วัน'], ['
 const baht = (n) => '฿' + Math.round(n || 0).toLocaleString();
 const isPickup = (o) => !!o.pickup || String(o.addr || '').indexOf('🏪') === 0; // ออเดอร์เก่าบางใบไม่มีธง pickup แต่ที่อยู่ขึ้นต้น 🏪
 const custKey = (o) => o.customer_phone || o.phone || '?';
-const pagesOf = (o) => (o.files || []).reduce((x, f) => x + (f.pages || 0), 0) * (o.copies || 1);
+const pagesOf = (o) => (o.files || []).reduce((x, f) => x + (f.pages || 0) * (f.copies || o.copies || 1), 0); // ชุดรายไฟล์ (2026-11-02) · ออเดอร์เก่าใช้ชุดทั้งออเดอร์
 const ymd = (d) => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
 
 // ช่วงเวลาที่เลือก + ช่วงก่อนหน้าความยาวเท่ากัน (ไว้เทียบ ▲▼) + ขนาดแท่งกราฟ
@@ -2621,7 +2621,7 @@ function AdminApp(){
       o.orient ? (o.orient === 'landscape' ? 'แนวนอน' : 'แนวตั้ง') : '',
       o.nup ? o.nup + ' หน้า/แผ่น' : '',
       BIND_LABELS[o.bind] || (o.bind && o.bind !== 'none' ? 'เข้าเล่ม ' + o.bind : (o.ptype === 'pro' ? '' : 'ไม่เย็บมุม')),
-      o.copies || 1, (o.files || []).reduce((a, f) => a + (f.pages || 0), 0),
+      (o.files || []).some(f => f.copies && f.copies !== (o.copies || 1)) ? o.files.map(f => f.copies || o.copies || 1).join(' | ') : (o.copies || 1), (o.files || []).reduce((a, f) => a + (f.pages || 0), 0), // ชุดไม่เท่ากัน = ชุดรายไฟล์ เรียงตามไฟล์
       (o.files || []).map(f => f.name).join(' | '), o.point || '', o.addr || '', o.phone || '', o.time || '',
       o.express ? 'ใช่' : '', o.night ? 'ใช่' : '',
       o.print_cost || 0, o.bind_cost || 0, o.express ? Math.max(0, (o.delivery_cost || 0) - EXPRESS_FEE) : (o.delivery_cost || 0), o.express ? EXPRESS_FEE : 0, o.night_fee || 0, o.coupon || '', o.discount || 0, o.total || 0, o.cancel_reason || ''
