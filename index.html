@@ -1256,7 +1256,7 @@ class App extends React.Component {
     }
     const url = urlm[0];
     let pt = this.extractLatLng(url) || this.olcFromUrl(url);
-    let finalUrl = url;
+    let finalUrl = url, placeName = '';
     if (!pt) {
       // ลิงก์สั้นจากปุ่มแชร์ (maps.app.goo.gl) — ให้ตัวแกะลิงก์ของร้าน (Edge Function) ตามไปอ่าน URL ปลายทาง
       this.setState({ gmapBusy: true });
@@ -1273,6 +1273,8 @@ class App extends React.Component {
           if (r.ok) {
             const j = await r.json();
             if (j.final) { finalUrl = j.final; pt = this.extractLatLng(j.final); }
+            // ลิงก์แชร์ร้าน/สถานที่ (ไม่มีพิกัดใน URL) — ตัวแกะลิงก์ v3 ถามพิกัดสถานที่จาก Google มาให้ (2026-11-02)
+            if (!pt && typeof j.lat === 'number' && typeof j.lng === 'number' && isFinite(j.lat) && isFinite(j.lng)) { pt = { lat: j.lat, lng: j.lng }; placeName = String(j.name || '').slice(0, 40); }
           }
           if (finalUrl !== url) break; // ตัวแกะตอบแล้ว (แม้ลิงก์ไม่มีพิกัด เช่น ลิงก์แชร์ร้าน) — ไม่ต้องลองซ้ำ
         } catch (e) {}
@@ -1314,7 +1316,7 @@ class App extends React.Component {
     }
     this.setState({ gmapLink: '', gmapErr: '', pinSrc: 'link', mapLocked: true });
     this.setPin(pt.lat, pt.lng, true);
-    this.showToast('📍 ปักหมุดตามลิงก์แล้ว — ล็อกไว้กันเลื่อนพลาด 🔒');
+    this.showToast(placeName ? '📍 ปักหมุดที่ "' + placeName + '" แล้ว — ล็อกไว้กันเลื่อนพลาด 🔒' : '📍 ปักหมุดตามลิงก์แล้ว — ล็อกไว้กันเลื่อนพลาด 🔒');
   }
 
   // ── ตรวจสลิปเบื้องต้น: สลิปโอนเงินไทยทุกธนาคารมี QR เสมอ — รูปที่ไม่มี QR = ไม่ใช่สลิป ปฏิเสธก่อนสร้างออเดอร์ ──

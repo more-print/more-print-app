@@ -2152,7 +2152,7 @@ function AdminApp(){
     if (!pt && /goo\.gl|maps\.app|share\.google|g\.co/.test(url)) {
       try { // ลิงก์สั้น — ให้ตัวแกะลิงก์ของระบบตามไปอ่านปลายทาง
         const r = await fetch(CFG.SUPABASE_URL + '/functions/v1/smart-handler?u=' + encodeURIComponent(url));
-        if (r.ok) { const j = await r.json(); if (j.final) pt = spotLatLng(j.final); }
+        if (r.ok) { const j = await r.json(); if (j.final) pt = spotLatLng(j.final); if (!pt && typeof j.lat === 'number' && typeof j.lng === 'number' && isFinite(j.lat) && isFinite(j.lng)) pt = { lat: j.lat, lng: j.lng }; } // v3: ลิงก์แชร์สถานที่ได้พิกัดจากตัวแกะลิงก์
       } catch (e) {}
     }
     if (!pt) { setSpBusy(false); return alert('อ่านพิกัดจากลิงก์นี้ไม่ได้ครับ 🙏\n\nวิธีเอาลิงก์ที่ใช้ได้: เปิด Google Maps → "กดค้าง" บนแผนที่ตรงจุดนั้นให้เกิดหมุดแดง → กดแชร์ → คัดลอกลิงก์ (ลิงก์แบบแชร์ชื่อสถานที่เฉยๆ ใช้ไม่ได้ เพราะไม่มีพิกัดแนบมา)'); }
