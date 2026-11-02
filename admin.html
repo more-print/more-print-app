@@ -854,7 +854,7 @@ function ReceiptTool({ o, isPro, onClose }){
   );
 }
 
-function OrderCard({ o, idx, onAdvance, onRetreat, onApplyEdits, onCancel, onRemove, busy, unread, onSeen }){
+function OrderCard({ o, idx, due, onAdvance, onRetreat, onApplyEdits, onCancel, onRemove, busy, unread, onSeen }){
   // การรับงาน/จุดส่ง ในแผงแก้ไขออเดอร์ (มารับเอง ↔ จัดส่ง / แก้ที่อยู่-ค่าส่ง — 2026-09-15)
   const [sdMode, setSdMode] = React.useState(o.pickup ? 'pickup' : 'delivery');
   const [sdAddr, setSdAddr] = React.useState('');
@@ -876,6 +876,16 @@ function OrderCard({ o, idx, onAdvance, onRetreat, onApplyEdits, onCancel, onRem
   };
   const cancelled = o.status === 0;
   const [open, setOpen] = React.useState(!cancelled && o.status < 4);
+  // นับถอยหลังกำหนดเวลา (dueInfo) — จัดส่ง: จนกด "ส่งแล้ว" · มารับเอง: จนงาน "พร้อมรับ" · เดินเองทุก 30 วิ
+  const dueIdx = due && due.pk ? 2 : 3;
+  const dueActive = !!due && o.status >= 1 && o.status <= dueIdx;
+  const [, setDueTick] = React.useState(0);
+  React.useEffect(() => { if (!dueActive) return; const t = setInterval(() => setDueTick(x => x + 1), 30000); return () => clearInterval(t); }, [dueActive]);
+  const dueLeft = dueActive ? Math.round((due.due - Date.now()) / 60000) : null;
+  const dueDiff = due && o.status > dueIdx ? (() => { const at = stampAt(o, dueIdx); return at ? Math.round((at.getTime() - due.due) / 60000) : null; })() : null;
+  const dueAt = due ? fmtTime(new Date(due.due)) + (dueActive && new Date(due.due).toDateString() !== new Date().toDateString() ? ' (' + new Date(due.due).getDate() + '/' + (new Date(due.due).getMonth() + 1) + ')' : '') : '';
+  const dueTone = dueActive ? (dueLeft <= 0 ? 'late' : dueLeft <= 15 ? 'near' : 'ok') : dueDiff == null ? '' : dueDiff > 0 ? 'late' : 'ok';
+  const DUE_CSS = { ok: 'color:#0f7b4a;background:#e6f6ec;border:1px solid #b7e4c7', near: 'color:#a16207;background:#fff3bf;border:1px solid #ffe08a', late: 'color:#c92a2a;background:#ffe3e3;border:1px solid #ffb3b3' };
   const [cancelOpen, setCancelOpen] = React.useState(false);
   const [reason, setReason] = React.useState('');
   const [confirmDel, setConfirmDel] = React.useState(false);
@@ -918,7 +928,11 @@ function OrderCard({ o, idx, onAdvance, onRetreat, onApplyEdits, onCancel, onRem
             <span style={css("font-family:'IBM Plex Mono',monospace;font-size:13px;font-weight:700")}>{o.id}</span>
             {unread > 0 && <span style={css("flex:none;font-size:10px;font-weight:700;color:#fff;background:#c92a2a;padding:2px 8px;border-radius:99px")}>{FI.chat(9)} {unread}</span>}
           </div>
-          <div style={css("margin-top:2px;font-size:11px;color:var(--sub);overflow:hidden;text-overflow:ellipsis;white-space:nowrap")}>{FI.clock(11)} {fmtWhen(o.created_at)} · คุณ{o.customer_fname}</div>
+          <div style={css("margin-top:2px;display:flex;align-items:center;gap:6px;min-width:0")}>
+            {/* ป้ายนับถอยหลังอยู่แถวที่ 2 (ไม่แย่งที่รหัสออเดอร์บนจอมือถือ) — เห็นตั้งแต่ยังไม่กางการ์ด */}
+            {dueActive && <span style={css("flex:none;font-size:10.5px;font-weight:800;padding:1px 7px;border-radius:99px;white-space:nowrap;" + (dueTone === 'late' ? 'color:#fff;background:#e03131' : DUE_CSS[dueTone]))}>{dueLeft <= 0 ? '⏰ เกิน ' + fmtDur(-dueLeft) : '⏱ ' + fmtDur(dueLeft)}</span>}
+            <span style={css("font-size:11px;color:var(--sub);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0")}>{FI.clock(11)} {fmtWhen(o.created_at)} · คุณ{o.customer_fname}</span>
+          </div>
         </div>
         {/* ใบงานด่วน: ป้ายแดงบนแถบหัว ก่อนสถานะ+ราคา — เห็นตั้งแต่ยังไม่กางการ์ด (เจ้าของสั่ง 2026-09-17) */}
         {o.express && <span style={css("flex:none;font-size:12px;font-weight:800;color:#e03131")}>⚡ งานด่วน</span>}
@@ -930,6 +944,25 @@ function OrderCard({ o, idx, onAdvance, onRetreat, onApplyEdits, onCancel, onRem
         <div style={css("border-top:1px dashed var(--line);padding:14px 16px;display:flex;flex-direction:column;gap:12px")}>
           {/* ป้ายรอทำ → แถวข้อมูล → ปุ่ม → แชทท้ายสุด · หัวสเปกตัวใหญ่+แถวชิป+ป้ายเตือนเย็บ/เข้าเล่ม ลบแล้ว ข้อมูลอยู่ในกล่องสเปก (เจ้าของสั่ง 2026-10-12) · ชื่อ+เบอร์ลูกค้าอยู่แถวจุดส่ง */}
           {o.status === 1 && (() => { const m = Math.max(0, Math.round((Date.now() - new Date(o.created_at).getTime()) / 60000)); const tt = m < 60 ? m + ' นาที' : (m / 60).toFixed(m < 600 ? 1 : 0).replace(/\.0$/, '') + ' ชม.'; return <div><span style={css("font-size:10.5px;font-weight:700;color:#a16207;background:#fff3bf;padding:3px 10px;border-radius:99px")}>{FI.clock(11)} รอเริ่มงาน · ผ่านมา {tt}</span></div>; })()}
+          {/* กำหนดเวลาตามเกณฑ์ที่บอกลูกค้า (เจ้าของสั่ง 2026-11-02) — กำลังทำ: นับถอยหลัง · เสร็จแล้ว: ทัน/ช้ากี่นาที */}
+          {dueTone && (
+            <div style={css("border-radius:10px;padding:9px 12px;font-size:12.5px;line-height:1.55;" + DUE_CSS[dueTone])}>
+              <div style={css("font-weight:800")}>
+                {dueActive
+                  ? (dueLeft > 0
+                    ? '⏱ เหลืออีก ' + fmtDur(dueLeft) + ' — ต้อง' + (due.pk ? 'ทำงานเสร็จให้ลูกค้ามารับ' : 'ส่งถึงลูกค้า') + 'ภายใน ' + dueAt + ' น.'
+                    : '⏰ เกินกำหนดมาแล้ว ' + fmtDur(-dueLeft) + ' — กำหนด' + (due.pk ? 'งานเสร็จ' : 'ส่งถึงลูกค้า') + ' ' + dueAt + ' น. เร่งด่วนครับ!')
+                  : (dueDiff > 0
+                    ? '✗ ' + (due.pk ? 'งานเสร็จ' : 'ส่ง') + 'ช้ากว่ากำหนด ' + fmtDur(dueDiff) + ' (กำหนด ' + dueAt + ' น.)'
+                    : '✓ ' + (due.pk ? 'งานเสร็จ' : 'ส่งถึง') + 'ทันเวลา' + (dueDiff < 0 ? ' — เร็วกว่ากำหนด ' + fmtDur(-dueDiff) : ' พอดี') + ' (กำหนด ' + dueAt + ' น.)')}
+              </div>
+              <div style={css("font-size:11px;opacity:.85;margin-top:2px")}>
+                เกณฑ์ที่บอกลูกค้า: ผลิต {fmtDur(due.own)} ({due.pages} หน้า · {o.express ? 'งานด่วน 45' : '60'} นาที/150 หน้า)
+                {due.queue ? ' + คิวงานก่อนหน้า ' + fmtDur(due.queue) : o.express ? ' · งานด่วนไม่ต่อคิว' : ' · ไม่มีคิวก่อนหน้า'}
+                {due.pk ? ' + เผื่อ ' + due.travel + ' นาที (มารับเอง)' : ' + เดินทาง ≤' + due.travel + ' นาที (' + (due.car ? 'รถยนต์' : 'มอเตอร์ไซค์') + ')'}
+              </div>
+            </div>
+          )}
           {/* แถวข้อมูล — ลำดับตามเจ้าของ (ปรับ 2026-10-12): ไฟล์งาน → ประเภทงาน (กล่องสเปก) → สลิป → ราคา → จุดส่ง */}
           {/* ลูกค้า (ชื่อ+เบอร์) ขึ้นบนสุดก่อนไฟล์งาน — เจ้าของสั่ง 2026-10-15 (ย้ายมาจากจุดส่ง) */}
           <div style={css("display:flex;gap:10px;font-size:12px")}>
@@ -1289,6 +1322,48 @@ function leadMinutes(o){
   if (mins < 0) mins += 1440; // ส่งข้ามเที่ยงคืน
   return mins <= 1440 ? mins : null;
 }
+
+// ── กำหนดเวลาของแต่ละใบ = เวลาที่หน้าบ้านบอกลูกค้า (เจ้าของสั่ง 2026-11-02: นับถอยหลังกระตุ้นทีมผลิต/จัดส่ง) ──
+// หน้าบ้านไม่ได้บันทึกเวลาคาดว่าได้รับลงฐานข้อมูล → คำนวณซ้ำด้วยสูตรเดียวกับ index.html (etaMinutes + get_queue_load + etaLabel)
+//   ผลิต: ทุก 150 หน้า (× จำนวนชุด) = 60 นาที ขั้นต่ำ 60 · งานด่วน 45 นาที/150 หน้า และไม่ต่อคิว
+//   คิว: เวลาผลิตของงาน Standard ที่ยังไม่ออกส่ง ณ ตอนลูกค้าสั่ง (นับแบบ get_queue_load = 60 นาที/150 หน้า)
+//   ปลายช่วงที่บอกลูกค้า: มอเตอร์ไซค์ +25 · รถยนต์ +45 · มารับเอง "งานเสร็จ" +15
+const DUE_TRAVEL = { bike: 25, car: 45, pickup: 15 };
+const duePages = (o) => { const fs = o.files || []; return fs.length ? fs.reduce((a, f) => a + (f.pages || 1) * Math.max(1, f.copies || o.copies || 1), 0) : Math.max(1, o.copies || 1); };
+const prodBlocks = (o) => Math.max(1, Math.ceil(duePages(o) / 150));
+// times[i] เก็บแค่ HH:MM → เวลาจริง (นับไปข้างหน้าจากตอนสั่ง ข้ามเที่ยงคืนได้ สมมติไม่เกิน 24 ชม. แบบเดียวกับ leadMinutes)
+function stampAt(o, i){
+  const t = (o.times || [])[i];
+  if (!t || !/^\d{1,2}:\d{2}$/.test(t)) return null;
+  const c = new Date(o.created_at); c.setSeconds(0, 0);
+  const [h, m] = t.split(':').map(Number);
+  return new Date(c.getTime() + ((h * 60 + m - c.getHours() * 60 - c.getMinutes() + 1440) % 1440) * 60000);
+}
+// สรุปของแต่ละใบไว้ครั้งเดียว (เวลาที่สั่ง/ออกส่ง/ยกเลิก + บล็อกผลิต) — dueInfo วนเทียบทุกคู่ จะได้ไม่แปลงวันที่ซ้ำ ๆ
+const dueIndex = (all) => all.filter(x => x.ptype !== 'pro').map(x => {
+  const out = stampAt(x, 2) || stampAt(x, 3);
+  return { id: x.id, st: x.status, xc: new Date(x.created_at).getTime(), cx: x.cancelled_at ? new Date(x.cancelled_at).getTime() : 0, out: out ? out.getTime() : 0, b: prodBlocks(x) };
+});
+function dueInfo(o, idx){
+  if (o.ptype === 'pro' || o.status === 0) return null;
+  // เริ่มนับตอนออเดอร์ถึงร้าน (created_at) — ไม่ใช่ตอนลูกค้ากดยืนยัน: ถ้าเน็ตลูกค้าสะดุดจนส่งช้า ทีมไม่ควรเสียเวลาส่วนนั้น
+  const start = new Date(o.created_at); start.setSeconds(0, 0);
+  const own = prodBlocks(o) * (o.express ? 45 : 60);
+  let queue = 0;
+  if (!o.express) {
+    const T = new Date(o.created_at).getTime();
+    idx.forEach(x => {
+      if (x.id === o.id || x.xc > T || T - x.xc > 3 * 86400000) return;
+      if (x.st === 0 && !(x.cx > T)) return; // ยกเลิกก่อนใบนี้สั่ง = ไม่อยู่ในคิว
+      if (x.out ? x.out <= T : x.st >= 3) return; // ออกส่ง/พร้อมรับไปแล้วตอนใบนี้สั่ง
+      queue += x.b * 60;
+    });
+  }
+  const pk = isPickup(o), car = String(o.addr || '').indexOf('🚗') === 0;
+  const travel = pk ? DUE_TRAVEL.pickup : car ? DUE_TRAVEL.car : DUE_TRAVEL.bike;
+  return { due: start.getTime() + (own + queue + travel) * 60000, own, queue, travel, pk, car, pages: duePages(o) };
+}
+const fmtDur = (m) => m < 60 ? m + ' นาที' : Math.floor(m / 60) + ' ชม.' + (m % 60 ? ' ' + (m % 60) + ' นาที' : '');
 
 function dashSummary(rows, start, end){
   const inR = rows.filter(o => { const t = new Date(o.created_at); return t >= start && t < end; });
@@ -2004,6 +2079,7 @@ function AdminApp(){
   const [orders, setOrders] = React.useState(DB ? [] : DEMO_ORDERS);
   const [loading, setLoading] = React.useState(!!DB);
   const [busyId, setBusyId] = React.useState(null);
+  const dueMap = React.useMemo(() => { const m = {}, ix = dueIndex(orders); orders.forEach(o => { m[o.id] = dueInfo(o, ix); }); return m; }, [orders]); // กำหนดเวลาตามเกณฑ์ (คิดคิว ณ ตอนสั่งของแต่ละใบ)
   const [lastSync, setLastSync] = React.useState(null);
   const [filter, setFilter] = React.useState('pending'); // แถบสถานะแบบ pro.html: กำลังทำ/เสร็จแล้ว/ยกเลิก
   const [period, setPeriod] = React.useState('day'); // ช่วงเวลาแบบ pro.html: วันนี้/สัปดาห์/เดือน/ปี
@@ -3088,7 +3164,7 @@ function AdminApp(){
                   );
                 }
               }
-              out.push(<OrderCard key={o.id} o={o} idx={filter === 'done' ? shown.length - i : i + 1} onAdvance={advance} onRetreat={retreat} onApplyEdits={applyEdits} onCancel={cancel} onRemove={removeOrder} busy={busyId === o.id} unread={unreadMap[o.id] || 0} onSeen={clearUnread}/>);
+              out.push(<OrderCard key={o.id} o={o} idx={filter === 'done' ? shown.length - i : i + 1} due={dueMap[o.id]} onAdvance={advance} onRetreat={retreat} onApplyEdits={applyEdits} onCancel={cancel} onRemove={removeOrder} busy={busyId === o.id} unread={unreadMap[o.id] || 0} onSeen={clearUnread}/>);
             });
             return out;
           })()}
