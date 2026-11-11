@@ -13,14 +13,15 @@
   @font-face{font-family:'Cloud Soft';src:url('assets/fonts/Cloud Soft-Bold.ttf') format('truetype');font-weight:700;font-style:normal;font-display:swap}
   @font-face{font-family:'Cloud Soft';src:url('assets/fonts/Cloud Soft-Bold.ttf') format('truetype');font-weight:800;font-style:normal;font-display:swap}
   body{margin:0;background:var(--bg);font-family:'Cloud Soft','IBM Plex Sans Thai',sans-serif;
-  --bg:#f4f4f2;--card:#ffffff;--ink:#111111;--sub:#8a8a84;--line:#e4e4e0;--soft:#efefec;
-  --acc:#00b368;--accBright:#00d97e;--accSoft:#e6f7ef;--head:#111111;--warnBg:#fff7e0;--warnLine:#f0dfa6;--warnInk:#8a6d1a;--shadow:0 2px 10px rgba(0,0,0,.06)}
-  a{color:#00b368}a:hover{color:#008a50}
+  /* CI ใหม่ (เจ้าของสั่ง 2026-11-11 — เลิกสีเขียวที่คล้ายแอปเดลิเวอรี่เจ้าดัง): น้ำเงิน #004FD6 หลัก · ขาวนวล #FFFFF7 พื้น · เหลือง #FADF29 เน้น */
+  --bg:#FFFFF7;--card:#ffffff;--ink:#121A2E;--sub:#83827A;--line:#E7E6DA;--soft:#F3F3E9;
+  --acc:#004FD6;--accDark:#003DA8;--accBright:#FADF29;--accSoft:#E8EFFD;--head:#004FD6;--navy:#0B1E4A;--yellow:#FADF29;--warnBg:#fff7e0;--warnLine:#f0dfa6;--warnInk:#8a6d1a;--shadow:0 2px 10px rgba(0,0,0,.06)}
+  a{color:var(--acc)}a:hover{color:var(--accDark)}
   input,button,select{font-family:'Cloud Soft','IBM Plex Sans Thai',sans-serif}
   @keyframes mpPulse{0%,100%{opacity:1}50%{opacity:.35}}
   @media(min-width:700px){ .mp-swipe-hint:not(.all){display:none} } /* จอกว้างกล่องสเปก 2 ไฟล์วางคู่กันพอดี ไม่ต้องบอกให้เลื่อน */
   @keyframes mpRing{0%,100%{transform:rotate(0)}15%{transform:rotate(-16deg)}30%{transform:rotate(14deg)}45%{transform:rotate(-10deg)}60%{transform:rotate(6deg)}75%{transform:rotate(-3deg)}} /* กระดิ่งสั่นตอนออเดอร์ใหม่เข้า */
-  .mp-side{position:fixed;top:0;left:0;bottom:0;width:212px;background:#161612;z-index:60;display:flex;flex-direction:column;padding:18px 12px 14px;box-sizing:border-box;transition:transform .22s ease;overflow-y:auto}
+  .mp-side{position:fixed;top:0;left:0;bottom:0;width:212px;background:var(--navy);z-index:60;display:flex;flex-direction:column;padding:18px 12px 14px;box-sizing:border-box;transition:transform .22s ease;overflow-y:auto}
   .mp-scrim{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:55;display:none}
   .mp-main{min-width:0}
   .mp-burger{display:none}
@@ -60,8 +61,8 @@ const BANNER_THEMES = {
   alert: 'linear-gradient(135deg,#e03131,#8f1414)' // ประกาศแจ้งปัญหา/ล่าช้า — ลูกค้าเจอป๊อปอัพก่อนสั่ง
 };
 const BANNER_COLORS = [['green', 'เขียว'], ['dark', 'ดำ'], ['orange', 'ส้ม'], ['blue', 'ฟ้า']];
-const STEP_COLORS = ['#8a6d1a', '#0b7285', '#9c36b5', '#00b368'];
-const STEP_BG = ['#fff7e0', '#e3fafc', '#f8f0fc', '#e6f7ef'];
+const STEP_COLORS = ['#8a6d1a', '#0b7285', '#9c36b5', '#004FD6'];
+const STEP_BG = ['#fff7e0', '#e3fafc', '#f8f0fc', '#E8EFFD'];
 
 // ข้อมูลตัวอย่าง — โชว์เมื่อยังไม่เชื่อมฐานข้อมูล
 const DEMO_ORDERS = [
@@ -224,7 +225,7 @@ function openInlineViewer(src, kind, name){
   const box = document.createElement('div');
   // กล่องทั้งใบเป็นตัวเลื่อน + หัวติดด้านบน (sticky) — เดิมให้กล่องลูกแบบ flex เลื่อน มือถือ/แอป LINE บางรุ่นเลื่อนไม่ได้ เห็นแค่หน้าแรก (เจ้าของแจ้ง 2026-11-01)
   box.setAttribute('style', 'position:fixed;inset:0;z-index:99999;background:#3a3a38;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain');
-  box.innerHTML = '<div style="position:sticky;top:0;z-index:2;display:flex;align-items:center;gap:8px;padding:10px 12px;background:#161612;color:#fff;font-size:13px"><span data-t style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">⏳ กำลังเปิดไฟล์… (ไฟล์ใหญ่อาจใช้เวลาสักครู่)</span>' + (name ? '<button data-d style="flex:none;height:34px;padding:0 12px;border:1px solid #00b368;border-radius:9px;background:transparent;color:#7ee2b0;font-size:13px;font-weight:700">⬇ ดาวน์โหลด</button>' : '') + '<button data-x style="flex:none;height:34px;padding:0 14px;border:none;border-radius:9px;background:#00b368;color:#fff;font-size:13px;font-weight:700">✕ ปิด</button></div><div data-b style="padding:10px 0 40px;display:flex;flex-direction:column;align-items:center;gap:6px"></div>';
+  box.innerHTML = '<div style="position:sticky;top:0;z-index:2;display:flex;align-items:center;gap:8px;padding:10px 12px;background:#0B1E4A;color:#fff;font-size:13px"><span data-t style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">⏳ กำลังเปิดไฟล์… (ไฟล์ใหญ่อาจใช้เวลาสักครู่)</span>' + (name ? '<button data-d style="flex:none;height:34px;padding:0 12px;border:1px solid #FADF29;border-radius:9px;background:transparent;color:#FADF29;font-size:13px;font-weight:700">⬇ ดาวน์โหลด</button>' : '') + '<button data-x style="flex:none;height:34px;padding:0 14px;border:none;border-radius:9px;background:#004FD6;color:#fff;font-size:13px;font-weight:700">✕ ปิด</button></div><div data-b style="padding:10px 0 40px;display:flex;flex-direction:column;align-items:center;gap:6px"></div>';
   const title = box.querySelector('[data-t]'), body = box.querySelector('[data-b]');
   let closed = false;
   const prevOverflow = document.body.style.overflow;
@@ -490,17 +491,17 @@ const stdSpecRows = (o, f) => {
 // title/sub = หัวกล่องรายไฟล์ (ไฟล์ 1 · ชื่อไฟล์) · grow = กล่องเรียงต่อกันไปทางขวา
 function SpecBox({ rows, title, sub, grow }){
   return (
-    <div style={css("border:1.5px solid #00b368;background:#fff;border-radius:12px;padding:9px 13px;box-sizing:border-box;font-size:12.5px;line-height:1.5" + (grow ? ";flex:1 0 220px" : ""))}>
+    <div style={css("border:1.5px solid var(--acc);background:#fff;border-radius:12px;padding:9px 13px;box-sizing:border-box;font-size:12.5px;line-height:1.5" + (grow ? ";flex:1 0 220px" : ""))}>
       {title && (
         <div style={css("margin-bottom:6px;padding-bottom:5px;border-bottom:1px dashed #9fdcbf;display:flex;align-items:baseline;gap:7px")}>
-          <b style={css("flex:none;color:#00b368;font-size:13px")}>{title}</b>
+          <b style={css("flex:none;color:var(--acc);font-size:13px")}>{title}</b>
           {sub && <span style={css("flex:1;min-width:0;font-size:11px;color:var(--sub);overflow:hidden;text-overflow:ellipsis;white-space:nowrap")}>{sub}</span>}
         </div>
       )}
       <div style={css("display:grid;grid-template-columns:auto minmax(0,1fr);column-gap:12px;row-gap:5px")}>
         {rows.map(([k, v], i) => (
           <React.Fragment key={i}>
-            <span style={css("color:#00b368;font-weight:700;white-space:nowrap")}>{k}:</span>
+            <span style={css("color:var(--acc);font-weight:700;white-space:nowrap")}>{k}:</span>
             <span style={css("color:var(--ink);font-weight:600;overflow-wrap:anywhere")}>{v}</span>
           </React.Fragment>
         ))}
@@ -548,7 +549,7 @@ function AdminLogin({ onOk }){
   return (
     <div style={css("min-height:100vh;display:flex;align-items:center;justify-content:center;background:var(--bg);padding:20px")}>
       <div style={css("background:var(--card);border:1px solid var(--line);border-radius:18px;padding:28px 24px;width:320px;box-shadow:var(--shadow);display:flex;flex-direction:column;gap:12px;align-items:center")}>
-        <img src="assets/logo-icon.png" alt="" style={css("width:56px;height:auto")}/>
+        <img src="assets/logo-icon-blue.png" alt="" style={css("width:56px;height:auto")}/>
         <div style={css("font-family:'Montserrat',sans-serif;font-weight:800;font-size:17px;letter-spacing:1px")}><span style={css("color:var(--acc)")}>MORE</span> PRINT</div>
         <div style={css("font-size:13px;color:var(--sub)")}>หลังบ้าน — เข้าสู่ระบบเจ้าของร้าน</div>
         <input value={email} onChange={e => setEmail(e.target.value)} placeholder="อีเมลเจ้าของร้าน" inputMode="email" autoComplete="email"
@@ -861,14 +862,14 @@ function ReceiptTool({ o, isPro, onClose }){
             ยอดรวมในใบเสร็จ ฿{rcMoney(total)} · ลูกค้าจ่ายจริง ฿{rcMoney(paid)}{mismatch ? ' — ไม่ตรงกัน ตรวจรายการ/ส่วนลดก่อนพิมพ์' : ' ✓ ตรงกัน'}
           </div>
           {msg && <div style={css("margin-top:6px;font-size:11.5px;color:#c92a2a;font-weight:700")}>{msg}</div>}
-          <button onClick={doPrint} disabled={busy} style={css("margin-top:10px;width:100%;height:44px;border:none;border-radius:11px;background:#00b368;color:#fff;font-size:14px;font-weight:800;cursor:pointer;font-family:inherit")}>🖨️ พิมพ์ / บันทึกเป็น PDF</button>
+          <button onClick={doPrint} disabled={busy} style={css("margin-top:10px;width:100%;height:44px;border:none;border-radius:11px;background:var(--acc);color:#fff;font-size:14px;font-weight:800;cursor:pointer;font-family:inherit")}>🖨️ พิมพ์ / บันทึกเป็น PDF</button>
           <div style={css("margin-top:5px;font-size:10.5px;color:var(--sub)")}>ในหน้าต่างพิมพ์เลือก "บันทึกเป็น PDF" (iPhone: แชร์ → พิมพ์ → ถ่างนิ้วที่ภาพตัวอย่าง → บันทึก)</div>
         </div>
         {/* ── ใบเสร็จ (ส่วนที่พิมพ์ออก — ดีไซน์เดียวกับบิลเปล่า MORE PRINT) ── */}
         <div id="mpRcSheet" style={{ background: '#fff', color: '#111', borderRadius: '10px', padding: '28px 30px 22px', boxShadow: '0 10px 40px rgba(0,0,0,.35)', fontFamily: "'Thonburi','Sukhumvit Set','Noto Sans Thai','Sarabun',sans-serif", width: '100%', boxSizing: 'border-box' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <img src="assets/logo-icon.png" alt="" onError={(e) => { e.target.style.display = 'none'; }} style={{ height: '46px', width: 'auto', display: 'block' }}/>
-            <div style={{ fontFamily: "'Montserrat','Avenir Next',sans-serif", fontSize: '24px', fontWeight: 900, letterSpacing: '1px', flex: 1 }}>MORE <span style={{ color: '#00b368' }}>PRINT</span></div>
+            <img src="assets/logo-icon-blue.png" alt="" onError={(e) => { e.target.style.display = 'none'; }} style={{ height: '46px', width: 'auto', display: 'block' }}/>
+            <div style={{ fontFamily: "'Montserrat','Avenir Next',sans-serif", fontSize: '24px', fontWeight: 900, letterSpacing: '1px', flex: 1 }}>MORE <span style={{ color: '#004FD6' }}>PRINT</span></div>
             <div style={{ fontSize: '20px', fontWeight: 800, flex: 'none' }}>ใบเสร็จรับเงิน</div>
           </div>
           <div style={{ marginTop: '26px', display: 'flex', gap: '24px', fontSize: '14px' }}>
@@ -1026,7 +1027,7 @@ function OrderCard({ o, idx, due, onAdvance, onRetreat, onApplyEdits, onCancel, 
           {/* ลูกค้า (ชื่อ+เบอร์) ขึ้นบนสุดก่อนไฟล์งาน — เจ้าของสั่ง 2026-10-15 (ย้ายมาจากจุดส่ง) */}
           <div style={css("display:flex;gap:10px;font-size:12px")}>
             <span style={css("flex:none;width:64px;color:var(--sub);font-weight:600;padding-top:3px")}>{FI.user(12)} ลูกค้า</span>
-            <div style={css("flex:1;min-width:0;font-size:14px;font-weight:700;color:var(--ink);line-height:1.5")}>คุณ{o.customer_fname} {o.customer_lname} · <a href={'tel:' + (o.customer_phone || '').replace(/[^0-9+]/g, '')} style={css("font-family:'IBM Plex Mono',monospace;font-size:14px;color:#00b368;text-decoration:underline")}>{o.customer_phone}</a>{o.customer_email ? <span style={css("font-weight:600;font-size:12px;color:var(--sub)")}> · {o.customer_email}</span> : null}</div>
+            <div style={css("flex:1;min-width:0;font-size:14px;font-weight:700;color:var(--ink);line-height:1.5")}>คุณ{o.customer_fname} {o.customer_lname} · <a href={'tel:' + (o.customer_phone || '').replace(/[^0-9+]/g, '')} style={css("font-family:'IBM Plex Mono',monospace;font-size:14px;color:var(--acc);text-decoration:underline")}>{o.customer_phone}</a>{o.customer_email ? <span style={css("font-weight:600;font-size:12px;color:var(--sub)")}> · {o.customer_email}</span> : null}</div>
           </div>
           <div style={css("display:flex;gap:10px;font-size:12px")}>
             <span style={css("flex:none;width:64px;color:var(--sub);font-weight:600;padding-top:4px")}>{FI.file(12)} ไฟล์งาน ({(o.files || []).length})</span>
@@ -1087,7 +1088,7 @@ function OrderCard({ o, idx, due, onAdvance, onRetreat, onApplyEdits, onCancel, 
             <div style={css("flex:1;min-width:0")}>
               {(o.files || []).length > 1
                 ? <React.Fragment>
-                    <div className={"mp-swipe-hint" + (o.files.length > 2 ? " all" : "")} style={css("margin-bottom:5px;font-size:11px;font-weight:700;color:#00b368")}>สั่ง {o.files.length} ไฟล์ — เลื่อนไปทางขวาดูกล่องสเปกครบทุกไฟล์ →</div>
+                    <div className={"mp-swipe-hint" + (o.files.length > 2 ? " all" : "")} style={css("margin-bottom:5px;font-size:11px;font-weight:700;color:var(--acc)")}>สั่ง {o.files.length} ไฟล์ — เลื่อนไปทางขวาดูกล่องสเปกครบทุกไฟล์ →</div>
                     <div style={css("display:flex;gap:8px;overflow-x:auto;padding-bottom:3px")}>{/* สั่งหลายไฟล์ = กล่องสเปกละไฟล์ เรียงไปทางขวา (เจ้าของสั่ง 2026-10-12) */}
                       {o.files.map((f, i) => <SpecBox key={i} grow title={'ไฟล์ ' + (i + 1)} sub={f.name} rows={stdSpecRows(o, f)}/>)}
                     </div>
@@ -1175,7 +1176,7 @@ function OrderCard({ o, idx, due, onAdvance, onRetreat, onApplyEdits, onCancel, 
                 ? <span style={css("font-size:15px;font-weight:800;color:#f59f00")}>⚡ EXPRESS : งานด่วน — ลัดคิวเร่งผลิต</span>
                 : o.time ? <React.Fragment>เวลารับ: <span style={css("font-family:'IBM Plex Mono',monospace")}>{o.time + ' น.'}</span></React.Fragment> : null;
               if (!head && !showTel) return null;
-              return <div style={css("font-size:12px;color:var(--sub);margin-top:2px")}>{head}{head && showTel ? ' · ' : null}{showTel ? <React.Fragment>โทร <a href={'tel:' + o.phone.replace(/[^0-9+]/g, '')} style={css("font-family:'IBM Plex Mono',monospace;color:#00b368;text-decoration:underline")}>{o.phone}</a></React.Fragment> : null}</div>;
+              return <div style={css("font-size:12px;color:var(--sub);margin-top:2px")}>{head}{head && showTel ? ' · ' : null}{showTel ? <React.Fragment>โทร <a href={'tel:' + o.phone.replace(/[^0-9+]/g, '')} style={css("font-family:'IBM Plex Mono',monospace;color:var(--acc);text-decoration:underline")}>{o.phone}</a></React.Fragment> : null}</div>;
             })()}
             {/* มารับเองที่ร้าน = ไม่มีที่ให้นำทางไป ซ่อนปุ่ม (เจ้าของสั่ง 2026-10-12) */}
             {!(o.pickup || (o.addr || '').indexOf('🏪') === 0) && ((o.lat != null && o.lng != null) || (o.addr || o.point)) ? (
@@ -1211,7 +1212,7 @@ function OrderCard({ o, idx, due, onAdvance, onRetreat, onApplyEdits, onCancel, 
           )}
           {/* ออกใบเสร็จโดยร้าน (เจ้าของสั่ง 2026-10-19): ลูกค้าลืมกดขอใบเสร็จตอนสั่ง ร้านกรอกเองแล้วพิมพ์/บันทึก PDF */}
           {!cancelled && (
-            <button onClick={() => setRcOpen(true)} style={css("height:38px;border:1.5px solid #00b368;border-radius:12px;background:#e6f7ef;color:#00744a;font-size:12.5px;font-weight:800;cursor:pointer;font-family:inherit")}>🧾 ออกใบเสร็จให้ลูกค้า (ร้านกรอกเอง)</button>
+            <button onClick={() => setRcOpen(true)} style={css("height:38px;border:1.5px solid var(--acc);border-radius:12px;background:var(--accSoft);color:var(--accDark);font-size:12.5px;font-weight:800;cursor:pointer;font-family:inherit")}>🧾 ออกใบเสร็จให้ลูกค้า (ร้านกรอกเอง)</button>
           )}
           {rcOpen && <ReceiptTool o={o} isPro={false} onClose={() => setRcOpen(false)}/>}
           {/* แก้ไขออเดอร์รวมศูนย์ (เจ้าของสั่งรวม 2026-09-15): เพิ่ม/ลดรายการ + เปลี่ยนการรับงาน (มารับเอง↔จัดส่ง) + แก้จุดส่ง ในแผงเดียว */}
@@ -2908,25 +2909,25 @@ function AdminApp(){
     <div>
       {/* ── แถบเมนูซ้าย (ตามเรฟ) ── */}
       <div className={"mp-side" + (navOpen ? " open" : "")}>
-        <div style={css("display:flex;align-items:center;gap:10px;padding:2px 8px 14px;border-bottom:1px solid #2b2b27")}>
-          <div style={css("width:38px;height:38px;border-radius:50%;background:#fff;display:flex;align-items:center;justify-content:center;overflow:hidden;flex:none")}><img src="assets/logo-icon.png" alt="" style={css("width:27px;height:auto;display:block")}/></div>
+        <div style={css("display:flex;align-items:center;gap:10px;padding:2px 8px 14px;border-bottom:1px solid rgba(255,255,255,.12)")}>
+          <div style={css("width:38px;height:38px;border-radius:50%;background:#fff;display:flex;align-items:center;justify-content:center;overflow:hidden;flex:none")}><img src="assets/logo-icon-blue.png" alt="" style={css("width:27px;height:auto;display:block")}/></div>
           <div style={css("min-width:0")}>
             <div style={css("font-family:'Montserrat',sans-serif;font-weight:800;font-size:13.5px;letter-spacing:1px;color:#fff")}><span style={css("color:var(--accBright)")}>MORE</span> PRINT</div>
-            <div style={css("font-size:9.5px;color:#96968c;margin-top:2px")}>หลังบ้านร้าน (Standard)</div>
+            <div style={css("font-size:9.5px;color:#9AA8CC;margin-top:2px")}>หลังบ้านร้าน (Standard)</div>
           </div>
-          <button className="mp-close" onClick={() => setNavOpen(false)} style={css("margin-left:auto;background:none;border:none;color:#96968c;font-size:16px;cursor:pointer;flex:none")}>✕</button>
+          <button className="mp-close" onClick={() => setNavOpen(false)} style={css("margin-left:auto;background:none;border:none;color:#9AA8CC;font-size:16px;cursor:pointer;flex:none")}>✕</button>
         </div>
         <div style={css("margin-top:12px;display:flex;flex-direction:column;gap:4px;flex:1")}>
           {NAV.map(([k, ic, label]) => (
             <button key={k} onClick={() => { setTab(k); setNavOpen(false); }} style={{ display: 'flex', alignItems: 'center', gap: '10px', height: '42px', padding: '0 12px', borderRadius: '11px', border: 'none', cursor: 'pointer', fontFamily: 'inherit', fontSize: '13px', fontWeight: 700, textAlign: 'left', position: 'relative',
-              background: tab === k ? 'var(--acc)' : 'transparent', color: tab === k ? '#fff' : '#c9c9c2' }}>
+              background: tab === k ? 'var(--yellow)' : 'transparent', color: tab === k ? 'var(--navy)' : '#C9D3EC' }}>
               <span style={css("font-size:16px")}>{ic}</span>{label}
               {k === 'chats' && unreadTotal > 0 && <span style={css("margin-left:auto;min-width:17px;height:17px;border-radius:99px;background:#c92a2a;color:#fff;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;padding:0 5px")}>{unreadTotal}</span>}
             </button>
           ))}
           <a href="commission.html" style={css("display:flex;align-items:center;gap:10px;height:42px;padding:0 12px;border-radius:11px;font-size:13px;font-weight:700;color:#e6c366;text-decoration:none")}><span style={css("line-height:0")}>{FI.baht(16)}</span>งาน PRO / ค่าคอม</a>
         </div>
-        {DB && <button onClick={() => DB.auth.signOut().then(() => location.reload())} style={css("display:flex;align-items:center;gap:10px;height:42px;padding:0 12px;border-radius:11px;border:1px solid #2b2b27;background:none;color:#96968c;cursor:pointer;font-family:inherit;font-size:12.5px;font-weight:700")}>⎋ ออกจากระบบ</button>}
+        {DB && <button onClick={() => DB.auth.signOut().then(() => location.reload())} style={css("display:flex;align-items:center;gap:10px;height:42px;padding:0 12px;border-radius:11px;border:1px solid rgba(255,255,255,.14);background:none;color:#9AA8CC;cursor:pointer;font-family:inherit;font-size:12.5px;font-weight:700")}>⎋ ออกจากระบบ</button>}
       </div>
       <div className={"mp-scrim" + (navOpen ? " show" : "")} onClick={() => setNavOpen(false)}></div>
 
@@ -2934,15 +2935,15 @@ function AdminApp(){
     <div className="mp-content" style={css("max-width:560px;margin:0 auto;min-height:100vh;display:flex;flex-direction:column;color:var(--ink)")}>
       <div style={css("background:var(--head);color:#fff;padding:14px 20px;display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;z-index:10")}>
         <div style={css("display:flex;align-items:center;gap:10px")}>
-          <button className="mp-burger" onClick={() => setNavOpen(true)} style={css("background:#2a2a2a;border:none;color:#fff;width:38px;height:38px;border-radius:10px;font-size:17px;cursor:pointer;align-items:center;justify-content:center;flex:none")}>☰</button>
-          <div style={css("width:40px;height:40px;border-radius:50%;background:#fff;display:flex;align-items:center;justify-content:center;overflow:hidden;box-shadow:0 0 0 2px rgba(255,255,255,.15)")}><img src="assets/logo-icon.png" alt="" style={css("width:29px;height:auto;display:block")}/></div>
+          <button className="mp-burger" onClick={() => setNavOpen(true)} style={css("background:rgba(255,255,255,.16);border:none;color:#fff;width:38px;height:38px;border-radius:10px;font-size:17px;cursor:pointer;align-items:center;justify-content:center;flex:none")}>☰</button>
+          <div style={css("width:40px;height:40px;border-radius:50%;background:#fff;display:flex;align-items:center;justify-content:center;overflow:hidden;box-shadow:0 0 0 2px rgba(255,255,255,.15)")}><img src="assets/logo-icon-blue.png" alt="" style={css("width:29px;height:auto;display:block")}/></div>
           <div>
             <div style={css("font-family:'Montserrat',sans-serif;font-weight:800;font-size:16px;letter-spacing:1.2px;line-height:1")}><span style={css("color:var(--accBright)")}>MORE</span> <span style={css("color:#fff")}>PRINT</span></div>
             <div style={css("font-family:'IBM Plex Mono',monospace;font-size:9.5px;color:var(--accBright);margin-top:3px;letter-spacing:1.5px")}>OWNER DASHBOARD</div>
           </div>
         </div>
         <div style={css("display:flex;align-items:center;gap:10px")}>
-          {DB && <button onClick={refresh} style={css("background:#2a2a2a;border:none;color:#fff;height:32px;padding:0 12px;border-radius:9px;font-size:12px;cursor:pointer")}>⟳ รีเฟรช</button>}
+          {DB && <button onClick={refresh} style={css("background:rgba(255,255,255,.16);border:none;color:#fff;height:32px;padding:0 12px;border-radius:9px;font-size:12px;cursor:pointer")}>⟳ รีเฟรช</button>}
           <div style={css("font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--accBright);display:flex;align-items:center;gap:5px")}>
             <span style={css("animation:mpPulse 2s infinite")}>●</span>{DB ? (lastSync ? 'SYNC ' + fmtTime(lastSync) : 'ONLINE') : 'DEMO'}
           </div>
@@ -3438,7 +3439,7 @@ function AdminApp(){
                   </div>}
             </div>
             <button onClick={addBanner} disabled={bnBusy || (!bnTitle.trim() && !bnFile)}
-              style={{ height: '44px', border: 'none', borderRadius: '12px', background: (bnTitle.trim() || bnFile) ? 'var(--acc)' : '#9fd8bd', color: '#fff', fontSize: '14px', fontWeight: 700, cursor: 'pointer' }}>
+              style={{ height: '44px', border: 'none', borderRadius: '12px', background: (bnTitle.trim() || bnFile) ? 'var(--acc)' : '#A8C2F0', color: '#fff', fontSize: '14px', fontWeight: 700, cursor: 'pointer' }}>
               {bnBusy ? 'กำลังบันทึก…' : '＋ เพิ่มแบนเนอร์'}
             </button>
           </div>
@@ -3477,7 +3478,7 @@ function AdminApp(){
             )}
             <input value={shCap} onChange={e => setShCap(e.target.value)} maxLength={60} placeholder="คำบรรยายสั้น ๆ เช่น เข้าเล่มรายงาน 40 เล่ม (ไม่บังคับ)" style={css("width:100%;box-sizing:border-box;height:40px;border:1px solid var(--line);border-radius:10px;background:var(--soft);color:var(--ink);padding:0 12px;font-size:13px;outline:none;font-family:inherit")}/>
             <button onClick={addShot} disabled={shBusy || !shFile}
-              style={{ height: '44px', border: 'none', borderRadius: '12px', background: shFile ? 'var(--acc)' : '#9fd8bd', color: '#fff', fontSize: '14px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+              style={{ height: '44px', border: 'none', borderRadius: '12px', background: shFile ? 'var(--acc)' : '#A8C2F0', color: '#fff', fontSize: '14px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
               {shBusy ? 'กำลังอัปโหลด…' : '＋ เพิ่มรูปงาน'}
             </button>
             {shots.length > 0
@@ -3504,7 +3505,7 @@ function AdminApp(){
             )}
             <input value={clCap} onChange={e => setClCap(e.target.value)} maxLength={80} placeholder="คำบรรยายใต้คลิป เช่น ปริ้นด่วนส่งไวใน 45 นาที (ไม่บังคับ)" style={css("width:100%;box-sizing:border-box;height:40px;border:1px solid var(--line);border-radius:10px;background:var(--soft);color:var(--ink);padding:0 12px;font-size:13px;outline:none;font-family:inherit")}/>
             <button onClick={addClip} disabled={clBusy || !clFile}
-              style={{ height: '44px', border: 'none', borderRadius: '12px', background: clFile ? 'var(--acc)' : '#9fd8bd', color: '#fff', fontSize: '14px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+              style={{ height: '44px', border: 'none', borderRadius: '12px', background: clFile ? 'var(--acc)' : '#A8C2F0', color: '#fff', fontSize: '14px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
               {clBusy ? 'กำลังอัปโหลดคลิป… (ไฟล์วิดีโอใช้เวลาหน่อยครับ)' : '＋ เพิ่มคลิป'}
             </button>
             {clips.length > 0
