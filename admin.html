@@ -160,6 +160,54 @@ const IS_IOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platfo
 const IS_TOUCH = IS_IOS || IN_APP || /Android/i.test(navigator.userAgent);
 // ลิงก์สาธารณะ (ไฟล์ใหญ่บน B2/ไฟล์เก่าใน Supabase) ในแอป LINE: ให้ LINE เปิดด้วยเบราว์เซอร์ปกติแทน (พารามิเตอร์ openExternalBrowser=1 ของ LINE)
 const extUrl = (u) => (!u || !IN_APP) ? u : u + (u.indexOf('?') >= 0 ? '&' : '?') + 'openExternalBrowser=1';
+// ── ดาวน์โหลดเป็นไฟล์จริง (เจ้าของแจ้ง 2026-11-11: คอม/มือถือได้แค่เปิดดู-สั่งปริ้นในหน้าเว็บ เอาไฟล์ PDF ออกมาไม่ได้) ──
+// ลิงก์คลัง (R2/Supabase) อยู่คนละโดเมนกับหลังบ้าน → เบราว์เซอร์เมินแอตทริบิวต์ download แล้วเปิดดูแทน
+// จึงโหลดไฟล์มาเป็น blob ก่อนแล้วสั่งบันทึกด้วยชื่อไฟล์เดิมของลูกค้า (คลังเปิด CORS ให้อ่านอยู่แล้ว — ตัวเปิดไฟล์ในหน้าก็โหลดทางนี้)
+const dlName = (o, f) => {
+  const base = String((f && f.name) || 'file').replace(/[\\/:*?"<>|\u0000-\u001f]+/g, '_').trim() || 'file';
+  const pdf = /^r2:pdf\//.test((f && f.path) || '') || /\.pdf$/i.test((f && f.path) || '');
+  return String(o.id || '').replace('#', '') + '_' + (pdf && !/\.pdf$/i.test(base) ? base + '.pdf' : base);
+};
+function saveBlob(blob, name){
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = name;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 60000);
+}
+async function fetchBlob(u, onProg){
+  const r = await fetch(u);
+  if (!r.ok) throw new Error('HTTP ' + r.status);
+  const total = +r.headers.get('content-length') || 0, type = r.headers.get('content-type') || '';
+  if (!onProg || !r.body || !r.body.getReader) return r.blob();
+  const rd = r.body.getReader(), chunks = []; let got = 0;
+  for (;;) { const { done, value } = await rd.read(); if (done) break; chunks.push(value); got += value.length; onProg(got, total); }
+  return new Blob(chunks, { type });
+}
+// แอป LINE บันทึกไฟล์ลงเครื่องไม่ได้ — ชวนเปิดหลังบ้านในเบราว์เซอร์ปกติ
+const dlInApp = () => { if (confirm('แอป LINE ดาวน์โหลดไฟล์ลงเครื่องไม่ได้ — เปิดหลังบ้านใน Safari/Chrome แทนไหมครับ?\n(ต้องเข้าสู่ระบบใหม่ 1 ครั้ง)')) location.href = extUrl(location.href); };
+const dlFail = (e) => { const m = String((e && e.message) || e); alert('ดาวน์โหลดไม่สำเร็จ: ' + (/HTTP (404|400)/.test(m) ? 'ไฟล์ถูกลบออกจากคลังแล้ว (ทักแชทขอไฟล์จากลูกค้าได้)' : whyFail(m)) + '\nลองกดใหม่อีกครั้งครับ'); };
+function DownloadBtn({ url, name, style }){
+  const [st, setSt] = React.useState('');
+  const last = React.useRef(-1);
+  // ไฟล์ที่โหลดแล้วจำไว้ 5 นาที — กดซ้ำ = บันทึกทันทีในจังหวะแตะ (iPhone บางรุ่นไม่ยอมบันทึกถ้าคำสั่งมาช้าหลังแตะเพราะรอโหลด)
+  const cache = React.useRef(null);
+  const go = async (e) => {
+    e.preventDefault(); e.stopPropagation();
+    if (st.indexOf('⏳') === 0) return;
+    if (IN_APP) return dlInApp();
+    if (cache.current && cache.current.exp > Date.now()) { saveBlob(cache.current.b, name); return; }
+    setSt('⏳ กำลังดาวน์โหลด…'); last.current = -1;
+    try {
+      const b = await fetchBlob(await signedUrl(url), (g, t) => {
+        const v = t ? Math.round(g / t * 100) : Math.round(g / 1048576);
+        if (v !== last.current) { last.current = v; setSt('⏳ ' + (t ? v + '%' : v + ' MB')); }
+      });
+      cache.current = { b, exp: Date.now() + 5 * 60000 };
+      saveBlob(b, name); setSt(IS_TOUCH ? '✓ ไม่ขึ้น? แตะอีกครั้ง' : '✓ ดาวน์โหลดแล้ว'); setTimeout(() => setSt(''), 6000);
+    } catch (err) { console.error('download:', url, err); setSt(''); dlFail(err); }
+  };
+  return <button onClick={go} title={'บันทึกไฟล์ลงเครื่อง: ' + name} style={style}>{st || '⬇ ดาวน์โหลด'}</button>;
+}
 let _pdfjs = null;
 function loadPdfJs(){
   if (_pdfjs) return _pdfjs;
@@ -172,15 +220,26 @@ function loadPdfJs(){
   });
   return _pdfjs;
 }
-function openInlineViewer(src, kind){
+function openInlineViewer(src, kind, name){
   const box = document.createElement('div');
   // กล่องทั้งใบเป็นตัวเลื่อน + หัวติดด้านบน (sticky) — เดิมให้กล่องลูกแบบ flex เลื่อน มือถือ/แอป LINE บางรุ่นเลื่อนไม่ได้ เห็นแค่หน้าแรก (เจ้าของแจ้ง 2026-11-01)
   box.setAttribute('style', 'position:fixed;inset:0;z-index:99999;background:#3a3a38;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain');
-  box.innerHTML = '<div style="position:sticky;top:0;z-index:2;display:flex;align-items:center;gap:8px;padding:10px 12px;background:#161612;color:#fff;font-size:13px"><span data-t style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">⏳ กำลังเปิดไฟล์… (ไฟล์ใหญ่อาจใช้เวลาสักครู่)</span><button data-x style="flex:none;height:34px;padding:0 14px;border:none;border-radius:9px;background:#00b368;color:#fff;font-size:13px;font-weight:700">✕ ปิด</button></div><div data-b style="padding:10px 0 40px;display:flex;flex-direction:column;align-items:center;gap:6px"></div>';
+  box.innerHTML = '<div style="position:sticky;top:0;z-index:2;display:flex;align-items:center;gap:8px;padding:10px 12px;background:#161612;color:#fff;font-size:13px"><span data-t style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">⏳ กำลังเปิดไฟล์… (ไฟล์ใหญ่อาจใช้เวลาสักครู่)</span>' + (name ? '<button data-d style="flex:none;height:34px;padding:0 12px;border:1px solid #00b368;border-radius:9px;background:transparent;color:#7ee2b0;font-size:13px;font-weight:700">⬇ ดาวน์โหลด</button>' : '') + '<button data-x style="flex:none;height:34px;padding:0 14px;border:none;border-radius:9px;background:#00b368;color:#fff;font-size:13px;font-weight:700">✕ ปิด</button></div><div data-b style="padding:10px 0 40px;display:flex;flex-direction:column;align-items:center;gap:6px"></div>';
   const title = box.querySelector('[data-t]'), body = box.querySelector('[data-b]');
   let closed = false;
   const prevOverflow = document.body.style.overflow;
   box.querySelector('[data-x]').onclick = () => { closed = true; box.remove(); document.body.style.overflow = prevOverflow; };
+  const dBtn = box.querySelector('[data-d]');
+  let vBlob = null; // โหลดแล้วจำไว้ — กดซ้ำบันทึกทันทีในจังหวะแตะ
+  if (dBtn) dBtn.onclick = () => {
+    if (IN_APP) return dlInApp();
+    if (vBlob) return saveBlob(vBlob, name);
+    if (dBtn.disabled) return;
+    dBtn.disabled = true; dBtn.textContent = '⏳ กำลังดาวน์โหลด…';
+    fetchBlob(src).then(b => { vBlob = b; saveBlob(b, name); dBtn.textContent = IS_TOUCH ? '✓ ไม่ขึ้น? แตะอีกครั้ง' : '✓ ดาวน์โหลดแล้ว'; })
+      .catch(e => { console.error('download:', e); dBtn.textContent = '⬇ ดาวน์โหลด'; dlFail(e); })
+      .finally(() => { dBtn.disabled = false; });
+  };
   document.body.style.overflow = 'hidden';
   document.body.appendChild(box);
   if (kind !== 'pdf') {
@@ -267,7 +326,7 @@ const HEAD_OK = {};
 const headStatus = (u) => HEAD_OK[u] || (HEAD_OK[u] = fetch(u, { method: 'HEAD' }).then(r => r.status).catch(() => 0));
 // แปลสาเหตุที่เปิดไฟล์ไม่ได้เป็นภาษาคน (2026-11-01 — ป้ายบอกสาเหตุชัด ไว้ไล่ปัญหาได้ทันที)
 const whyFail = (m) => /forbidden/.test(m) ? 'ไม่มีสิทธิ์เปิด (ลองออกจากระบบแล้วเข้าใหม่)' : /missing-secrets/.test(m) ? 'ระบบ R2 ยังตั้งค่าไม่ครบ' : /Failed to fetch|NetworkError|Load failed/i.test(m) ? 'เน็ตหลุด/ต่อระบบไม่ได้' : (m || 'ไม่ทราบสาเหตุ');
-function StoredLink({ url, style, children, missingLabel }){
+function StoredLink({ url, style, children, missingLabel, dl, after }){
   const [href, setHref] = React.useState(isR2(url) ? null : url);
   const [gone, setGone] = React.useState(false);
   const [err, setErr] = React.useState('');
@@ -295,9 +354,9 @@ function StoredLink({ url, style, children, missingLabel }){
       const c = R2_URLS[url.slice(3)];
       if (!c || c.exp < Date.now()) { e.preventDefault(); openStored(url)(); return; }
     }
-    if (IS_TOUCH) { e.preventDefault(); openInlineViewer(href, kindOf()); }
+    if (IS_TOUCH) { e.preventDefault(); openInlineViewer(href, kindOf(), dl); }
   };
-  return <a href={href} onClick={onClick} target="_blank" rel="noreferrer" style={style}>{children}</a>;
+  return <React.Fragment><a href={href} onClick={onClick} target="_blank" rel="noreferrer" style={style}>{children}</a>{after}</React.Fragment>;
 }
 // ภาพปกคลิป: จับเฟรมจากวิดีโอ (ไฟล์ในเครื่อง หรือ URL) → JPEG กว้าง 360px — หน้าแรกโชว์ภาพนี้แทนการเล่นวิดีโออัตโนมัติ (2026-10-30)
 function makeVideoPoster(src){
@@ -997,7 +1056,8 @@ function OrderCard({ o, idx, due, onAdvance, onRetreat, onApplyEdits, onCancel, 
                       : (o.files_purged_at || o.pdf_purged_at)
                         ? <span style={css("flex:none;font-size:11px;font-weight:700;color:var(--sub);background:var(--soft);border:1px solid var(--line);padding:3px 9px;border-radius:8px")}>🧹 ไฟล์ถูกล้างตามรอบเก็บ 7 วัน</span>
                         : fileUrl(f.path)
-                          ? <StoredLink url={fileUrl(f.path)} style={css("flex:none;font-size:11.5px;font-weight:600;background:var(--accSoft);color:var(--acc);padding:4px 10px;border-radius:8px;text-decoration:none")} missingLabel="⚠️ ไฟล์ไม่พร้อมใช้งาน (ถูกลบแล้ว)">⬇ เปิดไฟล์</StoredLink>
+                          ? <StoredLink url={fileUrl(f.path)} dl={dlName(o, f)} style={css("flex:none;font-size:11.5px;font-weight:600;background:var(--accSoft);color:var(--acc);padding:4px 10px;border-radius:8px;text-decoration:none")} missingLabel="⚠️ ไฟล์ไม่พร้อมใช้งาน (ถูกลบแล้ว)"
+                              after={<DownloadBtn url={fileUrl(f.path)} name={dlName(o, f)} style={css("flex:none;font-size:11.5px;font-weight:700;background:var(--acc);color:#fff;border:none;padding:5px 11px;border-radius:8px;cursor:pointer;font-family:inherit")}/>}>👁 เปิดดู</StoredLink>
                           : <span style={css("flex:none;max-width:100%;box-sizing:border-box;line-height:1.5;font-size:11px;font-weight:700;color:#c92a2a;background:#ffe3e3;padding:3px 9px;border-radius:8px")}>⚠️ ไฟล์อัปไม่สำเร็จ — ทักแชทขอไฟล์จากลูกค้า</span>}
                   </div>
                   {f.drive_url && (
