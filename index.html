@@ -4664,7 +4664,7 @@ class App extends React.Component {
                     <span style={{ fontSize: '13px', fontWeight: 700, color: o.on ? 'var(--acc)' : 'var(--ink)', lineHeight: 1.35 }}>{o.label}</span>
                     {v.prevOk[o.k] && (
                       <span onClick={(e) => { e.stopPropagation(); v.openPrev(o.k); }} title="ดูตัวอย่างงานจริง"
-                        style={{ fontSize: '11px', fontWeight: 700, color: '#06C755', background: 'var(--soft)', border: '1px solid #06C755', borderRadius: '99px', padding: '3px 9px', lineHeight: 1.4, cursor: 'zoom-in' }}>กดดูตัวอย่างงาน</span>
+                        style={{ fontSize: '11px', fontWeight: 700, color: 'var(--acc)', background: 'var(--soft)', border: '1px solid var(--acc)', borderRadius: '99px', padding: '3px 9px', lineHeight: 1.4, cursor: 'zoom-in' }}>กดดูตัวอย่างงาน</span>
                     )}
                   </button>
                 ))}
@@ -4682,7 +4682,7 @@ class App extends React.Component {
                     </svg>
                   </span>
                   <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--ink)', lineHeight: 1.35 }}>รับออกแบบ</span>
-                  <span style={{ fontSize: '11px', fontWeight: 700, color: '#06C755', background: 'var(--soft)', border: '1px solid #06C755', borderRadius: '99px', padding: '3px 9px', lineHeight: 1.4 }}>ส่งบรีฟเลย</span>
+                  <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--acc)', background: 'var(--soft)', border: '1px solid var(--acc)', borderRadius: '99px', padding: '3px 9px', lineHeight: 1.4 }}>ส่งบรีฟเลย</span>
                 </button></div></div>}
                 {/* คำกำกับกระดาษ (โปสเตอร์/เพลท) — ข้อความเขียวสด หลังกดเลือกประเภท ก่อนตัวเลือกขนาด (เจ้าของสั่ง 2026-09-11) */}
                 {v.isPro && v.proPaperNote && <div style={css("font-size:13.5px;font-weight:700;color:var(--acc);line-height:1.6")}>{v.proPaperNote}</div>}
