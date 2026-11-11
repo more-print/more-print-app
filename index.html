@@ -15,15 +15,16 @@
   @font-face{font-family:'Cloud Soft';src:url('assets/fonts/Cloud Soft-Bold.ttf') format('truetype');font-weight:700;font-style:normal;font-display:swap}
   @font-face{font-family:'Cloud Soft';src:url('assets/fonts/Cloud Soft-Bold.ttf') format('truetype');font-weight:800;font-style:normal;font-display:swap}
   body{margin:0;background:var(--bg);font-family:'Cloud Soft','IBM Plex Sans Thai',sans-serif;
-  --bg:#f4f4f2;--card:#ffffff;--ink:#111111;--sub:#8a8a84;--line:#e4e4e0;--soft:#efefec;
-  --acc:#00b368;--accBright:#00d97e;--accSoft:#e6f7ef;--head:#111111;--warnBg:#fff7e0;--warnLine:#f0dfa6;--warnInk:#8a6d1a;--shadow:0 2px 10px rgba(0,0,0,.06)}
-  body.night{--bg:#0f0f0d;--card:#1a1a18;--ink:#f2f2ee;--sub:#96968c;--line:#2b2b27;--soft:#232320;
-  --acc:#00d97e;--accBright:#00d97e;--accSoft:#123324;--head:#0e3b28;--warnBg:#26200e;--warnLine:#4a3d16;--warnInk:#f0cd6e;--shadow:0 2px 12px rgba(0,0,0,.5)} /* --head กลางคืน = เขียวเข้มคนละโทนกับ MORE #00d97e (เจ้าของสั่ง 2026-10-05) — ใช้แค่แถบหัวเว็บ */
-  a{color:#00b368}a:hover{color:#008a50}
+  /* CI ใหม่ (เจ้าของสั่ง 2026-11-11 — เลิกสีเขียวที่คล้ายแอปเดลิเวอรี่เจ้าดัง): น้ำเงิน #004FD6 หลัก · ขาวนวล #FFFFF7 พื้น · เหลือง #FADF29 เน้น */
+  --bg:#FFFFF7;--card:#ffffff;--ink:#121A2E;--sub:#83827A;--line:#E7E6DA;--soft:#F3F3E9;
+  --acc:#004FD6;--accDark:#003DA8;--accBright:#FADF29;--accSoft:#E8EFFD;--head:#004FD6;--warnBg:#fff7e0;--warnLine:#f0dfa6;--warnInk:#8a6d1a;--shadow:0 2px 10px rgba(0,0,0,.06)}
+  body.night{--bg:#0B0F1A;--card:#141B2B;--ink:#EEF2FA;--sub:#93A0BC;--line:#26304A;--soft:#1B2438;
+  --acc:#4D8DFF;--accDark:#2F6FE6;--accBright:#FADF29;--accSoft:#142A55;--head:#0B1E4A;--warnBg:#26200e;--warnLine:#4a3d16;--warnInk:#f0cd6e;--shadow:0 2px 12px rgba(0,0,0,.5)} /* --head กลางคืน = กรมท่าเข้ม คู่ MORE สีเหลือง (CI 2026-11-11 · เดิมเขียวเข้ม เจ้าของสั่ง 2026-10-05) — ใช้แค่แถบหัวเว็บ */
+  a{color:var(--acc)}a:hover{color:var(--accDark)}
   input,button{font-family:'Cloud Soft','IBM Plex Sans Thai',sans-serif}
   @keyframes mpPulse{0%,100%{opacity:1}50%{opacity:.35}}
-  /* ── การ์ดกระจกโลโก้หน้า Login (เจ้าของเลือกแบบ "การ์ดกระจกขอบเขียว + แสงวิ่ง" 2026-09-27) — ใช้ logo-icon-t.png (พื้นโปร่งใส ตัดจาก logo-icon.png) ── */
-  .mp-glassB{padding:1.6px;border-radius:22px;background:linear-gradient(135deg,#00d97e,rgba(0,217,126,.15) 40%,rgba(0,217,126,.15) 60%,#00b368);box-shadow:0 10px 34px rgba(0,0,0,.16)}
+  /* ── การ์ดกระจกโลโก้หน้า Login (เจ้าของเลือกแบบ "การ์ดกระจกขอบเขียว + แสงวิ่ง" 2026-09-27) — ใช้ logo-icon-t-blue.png (พื้นโปร่งใส ตัดจาก logo-icon.png) ── */
+  .mp-glassB{padding:1.6px;border-radius:22px;background:linear-gradient(135deg,#FADF29,rgba(0,79,214,.15) 40%,rgba(0,79,214,.15) 60%,#004FD6);box-shadow:0 10px 34px rgba(0,0,0,.16)}
   body.night .mp-glassB{box-shadow:0 10px 34px rgba(0,0,0,.45)}
   .mp-glass{border-radius:20.5px;padding:20px 34px 17px;display:flex;flex-direction:column;align-items:center;gap:10px;background:rgba(255,255,255,.75);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);position:relative;overflow:hidden}
   body.night .mp-glass{background:rgba(255,255,255,.06)}
@@ -433,7 +434,7 @@ const R2_FN = ((window.MP_CONFIG || {}).SUPABASE_URL || '') + '/functions/v1/r2-
 // ];
 const HOME_CARDS = [];
 const BANNER_THEMES = {
-  green: 'linear-gradient(135deg,#00b368,#00744a)',
+  green: 'linear-gradient(135deg,#004FD6,#003DA8)', // คีย์ 'green' คงไว้ (ค่าที่บันทึกในตาราง banners) แต่แสดงเป็นน้ำเงินแบรนด์ตาม CI ใหม่ 2026-11-11
   dark: 'linear-gradient(135deg,#2b2b28,#000)',
   orange: 'linear-gradient(135deg,#f76707,#d9480f)',
   blue: 'linear-gradient(135deg,#1c7ed6,#0b4f8c)',
@@ -2967,7 +2968,7 @@ class App extends React.Component {
       night, clock: this.fmtTime(s.now),
       rootSt: Object.assign(
         { maxWidth: '430px', margin: '0 auto', minHeight: '100vh', background: 'var(--bg)', display: 'flex', flexDirection: 'column', color: 'var(--ink)' },
-        night ? { '--bg': '#0f0f0d', '--card': '#1a1a18', '--ink': '#f2f2ee', '--sub': '#96968c', '--line': '#2b2b27', '--soft': '#232320', '--acc': '#00d97e', '--accBright': '#00d97e', '--accSoft': '#123324', '--warnBg': '#26200e', '--warnLine': '#4a3d16', '--warnInk': '#f0cd6e', '--shadow': '0 2px 12px rgba(0,0,0,.5)' } : {}
+        night ? { '--bg': '#0B0F1A', '--card': '#141B2B', '--ink': '#EEF2FA', '--sub': '#93A0BC', '--line': '#26304A', '--soft': '#1B2438', '--acc': '#4D8DFF', '--accDark': '#2F6FE6', '--accBright': '#FADF29', '--accSoft': '#142A55', '--warnBg': '#26200e', '--warnLine': '#4a3d16', '--warnInk': '#f0cd6e', '--shadow': '0 2px 12px rgba(0,0,0,.5)' } : {}
       ),
       headStatus: night ? 'NIGHT MODE 22–06' : 'เปิด 24 ชม.',
       nightFee: CONFIG.nightFee ?? 19, nightCharged: c.nightFee > 0, expressFee: CONFIG.expressFee ?? 20, deliveryBase: CONFIG.deliveryBase ?? 10,
@@ -4195,7 +4196,7 @@ class App extends React.Component {
         <div style={css("background:var(--head);color:#fff;padding:14px 20px;display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;z-index:10")}>
           <div style={css("display:flex;align-items:center;gap:10px")}>
             {v.showBack && <button onClick={v.goBack} style={css("background:#2a2a2a;border:none;color:#fff;width:30px;height:30px;border-radius:8px;font-size:15px;cursor:pointer")}>‹</button>}
-            <div style={css("width:44px;height:44px;border-radius:50%;background:#fff;display:flex;align-items:center;justify-content:center;overflow:hidden;box-shadow:0 0 0 2px rgba(255,255,255,.15)")}><img src="assets/logo-icon.png" alt="" style={css("width:32px;height:auto;display:block")}/></div>
+            <div style={css("width:44px;height:44px;border-radius:50%;background:#fff;display:flex;align-items:center;justify-content:center;overflow:hidden;box-shadow:0 0 0 2px rgba(255,255,255,.15)")}><img src="assets/logo-icon-blue.png" alt="" style={css("width:32px;height:auto;display:block")}/></div>
             <div style={css("font-family:'Montserrat',sans-serif;font-weight:800;font-size:19px;letter-spacing:1.5px;line-height:1")}><span style={css("color:var(--accBright)")}>MORE</span> <span style={css("color:#fff")}>PRINT</span></div>
           </div>
           {v.userName
@@ -4266,7 +4267,7 @@ class App extends React.Component {
             <div onClick={v.backToHome} style={css("align-self:flex-start;font-size:13px;color:var(--sub);cursor:pointer;font-weight:600")}>← กลับไปชมหน้าเว็บก่อน</div>
             <div style={css("display:flex;flex-direction:column;align-items:center;gap:10px;margin-bottom:2px")}>
               <div className="mp-glassB"><div className="mp-glass">
-                <img src="assets/logo-icon-t.png" alt="MORE PRINT" style={css("width:84px;height:auto;display:block")}/>
+                <img src="assets/logo-icon-t-blue.png" alt="MORE PRINT" style={css("width:84px;height:auto;display:block")}/>
                 <div style={css("font-family:'Montserrat',sans-serif;font-weight:800;font-size:19px;letter-spacing:2px;line-height:1")}><span style={css("color:var(--acc)")}>MORE</span> <span>PRINT</span></div>
               </div></div>
               <div style={css("font-size:14px;color:var(--sub);text-align:center")}>สมัครครั้งเดียว สั่งปริ้นส่งถึงที่ ทุกที่ใน มข.</div>
@@ -4361,7 +4362,7 @@ class App extends React.Component {
                 <div style={css("padding:2px 20px 0;font-size:12px;color:var(--sub)")}>แตะเพื่อดูเต็มจอ · ปัดขึ้นดูคลิปถัดไป</div>
                 <div style={css("margin-top:10px;display:flex;gap:10px;overflow-x:auto;padding:0 20px 6px;scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch")}>
                   {v.clips.map((b, i) => (
-                    <div key={b.id || i} onClick={v.clipOpen(i)} style={css("flex:none;width:118px;aspect-ratio:9/16;border-radius:14px;overflow:hidden;position:relative;scroll-snap-align:start;box-shadow:var(--shadow);background:linear-gradient(160deg,#24342b,#000);cursor:pointer")}>
+                    <div key={b.id || i} onClick={v.clipOpen(i)} style={css("flex:none;width:118px;aspect-ratio:9/16;border-radius:14px;overflow:hidden;position:relative;scroll-snap-align:start;box-shadow:var(--shadow);background:linear-gradient(160deg,#13234a,#000);cursor:pointer")}>
                       {/* ห้ามเล่นวิดีโออัตโนมัติบนหน้าแรก (2026-10-30): คลิป 2 ตัว 14.6 MB โหลดทุกครั้งที่มีคนเปิดเว็บ = ต้นเหตุ Cached Egress เกินจนโปรเจกต์ถูกล็อก
                           โชว์ภาพปก (ไฟล์ <คลิป>.jpg ที่หลังบ้านสร้างให้อัตโนมัติ) · ไม่มีภาพปก = พื้นเข้ม + ปุ่ม ▶ · วิดีโอโหลดเฉพาะตอนลูกค้าแตะเปิดเต็มจอ */}
                       <img src={FILE_BASE + b.image_path + '.jpg'} alt="" loading="lazy" onError={e => { e.target.style.display = 'none'; }}
@@ -4377,7 +4378,7 @@ class App extends React.Component {
               <div style={css("font-size:23px;font-weight:700;line-height:1.35;text-wrap:pretty")}>ส่งไฟล์ตอนนี้<br/>เอกสารถึงมือ ทุกที่รอบ มข.</div>
               <div style={css("margin-top:6px;font-size:13px;color:var(--sub)")}>ปริ้นขาวดำ 1 บาท · ปริ้นสี 5 บาท · ส่งเริ่มต้น {v.deliveryBase} บาท</div>
               <div onClick={v.startOrder} style={css("margin-top:16px;border:2px dashed var(--line);border-radius:16px;background:var(--card);padding:22px 16px;display:flex;flex-direction:column;align-items:center;gap:8px;cursor:pointer;box-shadow:var(--shadow)")}>
-                <div style={css("width:56px;height:56px;border-radius:14px;background:#fff;border:1px solid var(--line);display:flex;align-items:center;justify-content:center;overflow:hidden")}><img src="assets/logo-icon.png" alt="MORE PRINT" style={css("width:46px;height:auto;display:block")}/></div>
+                <div style={css("width:56px;height:56px;border-radius:14px;background:#fff;border:1px solid var(--line);display:flex;align-items:center;justify-content:center;overflow:hidden")}><img src="assets/logo-icon-blue.png" alt="MORE PRINT" style={css("width:46px;height:auto;display:block")}/></div>
                 <div style={css("font-weight:600;font-size:14px;color:var(--acc)")}>แตะเพื่ออัปโหลดไฟล์</div>
                 <div style={css("font-size:12.5px;color:var(--sub)")}>ไฟล์ PDF · นับหน้าให้อัตโนมัติ</div>
               </div>
@@ -5485,7 +5486,7 @@ class App extends React.Component {
         {v.isChat && (
           <div style={css("flex:1;display:flex;flex-direction:column;min-height:0;position:relative")}>
             <div style={css("padding:12px 20px;border-bottom:1px solid var(--line);background:var(--card);display:flex;align-items:center;gap:9px")}>
-              <div style={css("width:34px;height:34px;border-radius:50%;background:#fff;border:1px solid var(--line);display:flex;align-items:center;justify-content:center;flex:none;overflow:hidden")}><img src="assets/logo-icon.png" alt="MORE PRINT" style={css("width:24px;height:auto;display:block")}/></div>
+              <div style={css("width:34px;height:34px;border-radius:50%;background:#fff;border:1px solid var(--line);display:flex;align-items:center;justify-content:center;flex:none;overflow:hidden")}><img src="assets/logo-icon-blue.png" alt="MORE PRINT" style={css("width:24px;height:auto;display:block")}/></div>
               <div style={css("flex:1;min-width:0")}>
                 <div style={css("font-size:13.5px;font-weight:700")}>MORE PRINT · <span style={css("font-family:'Montserrat',sans-serif;font-size:12.5px;font-weight:800;color:var(--acc)")}>LIVE CHAT</span></div>
                 <div style={css("font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--sub)")}>ออเดอร์ {v.orderId} · {v.trackLabel}</div>
@@ -5521,7 +5522,7 @@ class App extends React.Component {
               {v.chatMsgs.map(m => (
                 <div key={m.id} style={{ display: 'flex', justifyContent: m.mine ? 'flex-end' : 'flex-start' }}>
                   <div onContextMenu={v.unsendCtx(m)} onTouchStart={v.unsendTouchStart(m)} onTouchEnd={v.unsendTouchEnd} onTouchMove={v.unsendTouchEnd}
-                    style={{ maxWidth: '80%', background: m.unsent ? 'var(--soft)' : m.mine ? 'var(--acc)' : 'var(--card)', color: m.unsent ? 'var(--sub)' : m.mine ? (v.night ? '#111' : '#fff') : 'var(--ink)', /* กล่องเขียวลูกค้า: กลางคืนฟ้อนดำ (เขียวสด #00d97e ขาวลายตา) · กลางวันขาวเหมือนเดิม — เจ้าของสั่ง 2026-10-07 */
+                    style={{ maxWidth: '80%', background: m.unsent ? 'var(--soft)' : m.mine ? 'var(--acc)' : 'var(--card)', color: m.unsent ? 'var(--sub)' : m.mine ? '#fff' : 'var(--ink)', /* กล่องลูกค้า (สีหลัก): ตัวขาวทั้งกลางวัน/กลางคืน — CI น้ำเงิน 2026-11-11 (เดิมเขียวสดกลางคืนใช้ฟ้อนดำ) · กลางวันขาวเหมือนเดิม — เจ้าของสั่ง 2026-10-07 */
                     border: m.unsent ? '1px dashed var(--line)' : m.mine ? 'none' : '1px solid var(--line)', borderRadius: '15px', padding: '9px 13px', fontSize: '13px', lineHeight: 1.55, whiteSpace: 'pre-wrap', wordBreak: 'break-word', boxShadow: m.unsent ? 'none' : 'var(--shadow)', fontStyle: m.unsent ? 'italic' : 'normal', WebkitTouchCallout: m.mine && !m.unsent ? 'none' : 'default' }}>
                     {m.img && !m.unsent && (
                       <a href={m.img} target="_blank" rel="noreferrer" style={{ display: 'block', marginBottom: '6px' }}>
@@ -5558,7 +5559,7 @@ class App extends React.Component {
                   )}
                   <textarea value={v.chAdText} onChange={v.chAdSetText} placeholder="รายละเอียดที่อยู่ใหม่: หอ/ตึก/ชั้น/ห้อง/จุดสังเกต *"
                     style={css("margin-top:8px;width:100%;box-sizing:border-box;min-height:48px;border:1px solid var(--line);border-radius:10px;background:var(--soft);color:var(--ink);padding:8px 11px;font-size:12.5px;outline:none;resize:vertical;font-family:inherit")}/>
-                  <button onClick={v.chAdConfirm} disabled={v.chAdBusy || !v.chAdPt} style={css("margin-top:8px;width:100%;height:42px;border:none;border-radius:11px;font-size:13px;font-weight:800;cursor:pointer;background:" + (v.chAdPt ? "#22c55e" : "#b9e6c6") + ";color:#fff" + (v.chAdBusy ? ";opacity:.6" : ""))}>{v.chAdBusy ? 'กำลังบันทึก…' : '✓ ยืนยันเปลี่ยนที่อยู่'}</button>
+                  <button onClick={v.chAdConfirm} disabled={v.chAdBusy || !v.chAdPt} style={css("margin-top:8px;width:100%;height:42px;border:none;border-radius:11px;font-size:13px;font-weight:800;cursor:pointer;background:" + (v.chAdPt ? "var(--acc)" : "#A8C2F0") + ";color:#fff" + (v.chAdBusy ? ";opacity:.6" : ""))}>{v.chAdBusy ? 'กำลังบันทึก…' : '✓ ยืนยันเปลี่ยนที่อยู่'}</button>
                 </div>
               )}
               {v.chatQuick.map((q, i) => (
@@ -5724,7 +5725,7 @@ class App extends React.Component {
         {v.isAbout && (
           <div style={css("padding:18px 20px 110px;display:flex;flex-direction:column;gap:12px")}>
             <div style={css("background:var(--card);border:1px solid var(--line);border-radius:16px;padding:24px 18px;text-align:center;box-shadow:var(--shadow)")}>
-              <div style={css("width:66px;height:66px;border-radius:50%;background:#fff;margin:0 auto;display:flex;align-items:center;justify-content:center;box-shadow:0 0 0 3px var(--accSoft)")}><img src="assets/logo-icon.png" alt="" style={css("width:46px;height:auto;display:block")}/></div>
+              <div style={css("width:66px;height:66px;border-radius:50%;background:#fff;margin:0 auto;display:flex;align-items:center;justify-content:center;box-shadow:0 0 0 3px var(--accSoft)")}><img src="assets/logo-icon-blue.png" alt="" style={css("width:46px;height:auto;display:block")}/></div>
               <div style={css("margin-top:12px;font-family:'Montserrat',sans-serif;font-weight:800;font-size:21px;letter-spacing:1.5px")}><span style={css("color:var(--acc)")}>MORE</span> <span>PRINT</span></div>
               <div style={css("margin-top:6px;font-size:12.5px;color:var(--sub);line-height:1.65")}>เว็บปริ้นเอกสารออนไลน์ พร้อมส่งถึงที่ 24 ชม.<br/>รอบมหาวิทยาลัยขอนแก่น (มข.)</div>
               {v.revCount > 0 && <div style={css("margin-top:12px;display:inline-flex;align-items:center;gap:6px;background:var(--accSoft);border-radius:99px;padding:6px 15px;font-size:13px;font-weight:700;color:var(--acc)")}>⭐ {v.revAvg} · {v.revCount} รีวิวจากลูกค้าจริง</div>}
@@ -5797,7 +5798,7 @@ class App extends React.Component {
                 <div id="rcSheet" style={{ background: '#fff', color: '#111', borderRadius: '10px', padding: '26px 22px', boxShadow: '0 10px 40px rgba(0,0,0,.35)' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                     <img src="assets/logo-black.png" alt="" onError={(e) => { e.target.style.display = 'none'; }} style={{ height: '34px', width: 'auto', display: 'block' }}/>
-                    <div style={{ fontFamily: "'Montserrat',sans-serif", fontSize: '17px', fontWeight: 800, letterSpacing: '.5px', flex: 1 }}>MORE <span style={{ color: '#00b368' }}>PRINT</span></div>
+                    <div style={{ fontFamily: "'Montserrat',sans-serif", fontSize: '17px', fontWeight: 800, letterSpacing: '.5px', flex: 1 }}>MORE <span style={{ color: '#004FD6' }}>PRINT</span></div>
                     <div style={{ fontSize: '17px', fontWeight: 800, flex: 'none' }}>ใบเสร็จรับเงิน</div>
                   </div>
                   <div style={{ marginTop: '16px', display: 'flex', gap: '14px', fontSize: '13px' }}>
@@ -5898,7 +5899,7 @@ class App extends React.Component {
                 <div key={b.id || i} style={css("height:100%;scroll-snap-align:start;scroll-snap-stop:always;position:relative;display:flex;align-items:center;justify-content:center")}>
                   <video ref={el => { this.clipVids = this.clipVids || {}; this.clipVids[i] = el; }} src={FILE_BASE + b.image_path} poster={FILE_BASE + b.image_path + '.jpg'} preload={i === v.clipIdx ? 'auto' : 'none'} loop playsInline muted onClick={v.clipTap} style={css("width:100%;height:100%;object-fit:contain;display:block")}/>
                   <div style={css("position:absolute;left:0;right:0;bottom:0;padding:46px 16px 26px;background:linear-gradient(transparent,rgba(0,0,0,.72));color:#fff;pointer-events:none")}>
-                    <div style={css("font-size:13px;font-weight:800")}>MORE PRINT <span style={css("color:#00d97e")}>✔</span></div>
+                    <div style={css("font-size:13px;font-weight:800")}>MORE PRINT <span style={css("color:#4D8DFF")}>✔</span></div>
                     {b.title && <div style={css("margin-top:4px;font-size:12.5px;line-height:1.5")}>{b.title}</div>}
                   </div>
                 </div>
@@ -5926,7 +5927,7 @@ class App extends React.Component {
                       border: '3px solid var(--card)', boxSizing: 'border-box' }}>{NAV_ICON.track}</div>
                   : <div style={css("height:23px;display:flex;align-items:center;justify-content:center")}>
                       {n.k === 'about'
-                        ? <img src="assets/logo-icon.png" alt="" style={Object.assign(
+                        ? <img src="assets/logo-icon-blue.png" alt="" style={Object.assign(
                             { height: '21px', width: 'auto', display: 'block', opacity: n.on ? 1 : .45 },
                             // ไฟล์โลโก้เป็นพื้นขาวทึบ — โหมดกลางคืนกลับสี+ผสมแบบ screen เพื่อคัดพื้นขาวออก เหลือแต่ตัวโลโก้สีขาว
                             v.night ? { filter: 'invert(1) hue-rotate(180deg)', mixBlendMode: 'screen' } : {}
@@ -5956,7 +5957,7 @@ class MpBoot extends React.Component {
         <div style={{ fontSize: '40px' }}>🛠️</div>
         <div style={{ marginTop: '10px', fontSize: '16px', fontWeight: 800 }}>ขออภัยครับ หน้าเว็บมีปัญหาชั่วคราว</div>
         <div style={{ marginTop: '6px', fontSize: '12.5px', color: '#8a8a84', lineHeight: 1.6 }}>กด "โหลดใหม่" ก่อน ถ้ายังไม่หายให้กด "ล้างข้อมูลชั่วคราว" (บัญชีและออเดอร์ที่สั่งไปแล้วไม่หายครับ — ติดตามออเดอร์ได้จากรหัสในแชท/LINE)</div>
-        <button onClick={() => location.reload()} style={{ marginTop: '16px', width: '100%', height: '46px', border: 'none', borderRadius: '12px', background: '#00b368', color: '#fff', fontSize: '14px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>🔄 โหลดใหม่</button>
+        <button onClick={() => location.reload()} style={{ marginTop: '16px', width: '100%', height: '46px', border: 'none', borderRadius: '12px', background: '#004FD6', color: '#fff', fontSize: '14px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>🔄 โหลดใหม่</button>
         <button onClick={() => { try { ['mp_order', 'mp_orders', 'mp_history', 'mp_review_last', 'mp_draft'].forEach(k => localStorage.removeItem(k)); document.cookie = 'mp_draft_bk=;max-age=0;path=/'; } catch (e) {} location.reload(); }} style={{ marginTop: '9px', width: '100%', height: '42px', border: '1px solid #ddd', borderRadius: '12px', background: '#fff', color: '#333', fontSize: '13px', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>🧹 ล้างข้อมูลชั่วคราวแล้วโหลดใหม่</button>
       </div>
     );
