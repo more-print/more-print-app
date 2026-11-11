@@ -27,7 +27,7 @@
   .mp-glassB{padding:1.6px;border-radius:22px;background:linear-gradient(135deg,#FADF29,rgba(0,79,214,.15) 40%,rgba(0,79,214,.15) 60%,#004FD6);box-shadow:0 10px 34px rgba(0,0,0,.16)}
   body.night .mp-glassB{box-shadow:0 10px 34px rgba(0,0,0,.45)}
   .mp-glass{border-radius:20.5px;padding:20px 34px 17px;display:flex;flex-direction:column;align-items:center;gap:10px;background:rgba(255,255,255,.75);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);position:relative;overflow:hidden}
-  body.night .mp-glass{background:rgba(255,255,255,.06)}
+  body.night .mp-glass{background:rgba(20,27,43,.94)} /* กลางคืนพื้นการ์ดทึบ — ขอบไล่เหลือง→น้ำเงินไม่ซึมเข้ากลางการ์ดจนเป็นสีขุ่น (CI 2026-11-11) */
   .mp-glass::after{content:'';position:absolute;top:0;left:-60%;width:45%;height:100%;background:linear-gradient(105deg,transparent,rgba(255,255,255,.16),transparent);transform:skewX(-18deg);animation:mpShine 4.5s ease-in-out infinite}
   @keyframes mpShine{0%,55%{left:-60%}85%,100%{left:130%}}
   @keyframes mpFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
