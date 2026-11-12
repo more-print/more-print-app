@@ -2945,7 +2945,7 @@ function AdminApp(){
         <div style={css("display:flex;align-items:center;gap:10px")}>
           {DB && <button onClick={refresh} style={css("background:rgba(255,255,255,.16);border:none;color:#fff;height:32px;padding:0 12px;border-radius:9px;font-size:12px;cursor:pointer")}>⟳ รีเฟรช</button>}
           <div style={css("font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--accBright);display:flex;align-items:center;gap:5px")}>
-            <span style={css("animation:mpPulse 2s infinite")}>●</span>{DB ? (lastSync ? 'SYNC ' + fmtTime(lastSync) : 'ONLINE') : 'DEMO'}
+            <span style={css("animation:mpPulse 2s infinite;color:#22C55E")}>●</span>{DB ? (lastSync ? 'SYNC ' + fmtTime(lastSync) : 'ONLINE') : 'DEMO'}
           </div>
         </div>
       </div>

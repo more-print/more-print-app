@@ -4655,7 +4655,7 @@ class App extends React.Component {
                     </div>
                   : v.proAfterCut
                   ? <div style={css("background:#fff7e0;border:1.5px solid #f0c36d;border-radius:12px;padding:11px 14px;font-size:13px;font-weight:700;color:#8a6d1a;line-height:1.6")}><span style={css("display:inline-flex;vertical-align:-2px;margin-right:6px")}>{fi('clock', 14)}</span>สั่งได้เลยครับ — ออเดอร์จะเริ่มผลิตเวลา 08:30 น.</div>
-                  : <div style={css("background:var(--accSoft);border:1px solid var(--acc);border-radius:12px;padding:9px 13px;font-size:12.5px;font-weight:700;color:var(--acc);line-height:1.65")}><span style={css("display:inline-flex;vertical-align:-2px;margin-right:6px")}>{fi('clock', 13)}</span>งาน Pro สั่งได้ตลอด 24 ชม.<span style={css("display:block")}>รับผลิต 08.30 - 17.00 น.</span></div>)}
+                  : null /* ช่วงเวลาทำการปกติไม่ต้องมีกล่องแจ้ง (เจ้าของสั่ง 2026-11-12: รก) — เหลือแค่กล่องเหลืองหลังเลิกงาน/วันหยุด */)}
                 {/* ประเภทงาน Pro เป็นกริดการ์ด 2 คอลัมน์ (เจ้าของเลือกจาก prototype 2026-09-11): ไอคอนเดิม + ชื่ออย่างเดียว ไม่มีราคาบนการ์ด (ราคาไปอยู่ในบิล)
                     · แบบแปลนย่อเหลือครึ่งแถว + การ์ด "รับออกแบบ" ต่อท้ายขวา ชิป "ส่งบรีฟเลย" เด้งเข้า LINE OA (เจ้าของสั่ง 2026-10-09) */}
                 {v.isPro && <div style={css("display:flex;flex-direction:column;gap:6px")}><div style={css("font-size:13px;font-weight:600;color:var(--ink)")}>ประเภทงาน Pro (ร้านอุดมสุขปริ้นติ้ง)</div><div style={css("display:grid;grid-template-columns:repeat(2, minmax(0, 1fr));gap:8px")}>{v.proTypeOpts.map((o, i) => (
