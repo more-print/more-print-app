@@ -87,6 +87,10 @@ const CONFIG = { nightOverride: 'auto', nightFee: 19, expressFee: 20, expressEna
 // ลิงก์แผนที่ = หมุดพิกัดร้าน (ตรงกับ CONFIG.shopLat/shopLng เป๊ะ) ไม่ใช่หน้าสถานที่ของ Google ที่ขึ้นชื่อร้าน
 // pubAddr: ที่อยู่ออเดอร์เก่า / ที่หลังบ้าน (pro/commission) เปลี่ยนเป็นมารับเองให้ ยังมีชื่อร้านเก็บอยู่ → แปลงตอนแสดงลูกค้า
 const PRO_PICKUP_NAME = 'จุดรับงาน Pro (กังสดาล)';
+// ── โหมดเพิ่มออเดอร์ LINE OA (เจ้าของสั่ง 2026-11-12): หลังบ้านเปิดหน้านี้ใน iframe เป็น index.html?oa=1 ──
+// ใช้สูตรราคาชุดเดียวกับลูกค้าทุกอย่าง (ไฟล์/สแกนสี/ตัวเลือก/ค่าส่ง) — แต่ไม่สร้างออเดอร์ ไม่แตะบัญชี/ร่าง/ออเดอร์ของเครื่องนี้
+// กด "ส่งเข้าหลังบ้าน" → อัปไฟล์ + ส่งข้อมูลออเดอร์กลับไปให้หลังบ้าน (admin.html) เป็นคนบันทึก · เปิดตรง ๆ นอก iframe = เว็บปกติ
+const OA_MODE = (() => { try { return new URLSearchParams(location.search).get('oa') === '1' && window.parent !== window; } catch (e) { return false; } })();
 const PRO_PICKUP_MAP = 'https://www.google.com/maps/search/?api=1&query=' + CONFIG.shopLat + ',' + CONFIG.shopLng;
 const pubAddr = (a) => String(a || '').replace(/(?:โรงพิมพ์|ร้าน)?อุดมสุข(?:ปริ้นติ้ง)?(?:\s*\(กังสดาล\))?/g, PRO_PICKUP_NAME);
 const NAV_ICON = {
@@ -589,7 +593,7 @@ class App extends React.Component {
     let rc0 = null; try { rc0 = JSON.parse(localStorage.getItem('mp_rc') || 'null'); } catch (e) {} // ข้อมูลผู้ซื้อในใบเสร็จที่เคยกรอก
     if (!rc0) try { const m = document.cookie.match(/(?:^|;\s*)mp_rc_bk=([^;]+)/); rc0 = m ? JSON.parse(decodeURIComponent(m[1])) : null; } catch (e) {} // สำรองในคุกกี้ — เครื่องล้าง storage เองก็ยังจำได้
     this.state = {
-      screen: 'home', files: [], proActive: 0, stepMax: 0, tier: 'standard', ptype: 'bw', paper: 'A4', sides: 1, orient: 'portrait', nup: 1, bind: 'none', copies: 1, note: '', shipNote: '',
+      screen: OA_MODE ? 'order' : 'home', files: [], proActive: 0, stepMax: 0, tier: 'standard', ptype: 'bw', paper: 'A4', sides: 1, orient: 'portrait', nup: 1, bind: 'none', copies: 1, note: '', shipNote: '',
       shopOpen: true, // สถานะรับออเดอร์จากหลังบ้าน (false = ร้านกดปิดรับชั่วคราว)
       shopProOpen: true, // ปิดรับเฉพาะงาน PRO จากหลังบ้าน (shop_status.pro_open — 2026-10-17) · Standard ยังสั่งได้
       shopRain: false, // โหมดฝนตก (ร้านกดจากหลังบ้าน) — ทุกงานแบบจัดส่ง (Pro+Standard) บังคับรถยนต์
@@ -695,6 +699,13 @@ class App extends React.Component {
     ] });
     // เช็คเงียบ ๆ ว่าประเภทงาน Pro ไหนมีรูปตัวอย่าง (assets/pro/<ประเภท>.jpg) — มีถึงโชว์ป้าย "กดดูตัวอย่างงาน"
     PRO_TYPES.forEach(t => { try { const im = new Image(); im.onload = () => this.setState(st => ({ prevOk: { ...st.prevOk, [t.k]: true } })); im.src = 'assets/pro/' + t.k + '.jpg'; } catch (e) {} });
+    if (OA_MODE) { // โหมดออเดอร์ LINE OA (หลังบ้าน): ไม่แตะบัญชีลูกค้า/LIFF/ออเดอร์เดิม/ร่าง/ป๊อปอัพในเครื่องนี้เลย
+      const t1 = new Date(Date.now() + 90 * 60000);
+      this.setState({ time: String(t1.getHours()).padStart(2, '0') + ':' + String(Math.floor(t1.getMinutes() / 15) * 15).padStart(2, '0') });
+      this.clockTimer = setInterval(() => this.setState({ now: new Date() }), 30000);
+      this.syncNight();
+      return;
+    }
     // นโยบายใหม่ (2026-09-02 จากรีวิวลูกค้า): ลูกค้าใหม่ชมหน้าเว็บได้เลยไม่ต้องล็อกอิน — ด่านล็อกอินอยู่ตอนกดสั่งปริ้น/ติดตาม
     // LINE Login (LIFF) — เชื่อมกับ LINE OA ของร้าน
     // ถ้าเปิดจากเบราว์เซอร์ในแอป LINE (ไม่ใช่ LIFF) → เด้งไปเปิดแบบ LIFF จะได้ล็อกอินอัตโนมัติ
@@ -2210,13 +2221,35 @@ class App extends React.Component {
   fmtTime(d){ return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); }
 
   // บันทึกออเดอร์ + อัปโหลดไฟล์ขึ้นฐานข้อมูลกลาง (ให้เจ้าของเห็นในหน้าหลังบ้าน)
+  // ── โหมด LINE OA: สร้างข้อมูลออเดอร์ด้วยสูตรเดียวกับลูกค้า + อัปไฟล์ แล้วส่งกลับให้หลังบ้านบันทึก (ไม่ insert เอง) ──
+  async oaSend(){
+    if (!OA_MODE || this._oaBusy) return;
+    const s = this.state;
+    if (!s.files.length) return this.showToast('แนบไฟล์งานก่อนครับ');
+    const fErr = s.files.filter(f => !f.big && f.file && f.upErr);
+    if (fErr.length) { fErr.forEach(f => this.preUpload(f)); return this.showToast('ไฟล์ "' + fErr[0].name + '" ยังส่งเข้าระบบไม่สำเร็จ — กำลังลองใหม่ รอสักครู่แล้วกดอีกครั้งครับ'); }
+    this._oaBusy = true; this.setState({ oaBusy: true });
+    try {
+      const c = this.calc();
+      const id = '#MP-' + Array.from(crypto.getRandomValues(new Uint8Array(8))).map(b => 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'[b % 31]).join('');
+      const out = await this._saveOrderInner(id, c, this.fmtTime(new Date()), { exportOnly: true });
+      const plabel = ((PRINT_TYPES.find(t => t.k === s.ptype) || {}).label || '');
+      window.parent.postMessage({ type: 'mp-oa-order', payload: out.payload, upFail: out.upFail || 0, plabel,
+        bill: { print: c.printCost || 0, bind: c.bindCost || 0, delivery: c.deliveryCost || 0, night: c.nightFee || 0, express: c.expressFee || 0, total: c.grandTotal || 0, deliveryLabel: this.state.stdPickup ? 'รับหน้าร้าน' : '' } }, location.origin);
+    } catch (e) {
+      console.error('oaSend:', e);
+      this.showToast('ส่งเข้าหลังบ้านไม่สำเร็จ — ลองกดใหม่อีกครั้งครับ');
+    }
+    this._oaBusy = false; this.setState({ oaBusy: false });
+  }
   async saveOrder(id, c, t0){
     this._savingOrder = id; // ระหว่างอัปไฟล์+บันทึก — หน้าติดตามห้ามตีความว่าออเดอร์ถูกลบ
     this.setState({ savingUp: true }); // แถบเตือน "อย่าเพิ่งปิดหน้า" บนหน้าติดตาม
     try { await this._saveOrderInner(id, c, t0); } finally { if (this._savingOrder === id) this._savingOrder = null; this.setState({ savingUp: false }); }
   }
-  async _saveOrderInner(id, c, t0){
+  async _saveOrderInner(id, c, t0, opts){
     const s = this.state;
+    const exportOnly = !!(opts && opts.exportOnly); // โหมด LINE OA: คืน payload ให้หลังบ้านบันทึกเอง
     try {
       const files = [];
       let upFail = 0;
@@ -2256,6 +2289,7 @@ class App extends React.Component {
       for (let i = 0; i < s.files.length; i++) {
         const f = s.files[i];
         let path = null;
+        if (exportOnly && !this.db) continue; // โหมด LINE OA บนเดโม (ไม่มีฐานข้อมูล) — ไม่มีที่อัปไฟล์
         if (!f.big && (f.file || f.prePath)) {
           // ไฟล์ถูกสำรองเข้าคลังตั้งแต่ตอนแนบแล้ว (preUpload) — รอให้เสร็จแล้วหยิบ path มาใช้เลย ไม่ต้องอัปซ้ำ
           const rec = (this._preUp || {})[f.uid];
@@ -2318,6 +2352,7 @@ class App extends React.Component {
         note: (s.note || '').trim().slice(0, 300) || null, // หมายเหตุการปริ้น/รายละเอียดงานจากลูกค้า
         ship_note: (s.shipNote || '').trim().slice(0, 300) || null // หมายเหตุการส่ง (ขั้นจุดส่ง — เจ้าของสั่ง 2026-10-07 แยกจากหมายเหตุการปริ้นชัดเจน)
       };
+      if (exportOnly) return { payload, upFail };
       // ── ตาข่ายกันออเดอร์หลุด (2026-09-14 — เคสจริง: เน็ตลูกค้าสะดุดตอนกดยืนยัน แถวออเดอร์ไม่ลงฐานข้อมูล หลังบ้าน/LINE ไม่เห็นเลย) ──
       // จด payload ลงเครื่องก่อนยิง insert เสมอ — insert พลาดเมื่อไหร่ ระบบส่งซ้ำอัตโนมัติได้จนกว่าจะถึงร้าน (ปิดเว็บแล้วเปิดใหม่ก็ยังส่งต่อ)
       const pend = { id, payload, coupon: c.coupon || null, cuid: (() => { try { return this.couponUid(); } catch (e) { return null; } })(), t: Date.now() };
@@ -2327,6 +2362,7 @@ class App extends React.Component {
       if (error) throw error;
       this.orderSaved(pend); // แจ้งเตือน LINE + เผาสิทธิ์โค้ด + ล้าง pending
     } catch (e) {
+      if (exportOnly) throw e;
       console.error('saveOrder:', e);
       this.markUnsaved(id, true); // ป้ายแดงถาวรบนหน้าติดตาม + วนส่งซ้ำอัตโนมัติทุกรอบเช็คสถานะ
       this.showToast('⚠️ ออเดอร์ยังส่งไม่ถึงร้าน (เน็ตสะดุด) — ระบบกำลังส่งซ้ำอัตโนมัติ อย่าเพิ่งปิดหน้านี้นะครับ');
@@ -3263,14 +3299,14 @@ class App extends React.Component {
         n.setDate(n.getDate() + (d === 6 ? 2 : d === 0 ? 1 : 0));
         return n.getDate() + '/' + (n.getMonth() + 1) + '/' + String(n.getFullYear() + 543).slice(-2);
       })(),
-      shopClosed: s.shopOpen === false && s.shopProOpen === false, // ปิดทั้ง 2 สวิตช์ = ร้านปิดรับออเดอร์ทั้งหมด (ป้ายแดง)
-      stdClosed: s.shopOpen === false && s.shopProOpen !== false, // ปิดเฉพาะงาน Standard (ป้ายส้ม)
+      shopClosed: !OA_MODE && s.shopOpen === false && s.shopProOpen === false, // ปิดทั้ง 2 สวิตช์ = ร้านปิดรับออเดอร์ทั้งหมด (ป้ายแดง)
+      stdClosed: !OA_MODE && s.shopOpen === false && s.shopProOpen !== false, // ปิดเฉพาะงาน Standard (ป้ายส้ม)
       proClosed: s.shopOpen !== false && s.shopProOpen === false, // ปิดเฉพาะงาน PRO (ป้ายส้ม)
-      stdOff: s.shopOpen === false, proOff: s.shopProOpen === false, // ป้าย ⛔ บนตัวเลือกระดับงาน
+      stdOff: !OA_MODE && s.shopOpen === false, proOff: s.shopProOpen === false, // ป้าย ⛔ บนตัวเลือกระดับงาน
       rainMode: s.shopRain === true, // โหมดฝนตก — ทุกงานแบบจัดส่งบังคับรถยนต์
       proAfter17: s.now.getHours() >= 17, // แยกข้อความ: หลัง 17:00 = ผลิตพรุ่งนี้ · ก่อน 08:30 = ผลิตเช้านี้
-      pickStandard: () => s.shopOpen === false ? this.showToast(STD_CLOSED_MSG) : this.setState({ tier: 'standard', paper: SIZE_BY_TYPE[s.ptype][0], recvSel: false }, () => this.remeasureOrigin()), // สลับประเภทงาน = ต้นทางค่าส่งเปลี่ยน — วัดระยะใหม่ถ้าปักหมุดค้างไว้ · การรับงานให้เลือกใหม่ (ขั้น 1 หน้าจุดส่ง)
-      pickPro: () => s.shopProOpen === false ? this.showToast(PRO_CLOSED_MSG) : this.setState({ tier: 'pro', sides: (s.proType === 'poster' || s.proType === 'portfolio' || s.proType === 'namecard' || s.proType === 'foldbook') ? s.sides : 1, copies: s.proType === 'sticker' ? 1 : s.copies, recvSel: false }, () => this.remeasureOrigin()), // ประเภทที่พิมพ์หน้าเดียว ห้ามติดค่าหน้า-หลังค้างจาก Standard · สติ๊กเกอร์ล็อก 1 ชุดเสมอ (จำนวนชิ้นรายไฟล์คือตัวกำหนด)
+      pickStandard: () => (s.shopOpen === false && !OA_MODE) ? this.showToast(STD_CLOSED_MSG) : this.setState({ tier: 'standard', paper: SIZE_BY_TYPE[s.ptype][0], recvSel: false }, () => this.remeasureOrigin()), // สลับประเภทงาน = ต้นทางค่าส่งเปลี่ยน — วัดระยะใหม่ถ้าปักหมุดค้างไว้ · การรับงานให้เลือกใหม่ (ขั้น 1 หน้าจุดส่ง)
+      pickPro: () => OA_MODE ? this.showToast('ออเดอร์ LINE OA บันทึกได้เฉพาะงาน Standard ครับ') : s.shopProOpen === false ? this.showToast(PRO_CLOSED_MSG) : this.setState({ tier: 'pro', sides: (s.proType === 'poster' || s.proType === 'portfolio' || s.proType === 'namecard' || s.proType === 'foldbook') ? s.sides : 1, copies: s.proType === 'sticker' ? 1 : s.copies, recvSel: false }, () => this.remeasureOrigin()), // ประเภทที่พิมพ์หน้าเดียว ห้ามติดค่าหน้า-หลังค้างจาก Standard · สติ๊กเกอร์ล็อก 1 ชุดเสมอ (จำนวนชิ้นรายไฟล์คือตัวกำหนด)
       proTypeOpts: PRO_TYPES.map(t => ({
         k: t.k, on: s.proType === t.k, // การ์ดกริด 2 คอลัมน์ใช้ on จัดสไตล์เอง (2026-09-11 เลิกใช้สไตล์ seg)
         ...this.seg(t.label, s.proType === t.k,
@@ -3532,7 +3568,7 @@ class App extends React.Component {
       },
       toDelivery: () => {
         if (s.tier === 'pro' && s.shopProOpen === false) return this.showToast(PRO_CLOSED_MSG);
-        if (s.tier !== 'pro' && s.shopOpen === false) return this.showToast(STD_CLOSED_MSG);
+        if (s.tier !== 'pro' && s.shopOpen === false && !OA_MODE) return this.showToast(STD_CLOSED_MSG); // OA = บันทึกงานที่ส่งแล้ว ร้านปิดก็บันทึกได้
         if (!s.files.length) return this.showToast('เพิ่มไฟล์ก่อนนะครับ 📄');
         if (s.files.some(f => f.counting)) return this.showToast('รอระบบอ่านไฟล์แป๊บนึงครับ ⏳');
         const bigPending = s.files.find(f => f.big && !f.upDone);
@@ -3615,7 +3651,7 @@ class App extends React.Component {
       expressKnob: { width: '21px', height: '21px', borderRadius: '50%', background: '#fff', position: 'absolute', top: '3px', left: s.express ? '22px' : '3px', transition: 'left .2s', boxShadow: '0 1px 3px rgba(0,0,0,.3)' },
       deliveryWarn: '',
       toPay: () => {
-        if (s.tier !== 'pro' && s.files.some(f => this.fileBindPrice(f) > 0) && !this.bindHoursOpen()) return this.showToast('บริการเข้าเล่มรับเฉพาะ 09:00–21:30 น. ครับ — เปลี่ยนเป็นไม่เข้าเล่มที่ไฟล์นั้นก่อนนะ 🙏'); // เข้าเล่มรายไฟล์ (2026-10-12)
+        if (s.tier !== 'pro' && !OA_MODE && s.files.some(f => this.fileBindPrice(f) > 0) && !this.bindHoursOpen()) return this.showToast('บริการเข้าเล่มรับเฉพาะ 09:00–21:30 น. ครับ — เปลี่ยนเป็นไม่เข้าเล่มที่ไฟล์นั้นก่อนนะ 🙏'); // เข้าเล่มรายไฟล์ (2026-10-12)
         if (!c.proPickupOn) { // มารับเองไม่ต้องปักหมุด/กรอกที่อยู่
           if (s.lat == null) return this.showToast('ปักหมุดตำแหน่งส่งบนแผนที่ก่อนนะครับ 📍');
           if (c.deliveryPending) return this.showToast('กำลังวัดระยะทางจากร้าน รอสักครู่นะครับ ⏳ (ค่าส่งจะอัปเดตเอง)');
@@ -3624,8 +3660,8 @@ class App extends React.Component {
           if (!s.addr.trim()) return this.showToast('กรอกรายละเอียดที่อยู่ด้วยครับ 🏠');
         }
         const ph = s.phone.replace(/\D/g, '');
-        if (!ph) return this.showToast('ใส่เบอร์โทรผู้รับด้วยครับ 📞');
-        if (ph.length !== 10 || ph[0] !== '0') return this.showToast('เบอร์โทรต้องเป็นตัวเลข 10 หลัก ขึ้นต้นด้วย 0 ครับ 📞');
+        if (!ph && !OA_MODE) return this.showToast('ใส่เบอร์โทรผู้รับด้วยครับ 📞');
+        if (ph && (ph.length !== 10 || ph[0] !== '0')) return this.showToast('เบอร์โทรต้องเป็นตัวเลข 10 หลัก ขึ้นต้นด้วย 0 ครับ 📞');
         this.setState({ screen: 'review' });
       },
       // ── เลือกพาหนะส่งเอง (ทั้ง Standard และ Pro) — ราคาใช้เกณฑ์เดิม ──
@@ -3696,6 +3732,7 @@ class App extends React.Component {
       deliveryFee: c.deliveryFee, deliveryPending: c.deliveryPending,
       // หน้าตรวจสอบออเดอร์ก่อนชำระเงิน
       goPay: () => this.setState({ screen: 'pay' }),
+      oaMode: OA_MODE, oaBusy: !!s.oaBusy, oaSend: () => this.oaSend(),
       goEditOrder: () => this.setState({ screen: 'order' }),
       goEditDelivery: () => this.setState({ screen: 'delivery' }),
       paperLabel: s.tier === 'pro' ? this.proOrderLabel() : s.paper,
@@ -4229,6 +4266,7 @@ class App extends React.Component {
                 <span style={css("font-size:12.5px;font-weight:600;color:#fff;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0")}>{v.userFirst}</span>
                 <span style={css("width:7px;height:7px;border-radius:50%;background:#22C55E;flex:none")}></span>{/* จุดเขียว = ออนไลน์/เข้าสู่ระบบแล้ว (เจ้าของสั่ง 2026-11-12 — เดิมใช้ --accBright ที่กลายเป็นเหลืองตาม CI ใหม่) */}
               </div>
+            : v.oaMode ? <div style={css("flex:none;background:#06C755;color:#fff;font-size:12px;font-weight:800;padding:6px 12px;border-radius:99px")}>ออเดอร์ LINE OA</div>
             : <div onClick={v.goLogin} style={css("flex:none;background:var(--acc);color:#fff;font-size:12.5px;font-weight:700;padding:7px 14px;border-radius:99px;cursor:pointer")}>เข้าสู่ระบบ</div>}
         </div>
 
@@ -5251,7 +5289,9 @@ class App extends React.Component {
               <button onClick={v.goEditOrder} style={css("flex:1;height:44px;border:1.5px solid var(--acc);border-radius:12px;background:var(--card);color:var(--acc);font-size:13px;font-weight:700;cursor:pointer")}>✏️ แก้ไฟล์/สเปก</button>
               <button onClick={v.goEditDelivery} style={css("flex:1;height:44px;border:1.5px solid var(--acc);border-radius:12px;background:var(--card);color:var(--acc);font-size:13px;font-weight:700;cursor:pointer")}>✏️ แก้ที่จัดส่ง</button>
             </div>
-            <button onClick={v.goPay} style={css("width:100%;height:50px;border:none;border-radius:14px;background:var(--acc);color:#fff;font-size:15px;font-weight:700;cursor:pointer")}>✓ ถูกต้องทั้งหมด — ไปชำระเงิน →</button>
+            {v.oaMode
+              ? <button onClick={v.oaSend} disabled={v.oaBusy} style={css("width:100%;height:50px;border:none;border-radius:14px;background:#06C755;color:#fff;font-size:15px;font-weight:700;cursor:pointer" + (v.oaBusy ? ";opacity:.6" : ""))}>{v.oaBusy ? 'กำลังอัปไฟล์ + ส่งเข้าหลังบ้าน…' : '✓ ใช้ราคานี้ — ส่งเข้าหลังบ้าน (LINE OA)'}</button>
+              : <button onClick={v.goPay} style={css("width:100%;height:50px;border:none;border-radius:14px;background:var(--acc);color:#fff;font-size:15px;font-weight:700;cursor:pointer")}>✓ ถูกต้องทั้งหมด — ไปชำระเงิน →</button>}
           </div>
         )}
 
@@ -5943,7 +5983,7 @@ class App extends React.Component {
         )}
 
         {/* ── Bottom nav ── */}
-        {v.notLogin && (
+        {v.notLogin && !v.oaMode && (
           <div style={css("position:sticky;bottom:0;margin-top:auto;background:var(--card);border-top:1px solid var(--line);display:flex;justify-content:space-around;padding:10px 8px 14px;z-index:20")}>
             {v.navItems.map((n, i) => (
               <div key={i} onClick={n.pick} style={n.st}>

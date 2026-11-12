@@ -915,6 +915,150 @@ function ReceiptTool({ o, isPro, onClose }){
   );
 }
 
+// ══ ออเดอร์จาก LINE OA (เจ้าของสั่ง 2026-11-12) — งานที่รับทาง LINE และส่งเสร็จแล้ว แค่บันทึกยอดขายจริง ══
+// ขั้น 1: คิดราคาใน index.html?oa=1 (iframe — สูตรไฟล์/สแกนสี/ค่าส่งชุดเดียวกับหน้าเว็บ) · ขั้น 2: ชื่อลูกค้า + ยอดจริง + สลิป
+// บันทึกเป็นสถานะ "ส่งแล้ว" ทันที · source = 'line' (ฐานข้อมูลยอมเฉพาะแอดมิน) · ไม่แจ้งเตือนกลุ่ม LINE · ยอดต่างจากที่ระบบคิด = รายการปรับยอด
+const OA_GREEN = '#06C755';
+const dtLocal = (d) => { const z = (n) => String(n).padStart(2, '0'); return d.getFullYear() + '-' + z(d.getMonth() + 1) + '-' + z(d.getDate()) + 'T' + z(d.getHours()) + ':' + z(d.getMinutes()); };
+async function storeSlipAdmin(oid, file){
+  const type = file.type || 'image/jpeg';
+  if (CFG.R2_UPLOADS) {
+    try {
+      const j = await r2Call({ action: 'put', kind: 'slip', name: file.name || 'slip.jpg', size: file.size, contentType: type });
+      const p = await fetch(j.url, { method: 'PUT', headers: { ...(j.headers || {}), 'Content-Type': type }, body: file });
+      if (p.ok && j.key) return 'r2:' + j.key;
+    } catch (e) { console.error('slip r2:', e); }
+  }
+  const ext = ((file.name || '').split('.').pop() || 'jpg').replace(/[^a-zA-Z0-9]/g, '').slice(0, 5) || 'jpg';
+  const path = String(oid).replace('#', '') + '/slip.' + ext;
+  const { error } = await DB.storage.from('uploads').upload(path, file);
+  if (error) throw error;
+  return path;
+}
+function OaOrderModal({ onClose, onSaved }){
+  const [data, setData] = React.useState(null); // { payload, bill, plabel, upFail } จาก iframe
+  const [step, setStep] = React.useState(1);
+  const [name, setName] = React.useState('');
+  const [phone, setPhone] = React.useState('');
+  const [when, setWhen] = React.useState(() => dtLocal(new Date()));
+  const [total, setTotal] = React.useState('');
+  const [slip, setSlip] = React.useState(null);
+  const [slipUrl, setSlipUrl] = React.useState('');
+  const [note, setNote] = React.useState('');
+  const [busy, setBusy] = React.useState(false);
+  const [err, setErr] = React.useState('');
+  const frameRef = React.useRef(null);
+  React.useEffect(() => {
+    const onMsg = (e) => {
+      if (e.origin !== location.origin || !frameRef.current || e.source !== frameRef.current.contentWindow) return;
+      const d = e.data || {};
+      if (d.type !== 'mp-oa-order' || !d.payload) return;
+      setData(d); setPhone(d.payload.phone || ''); setTotal(String(Math.round((d.bill && d.bill.total) || d.payload.total || 0)));
+      setErr(''); setStep(2);
+    };
+    window.addEventListener('message', onMsg);
+    return () => window.removeEventListener('message', onMsg);
+  }, []);
+  React.useEffect(() => () => { if (slipUrl) URL.revokeObjectURL(slipUrl); }, [slipUrl]);
+  const pickSlip = (e) => { const f = e.target.files && e.target.files[0]; e.target.value = ''; if (!f) return; if (!/^image\//.test(f.type)) return setErr('สลิปต้องเป็นไฟล์รูปภาพ'); setSlip(f); setSlipUrl(URL.createObjectURL(f)); setErr(''); };
+  const calcTotal = data ? Math.round(Number(data.payload.total) || 0) : 0;
+  const fin = Math.round(Number(total));
+  const diff = isFinite(fin) ? fin - calcTotal : 0;
+  const save = async () => {
+    if (busy || !data) return;
+    const nm = name.trim();
+    if (!nm) return setErr('กรอกชื่อลูกค้าก่อนครับ');
+    if (total === '' || !isFinite(fin) || fin < 0) return setErr('กรอกยอดรวมที่เก็บจริงให้ถูกต้อง');
+    const at = new Date(when);
+    if (isNaN(at.getTime())) return setErr('วันเวลาที่สั่งไม่ถูกต้อง');
+    if (at.getTime() > Date.now() + 5 * 60000) return setErr('วันเวลาที่สั่งเป็นอนาคตไม่ได้');
+    const ph = phone.trim();
+    setBusy(true); setErr('');
+    try {
+      const p = data.payload;
+      let slip_path = null;
+      if (slip && DB) slip_path = await storeSlipAdmin(p.id, slip);
+      const z = (n) => String(n).padStart(2, '0'), hm = z(at.getHours()) + ':' + z(at.getMinutes());
+      const row = { ...p,
+        customer_fname: nm, customer_lname: '', customer_phone: ph, customer_email: '', phone: ph || p.phone || '',
+        created_at: at.toISOString(), status: 4, times: [hm, hm, hm, hm],
+        total: fin, adjustments: diff ? [{ label: 'ปรับยอดตามที่ตกลงทาง LINE OA', amt: diff, at: new Date().toISOString() }] : [],
+        source: 'line', slip_path, line_uid: null, coupon: null, discount: 0,
+        note: [p.note, note.trim()].filter(Boolean).join(' · ').slice(0, 300) || null };
+      if (DB) {
+        const { error } = await DB.from('orders').insert(row);
+        if (error) {
+          const m = String(error.message || '');
+          throw new Error(/source/.test(m) ? 'ฐานข้อมูลยังไม่มีช่อง "ช่องทาง LINE OA" — ต้องรัน SQL ก่อน' : /row-level|permission|policy/i.test(m) ? 'บัญชีแอดมินยังไม่มีสิทธิ์เพิ่มออเดอร์ — ต้องรัน SQL ก่อน' : m);
+        }
+      }
+      onSaved(row);
+    } catch (e) { setErr('บันทึกไม่สำเร็จ: ' + (e.message || e)); }
+    setBusy(false);
+  };
+  const b = (data && data.bill) || {};
+  const files = (data && data.payload.files) || [];
+  const inp = "width:100%;box-sizing:border-box;height:42px;border:1px solid var(--line);border-radius:10px;background:var(--soft);color:var(--ink);padding:0 12px;font-size:14px;outline:none;font-family:inherit";
+  const row2 = (l, v, strong) => <div style={css("display:flex;justify-content:space-between;gap:10px" + (strong ? ";font-weight:800" : ""))}><span style={css(strong ? "" : "color:var(--sub)")}>{l}</span><span style={css("font-family:'IBM Plex Mono',monospace")}>{v}</span></div>;
+  return (
+    <div style={css("position:fixed;inset:0;background:rgba(10,20,40,.55);z-index:200;display:flex;align-items:center;justify-content:center;padding:10px;box-sizing:border-box")}>
+      <div style={css("background:var(--bg);width:100%;max-width:560px;height:96vh;border-radius:16px;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 10px 40px rgba(0,0,0,.35)")}>
+        <div style={css("background:" + OA_GREEN + ";color:#fff;padding:12px 14px;display:flex;align-items:center;gap:10px;flex:none")}>
+          <div style={css("flex:1;min-width:0")}>
+            <div style={css("font-size:15px;font-weight:800")}>＋ ออเดอร์จาก LINE OA</div>
+            <div style={css("font-size:11.5px;opacity:.92")}>{step === 1 ? 'ขั้น 1/2 · แนบไฟล์ + เลือกงาน + จุดส่ง → ระบบคิดราคาแบบเดียวกับหน้าเว็บ' : 'ขั้น 2/2 · ข้อมูลลูกค้า + ยอดที่เก็บจริง + สลิป'}</div>
+          </div>
+          <button onClick={onClose} style={css("flex:none;width:34px;height:34px;border-radius:9px;border:none;background:rgba(255,255,255,.2);color:#fff;font-size:16px;cursor:pointer")}>✕</button>
+        </div>
+        {/* iframe อยู่ตลอด (ซ่อนตอนขั้น 2) — กดย้อนกลับแล้วไฟล์/ตัวเลือกไม่หาย */}
+        <iframe ref={frameRef} src="index.html?oa=1" title="คิดราคาออเดอร์ LINE OA" style={{ flex: 1, border: 'none', width: '100%', display: step === 1 ? 'block' : 'none', background: '#fff' }}></iframe>
+        {step === 2 && data && (
+          <div style={css("flex:1;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:12px")}>
+            <div style={css("background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:6px;font-size:12.5px")}>
+              <div style={css("font-size:13px;font-weight:800")}>{data.plabel || 'งานปริ้น'} · {files.length} ไฟล์</div>
+              {files.map((f, i) => <div key={i} style={css("font-size:11.5px;color:var(--sub);overflow:hidden;text-overflow:ellipsis;white-space:nowrap")}>📄 {f.name} · {f.pages || '?'} หน้า{f.copies > 1 ? ' × ' + f.copies + ' ชุด' : ''}{f.path ? '' : ' · ⚠️ ไฟล์ยังไม่เข้าระบบ'}</div>)}
+              <div style={css("font-size:11.5px;color:var(--sub)")}>📍 {data.payload.addr || '-'}</div>
+              <div style={css("border-top:1px dashed var(--line);padding-top:6px;display:flex;flex-direction:column;gap:3px")}>
+                {row2('ค่าปริ้น', '฿' + (b.print || 0))}
+                {(b.bind || 0) > 0 && row2('เข้าเล่ม/เย็บ', '฿' + b.bind)}
+                {row2('ค่าส่ง', '฿' + (b.delivery || 0))}
+                {(b.night || 0) > 0 && row2('ค่าบริการกลางคืน', '฿' + b.night)}
+                {row2('ยอดที่ระบบคิด', '฿' + calcTotal, true)}
+              </div>
+              {data.upFail > 0 && <div style={css("font-size:11.5px;color:#c92a2a;font-weight:700")}>⚠️ มีไฟล์ที่อัปเข้าระบบไม่สำเร็จ {data.upFail} ไฟล์ — บันทึกยอดได้ แต่ไฟล์นั้นจะไม่มีในการ์ด</div>}
+            </div>
+            <label style={css("display:flex;flex-direction:column;gap:5px")}><span style={css("font-size:12.5px;font-weight:700")}>ชื่อลูกค้า *</span>
+              <input value={name} onChange={e => setName(e.target.value)} placeholder="ชื่อลูกค้าใน LINE" style={css(inp)}/></label>
+            <div style={css("display:flex;gap:10px;flex-wrap:wrap")}>
+              <label style={css("flex:1;min-width:150px;display:flex;flex-direction:column;gap:5px")}><span style={css("font-size:12.5px;font-weight:700")}>เบอร์โทร <span style={css("font-weight:500;color:var(--sub)")}>(ถ้ามี)</span></span>
+                <input value={phone} onChange={e => setPhone(e.target.value)} inputMode="tel" placeholder="08x-xxx-xxxx" style={css(inp)}/></label>
+              <label style={css("flex:1;min-width:150px;display:flex;flex-direction:column;gap:5px")}><span style={css("font-size:12.5px;font-weight:700")}>วันเวลาที่สั่ง</span>
+                <input type="datetime-local" value={when} onChange={e => setWhen(e.target.value)} style={css(inp)}/></label>
+            </div>
+            <label style={css("display:flex;flex-direction:column;gap:5px")}><span style={css("font-size:12.5px;font-weight:700")}>ยอดรวมที่เก็บจริง (บาท) *</span>
+              <input value={total} onChange={e => setTotal(e.target.value.replace(/[^0-9.]/g, ''))} inputMode="decimal" style={css(inp + ";font-family:'IBM Plex Mono',monospace;font-size:17px;font-weight:700")}/>
+              {total !== '' && isFinite(fin) && diff !== 0 && <span style={css("font-size:11.5px;color:#a16207;font-weight:700")}>ต่างจากที่ระบบคิด {diff > 0 ? '+' : '−'}฿{Math.abs(diff)} — บันทึกเป็นรายการ "ปรับยอดตามที่ตกลงทาง LINE OA"</span>}</label>
+            <div style={css("display:flex;flex-direction:column;gap:6px")}>
+              <span style={css("font-size:12.5px;font-weight:700")}>สลิปโอนเงิน <span style={css("font-weight:500;color:var(--sub)")}>(แนะนำแนบไว้เป็นหลักฐาน)</span></span>
+              {slipUrl
+                ? <div style={css("display:flex;align-items:center;gap:10px")}><img src={slipUrl} alt="สลิป" style={css("width:72px;height:96px;object-fit:cover;border-radius:8px;border:1px solid var(--line)")}/>
+                    <button onClick={() => { setSlip(null); setSlipUrl(''); }} style={css("height:34px;padding:0 12px;border-radius:9px;border:1px solid #ffa8a8;background:#fff;color:#c92a2a;font-size:12px;font-weight:700;cursor:pointer")}>ลบสลิป</button></div>
+                : <label style={css("height:44px;border:1.5px dashed " + OA_GREEN + ";border-radius:10px;display:flex;align-items:center;justify-content:center;gap:6px;color:" + OA_GREEN + ";font-size:13px;font-weight:800;cursor:pointer;background:#f1fbf4")}>🧾 แนบสลิป<input type="file" accept="image/*" onChange={pickSlip} style={css("display:none")}/></label>}
+            </div>
+            <label style={css("display:flex;flex-direction:column;gap:5px")}><span style={css("font-size:12.5px;font-weight:700")}>หมายเหตุ <span style={css("font-weight:500;color:var(--sub)")}>(ถ้ามี)</span></span>
+              <input value={note} onChange={e => setNote(e.target.value)} placeholder="เช่น ชื่อ LINE ลูกค้า / ส่งให้เพื่อนรับแทน" style={css(inp)}/></label>
+            {err && <div style={css("font-size:12.5px;color:#c92a2a;font-weight:700;line-height:1.5")}>{err}</div>}
+            <div style={css("display:flex;gap:8px;margin-top:2px;padding-bottom:6px")}>
+              <button onClick={() => { setStep(1); setErr(''); }} disabled={busy} style={css("flex:none;height:46px;padding:0 14px;border-radius:12px;border:1px solid var(--line);background:var(--card);color:var(--ink);font-size:13px;font-weight:700;cursor:pointer")}>← แก้ไฟล์/จุดส่ง</button>
+              <button onClick={save} disabled={busy} style={css("flex:1;height:46px;border-radius:12px;border:none;background:" + OA_GREEN + ";color:#fff;font-size:14px;font-weight:800;cursor:pointer" + (busy ? ";opacity:.6" : ""))}>{busy ? 'กำลังบันทึก…' : '✓ บันทึกยอดขาย (ส่งเสร็จแล้ว)'}</button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function OrderCard({ o, idx, due, onAdvance, onRetreat, onApplyEdits, onCancel, onRemove, busy, unread, onSeen }){
   // การรับงาน/จุดส่ง ในแผงแก้ไขออเดอร์ (มารับเอง ↔ จัดส่ง / แก้ที่อยู่-ค่าส่ง — 2026-09-15)
   const [sdMode, setSdMode] = React.useState(o.pickup ? 'pickup' : 'delivery');
@@ -997,6 +1141,7 @@ function OrderCard({ o, idx, due, onAdvance, onRetreat, onApplyEdits, onCancel, 
         </div>
         {/* ใบงานด่วน: ป้ายแดงบนแถบหัว ก่อนสถานะ+ราคา — เห็นตั้งแต่ยังไม่กางการ์ด (เจ้าของสั่ง 2026-09-17) */}
         {o.express && <span style={css("flex:none;font-size:12px;font-weight:800;color:#e03131")}>⚡ งานด่วน</span>}
+        {o.source === 'line' && <span style={css("flex:none;font-size:10.5px;font-weight:800;color:#fff;background:#06C755;padding:2px 8px;border-radius:99px;white-space:nowrap")}>LINE OA</span>}
         <StatusBadge status={o.status} o={o}/>
         <span style={css("font-family:'IBM Plex Mono',monospace;font-size:15px;font-weight:700;color:var(--acc);flex:none")}>฿{o.total}</span>
         <span style={css("color:var(--sub);font-size:12px;flex:none")}>{open ? '▲' : '▼'}</span>
@@ -1376,6 +1521,7 @@ function dashRange(key, from, to){
 
 // นาทีตั้งแต่ลูกค้าสั่ง → ส่งถึง (times[3] เก็บเป็น HH:MM) — ข้ามค่าที่ผิดปกติ
 function leadMinutes(o){
+  if (o.source === 'line') return null; // ออเดอร์ LINE OA บันทึกหลังส่งเสร็จ — ไม่มีเวลาผลิต/ส่งจริง
   const t = o.times && o.times[3];
   if (o.status !== 4 || !t || !/^\d{1,2}:\d{2}$/.test(t)) return null;
   const c = new Date(o.created_at);
@@ -1592,11 +1738,15 @@ function OrderDashboard({ rows, loading, loadedAt, onReload }){
     const custList = Object.values(cm);
     const newCust = custList.filter(c => new Date(first[c.phone]) >= R.start).length;
 
+    // ช่องทางสั่ง: เว็บ vs LINE OA (แอดมินบันทึกเอง)
+    const src = { web: { n: 0, rev: 0 }, line: { n: 0, rev: 0 } };
+    cur.valid.forEach(o => { const k = o.source === 'line' ? 'line' : 'web'; src[k].n++; src[k].rev += o.total || 0; });
+
     const leads = cur.valid.map(leadMinutes).filter(x => x != null);
     const leadAvg = leads.length ? Math.round(leads.reduce((a, x) => a + x, 0) / leads.length) : null;
 
     return { R, cur, prev, buckets, bMax, best, status, jobs, comp, compSum, other, pick, zm, pm, heat, heatMax, peakH, hourTot,
-      custList, newCust, leadAvg,
+      custList, newCust, leadAvg, src,
       express: cur.valid.filter(o => o.express).length, night: cur.valid.filter(o => o.night).length, color: cur.valid.filter(o => o.color).length };
   }, [rows, pkey, from, to]);
 
@@ -1704,6 +1854,15 @@ function OrderDashboard({ rows, loading, loadedAt, onReload }){
           <div style={css("margin-top:10px;display:flex;flex-wrap:wrap;gap:6px")}>
             {[[FI.drop(11), 'ปริ้นสี', d.color], [FI.zap(11), 'ส่งด่วน', d.express], [FI.moon(11), 'กลางคืน', d.night]].map(([ic, l, n], i) => (
               <span key={i} style={css("display:inline-flex;align-items:center;gap:4px;font-size:11px;background:var(--soft);border-radius:8px;padding:3px 9px")}>{ic} {l} <b style={css(mono)}>{n}</b></span>
+            ))}
+          </div>
+          <div style={css("margin-top:12px;border-top:1px dashed var(--line);padding-top:9px;display:flex;flex-direction:column;gap:6px;font-size:12.5px")}>
+            <div style={css("font-size:11px;font-weight:700;color:var(--sub)")}>ช่องทางสั่ง</div>
+            {[['🌐 สั่งผ่านเว็บ', d.src.web, 'var(--acc)'], ['LINE OA (บันทึกเอง)', d.src.line, '#06C755']].map(([l, x, c], i) => (
+              <div key={i} style={css("display:flex;justify-content:space-between;gap:8px;align-items:center")}>
+                <span style={css("display:flex;align-items:center;gap:6px")}>{i === 1 && <span style={css("width:8px;height:8px;border-radius:50%;background:#06C755;flex:none")}></span>}{l} <span style={css("color:var(--sub);font-size:11px")}>{x.n} ใบ</span></span>
+                <span style={css(mono + "font-weight:600;color:" + c)}>{baht(x.rev)} <span style={css("color:var(--sub);font-weight:400;font-size:10.5px")}>{cur.revenue ? Math.round(x.rev / cur.revenue * 100) : 0}%</span></span>
+              </div>
             ))}
           </div>
         </DashCard>
@@ -2143,6 +2302,7 @@ function AdminApp(){
   const [busyId, setBusyId] = React.useState(null);
   const dueMap = React.useMemo(() => { const m = {}, ix = dueIndex(orders); orders.forEach(o => { m[o.id] = dueInfo(o, ix); }); return m; }, [orders]); // กำหนดเวลาตามเกณฑ์ (คิดคิว ณ ตอนสั่งของแต่ละใบ)
   const [lastSync, setLastSync] = React.useState(null);
+  const [oaOpen, setOaOpen] = React.useState(false); // หน้าต่างเพิ่มออเดอร์ LINE OA
   const [filter, setFilter] = React.useState('pending'); // แถบสถานะแบบ pro.html: กำลังทำ/เสร็จแล้ว/ยกเลิก
   const [period, setPeriod] = React.useState('day'); // ช่วงเวลาแบบ pro.html: วันนี้/สัปดาห์/เดือน/ปี
   const [zoneFilter, setZoneFilter] = React.useState('all');
@@ -2751,7 +2911,7 @@ function AdminApp(){
     const esc = (v) => { const s = v == null ? '' : String(v); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
     const STL = ['ยกเลิก', 'รับออเดอร์', 'กำลังปริ้น', 'กำลังจัดส่ง', 'ส่งแล้ว'];
     const head = ['รหัสออเดอร์', 'วันที่สั่ง', 'สถานะ', 'ชื่อลูกค้า', 'เบอร์ลูกค้า', 'อีเมล', 'ประเภทงาน', 'ขนาด', 'ด้านที่พิมพ์', 'ทิศทางกระดาษ', 'หน้าต่อแผ่น', 'เข้าเล่ม', 'จำนวนชุด', 'จำนวนหน้า', 'รายชื่อไฟล์', 'จุดส่ง', 'ที่อยู่', 'เบอร์ผู้รับ', 'เวลารับ', 'ส่งด่วน', 'กลางคืน', 'ค่าปริ้น', 'ค่าเข้าเล่ม', 'ค่าส่ง', 'ค่างานด่วน', 'ค่ากลางคืน', 'โค้ดส่วนลด', 'ส่วนลด', 'ยอดรวม', 'เหตุผลที่ยกเลิก',
-      'เวลารับออเดอร์', 'เวลาเริ่มปริ้น', 'เวลาออกส่ง/พร้อมรับ', 'เวลาส่งแล้ว', 'สั่ง→ส่งแล้ว (นาที)']; // เวลาตามที่กดปุ่มสถานะในหลังบ้าน (เก็บแค่ HH:MM)
+      'เวลารับออเดอร์', 'เวลาเริ่มปริ้น', 'เวลาออกส่ง/พร้อมรับ', 'เวลาส่งแล้ว', 'สั่ง→ส่งแล้ว (นาที)', 'ช่องทาง']; // เวลาตามที่กดปุ่มสถานะในหลังบ้าน (เก็บแค่ HH:MM)
     const rows = orders.map(o => [
       o.id, new Date(o.created_at).toLocaleString('th-TH'), STL[o.status] != null ? STL[o.status] : o.status,
       ((o.customer_fname || '') + ' ' + (o.customer_lname || '')).trim(), o.customer_phone || '', o.customer_email || '',
@@ -2764,7 +2924,7 @@ function AdminApp(){
       (o.files || []).map(f => f.name).join(' | '), o.point || '', o.addr || '', o.phone || '', o.time || '',
       o.express ? 'ใช่' : '', o.night ? 'ใช่' : '',
       o.print_cost || 0, o.bind_cost || 0, o.express ? Math.max(0, (o.delivery_cost || 0) - EXPRESS_FEE) : (o.delivery_cost || 0), o.express ? EXPRESS_FEE : 0, o.night_fee || 0, o.coupon || '', o.discount || 0, o.total || 0, o.cancel_reason || '',
-      ...[0, 1, 2, 3].map(i => (o.times || [])[i] || ''), leadMinutes(o) ?? ''
+      ...[0, 1, 2, 3].map(i => (o.times || [])[i] || ''), leadMinutes(o) ?? '', o.source === 'line' ? 'LINE OA' : 'เว็บ'
     ]);
     const csv = '\ufeff' + [head].concat(rows).map(r => r.map(esc).join(',')).join('\r\n');
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
@@ -2908,6 +3068,12 @@ function AdminApp(){
   const unreadTotal = Object.values(unreadMap).reduce((a, n) => a + n, 0);
   return (
     <div>
+      {oaOpen && <OaOrderModal onClose={() => setOaOpen(false)} onSaved={(row) => {
+        setOaOpen(false); setFilter('done');
+        if (DB) { refresh(); if (histAll) loadHistory(); }
+        else { setOrders(l => [row, ...l]); setHistAll(h => h ? [row, ...h] : h); }
+        alert('✓ บันทึกออเดอร์ LINE OA แล้ว — ยอดขึ้นในแดชบอร์ดยอดขาย (ป้าย LINE OA)');
+      }}/>}
       {/* ── แถบเมนูซ้าย (ตามเรฟ) ── */}
       <div className={"mp-side" + (navOpen ? " open" : "")}>
         <div style={css("display:flex;align-items:center;gap:10px;padding:2px 8px 14px;border-bottom:1px solid rgba(255,255,255,.12)")}>
@@ -3162,6 +3328,7 @@ function AdminApp(){
           {/* ── หัวหมวดออเดอร์โครงแบบ pro.html: ชื่อหมวด · ช่วงเวลา · แถบสถานะ ── */}
           <div style={css("display:flex;align-items:center;gap:8px")}>
             <div style={css("font-size:17px;font-weight:800;flex:1")}>ออเดอร์</div>
+            <button onClick={() => setOaOpen(true)} style={css("padding:6px 12px;border-radius:99px;font-size:11.5px;font-weight:800;cursor:pointer;border:none;background:#06C755;color:#fff;white-space:nowrap")}>＋ ออเดอร์ LINE OA</button>
             <button onClick={exportCsv} style={css("padding:6px 12px;border-radius:99px;font-size:11.5px;font-weight:700;cursor:pointer;border:1px solid var(--acc);background:var(--accSoft);color:var(--acc)")}>⬇ สำรองข้อมูล CSV</button>
           </div>
           <div style={css("display:flex;gap:6px")}>
