@@ -700,6 +700,7 @@ class App extends React.Component {
     // เช็คเงียบ ๆ ว่าประเภทงาน Pro ไหนมีรูปตัวอย่าง (assets/pro/<ประเภท>.jpg) — มีถึงโชว์ป้าย "กดดูตัวอย่างงาน"
     PRO_TYPES.forEach(t => { try { const im = new Image(); im.onload = () => this.setState(st => ({ prevOk: { ...st.prevOk, [t.k]: true } })); im.src = 'assets/pro/' + t.k + '.jpg'; } catch (e) {} });
     if (OA_MODE) { // โหมดออเดอร์ LINE OA (หลังบ้าน): ไม่แตะบัญชีลูกค้า/LIFF/ออเดอร์เดิม/ร่าง/ป๊อปอัพในเครื่องนี้เลย
+      this.setState({ oaNight: this.isNight() }); // เริ่มตามเวลาตอนนี้ — แอดมินสลับกลางวัน/กลางคืนได้ที่แถบบนสุด
       const t1 = new Date(Date.now() + 90 * 60000);
       this.setState({ time: String(t1.getHours()).padStart(2, '0') + ':' + String(Math.floor(t1.getMinutes() / 15) * 15).padStart(2, '0') });
       this.clockTimer = setInterval(() => this.setState({ now: new Date() }), 30000);
@@ -1647,6 +1648,7 @@ class App extends React.Component {
   syncNight(){ document.body.classList.toggle('night', this.isNight()); }
 
   isNight(){
+    if (OA_MODE && this.state.oaNight != null) return this.state.oaNight; // ออเดอร์ LINE OA: แอดมินเลือกเองว่าลูกค้าสั่งช่วงกลางวัน/กลางคืน
     if (this.state.shopNightOff) return false; // หลังบ้านบังคับปิดชั่วคราว (แคปจอทำสื่อ) — ธีม/ค่าบริการ/ธงกลางคืนหายหมดเหมือนกลางวัน
     const ov = CONFIG.nightOverride ?? 'auto';
     if (ov === 'day') return false;
@@ -3733,6 +3735,7 @@ class App extends React.Component {
       // หน้าตรวจสอบออเดอร์ก่อนชำระเงิน
       goPay: () => this.setState({ screen: 'pay' }),
       oaMode: OA_MODE, oaBusy: !!s.oaBusy, oaSend: () => this.oaSend(),
+      oaNight: OA_MODE && this.isNight(), setOaNight: (b) => this.setState({ oaNight: !!b }),
       goEditOrder: () => this.setState({ screen: 'order' }),
       goEditDelivery: () => this.setState({ screen: 'delivery' }),
       paperLabel: s.tier === 'pro' ? this.proOrderLabel() : s.paper,
@@ -4300,6 +4303,21 @@ class App extends React.Component {
           </div>
         )}
 
+        {/* ── โหมดออเดอร์ LINE OA: เลือกว่าลูกค้าสั่งช่วงกลางวันหรือกลางคืน (คิดเรท+ค่ากลางคืนตามนี้) ── */}
+        {v.oaMode && (
+          <div style={css("margin:14px 20px 0;background:var(--card);border:1.5px solid #06C755;border-radius:12px;padding:10px 12px;display:flex;flex-direction:column;gap:8px")}>
+            <div style={css("font-size:12.5px;font-weight:800;color:var(--ink)")}>ออเดอร์ LINE OA นี้ลูกค้าสั่งช่วงไหน?</div>
+            <div style={css("display:flex;gap:8px")}>
+              {[[false, '☀️ กลางวัน', 'ราคาปกติ'], [true, '🌙 กลางคืน', '22:00–06:00 · +฿' + (CONFIG.nightFee ?? 10)]].map(([k, l, sub]) => (
+                <div key={String(k)} onClick={() => v.setOaNight(k)} style={css("flex:1;cursor:pointer;border-radius:10px;padding:8px 10px;text-align:center;" + (v.oaNight === k ? "background:#06C755;color:#fff;border:1.5px solid #06C755" : "background:var(--soft);color:var(--ink);border:1.5px solid var(--line)"))}>
+                  <div style={css("font-size:13.5px;font-weight:800")}>{l}</div>
+                  <div style={css("font-size:11px;opacity:.85")}>{sub}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* ── ป้ายโหมดฝนตก (ร้านกดเปิดจากหลังบ้าน) ── */}
         {v.rainMode && (
           <div style={css("margin:14px 20px 0;background:#e7f5ff;border:1.5px solid #74c0fc;border-radius:12px;padding:11px 14px;display:flex;gap:10px;align-items:center")}>
@@ -4311,7 +4329,7 @@ class App extends React.Component {
         )}
 
         {/* ── Night banner — เฉพาะหน้าที่เกี่ยวกับราคา ห้ามโผล่ในห้องแชท/ติดตาม/อื่น ๆ (เจ้าของแจ้งบั๊ค 2026-10-07: ไปค้างทับหัวห้องแชท) ── */}
-        {v.night && (v.isHome || v.isOrder || v.isDelivery || v.isReview || v.isPay) && (
+        {v.night && !v.oaMode && (v.isHome || v.isOrder || v.isDelivery || v.isReview || v.isPay) && (
           <div style={css("margin:14px 20px 0;background:var(--warnBg);border:1px solid var(--warnLine);border-radius:12px;padding:10px 14px;display:flex;gap:10px;align-items:center")}>
             <span style={css("flex:none;display:flex;color:var(--warnInk)")}>{fi('moon', 17)}</span><div style={css("min-width:0")}>
               <div style={css("font-size:12.5px;color:var(--warnInk);font-weight:800;line-height:1.5")}>ตอนนี้ {v.clock} เป็นช่วงกลางคืน (22:00–06:00)</div>

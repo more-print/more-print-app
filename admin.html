@@ -1018,6 +1018,7 @@ function OaOrderModal({ onClose, onSaved }){
               <div style={css("font-size:13px;font-weight:800")}>{data.plabel || 'งานปริ้น'} · {files.length} ไฟล์</div>
               {files.map((f, i) => <div key={i} style={css("font-size:11.5px;color:var(--sub);overflow:hidden;text-overflow:ellipsis;white-space:nowrap")}>📄 {f.name} · {f.pages || '?'} หน้า{f.copies > 1 ? ' × ' + f.copies + ' ชุด' : ''}{f.path ? '' : ' · ⚠️ ไฟล์ยังไม่เข้าระบบ'}</div>)}
               <div style={css("font-size:11.5px;color:var(--sub)")}>📍 {data.payload.addr || '-'}</div>
+              <div style={css("font-size:11.5px;font-weight:700;color:" + (data.payload.night ? "#5f3dc4" : "#a16207"))}>{data.payload.night ? '🌙 คิดราคาแบบกลางคืน' : '☀️ คิดราคาแบบกลางวัน'} <span style={css("font-weight:500;color:var(--sub)")}>(เปลี่ยนได้ที่ขั้น 1)</span></div>
               <div style={css("border-top:1px dashed var(--line);padding-top:6px;display:flex;flex-direction:column;gap:3px")}>
                 {row2('ค่าปริ้น', '฿' + (b.print || 0))}
                 {(b.bind || 0) > 0 && row2('เข้าเล่ม/เย็บ', '฿' + b.bind)}
