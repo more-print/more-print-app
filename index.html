@@ -4205,7 +4205,7 @@ class App extends React.Component {
                   ? <img src={v.userPic} alt="" referrerPolicy="no-referrer" style={css("width:26px;height:26px;border-radius:50%;object-fit:cover;display:block;flex:none;background:#444")}/>
                   : <div style={css("width:26px;height:26px;border-radius:50%;background:var(--acc);color:#fff;display:flex;align-items:center;justify-content:center;font-size:12.5px;font-weight:700;flex:none")}>{v.userInitial}</div>}
                 <span style={css("font-size:12.5px;font-weight:600;color:#fff;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0")}>{v.userFirst}</span>
-                <span style={css("width:7px;height:7px;border-radius:50%;background:var(--accBright);flex:none")}></span>
+                <span style={css("width:7px;height:7px;border-radius:50%;background:#22C55E;flex:none")}></span>{/* จุดเขียว = ออนไลน์/เข้าสู่ระบบแล้ว (เจ้าของสั่ง 2026-11-12 — เดิมใช้ --accBright ที่กลายเป็นเหลืองตาม CI ใหม่) */}
               </div>
             : <div onClick={v.goLogin} style={css("flex:none;background:var(--acc);color:#fff;font-size:12.5px;font-weight:700;padding:7px 14px;border-radius:99px;cursor:pointer")}>เข้าสู่ระบบ</div>}
         </div>
