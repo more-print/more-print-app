@@ -4773,10 +4773,10 @@ class App extends React.Component {
               </div>
               {v.showSize && <div style={css("display:flex;flex-direction:column;gap:6px")}><div style={css("font-size:13px;font-weight:600;color:var(--ink)")}>ขนาด</div><div style={css("display:flex;gap:8px;flex-wrap:wrap")}>{v.sizeOpts.map((o, i) => <button key={i} onClick={o.pick} style={o.st}>{o.label}</button>)}</div></div>}
               {/* ── ตั้งค่ารายไฟล์ (เจ้าของสั่ง 2026-10-12): แต่ละไฟล์เลือกแนวกระดาษ · หน้า/แผ่น · เย็บมุม · เข้าเล่ม ของตัวเอง — โชว์ทุกไฟล์เสมอ ── */}
-              {v.showSides && (
+              {/* ยังไม่แนบไฟล์ = ซ่อนทั้งส่วน (เจ้าของสั่ง 2026-11-12: กล่องว่างรกหน้า) — แนบแล้วค่อยขึ้นการ์ดตั้งค่าของแต่ละไฟล์ */}
+              {v.showSides && v.files.length > 0 && (
                 <div style={css("display:flex;flex-direction:column;gap:8px")}>
                   <div style={css("font-size:13px;font-weight:600;color:var(--ink)")}>ตั้งค่าแต่ละไฟล์ <span style={css("font-weight:400;font-size:12px;color:var(--sub)")}>· จำนวนชุด · ด้านที่พิมพ์ · แนวกระดาษ · หน้า/แผ่น · เย็บมุม{v.showBind ? ' · เข้าเล่ม' : ''}</span></div>
-                  {!v.files.length && <div style={css("font-size:12px;color:var(--sub);background:var(--soft);border:1px dashed var(--line);border-radius:12px;padding:10px 12px;line-height:1.6")}>แนบไฟล์ด้านบนก่อน แล้วตั้งค่าของแต่ละไฟล์ได้ตรงนี้ครับ</div>}
                   {v.files.map((f, i) => (
                     <div key={i} style={css("border:1.5px solid var(--acc);border-radius:12px;padding:10px 12px;background:var(--card)")}>
                       <div style={css("display:flex;align-items:baseline;gap:7px;min-width:0")}>
