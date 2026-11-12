@@ -477,6 +477,7 @@ const stdSpecRows = (o, f) => {
   return [
     ['ขนาดกระดาษ', o.paper || 'A4'],
     ['ประเภท', fileTypeLabel(o, f)],
+    f && f.media === 'photo' ? ['ตัวเลือกเสริม', 'กระดาษโฟโต้'] : null, // กระดาษโฟโต้ (index.html บันทึก files[].media ตั้งแต่ 2026-11-12) · ไม่เลือก = กระดาษปกติ ไม่ขึ้นแถวนี้
     o.ptype === 'poster' ? null : ['ด้านที่พิมพ์', sides === 2 ? 'หน้า-หลัง' : 'หน้าเดียว'],
     orient ? ['แนวกระดาษ', orient === 'landscape' ? 'แนวนอน' : 'แนวตั้ง'] : null,
     nup ? ['หน้า/แผ่น', nup + ' หน้า/แผ่น'] : null,

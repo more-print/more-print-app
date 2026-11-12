@@ -74,6 +74,7 @@ const CONFIG = { nightOverride: 'auto', nightFee: 19, expressFee: 20, expressEna
   // ปริ้นขาวดำ "หน้าพื้นสีเต็ม" เช่นสไลด์พรีเซนต์ (เจ้าของสั่ง 2026-11-01): หน้าพิมพ์ละ ฿slidePrice คงที่ ไม่มีขั้นลด ไม่ว่าหน้าเดียว/หน้า-หลัง
   // เกณฑ์จับ (ทดสอบกับไฟล์จริง 716 หน้า): หมึกเฉลี่ยทั้งหน้า ≥ slideMinToner% และช่องพื้นหลังที่ไม่ขาว (สว่าง < slideBgLum) ≥ slideFillPct% ของหน้า
   slidePrice: 3, slideMinToner: 6, slideBgLum: 245, slideFillPct: 15,
+  photoPaperPrice: 25, // ปริ้นสีบนกระดาษโฟโต้ (Standard) ฿/หน้าพิมพ์ เหมารวม ไม่คิดตามปริมาณสี — เจ้าของสั่ง 2026-11-12
   // เวลาผลิต+ส่งโดยประมาณ (นาที) — บวกเพิ่มตามคิวค้างจริง: คิวก่อนหน้า × queuePerOrderMin
   etaStandardMin: 45, queuePerOrderMin: 15,
   cancelWindowMin: 10, // ลูกค้ายกเลิกเองได้ภายในกี่นาทีหลังชำระ (ต้องยังสถานะ "รับออเดอร์") — SQL customer_cancel ใช้เลขเดียวกัน แก้ต้องแก้คู่กัน
@@ -400,6 +401,7 @@ const POSTER_PRICE = { A5: 10, A4: 15, A3: 30, A2: 130, A1: 250, A0: 500 };
 //   กลางวัน: 1–75 หน้า ฿1 · 76–150 ฿0.75 · เกิน 150 ฿0.50
 //   กลางคืน (22:00–06:00): ขั้นขยับขึ้น 1–100 ฿1 · 101–200 ฿0.75 · เกิน 200 ฿0.50
 // หน้า-หลังพิมพ์ 2 ด้านก็คิด 2 หน้า — ด้านหลังไม่ฟรี (นโยบาย 2026-08-27) · การกำหนดหน้า (nup) เท่านั้นที่ทำให้จำนวนหน้าพิมพ์ลดลง
+const PHOTO_PRICE = CONFIG.photoPaperPrice ?? 25; // กระดาษโฟโต้ ฿/หน้าพิมพ์ (ปริ้นสี Standard) — แก้ที่ CONFIG.photoPaperPrice
 const SLIDE_PRICE = CONFIG.slidePrice ?? 3; // ขาวดำหน้าพื้นสีเต็ม (สไลด์) ฿/หน้าพิมพ์ — แก้ที่ CONFIG.slidePrice
 function bwSheetRate(totalSheets, sides, night){
   if (night) return totalSheets > 200 ? 0.50 : totalSheets > 100 ? 0.75 : 1.00;
@@ -1813,13 +1815,15 @@ class App extends React.Component {
   fileOpt(f){
     const s = this.state;
     const nupLock = s.tier === 'pro' || (s.ptype === 'mix' && (f.fmode || 'bw') === 'pages');
+    const photo = s.tier !== 'pro' && s.ptype === 'color' && f.media === 'photo'; // กระดาษโฟโต้ — เฉพาะปริ้นสี Standard (เจ้าของสั่ง 2026-11-12)
     return {
-      sides: s.tier === 'pro' ? (s.sides === 2 ? 2 : 1) : (f.sides === 2 ? 2 : 1), // ด้านที่พิมพ์รายไฟล์ (2026-10-12) · งาน Pro ยังเลือกครั้งเดียวทั้งออเดอร์
+      sides: s.tier === 'pro' ? (s.sides === 2 ? 2 : 1) : (f.sides === 2 && !photo ? 2 : 1), // ด้านที่พิมพ์รายไฟล์ (2026-10-12) · งาน Pro ยังเลือกครั้งเดียวทั้งออเดอร์ · กระดาษโฟโต้พิมพ์ได้ด้านเดียว
       orient: f.orient === 'landscape' ? 'landscape' : 'portrait',
       nup: nupLock ? 1 : ([2, 4, 6].includes(f.nup) ? f.nup : 1),
       // ไฟล์ 1 หน้าไม่มีอะไรให้เย็บ/เข้าเล่ม — ตัวเลือกทั้งสองถูกซ่อน (เจ้าของสั่ง 2026-11-12) จึงล้างค่าที่ค้างไว้ด้วย (ไม่คิดค่าเข้าเล่ม)
       bind: (s.tier === 'pro' || s.ptype === 'poster' || f.pages === 1) ? 'none' : (f.bind === 'corner' || STD_BINDS.some(b => b.k === f.bind) ? f.bind : 'none'),
       copies: s.tier === 'pro' ? Math.max(1, s.copies || 1) : Math.max(1, Math.floor(f.copies) || 1), // จำนวนชุดรายไฟล์ (เจ้าของสั่ง 2026-11-02) · Pro ใช้ช่องเดียวทั้งออเดอร์
+      media: photo ? 'photo' : 'plain', // กระดาษเสริม: 'photo' = กระดาษโฟโต้ (คิด ฿PHOTO_PRICE/หน้าพิมพ์ เหมา)
       nupLock
     };
   }
@@ -1883,13 +1887,16 @@ class App extends React.Component {
       printCost = Math.ceil(sheets * rate) + slideSheets * SLIDE_PRICE;
     }
     // ปริ้นสี: คิดทีละหน้าตามผลสแกนปริมาณสี (หน้า/ไฟล์ที่สแกนไม่ได้ = คิดเรทสีน้อยไว้ก่อน ร้านตรวจยืนยัน)
-    let heavyPages = 0, lightPages = 0;
+    let heavyPages = 0, lightPages = 0, photoSheets = 0;
     if (s.ptype === 'color') {
-      heavyPages = s.files.reduce((a, f) => a + Math.min(f.heavy || 0, f.pages) * cpOf(f), 0);
-      lightPages = totalPages - heavyPages;
+      // กระดาษโฟโต้ (2026-11-12): ราคาเหมาต่อหน้าพิมพ์ ไม่สแกนสี — สีน้อย/สีเยอะนับเฉพาะไฟล์กระดาษปกติ
+      const plain = s.files.filter(f => this.fileOpt(f).media !== 'photo');
+      heavyPages = plain.reduce((a, f) => a + Math.min(f.heavy || 0, f.pages) * cpOf(f), 0);
+      lightPages = plain.reduce((a, f) => a + f.pages * cpOf(f), 0) - heavyPages;
+      photoSheets = s.files.reduce((a, f) => { const o = this.fileOpt(f); return o.media === 'photo' ? a + Math.ceil(f.pages / o.nup) * o.copies : a; }, 0);
       // ด้านที่พิมพ์ + การกำหนดหน้า (nup) รายไฟล์: ราคาสีของแต่ละไฟล์ใช้เรทตามด้านของไฟล์นั้น หารตามหน้า/แผ่นของไฟล์นั้น (ทุกไฟล์ตั้งเท่ากัน = ผลเท่าสูตรเดิมเป๊ะ) · −1e-9 กันเศษทศนิยมลอยทำปัดเกิน
-      const colRaw = s.files.reduce((a, f) => { const o = this.fileOpt(f), r = this.colorRates(o.sides), h = Math.min(f.heavy || 0, f.pages); return a + ((f.pages - h) * r.lp + h * r.hp) / o.nup * o.copies; }, 0);
-      printCost = Math.ceil(colRaw - 1e-9);
+      const colRaw = s.files.reduce((a, f) => { const o = this.fileOpt(f), r = this.colorRates(o.sides), h = Math.min(f.heavy || 0, f.pages); return o.media === 'photo' ? a : a + ((f.pages - h) * r.lp + h * r.hp) / o.nup * o.copies; }, 0);
+      printCost = Math.ceil(colRaw - 1e-9) + photoSheets * PHOTO_PRICE;
     }
     // ปริ้นผสม (เจ้าของสั่ง 2026-10-08): หน้าสีเรทสแกนเดิม (สีน้อย 5 / สีเยอะ 7 · หน้า-หลัง 3.5/5)
     // หน้าขาวดำทุกไฟล์รวมกันเข้าขั้นเรทปริมาณเหมือนงานขาวดำ — ห้ามใช้กับรวมหน้า (nup ถูกล็อก 1 ตอนเลือกประเภทนี้)
@@ -1963,7 +1970,7 @@ class App extends React.Component {
         : cp.kind === 'freeship' ? deliveryCost // โค้ดส่งฟรี — หักเท่าค่าส่งของออเดอร์นี้
         : Math.min(cp.value, beforeDiscount);
     }
-    return { pages, totalPages, sheets, slideSheets, rate, heavyPages, lightPages, printCost, bindCost, printTotal: printCost + bindCost,
+    return { pages, totalPages, sheets, slideSheets, photoSheets, rate, heavyPages, lightPages, printCost, bindCost, printTotal: printCost + bindCost,
       deliveryFee, carJob, farNote, outOfArea, proPickupOn, deliveryPending: !proPickupOn && km == null,
       deliveryCost, expressFee, nightFee: nightFee2, discount, coupon: discount > 0 ? cp.code : null,
       grandTotal: Math.max(0, beforeDiscount - discount) };
@@ -2103,9 +2110,10 @@ class App extends React.Component {
         amt: amts[i] + bs[i].sl * cps[i] * SLIDE_PRICE }));
     } else if (s.ptype === 'color') {
       const hvs = s.files.map(f => Math.min(f.heavy || 0, f.pages));
-      const amts = alloc(s.files.map((f, i) => { const o = this.fileOpt(f), r = this.colorRates(o.sides); return ((f.pages - hvs[i]) * r.lp + hvs[i] * r.hp) / o.nup * cps[i]; })); // ด้าน+หน้า/แผ่น+ชุดรายไฟล์ — ต้องตรงสูตร calc
+      const fos = s.files.map(f => this.fileOpt(f)), phs = s.files.map((f, i) => fos[i].media === 'photo' ? Math.ceil(f.pages / fos[i].nup) * cps[i] : 0); // กระดาษโฟโต้: หน้าพิมพ์ × ฿PHOTO_PRICE
+      const amts = alloc(s.files.map((f, i) => { const o = fos[i], r = this.colorRates(o.sides); return o.media === 'photo' ? phs[i] * PHOTO_PRICE : ((f.pages - hvs[i]) * r.lp + hvs[i] * r.hp) / o.nup * cps[i]; })); // ด้าน+หน้า/แผ่น+ชุดรายไฟล์ — ต้องตรงสูตร calc
       s.files.forEach((f, i) => lines.push({ name: 'ไฟล์ที่ ' + (i + 1) + ' · ' + f.name,
-        desc: cpTag(i) + (f.pages * cps[i]) + ' หน้า' + (hvs[i] > 0 ? ' (สีเยอะ ' + (hvs[i] * cps[i]) + ' หน้า)' : ''), amt: amts[i] }));
+        desc: cpTag(i) + (fos[i].media === 'photo' ? '📸 กระดาษโฟโต้ ' + phs[i] + ' หน้าพิมพ์ × ฿' + PHOTO_PRICE : (f.pages * cps[i]) + ' หน้า' + (hvs[i] > 0 ? ' (สีเยอะ ' + (hvs[i] * cps[i]) + ' หน้า)' : '')), amt: amts[i] }));
     } else if (s.ptype === 'mix') {
       // ปริ้นผสม: ยอดต่อไฟล์ = หน้าขาวดำ × เรทขั้น (c.rate จาก calc) + หน้าสีตามสแกน — ปัดสะสมด้วย alloc ให้รวมเท่ายอดจริงเสมอ
       const mi = this.mixInfo();
@@ -2232,7 +2240,7 @@ class App extends React.Component {
           row.cpages = mx.mode === 'pages' ? pagesToRanges([...mx.set]) : null;
           row.cheavy = mx.ch || 0; row.clight = mx.cl || 0; row.cbw = mx.cBw || 0;
         }
-        if (s.tier !== 'pro') { const fo = D.fos[i]; row.sides = fo.sides; row.orient = fo.orient; row.nup = fo.nup; row.bind = fo.bind; row.copies = fo.copies; } // ตัวเลือกรายไฟล์ (2026-10-12) + จำนวนชุดรายไฟล์ (2026-11-02)
+        if (s.tier !== 'pro') { const fo = D.fos[i]; row.sides = fo.sides; row.orient = fo.orient; row.nup = fo.nup; row.bind = fo.bind; row.copies = fo.copies; if (fo.media === 'photo') { row.media = 'photo'; row.mprice = PHOTO_PRICE; } } // ตัวเลือกรายไฟล์ (2026-10-12) + จำนวนชุดรายไฟล์ (2026-11-02)
         // หน้าพื้นสีเต็ม (สไลด์) ที่คิด ฿slidePrice: slide = จำนวนหน้า (ก่อนรวมหน้า/ชุด) · spages = เลขหน้า · sprice = เรทตอนสั่ง (2026-11-01)
         if (s.tier !== 'pro' && (s.ptype === 'bw' || s.ptype === 'mix')) { const sl = D.mi ? D.mi.list[i].sBwList : this.slidePagesBw(f); if (sl.length) { row.slide = sl.length; row.spages = pagesToRanges(sl); row.sprice = SLIDE_PRICE; } }
         if (pItems) { const it = pItems[i]; row.paper = it.label; row.protype = it.spec.proType; row.copies = it.spec.proType === 'sticker' ? 1 : Math.max(1, it.spec.copies || 1); /* สติ๊กเกอร์หลายไฟล์คิดเงินไฟล์ละ 1 ชุดเสมอ (proItems ล็อก copies=1) — ต้องบันทึก 1 ให้ตรงกับที่ลูกค้าเห็น/จ่าย ไม่งั้นหลังบ้านขึ้นจำนวนชุดเกินจริง (ตรวจพบ 2026-10-15) */ row.sides = it.spec.sides === 2 ? 2 : 1; row.bind = it.spec.proType === 'foldbook' ? it.spec.proBind : 'none'; row.pcost = it.cost; } // Pro รายไฟล์ (2026-10-12)
@@ -3192,6 +3200,7 @@ class App extends React.Component {
                 : (() => { const x = mi.list[i]; if (!x || x.set.size === 0) return 'ปริ้นขาวดำทั้งไฟล์'; if (x.cBw === 0) return 'ปริ้นสีทั้งไฟล์';
                     const bw = []; for (let p = 1; p <= f.pages; p++) if (!x.set.has(p)) bw.push(p);
                     return 'ปริ้นสี หน้าที่ ' + pagesToRanges([...x.set]) + ' , ปริ้นขาวดำ หน้าที่ ' + pagesToRanges(bw); })()],
+              ...(o.media === 'photo' ? [['ตัวเลือกเสริม', 'กระดาษโฟโต้']] : []), // ไม่เลือก = กระดาษปกติ ไม่ขึ้นแถวนี้ — ข้อความตรงกับ stdSpecRows ใน admin.html
               ['ด้านที่พิมพ์', o.sides === 2 ? 'หน้า-หลัง' : 'หน้าเดียว'],
               ['แนวกระดาษ', o.orient === 'landscape' ? 'แนวนอน' : 'แนวตั้ง'],
               ['หน้า/แผ่น', o.nup + ' หน้า/แผ่น'],
@@ -3203,6 +3212,9 @@ class App extends React.Component {
                 return sl.length ? [['หน้าพื้นสีเต็ม', 'หน้าที่ ' + pagesToRanges(sl) + ' (ขาวดำ ฿' + SLIDE_PRICE + '/หน้า)']] : []; })()
             ],
             sidesSegs: [sm(this.seg('หน้าเดียว', o.sides === 1, () => setOpt({ sides: 1 }))), sm(this.seg('หน้า-หลัง', o.sides === 2, () => setOpt({ sides: 2 })))],
+            // ตัวเลือกกระดาษเสริม (เฉพาะปริ้นสี Standard — เจ้าของสั่ง 2026-11-12): กระดาษปกติ / กระดาษโฟโต้ ฿PHOTO_PRICE ต่อหน้าเหมา
+            showMedia: s.tier !== 'pro' && s.ptype === 'color', isPhoto: o.media === 'photo',
+            mediaSegs: [sm(this.seg('กระดาษปกติ', o.media !== 'photo', () => setOpt({ media: 'plain' }))), sm(this.seg('กระดาษโฟโต้ ฿' + PHOTO_PRICE + '/หน้า', o.media === 'photo', () => setOpt({ media: 'photo' })))],
             orientSegs: [sm(this.seg('แนวตั้ง', o.orient === 'portrait', () => setOpt({ orient: 'portrait' }))), sm(this.seg('แนวนอน', o.orient === 'landscape', () => setOpt({ orient: 'landscape' })))],
             nupSegs: [1, 2, 4, 6].map(n => sm(this.seg(n + ' หน้า', o.nup === n, () => setOpt({ nup: n })))),
             // เย็บมุมกับเข้าเล่มเป็นค่าเดียวกันในไฟล์ (เลือกอย่างใดอย่างหนึ่ง เหมือนช่องเดิม): เลือกเข้าเล่มแล้วเย็บมุมดับเอง และกลับกัน
@@ -3429,19 +3441,21 @@ class App extends React.Component {
         : s.ptype === 'bw'
         ? 'เรทตอนนี้ ' + (c.rate < 1 ? Math.round(c.rate * 100) + ' สต.' : '฿' + (Math.round(c.rate * 1000) / 1000)) + '/หน้าที่พิมพ์' + (c.sheets > 0 ? ' (รวม ' + c.sheets + ' หน้าพิมพ์ — ยิ่งเยอะยิ่งถูก)' : ' — ยิ่งเยอะยิ่งถูก') + (c.slideSheets > 0 ? ' · หน้าพื้นสีเต็ม ฿' + SLIDE_PRICE + '/หน้า' : '')
         : s.ptype === 'color'
-        ? (this.sidesMix().all2 ? 'เรทหน้า-หลัง สีน้อยแผ่นละ ฿7 · สีเยอะแผ่นละ ฿10 (แผ่นละ 2 หน้า) — ระบบสแกนไฟล์ให้อัตโนมัติ' : 'เรท สีน้อย ฿' + (CONFIG.colorLightPrice ?? 5) + ' · สีเยอะ ฿' + (CONFIG.colorHeavyPrice ?? 7) + ' /หน้า' + (this.sidesMix().mixed ? ' · ไฟล์หน้า-หลัง สีน้อยแผ่นละ ฿7 · สีเยอะแผ่นละ ฿10' : '') + ' — ระบบสแกนไฟล์ให้อัตโนมัติ')
+        ? (this.sidesMix().all2 ? 'เรทหน้า-หลัง สีน้อยแผ่นละ ฿7 · สีเยอะแผ่นละ ฿10 (แผ่นละ 2 หน้า) — ระบบสแกนไฟล์ให้อัตโนมัติ' : 'เรท สีน้อย ฿' + (CONFIG.colorLightPrice ?? 5) + ' · สีเยอะ ฿' + (CONFIG.colorHeavyPrice ?? 7) + ' /หน้า' + (this.sidesMix().mixed ? ' · ไฟล์หน้า-หลัง สีน้อยแผ่นละ ฿7 · สีเยอะแผ่นละ ฿10' : '') + ' — ระบบสแกนไฟล์ให้อัตโนมัติ') + (s.files.some(f => this.fileOpt(f).media === 'photo') ? ' · กระดาษโฟโต้ ฿' + PHOTO_PRICE + '/หน้า' : '')
         : s.ptype === 'mix'
         ? ('หน้าสี: ' + (this.sidesMix().all2 ? 'สีน้อยแผ่นละ ฿7 · สีเยอะแผ่นละ ฿10 (หน้า-หลัง)' : 'สีน้อย ฿' + (CONFIG.colorLightPrice ?? 5) + ' · สีเยอะ ฿' + (CONFIG.colorHeavyPrice ?? 7) + ' /หน้า' + (this.sidesMix().mixed ? ' (ไฟล์หน้า-หลัง แผ่นละ ฿7/฿10)' : '')) + ' — หน้าขาวดำเข้าขั้นเรทตามปริมาณ (ตอนนี้ ฿' + (c.rate < 1 ? Math.round(c.rate * 100) + ' สต.' : Math.round(c.rate * 1000) / 1000) + '/หน้า)')
         : 'เรท ฿' + c.rate + '/' + (s.ptype === 'poster' ? 'แผ่น' : 'หน้า'),
       colorNote: s.tier === 'pro' ? ''
         : (s.ptype === 'color' || s.ptype === 'mix')
         ? (!s.files.length ? '* หน้าสีเกิน ' + (CONFIG.colorHeavyPct ?? 50) + '% ของพื้นที่ หรือเป็นรูปภาพเต็มหน้า = สีเยอะ ฿' + (CONFIG.colorHeavyPrice ?? 7)
+          : s.ptype === 'color' && s.files.every(f => this.fileOpt(f).media === 'photo') ? '* กระดาษโฟโต้ ราคาเหมาหน้าละ ฿' + PHOTO_PRICE + ' (ไม่คิดตามปริมาณสี)'
           : s.files.some(f => !f.scanned) ? '* ไฟล์ที่ระบบสแกนสีไม่ได้ คิดเรทสีน้อยไว้ก่อน — ร้านตรวจไฟล์จริงและยืนยันราคาก่อนปริ้น'
           : c.heavyPages > 0 ? (this.sidesMix().mixed ? '* สแกนไฟล์แล้ว: สีเยอะ ' + c.heavyPages + ' หน้า · สีน้อย ' + c.lightPages + ' หน้า (เรทตามด้านที่พิมพ์ของแต่ละไฟล์)'
             : '* สแกนไฟล์แล้ว: สีเยอะ ' + c.heavyPages + ' หน้า × ฿' + this.colorRates(this.sidesMix().all2 ? 2 : 1).hp + ' · สีน้อย ' + c.lightPages + ' หน้า × ฿' + this.colorRates(this.sidesMix().all2 ? 2 : 1).lp)
           : s.ptype === 'color' ? '* สแกนไฟล์แล้ว: ทุกหน้าสีน้อย ฿' + (CONFIG.colorLightPrice ?? 5) + '/หน้า' : '')
         : s.ptype === 'poster' ? '* กระดาษอาร์ตมัน/ด้าน ราคาเท่ากัน' : '',
       colorBreak: s.tier === 'pro' ? ''
+        : s.ptype === 'color' && c.photoSheets > 0 ? [c.lightPages + c.heavyPages > 0 ? '🎨 กระดาษปกติ: สีน้อย ' + c.lightPages + ' หน้า' + (c.heavyPages > 0 ? ' + สีเยอะ ' + c.heavyPages + ' หน้า' : '') : '', '📸 กระดาษโฟโต้ ' + c.photoSheets + ' หน้าพิมพ์ × ฿' + PHOTO_PRICE].filter(Boolean).join(' + ') + ' = ฿' + c.printCost
         : s.ptype === 'color' && (c.heavyPages > 0 || s.files.some(f => this.fileOpt(f).nup > 1)) && c.totalPages > 0 ? (() => {
             const sm = this.sidesMix();
             if (sm.mixed) return '🎨 สีน้อย ' + c.lightPages + ' หน้า' + (c.heavyPages > 0 ? ' + สีเยอะ ' + c.heavyPages + ' หน้า' : '') + ' — คิดเรทตามด้านที่พิมพ์ + หน้า/แผ่นของแต่ละไฟล์ = ฿' + c.printCost; // ไฟล์ตั้งด้านต่างกัน: บิลรายไฟล์แตกให้ดูอยู่แล้ว
@@ -4826,9 +4840,15 @@ class App extends React.Component {
                           )}
                         </div>
                       )}
+                      {f.showMedia && <div style={css("margin-top:9px")}>
+                        <div style={css("font-size:11.5px;font-weight:700;color:var(--sub);margin-bottom:4px")}>ตัวเลือกกระดาษเสริม</div>
+                        <div style={css("display:flex;gap:6px")}>{f.mediaSegs.map((o, j) => <button key={j} onClick={o.pick} style={o.st}>{o.label}</button>)}</div>
+                      </div>}
                       <div style={css("margin-top:9px")}>
                         <div style={css("font-size:11.5px;font-weight:700;color:var(--sub);margin-bottom:4px")}>ด้านที่พิมพ์</div>
-                        <div style={css("display:flex;gap:6px")}>{f.sidesSegs.map((o, j) => <button key={j} onClick={o.pick} style={o.st}>{o.label}</button>)}</div>
+                        {f.isPhoto
+                          ? <div style={css("font-size:12px;color:var(--sub);line-height:1.6")}>หน้าเดียว — กระดาษโฟโต้พิมพ์ได้ด้านเดียว</div>
+                          : <div style={css("display:flex;gap:6px")}>{f.sidesSegs.map((o, j) => <button key={j} onClick={o.pick} style={o.st}>{o.label}</button>)}</div>}
                       </div>
                       <div style={css("margin-top:9px")}>
                         <div style={css("font-size:11.5px;font-weight:700;color:var(--sub);margin-bottom:4px")}>แนวกระดาษ</div>
