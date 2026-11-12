@@ -464,7 +464,7 @@ function Dash(){
           <Stat label={'คอมเรารวม' + periodLabel} value={baht(tot.comm)} color="var(--green)" sub="งานที่เสร็จแล้ว"/>
           <Stat label="ค้างโอนให้ทุกร้าน" value={baht(tot.unpaid)} color="var(--gold)" sub="งานเสร็จที่ยังไม่โอน"/>
         </div>
-        {unassigned > 0 && <div style={css("font-size:12px;color:var(--gold)")}>มีออเดอร์ Pro {unassigned} งานที่ยังไม่ระบุร้าน (ไม่นับในยอดร้านใด)</div>}
+        {unassigned > 0 && <div style={css("font-size:12px;color:var(--sub)")}>งาน Pro ที่ MORE PRINT จัดการเองที่หลังบ้านหลัก (ไม่ผ่านร้านพาร์ทเนอร์) {unassigned} งาน — ไม่นับในยอดร้านใด</div>}
 
         {shops === null ? <div style={css("color:var(--sub);font-size:13px")}>กำลังโหลด…</div> : (
           <div className="pa-grid">

@@ -1338,15 +1338,14 @@ function Dash(){
   const load = React.useCallback(async () => {
     if (!DB) return;
     setLoading(true);
-    const cols = 'id,created_at,status,print_cost,bind_cost,slip_path,customer_fname,paper,copies';
+    const cols = 'id,created_at,status,print_cost,bind_cost,slip_path,customer_fname,paper,copies,partner';
     const colsFull = cols + ',payout_at,pickup,sides,customer_lname,customer_phone,delivery_cost,night_fee,times,cancel_reason,files,total,addr,point,lat,lng';
     let r = await DB.from('orders').select(colsFull + ',cancelled_at,note,coupon,discount,adjustments,comm_rate').eq('ptype', 'pro').order('created_at', { ascending: false }).limit(3000); // comm_rate = เรทคอมรายใบ (ยังไม่รัน SQL = ตกลง fallback ล่าง)
     if (r.error) r = await DB.from('orders').select(colsFull).eq('ptype', 'pro').order('created_at', { ascending: false }).limit(3000); // ยังไม่รัน SQL ลบอัตโนมัติ
     if (r.error) r = await DB.from('orders').select(cols).eq('ptype', 'pro').order('created_at', { ascending: false }).limit(3000);
-    // งาน Pro จาก LINE OA (แอดมินบันทึกยอดในหลังบ้านหลัก — เจ้าของสั่ง 2026-11-13) = ยอดขายอย่างเดียว ไม่ใช่งานร้านพาร์ทเนอร์ → ไม่คิดคอม/ส่วนแบ่ง/ยอดค้างโอนที่หน้านี้
-    let lineIds = new Set();
-    try { const q = await DB.from('orders').select('id').eq('ptype', 'pro').eq('source', 'line').limit(5000); if (!q.error && q.data) lineIds = new Set(q.data.map(x => x.id)); } catch (e) {}
-    if (!r.error && r.data) { const rows = r.data.filter(o => !lineIds.has(o.id)); setOrders(rows.filter(o => !cancelledExpired(o))); purgeCancelled(rows); setLoadedAt(new Date()); }
+    // หน้านี้ = งาน Pro ที่ "ร้านพาร์ทเนอร์ทำ" เท่านั้น (มี partner) — คิดคอม/ส่วนแบ่ง/ยอดค้างโอน
+    // งาน Pro ใหม่ตั้งแต่ 2026-11-13 MORE PRINT จัดการเองที่หลังบ้านหลัก (partner ว่าง) และงาน Pro จาก LINE OA → ไม่อยู่หน้านี้ ไม่คิดส่วนแบ่ง
+    if (!r.error && r.data) { const rows = r.data.filter(o => !!o.partner); setOrders(rows.filter(o => !cancelledExpired(o))); purgeCancelled(rows); setLoadedAt(new Date()); }
     setLoading(false);
   }, []);
 

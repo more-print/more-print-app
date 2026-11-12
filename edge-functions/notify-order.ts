@@ -1,7 +1,7 @@
-// Edge Function: notify-order v9 — แจ้งเตือน LINE แยกกลุ่มตามประเภทงาน + ร้านทักลูกค้า (action=msg) + เช็คโควตา (action=quota)
+// Edge Function: notify-order v10 (2026-11-13: งาน Pro ใหม่ MORE PRINT จัดการเองที่ admin.html — แจ้งเข้ากลุ่มทีมหลักกลุ่มเดียวกับ Standard + ป้าย STANDARD/PRO ชัด ๆ · ไม่แจ้งร้านพาร์ทเนอร์ ยกเว้นงานเก่าที่ร้านทำ) · เดิม v9 — แจ้งเตือน LINE แยกกลุ่มตามประเภทงาน + ร้านทักลูกค้า (action=msg) + เช็คโควตา (action=quota)
 // Secrets: LINE_TOKEN
 //   LINE_OWNER_ID = กลุ่มทีมงาน Standard (ออเดอร์งานทั่วไป)
-//   LINE_PRO_ID   = กลุ่มทีมงาน Pro (ออเดอร์งาน Pro) — ยังไม่ตั้ง = ส่งเข้ากลุ่ม Standard ไปก่อน กันแจ้งเตือนหาย
+//   LINE_PRO_ID   = (v10 ไม่ใช้แล้ว — งาน Pro แจ้งกลุ่มเดียวกับ Standard)
 //   LINE_PARTNER_ID (ไม่บังคับ) = ร้านอุดมสุข
 // ?action=done + {id} → แจ้งว่างานผลิตเสร็จ/ส่งสำเร็จ เข้ากลุ่มของฝั่งนั้น ๆ
 // ?action=chat + {id} → ลูกค้าแชทมาใน Live Chat → แจ้งกลุ่มให้เข้าไปตอบ (กันสแปม: แจ้งเฉพาะข้อความแรกที่ยังไม่อ่าน)
@@ -24,11 +24,12 @@ Deno.serve(async (req) => {
     // รองรับหลายปลายทาง: ใส่ id คั่นด้วย , หรือเว้นบรรทัดก็ได้ (ทีมงานหลายคน / กลุ่ม LINE)
     const ids = (v) => (v || '').split(/[,\s]+/).map((x) => x.trim()).filter(Boolean);
     const owners = ids(Deno.env.get('LINE_OWNER_ID'));     // กลุ่มงาน Standard
-    const prosG = ids(Deno.env.get('LINE_PRO_ID'));          // กลุ่มงาน Pro
     const partners = ids(Deno.env.get('LINE_PARTNER_ID'));
     if (!token || !owners.length) return json({ error: 'missing-secrets' }, 500);
     // เลือกกลุ่มตามประเภทงาน — กลุ่ม Pro ยังไม่ตั้งค่า = ใช้กลุ่ม Standard แทน (แจ้งเตือนต้องไม่หาย)
-    const teamOf = (isPro) => (isPro && prosG.length) ? prosG : owners;
+    // v10 (เจ้าของสั่ง 2026-11-13): งาน Pro แจ้งเข้ากลุ่มทีมหลักกลุ่มเดียวกับ Standard — แยกด้วยป้ายในข้อความแทน
+    const teamOf = (_isPro) => owners;
+    const tagOf = (isPro) => isPro ? '🟣 [งาน PRO]' : '🔵 [งาน STANDARD]';
 
     const pushOne = (to, text) =>
       fetch('https://api.line.me/v2/bot/message/push', {
@@ -48,9 +49,9 @@ Deno.serve(async (req) => {
     const action = url.searchParams.get('action') || 'new';
 
     if (action === 'test') {
-      const r1 = await push(owners, '✅ ทดสอบสำเร็จ! กลุ่มนี้จะได้รับแจ้งเตือน "ออเดอร์งาน Standard" ครับ 🖨️');
-      const r2 = prosG.length ? await push(prosG, '✅ ทดสอบสำเร็จ! กลุ่มนี้จะได้รับแจ้งเตือน "ออเดอร์งาน PRO" ครับ ✨') : null;
-      return json({ ok: r1.ok, standard: r1.status, pro: r2 ? r2.status : 'ยังไม่ตั้ง LINE_PRO_ID' });
+      // v10: กลุ่มทีมหลักกลุ่มเดียวรับทั้ง Standard และ PRO (LINE_PRO_ID ไม่ใช้แล้ว)
+      const r1 = await push(owners, '✅ ทดสอบสำเร็จ! กลุ่มนี้จะได้รับแจ้งเตือนออเดอร์ทั้ง 🔵 [งาน STANDARD] และ 🟣 [งาน PRO] ครับ 🖨️');
+      return json({ ok: r1.ok, status: r1.status });
     }
 
     if (action === 'quota') {
@@ -75,8 +76,10 @@ Deno.serve(async (req) => {
     const srKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '';
     const hdrs = { apikey: srKey, Authorization: 'Bearer ' + srKey };
     const baseCols = 'id,created_at,status,cancel_reason,line_uid,customer_fname,total,ptype,paper,addr,pickup,copies';
+    // partner = งาน Pro ที่ร้านพาร์ทเนอร์ทำ (งานเก่า) — งานใหม่ว่าง · ขอพร้อม note ก่อน ไม่มีคอลัมน์ค่อยถอย
     // ขอคอลัมน์ note ด้วย — ฐานข้อมูลที่ยังไม่มีคอลัมน์นี้ให้ถอยไปขอชุดเดิม (ห้ามพังทุก action)
-    let rows = await (await fetch(sbUrl + '/rest/v1/orders?id=eq.' + encodeURIComponent(id) + '&select=' + baseCols + ',note', { headers: hdrs })).json();
+    let rows = await (await fetch(sbUrl + '/rest/v1/orders?id=eq.' + encodeURIComponent(id) + '&select=' + baseCols + ',note,partner', { headers: hdrs })).json();
+    if (!Array.isArray(rows)) rows = await (await fetch(sbUrl + '/rest/v1/orders?id=eq.' + encodeURIComponent(id) + '&select=' + baseCols + ',note', { headers: hdrs })).json();
     if (!Array.isArray(rows)) rows = await (await fetch(sbUrl + '/rest/v1/orders?id=eq.' + encodeURIComponent(id) + '&select=' + baseCols, { headers: hdrs })).json();
     const o = Array.isArray(rows) && rows[0];
     if (!o) return json({ error: 'order-not-found' }, 404);
@@ -112,10 +115,10 @@ Deno.serve(async (req) => {
       if (Date.now() - new Date(o.created_at).getTime() > 30 * 60 * 1000) return json({ error: 'too-old' }, 400);
       const isPro = o.ptype === 'pro';
       const r1 = await push(teamOf(isPro),
-        '↩️ ลูกค้ายกเลิกออเดอร์ ' + o.id + ' เอง\n'
-        + 'คุณ' + (o.customer_fname || 'ลูกค้า') + ' · ' + (isPro ? '✨ PRO ' + (o.paper || '') : 'งานทั่วไป') + ' · ฿' + (o.total || 0) + '\n'
+        tagOf(isPro) + '\n↩️ ลูกค้ายกเลิกออเดอร์ ' + o.id + ' เอง\n'
+        + 'คุณ' + (o.customer_fname || 'ลูกค้า') + ' · ' + (isPro ? (o.paper || 'งาน PRO') : 'งานเอกสาร') + ' · ฿' + (o.total || 0) + '\n'
         + '⛔ ไม่ต้องทำงานนี้แล้ว — ถ้าลูกค้าโอนเงินแล้ว รอลูกค้าทักมาขอคืนครับ');
-      if (isPro && partners.length) {
+      if (isPro && o.partner && partners.length) { // แจ้งร้านเฉพาะงานที่ร้านพาร์ทเนอร์รับไปทำ (งานเก่า)
         await push(partners, '⛔ งาน PRO ' + o.id + ' ถูกยกเลิกโดยลูกค้า — ไม่ต้องผลิตครับ');
       }
       return json({ ok: r1.ok, status: r1.status });
@@ -132,7 +135,7 @@ Deno.serve(async (req) => {
       if (msgs.length > 1) return json({ ok: false, reason: 'already-notified' });
       const isPro = o.ptype === 'pro';
       const r1 = await push(teamOf(isPro),
-        '💬 ลูกค้าแชทมาใหม่ · ออเดอร์ ' + o.id + (isPro ? ' (✨ PRO)' : '') + '\n'
+        tagOf(isPro) + '\n💬 ลูกค้าแชทมาใหม่ · ออเดอร์ ' + o.id + '\n'
         + 'คุณ' + (o.customer_fname || 'ลูกค้า') + ': "' + String(msgs[0].body || '').slice(0, 120) + '"\n'
         + 'เข้าไปตอบที่แท็บ 💬 แชท: https://more-print.github.io/more-print-app/admin.html');
       return json({ ok: r1.ok, status: r1.status });
@@ -141,35 +144,29 @@ Deno.serve(async (req) => {
     if (action === 'done') {
       // งานเสร็จ/ส่งสำเร็จ → รีมาร์คเข้ากลุ่มของฝั่งนั้น (เช็คสถานะจริงจากฐานข้อมูล)
       const isPro = o.ptype === 'pro';
-      const who = 'คุณ' + (o.customer_fname || 'ลูกค้า') + ' · ' + (isPro ? '✨ PRO ' + (o.paper || '') : 'งานทั่วไป') + ' · ฿' + (o.total || 0);
+      const who = 'คุณ' + (o.customer_fname || 'ลูกค้า') + ' · ' + (isPro ? (o.paper || 'งาน PRO') : 'งานเอกสาร') + ' · ฿' + (o.total || 0);
       let text = null;
       if (o.status === 4) {
-        text = (o.pickup ? '✅ ออเดอร์ ' + o.id + ' ลูกค้ารับสินค้าแล้ว 🎉' : '✅ ออเดอร์ ' + o.id + ' จัดส่งสำเร็จแล้ว 🎉') + '\n' + who;
+        text = tagOf(isPro) + '\n' + (o.pickup ? '✅ ออเดอร์ ' + o.id + ' ลูกค้ารับสินค้าแล้ว 🎉' : '✅ ออเดอร์ ' + o.id + ' จัดส่งสำเร็จแล้ว 🎉') + '\n' + who;
       } else if (o.status === 3 && o.pickup) {
-        text = '📦 ออเดอร์ ' + o.id + ' ผลิตเสร็จแล้ว — รอลูกค้ามารับที่' + (isPro ? 'ร้านอุดมสุข' : 'หน้าร้าน MORE PRINT') + '\n' + who;
+        text = tagOf(isPro) + '\n📦 ออเดอร์ ' + o.id + ' ผลิตเสร็จแล้ว — รอลูกค้ามารับที่' + (isPro ? 'จุดรับงาน Pro' : 'หน้าร้าน MORE PRINT') + '\n' + who;
       }
       if (!text) return json({ ok: false, reason: 'not-done-yet' });
       const r1 = await push(teamOf(isPro), text);
       return json({ ok: r1.ok, status: r1.status });
     }
 
-    // ออเดอร์ใหม่ → แจ้งเจ้าของ (+พาร์ทเนอร์ถ้าเป็นงาน Pro)
+    // ออเดอร์ใหม่ → แจ้งกลุ่มทีมหลัก (Standard + Pro กลุ่มเดียวกัน แยกด้วยป้าย) — v10: ไม่แจ้งร้านพาร์ทเนอร์แล้ว (งาน Pro ใหม่ MORE PRINT จัดการเอง)
     if (o.status === 0) return json({ error: 'cancelled-order' }, 400); // ออเดอร์ที่ยกเลิกแล้วห้ามเด้งเป็น "ออเดอร์ใหม่"
     if (Date.now() - new Date(o.created_at).getTime() > 10 * 60 * 1000) return json({ error: 'too-old' }, 400);
     const isPro = o.ptype === 'pro';
-    const text = '🖨️ ออเดอร์ใหม่ ' + o.id + '\n'
-      + 'คุณ' + (o.customer_fname || 'ลูกค้า') + ' · ' + (isPro ? '✨ PRO ' + (o.paper || '') : 'งานทั่วไป') + ' · ฿' + (o.total || 0) + '\n'
+    const text = tagOf(isPro) + '\n🖨️ ออเดอร์ใหม่ ' + o.id + '\n'
+      + 'คุณ' + (o.customer_fname || 'ลูกค้า') + ' · ' + (isPro ? (o.paper || 'งาน PRO') : 'งานเอกสาร') + ' · ฿' + (o.total || 0) + '\n'
       // จุดรับเองแยกตามประเภทงาน (แก้ 2026-09-10): Pro = ร้านอุดมสุขปริ้นติ้ง · Standard = หน้าร้าน MORE PRINT — ต้องตรงกับป้าย addr ใน index.html
-      + (o.pickup ? (isPro ? '🏪 ลูกค้ามารับเองที่อุดมสุข' : '🏪 ลูกค้ามารับหน้าร้าน MORE PRINT (หอพักบริบูรณ์เพลส)') : '📍 ' + (o.addr || '-')) + '\n'
+      + (o.pickup ? (isPro ? '🏪 ลูกค้ามารับเองที่จุดรับงาน Pro' : '🏪 ลูกค้ามารับหน้าร้าน MORE PRINT (หอพักบริบูรณ์เพลส)') : '📍 ' + (o.addr || '-')) + '\n'
       + (o.note ? '📝 หมายเหตุ: ' + String(o.note).slice(0, 200) + '\n' : '')
-      + 'จัดการ: https://more-print.github.io/more-print-app/' + (isPro ? 'commission' : 'admin') + '.html';
+      + 'จัดการ: https://more-print.github.io/more-print-app/admin.html';
     const r1 = await push(teamOf(isPro), text);
-    if (isPro && partners.length) {
-      await push(partners, '✨ งาน PRO ใหม่ ' + o.id + '\n' + (o.paper || '') + ' × ' + (o.copies || 1) + ' ชุด'
-        + (o.note ? '\n📝 หมายเหตุ: ' + String(o.note).slice(0, 200) : '')
-        + (o.pickup ? '\n🏪 ลูกค้าจะมารับเองที่ร้าน' : '\n🛵 MORE PRINT จะมารับไปส่ง')
-        + '\nเปิดงาน: https://more-print.github.io/more-print-app/pro.html');
-    }
     return json({ ok: r1.ok, status: r1.status });
   } catch (e) {
     return json({ error: String(e) }, 500);

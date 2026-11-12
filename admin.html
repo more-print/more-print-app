@@ -512,6 +512,59 @@ function SpecBox({ rows, title, sub, grow }){
     </div>
   );
 }
+// ── สเปกงาน Pro (เจ้าของสั่ง 2026-11-13: งาน Pro ทุกใบมาอยู่หัวข้อออเดอร์ของหลังบ้านหลัก) — แกะจากป้าย paper แบบเดียวกับ commission.html / pro.html ──
+const ADM_PRO_SPEC_KEYS = [
+  [/บอร์ด/, 'บอร์ด'],
+  [/^(พีพีฟิล์ม|ไวนิล|กระดาษโฟโต้|กระดาษอาร์ต)$/, 'กระดาษ'],
+  [/^กระดาษพิเศษ$/, 'ตัวเลือกเสริม'],
+  [/เคลือบ/, 'การเคลือบ'],
+  [/^(พิมพ์)?(หน้า-หลัง|หน้าเดียว)$/, 'ด้านที่พิมพ์'],
+  [/^แนว(ตั้ง|นอน)$/, 'แนวกระดาษ'],
+  [/^\d+ หน้า$/, 'จำนวนหน้า'],
+  [/เย็บ/, 'การเย็บเล่ม'],
+  [/ขาตั้ง/, 'ขาตั้ง'],
+  [/ซม\.|ชิ้น|ลาย/, 'ขนาด/จำนวน']
+];
+function admProSpecRows(o){
+  const parts = String(o.paper || '').split(' · ').map(x => x.trim()).filter(Boolean);
+  const base = parts.shift() || '';
+  const rows = [];
+  let m;
+  if ((m = base.match(/^(เพลท|โปสเตอร์) (\S+)$/))) rows.push(['ประเภทงาน', m[1]], ['ขนาด', m[2]]);
+  else if ((m = base.match(/^Postcard (\S+) \((.+)\)$/))) rows.push(['ประเภทงาน', 'Postcard'], ['ขนาด', m[1] + ' (' + m[2] + ')']);
+  else if ((m = base.match(/^พับครึ่ง เล่ม (\S+) \(กระดาษ (\S+)\)$/))) rows.push(['ประเภทงาน', 'พับครึ่ง (เข้าเล่ม/เมนู)'], ['ขนาดเล่ม', m[1]], ['ขนาดกระดาษ', m[2]]);
+  else if ((m = base.match(/^นามบัตร (\d+) ใบ ?(หน้า-หลัง|หน้าเดียว)?$/))) { rows.push(['ประเภทงาน', 'นามบัตร'], ['จำนวนใบ', m[1] + ' ใบ']); if (m[2]) rows.push(['ด้านที่พิมพ์', m[2]]); }
+  else if ((m = base.match(/^(ปริ้นสีขาวดำขนาดใหญ่.*) (A\d)$/))) rows.push(['ประเภทงาน', m[1]], ['ขนาด', m[2]]);
+  else if ((m = base.match(/^สติ๊กเกอร์ ?(.*)$/))) { rows.push(['ประเภทงาน', 'สติ๊กเกอร์']); if (m[1]) rows.push(['เนื้อสติ๊กเกอร์', m[1]]); }
+  else if (/^A\d$/.test(base)) rows.push(['ขนาด', base]);
+  else rows.push(['ประเภทงาน', base || 'งาน PRO']);
+  parts.forEach(p => { const k = ADM_PRO_SPEC_KEYS.find(([re]) => re.test(p)); rows.push([k ? k[1] : 'รายละเอียด', p]); });
+  if (!rows.some(r => r[0] === 'ด้านที่พิมพ์')) rows.push(['ด้านที่พิมพ์', o.sides === 2 ? 'หน้า-หลัง' : 'หน้าเดียว']);
+  if (o.bind && o.bind !== 'none') rows.push(['เข้าเล่ม', o.bind]);
+  rows.push(['จำนวนชุด', (o.copies || 1) + ' ชุด']);
+  return rows;
+}
+const admProPerFile = (o) => (o.files || []).length > 1 && (o.files || []).some(f => f.paper);
+const admProFileRows = (o, f) => admProSpecRows({ paper: f.paper || o.paper, copies: f.copies || 1, sides: f.sides || o.sides, bind: f.paper ? (f.bind || 'none') : o.bind });
+function AdmProSpecs({ o }){
+  if (!admProPerFile(o)) return <SpecBox rows={admProSpecRows(o)}/>;
+  return (
+    <React.Fragment>
+      <div style={css("margin-bottom:5px;font-size:11px;font-weight:700;color:" + PRO_TAG_COLOR)}>สั่ง {o.files.length} ไฟล์ · แต่ละไฟล์คนละสเปก — เลื่อนไปทางขวาดูครบทุกไฟล์ →</div>
+      <div style={css("display:flex;gap:8px;overflow-x:auto;padding-bottom:3px")}>
+        {o.files.map((f, i) => <SpecBox key={i} grow title={'ไฟล์ ' + (i + 1)} sub={f.name} rows={admProFileRows(o, f)}/>)}
+      </div>
+    </React.Fragment>
+  );
+}
+// แท็กประเภทงานบนแถบการ์ด: STANDARD (น้ำเงิน) / PRO (ม่วง) — งาน Pro ใบเก่าที่ร้านพาร์ทเนอร์ทำ ต่อท้ายชื่อร้าน
+const PRO_TAG_COLOR = '#7048e8';
+const SHOP_SHORT = { udomsuk: 'อุดมสุข', langmor: 'หลังมอ' };
+function TypeTag({ o }){
+  const pro = o.ptype === 'pro';
+  return <span style={css("flex:none;font-size:10px;font-weight:800;letter-spacing:.3px;padding:2px 7px;border-radius:6px;white-space:nowrap;"
+    + (pro ? "color:#fff;background:" + PRO_TAG_COLOR : "color:var(--acc);background:var(--accSoft);border:1px solid var(--acc)"))}>{pro ? 'PRO' + (o.partner ? ' · ' + (SHOP_SHORT[o.partner] || o.partner) : '') : 'STANDARD'}</span>;
+}
 
 function AdminLogin({ onOk }){
   const [email, setEmail] = React.useState('');
@@ -1122,6 +1175,7 @@ function OrderCard({ o, idx, due, onAdvance, onRetreat, onApplyEdits, onCancel, 
           </div>
         </div>
         {/* ใบงานด่วน: ป้ายแดงบนแถบหัว ก่อนสถานะ+ราคา — เห็นตั้งแต่ยังไม่กางการ์ด (เจ้าของสั่ง 2026-09-17) */}
+        <TypeTag o={o}/>
         {o.express && <span style={css("flex:none;font-size:12px;font-weight:800;color:#e03131")}>⚡ งานด่วน</span>}
         {o.source === 'line' && <span style={css("flex:none;font-size:10.5px;font-weight:800;color:#fff;background:#06C755;padding:2px 8px;border-radius:99px;white-space:nowrap")}>LINE OA</span>}
         <StatusBadge status={o.status} o={o}/>
@@ -1232,7 +1286,7 @@ function OrderCard({ o, idx, due, onAdvance, onRetreat, onApplyEdits, onCancel, 
           <div style={css("display:flex;gap:10px;font-size:12px")}>
             <span style={css("flex:none;width:64px;color:var(--sub);font-weight:600;padding-top:9px")}>{FI.printer(12)} ประเภทงาน</span>
             <div style={css("flex:1;min-width:0")}>
-              {(o.files || []).length > 1
+              {o.ptype === 'pro' ? <AdmProSpecs o={o}/> : (o.files || []).length > 1
                 ? <React.Fragment>
                     <div className={"mp-swipe-hint" + (o.files.length > 2 ? " all" : "")} style={css("margin-bottom:5px;font-size:11px;font-weight:700;color:var(--acc)")}>สั่ง {o.files.length} ไฟล์ — เลื่อนไปทางขวาดูกล่องสเปกครบทุกไฟล์ →</div>
                     <div style={css("display:flex;gap:8px;overflow-x:auto;padding-bottom:3px")}>{/* สั่งหลายไฟล์ = กล่องสเปกละไฟล์ เรียงไปทางขวา (เจ้าของสั่ง 2026-10-12) */}
@@ -1243,7 +1297,7 @@ function OrderCard({ o, idx, due, onAdvance, onRetreat, onApplyEdits, onCancel, 
               {o.ptype === 'mix' && new Date(o.created_at) < MIX_BUG_FIXED_AT && (o.files || []).length > 0 && (o.files || []).every(f => !f.cmode || f.cmode === 'bw') && (
                 <div style={css("margin-top:6px;background:#ffe3e3;border:1.5px solid #c92a2a;border-radius:10px;padding:7px 11px;font-size:11.5px;font-weight:700;color:#c92a2a;line-height:1.6")}>⚠️ ออเดอร์ปริ้นผสมก่อน 15 ต.ค. 69 — ระบบเคยบันทึกไฟล์ที่ลูกค้าเลือก "สี" เป็นขาวดำผิด (แก้แล้ว) ค่าปริ้น ฿{o.print_cost} คิดจากที่ลูกค้าเลือกจริง ถ้ามากกว่าจำนวนหน้าขาวดำแปลว่ามีไฟล์สี → เช็คกับลูกค้าก่อนปริ้นว่าไฟล์ไหน/หน้าไหนสี</div>
               )}
-              {o.ptype === 'pro' && <div style={css("margin-top:4px;font-size:11px;font-weight:700;color:#c92a2a;line-height:1.5")}>งาน PRO ยังไม่มีเรทราคา — ตกลง/ยืนยันราคาปริ้นกับลูกค้าก่อนเริ่มงาน (ยอดที่ลูกค้าชำระแล้วคือค่าส่งเท่านั้น)</div>}
+              {o.ptype === 'pro' && !(Number(o.print_cost) > 0) && <div style={css("margin-top:4px;font-size:11px;font-weight:700;color:#c92a2a;line-height:1.5")}>งาน PRO ยังไม่มีเรทราคา — ตกลง/ยืนยันราคาปริ้นกับลูกค้าก่อนเริ่มงาน (ยอดที่ลูกค้าชำระแล้วคือค่าส่งเท่านั้น)</div>}
               {/* หมายเหตุการปริ้นอยู่คู่ประเภทงาน · หมายเหตุการส่งอยู่คู่จุดส่ง — แยกชัดเจน (เจ้าของสั่ง 2026-10-07) */}
               {o.note && <div style={css("margin-top:6px;background:#fff7e0;border:1px solid #f0c36d;border-radius:10px;padding:8px 11px;font-size:12.5px;color:#8a6d1a;line-height:1.6")}><b>📝 หมายเหตุการปริ้น (จากลูกค้า):</b> {o.note}</div>}
             </div>
@@ -2068,7 +2122,7 @@ const proJobNet = (o) => Math.max(0, proJobValue(o) + (o.adjustments || []).redu
 const proCommRate = (o) => { const r = Number(o && o.comm_rate); return isFinite(r) && r > 0 && r < 1 ? r : PRO_COMMISSION; };
 const proPartnerOf = (o) => proJobNet(o) * (1 - proCommRate(o));
 const isPro = (o) => o.ptype === 'pro';
-const ownRevenue = (o) => (o.total || 0) - (isPro(o) && o.source !== 'line' ? proPartnerOf(o) : 0); // Pro จาก LINE OA = บันทึกยอดอย่างเดียว ไม่หักส่วนร้าน // รายได้ที่เข้าร้านจริง: Standard = ทั้งบิล · Pro = บิล − ส่วนของร้านพาร์ทเนอร์
+const ownRevenue = (o) => (o.total || 0) - (isPro(o) && o.partner && o.source !== 'line' ? proPartnerOf(o) : 0); // หักส่วนร้านเฉพาะงาน Pro ที่ร้านพาร์ทเนอร์ทำ (มี partner) — งาน Pro ที่ MORE PRINT จัดการเอง/LINE OA = ของเราเต็มบิล // รายได้ที่เข้าร้านจริง: Standard = ทั้งบิล · Pro = บิล − ส่วนของร้านพาร์ทเนอร์
 const STD_COLOR = 'var(--acc)', PRO_COLOR = '#7048e8'; // เขียว/ม่วง — ผ่านเช็กตาบอดสี (ΔE 30)
 
 function overviewSummary(rows, start, end){
@@ -2321,6 +2375,7 @@ function AdminApp(){
   const dueMap = React.useMemo(() => { const m = {}, ix = dueIndex(orders); orders.forEach(o => { m[o.id] = dueInfo(o, ix); }); return m; }, [orders]); // กำหนดเวลาตามเกณฑ์ (คิดคิว ณ ตอนสั่งของแต่ละใบ)
   const [lastSync, setLastSync] = React.useState(null);
   const [oaOpen, setOaOpen] = React.useState(false); // หน้าต่างเพิ่มออเดอร์ LINE OA
+  const [typeFilter, setTypeFilter] = React.useState('all'); // ประเภทงานในหัวข้อออเดอร์: all | std | pro
   const [filter, setFilter] = React.useState('pending'); // แถบสถานะแบบ pro.html: กำลังทำ/เสร็จแล้ว/ยกเลิก
   const [period, setPeriod] = React.useState('day'); // ช่วงเวลาแบบ pro.html: วันนี้/สัปดาห์/เดือน/ปี
   const [zoneFilter, setZoneFilter] = React.useState('all');
@@ -2782,9 +2837,9 @@ function AdminApp(){
         const meta = {};
         data.forEach(o => { meta[o.id] = { ptype: o.ptype, fname: o.customer_fname, lname: o.customer_lname, phone: o.customer_phone, addr: o.addr, aphone: o.phone, total: o.total, status: o.status }; });
         setOrderMeta(meta);
-        setOrders(data.filter(o => (o.ptype !== 'pro' || o.source === 'line') && !cancelledExpired(o))); // งาน Pro จาก LINE OA = บันทึกยอดในหลังบ้านหลัก (ไม่ใช่งานร้านพาร์ทเนอร์)
+        setOrders(data.filter(o => !cancelledExpired(o))); // Standard + Pro ทุกใบ (เจ้าของสั่ง 2026-11-13: งาน Pro ย้ายมาบริหารที่หลังบ้านหลัก)
         setLastSync(new Date());
-        const fresh = takeNewOrders(data.filter(o => o.ptype !== 'pro'), 'mp_alarm_std'); // ออเดอร์ Standard ใหม่ → เสียงเรียก (งาน Pro ดังที่ pro.html)
+        const fresh = takeNewOrders(data, 'mp_alarm_std'); // ออเดอร์ใหม่ทั้ง Standard และ Pro → เสียงเรียกที่หลังบ้านหลัก (งาน Pro ไม่เด้งที่ร้านพาร์ทเนอร์แล้ว) // ออเดอร์ Standard ใหม่ → เสียงเรียก (งาน Pro ดังที่ pro.html)
         if (fresh.length) ringRef.current(fresh);
         purgeCancelled(data); // แอดมินเก็บกวาดให้ทุกประเภทงาน รวมงาน Pro ด้วย
         autoPurgeFiles(data); // ลบไฟล์ออเดอร์ส่งสำเร็จเกิน 7 วัน (ไม่ await — ทำเบื้องหลัง)
@@ -3069,9 +3124,10 @@ function AdminApp(){
   const PERIODS = [['day', 'วันนี้', pToday], ['week', 'สัปดาห์นี้', pWeek], ['month', 'เดือนนี้', new Date(now.getFullYear(), now.getMonth(), 1)], ['year', 'ปีนี้', new Date(now.getFullYear(), 0, 1)]];
   const curP = PERIODS.find(x => x[0] === period) || PERIODS[0];
   const inPeriod = (o) => new Date(o.created_at) >= curP[2];
-  const ordActive = orders.filter(o => o.status >= 1 && o.status < 4);
-  const ordDone = orders.filter(o => o.status === 4 && inPeriod(o)).sort((a, b) => new Date(b.created_at) - new Date(a.created_at)); // งานเพิ่งเสร็จอยู่บนสุด แต่เลขลำดับนับจากเก่าสุด=1 ที่ล่างสุด (เจ้าของปรับ 2026-09-27 — ดูเลข idx ตอนเรนเดอร์)
-  const ordCancel = orders.filter(o => o.status === 0 && inPeriod(o));
+  const ordersT = typeFilter === 'all' ? orders : orders.filter(o => (o.ptype === 'pro') === (typeFilter === 'pro')); // ตัวกรองประเภทงาน
+  const ordActive = ordersT.filter(o => o.status >= 1 && o.status < 4);
+  const ordDone = ordersT.filter(o => o.status === 4 && inPeriod(o)).sort((a, b) => new Date(b.created_at) - new Date(a.created_at)); // งานเพิ่งเสร็จอยู่บนสุด แต่เลขลำดับนับจากเก่าสุด=1 ที่ล่างสุด (เจ้าของปรับ 2026-09-27 — ดูเลข idx ตอนเรนเดอร์)
+  const ordCancel = ordersT.filter(o => o.status === 0 && inPeriod(o));
   const statusShown = filter === 'done' ? ordDone : filter === 'cancelled' ? ordCancel : ordActive;
   // กรองตามโซนไรเดอร์
   const zoneCounts = {};
@@ -3098,7 +3154,7 @@ function AdminApp(){
           <div style={css("width:38px;height:38px;border-radius:50%;background:#fff;display:flex;align-items:center;justify-content:center;overflow:hidden;flex:none")}><img src="assets/logo-icon-blue.png" alt="" style={css("width:27px;height:auto;display:block")}/></div>
           <div style={css("min-width:0")}>
             <div style={css("font-family:'Montserrat',sans-serif;font-weight:800;font-size:13.5px;letter-spacing:1px;color:#fff")}><span style={css("color:var(--accBright)")}>MORE</span> PRINT</div>
-            <div style={css("font-size:9.5px;color:#9AA8CC;margin-top:2px")}>หลังบ้านร้าน (Standard)</div>
+            <div style={css("font-size:9.5px;color:#9AA8CC;margin-top:2px")}>หลังบ้านร้าน (Standard + Pro)</div>
           </div>
           <button className="mp-close" onClick={() => setNavOpen(false)} style={css("margin-left:auto;background:none;border:none;color:#9AA8CC;font-size:16px;cursor:pointer;flex:none")}>✕</button>
         </div>
@@ -3354,6 +3410,13 @@ function AdminApp(){
               <button key={k} onClick={() => setPeriod(k)} style={{ flex: 1, height: '34px', borderRadius: '99px', cursor: 'pointer', fontSize: '11px', fontWeight: 700, fontFamily: 'inherit',
                 border: period === k ? '1.5px solid var(--acc)' : '1px solid var(--line)',
                 background: period === k ? 'var(--accSoft)' : 'var(--card)', color: period === k ? 'var(--acc)' : 'var(--sub)' }}>{label}</button>
+            ))}
+          </div>
+          <div style={css("display:flex;gap:6px")}>
+            {[['all', 'ทั้งหมด', orders.length], ['std', 'Standard', orders.filter(o => o.ptype !== 'pro').length], ['pro', 'PRO', orders.filter(o => o.ptype === 'pro').length]].map(([k, l, n]) => (
+              <button key={k} onClick={() => setTypeFilter(k)} style={{ flex: 1, height: '34px', borderRadius: '10px', cursor: 'pointer', fontSize: '11.5px', fontWeight: 800, fontFamily: 'inherit',
+                border: typeFilter === k ? '1.5px solid ' + (k === 'pro' ? PRO_TAG_COLOR : 'var(--acc)') : '1px solid var(--line)',
+                background: typeFilter === k ? (k === 'pro' ? PRO_TAG_COLOR : 'var(--acc)') : 'var(--card)', color: typeFilter === k ? '#fff' : 'var(--sub)' }}>{l}</button>
             ))}
           </div>
           <div style={css("font-size:10.5px;color:var(--sub)")}>รายการเสร็จแล้ว/ยกเลิกกรองตามช่วงที่เลือก · งานที่ยังไม่เสร็จแสดงทุกช่วงเสมอ</div>
