@@ -368,8 +368,10 @@ function Dash(){
     const s = await DB.from('shops').select('*').order('created_at', { ascending: true });
     if (s.error) { setErr('ยังไม่มีตารางร้าน (shops) — ต้องรัน SQL แยกร้านพาร์ทเนอร์ก่อน'); setShops([]); setLoading(false); return; }
     setShops(s.data || []);
-    const o = await DB.from('orders').select('id,created_at,status,print_cost,bind_cost,delivery_cost,discount,adjustments,comm_rate,payout_at,partner').eq('ptype', 'pro').order('created_at', { ascending: false }).limit(5000);
-    setOrders(o.error ? [] : (o.data || []));
+    const oc = 'id,created_at,status,print_cost,bind_cost,delivery_cost,discount,adjustments,comm_rate,payout_at,partner';
+    let o = await DB.from('orders').select(oc + ',source').eq('ptype', 'pro').order('created_at', { ascending: false }).limit(5000);
+    if (o.error) o = await DB.from('orders').select(oc).eq('ptype', 'pro').order('created_at', { ascending: false }).limit(5000); // ยังไม่มีคอลัมน์ source
+    setOrders(o.error ? [] : (o.data || []).filter(x => x.source !== 'line')); // งาน Pro จาก LINE OA = ยอดขายของเราอย่างเดียว ไม่ใช่งานร้าน
     try { const j = await fnCall({ action: 'list' }); setAccounts(j.accounts || []); setFnReady(true); }
     catch (e) { setAccounts([]); setFnReady(false); }
     setLoading(false);

@@ -447,6 +447,8 @@ function zoneOf(lat, lng){
   return bd > 3.5 ? ZONE_OUT : best;
 }
 const ZONE_NAMES = ['ในมอ', 'กังสดาล', 'หลังมอ', 'โคลัมโบ', 'นอกเขต'];
+// โซนของออเดอร์: ออเดอร์ LINE OA ที่แอดมินกรอกเองเก็บชื่อโซนไว้ใน o.zone (ไม่มีพิกัด) — นอกนั้นคำนวณจากพิกัดเหมือนเดิม
+const zoneOfOrder = (o) => (o && o.zone) ? ([...ZONES, ZONE_IN_CAMPUS, ZONE_OUT].find(z => z.name === o.zone) || null) : zoneOf(o && o.lat, o && o.lng);
 const zoneStyleByName = (n) => n === 'ในมอ' ? ZONE_IN_CAMPUS : n === 'นอกเขต' ? ZONE_OUT : (ZONES.find(z => z.name === n) || ZONE_OUT);
 // ป้ายการเข้าเล่ม — key ตรงกับ orders.bind ที่ index.html บันทึก (coil/tape/glue เพิ่ม 2026-09-08 ฿20/ชุด · book/landscape = ออเดอร์เก่า)
 const BIND_LABELS = { book: 'เข้าเล่ม', corner: 'เย็บมุม', landscape: 'เล่มแนวนอน', coil: 'เข้าเล่มสันห่วง/สันเกลียว', tape: 'เข้าเล่มเทปผ้า (แลคซีน)', glue: 'เข้าเล่มสันกาว' };
@@ -915,11 +917,16 @@ function ReceiptTool({ o, isPro, onClose }){
   );
 }
 
-// ══ ออเดอร์จาก LINE OA (เจ้าของสั่ง 2026-11-12) — งานที่รับทาง LINE และส่งเสร็จแล้ว แค่บันทึกยอดขายจริง ══
-// ขั้น 1: คิดราคาใน index.html?oa=1 (iframe — สูตรไฟล์/สแกนสี/ค่าส่งชุดเดียวกับหน้าเว็บ) · ขั้น 2: ชื่อลูกค้า + ยอดจริง + สลิป
-// บันทึกเป็นสถานะ "ส่งแล้ว" ทันที · source = 'line' (ฐานข้อมูลยอมเฉพาะแอดมิน) · ไม่แจ้งเตือนกลุ่ม LINE · ยอดต่างจากที่ระบบคิด = รายการปรับยอด
+// ══ ออเดอร์จาก LINE OA — แอดมินกรอกเองทั้งหมด (เจ้าของสั่ง 2026-11-13 แทนแบบคิดราคาจากไฟล์) ══
+// งานที่รับทาง LINE และส่งเสร็จแล้ว แค่บันทึกยอดขายจริง: ชื่อลูกค้า · Standard/Pro · ประเภทงาน · ราคา · วันเวลา · โซน (+ เบอร์/สลิป/หมายเหตุ ถ้ามี)
+// บันทึกเป็นสถานะ "ส่งแล้ว" ทันที · source='line' (ฐานข้อมูลยอมเฉพาะแอดมิน) · ไม่แจ้งเตือนกลุ่ม LINE
+// งาน Pro = บันทึกยอดอย่างเดียว: ไม่ผูกร้านพาร์ทเนอร์ (partner ว่าง) → ร้านไม่เห็น · ไม่เข้าหน้าค่าคอม/ยอดค้างโอน
 const OA_GREEN = '#06C755';
+const OA_STD_TYPES = [['bw', 'ปริ้นขาวดำ'], ['color', 'ปริ้นสี'], ['mix', 'ปริ้นผสม']];
+const OA_PRO_TYPES = ['โปสเตอร์', 'เพลท', 'Postcard', 'พับครึ่ง (เข้าเล่ม/เมนู)', 'Portfolio', 'สติ๊กเกอร์', 'นามบัตร', 'Standy (สแตนดี้)', 'ปริ้นขนาดใหญ่ (แบบแปลน/เอกสาร)'];
+const OA_ZONES = ['ในมอ', 'กังสดาล', 'หลังมอ', 'โคลัมโบ', 'นอกเขต'];
 const dtLocal = (d) => { const z = (n) => String(n).padStart(2, '0'); return d.getFullYear() + '-' + z(d.getMonth() + 1) + '-' + z(d.getDate()) + 'T' + z(d.getHours()) + ':' + z(d.getMinutes()); };
+const nightAt = (d) => { const h = d.getHours(); return h >= 22 || h < 6; };
 async function storeSlipAdmin(oid, file){
   const type = file.type || 'image/jpeg';
   if (CFG.R2_UPLOADS) {
@@ -935,126 +942,127 @@ async function storeSlipAdmin(oid, file){
   if (error) throw error;
   return path;
 }
+function OaChips({ items, value, onPick, color }){
+  return (
+    <div style={css("display:flex;flex-wrap:wrap;gap:6px")}>
+      {items.map(([k, l]) => (
+        <button key={k} type="button" onClick={() => onPick(k)} style={css("min-height:38px;padding:6px 12px;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;"
+          + (value === k ? "border:1.5px solid " + (color || OA_GREEN) + ";background:" + (color || OA_GREEN) + ";color:#fff" : "border:1px solid var(--line);background:var(--card);color:var(--ink)"))}>{l}</button>
+      ))}
+    </div>
+  );
+}
 function OaOrderModal({ onClose, onSaved }){
-  const [data, setData] = React.useState(null); // { payload, bill, plabel, upFail } จาก iframe
-  const [step, setStep] = React.useState(1);
   const [name, setName] = React.useState('');
-  const [phone, setPhone] = React.useState('');
-  const [when, setWhen] = React.useState(() => dtLocal(new Date()));
+  const [tier, setTier] = React.useState('standard');
+  const [ptype, setPtype] = React.useState('');
   const [total, setTotal] = React.useState('');
+  const [ship, setShip] = React.useState('');
+  const [when, setWhen] = React.useState(() => dtLocal(new Date()));
+  const [night, setNight] = React.useState(() => nightAt(new Date()));
+  const [nightTouched, setNightTouched] = React.useState(false);
+  const [zone, setZone] = React.useState('');
+  const [phone, setPhone] = React.useState('');
   const [slip, setSlip] = React.useState(null);
   const [slipUrl, setSlipUrl] = React.useState('');
   const [note, setNote] = React.useState('');
   const [busy, setBusy] = React.useState(false);
   const [err, setErr] = React.useState('');
-  const frameRef = React.useRef(null);
-  React.useEffect(() => {
-    const onMsg = (e) => {
-      if (e.origin !== location.origin || !frameRef.current || e.source !== frameRef.current.contentWindow) return;
-      const d = e.data || {};
-      if (d.type !== 'mp-oa-order' || !d.payload) return;
-      setData(d); setPhone(d.payload.phone || ''); setTotal(String(Math.round((d.bill && d.bill.total) || d.payload.total || 0)));
-      setErr(''); setStep(2);
-    };
-    window.addEventListener('message', onMsg);
-    return () => window.removeEventListener('message', onMsg);
-  }, []);
   React.useEffect(() => () => { if (slipUrl) URL.revokeObjectURL(slipUrl); }, [slipUrl]);
+  const pickTier = (t) => { if (t !== tier) { setTier(t); setPtype(''); } };
+  const pickWhen = (v) => { setWhen(v); const d = new Date(v); if (!nightTouched && !isNaN(d.getTime())) setNight(nightAt(d)); }; // กลางวัน/กลางคืนตามเวลาที่กรอก (กดเลือกเองทับได้)
   const pickSlip = (e) => { const f = e.target.files && e.target.files[0]; e.target.value = ''; if (!f) return; if (!/^image\//.test(f.type)) return setErr('สลิปต้องเป็นไฟล์รูปภาพ'); setSlip(f); setSlipUrl(URL.createObjectURL(f)); setErr(''); };
-  const calcTotal = data ? Math.round(Number(data.payload.total) || 0) : 0;
   const fin = Math.round(Number(total));
-  const diff = isFinite(fin) ? fin - calcTotal : 0;
+  const pickup = zone === 'pickup';
+  const shipN = pickup ? 0 : Math.round(Number(ship) || 0);
   const save = async () => {
-    if (busy || !data) return;
+    if (busy) return;
     const nm = name.trim();
     if (!nm) return setErr('กรอกชื่อลูกค้าก่อนครับ');
-    if (total === '' || !isFinite(fin) || fin < 0) return setErr('กรอกยอดรวมที่เก็บจริงให้ถูกต้อง');
+    if (!ptype) return setErr('เลือกประเภทงานก่อนครับ');
+    if (total === '' || !isFinite(fin) || fin <= 0) return setErr('กรอกราคารวมให้ถูกต้อง');
+    if (shipN < 0 || shipN > fin) return setErr('ค่าส่งต้องไม่เกินราคารวม');
     const at = new Date(when);
-    if (isNaN(at.getTime())) return setErr('วันเวลาที่สั่งไม่ถูกต้อง');
-    if (at.getTime() > Date.now() + 5 * 60000) return setErr('วันเวลาที่สั่งเป็นอนาคตไม่ได้');
+    if (isNaN(at.getTime())) return setErr('วันเวลาไม่ถูกต้อง');
+    if (at.getTime() > Date.now() + 5 * 60000) return setErr('วันเวลาเป็นอนาคตไม่ได้');
+    if (!zone) return setErr('เลือกโซนของลูกค้าก่อนครับ (หรือ "มารับเอง")');
     const ph = phone.trim();
+    const isPro = tier === 'pro';
+    const id = '#MP-' + Array.from(crypto.getRandomValues(new Uint8Array(8))).map(b => 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'[b % 31]).join('');
     setBusy(true); setErr('');
     try {
-      const p = data.payload;
       let slip_path = null;
-      if (slip && DB) slip_path = await storeSlipAdmin(p.id, slip);
+      if (slip && DB) slip_path = await storeSlipAdmin(id, slip);
       const z = (n) => String(n).padStart(2, '0'), hm = z(at.getHours()) + ':' + z(at.getMinutes());
-      const row = { ...p,
-        customer_fname: nm, customer_lname: '', customer_phone: ph, customer_email: '', phone: ph || p.phone || '',
-        created_at: at.toISOString(), status: 4, times: [hm, hm, hm, hm],
-        total: fin, adjustments: diff ? [{ label: 'ปรับยอดตามที่ตกลงทาง LINE OA', amt: diff, at: new Date().toISOString() }] : [],
-        source: 'line', slip_path, line_uid: null, coupon: null, discount: 0,
-        note: [p.note, note.trim()].filter(Boolean).join(' · ').slice(0, 300) || null };
+      const row = {
+        id, slip_path, source: 'line',
+        customer_fname: nm, customer_lname: '', customer_phone: ph, customer_email: '', phone: ph,
+        files: [], ptype: isPro ? 'pro' : ptype, color: !isPro && ptype === 'color', paper: isPro ? ptype : 'A4',
+        point: '', lat: null, lng: null, zone: pickup ? null : zone, pickup,
+        addr: pickup ? (isPro ? '🏪 มารับเองที่จุดรับงาน Pro (กังสดาล)' : '🏪 รับหน้าร้าน MORE PRINT (หอพักบริบูรณ์เพลส)') : '🛵 โซน' + zone + ' (ออเดอร์ LINE OA)',
+        time: '', express: false, night,
+        print_cost: fin - shipN, bind_cost: 0, delivery_cost: shipN, night_fee: 0, total: fin,
+        status: 4, times: [hm, hm, hm, hm], created_at: at.toISOString(),
+        coupon: null, discount: 0, line_uid: null, note: note.trim().slice(0, 300) || null, ship_note: null,
+        ...(isPro ? { partner: null } : {}),
+      };
       if (DB) {
         const { error } = await DB.from('orders').insert(row);
         if (error) {
           const m = String(error.message || '');
-          throw new Error(/source/.test(m) ? 'ฐานข้อมูลยังไม่มีช่อง "ช่องทาง LINE OA" — ต้องรัน SQL ก่อน' : /row-level|permission|policy/i.test(m) ? 'บัญชีแอดมินยังไม่มีสิทธิ์เพิ่มออเดอร์ — ต้องรัน SQL ก่อน' : m);
+          throw new Error(/zone|source|partner/.test(m) ? 'ฐานข้อมูลยังไม่พร้อม — ต้องรัน SQL ออเดอร์ LINE OA (รอบใหม่) ก่อน' : /row-level|permission|policy/i.test(m) ? 'บัญชีแอดมินยังไม่มีสิทธิ์เพิ่มออเดอร์ — ต้องรัน SQL ก่อน' : m);
         }
       }
       onSaved(row);
     } catch (e) { setErr('บันทึกไม่สำเร็จ: ' + (e.message || e)); }
     setBusy(false);
   };
-  const b = (data && data.bill) || {};
-  const files = (data && data.payload.files) || [];
-  const inp = "width:100%;box-sizing:border-box;height:42px;border:1px solid var(--line);border-radius:10px;background:var(--soft);color:var(--ink);padding:0 12px;font-size:14px;outline:none;font-family:inherit";
-  const row2 = (l, v, strong) => <div style={css("display:flex;justify-content:space-between;gap:10px" + (strong ? ";font-weight:800" : ""))}><span style={css(strong ? "" : "color:var(--sub)")}>{l}</span><span style={css("font-family:'IBM Plex Mono',monospace")}>{v}</span></div>;
+  const inp = "width:100%;box-sizing:border-box;height:44px;border:1px solid var(--line);border-radius:10px;background:var(--soft);color:var(--ink);padding:0 12px;font-size:14px;outline:none;font-family:inherit";
+  const lab = (t, opt) => <span style={css("font-size:12.5px;font-weight:800")}>{t}{opt ? <span style={css("font-weight:500;color:var(--sub)")}> {opt}</span> : null}</span>;
+  const sec = "display:flex;flex-direction:column;gap:6px";
   return (
     <div style={css("position:fixed;inset:0;background:rgba(10,20,40,.55);z-index:200;display:flex;align-items:center;justify-content:center;padding:10px;box-sizing:border-box")}>
-      <div style={css("background:var(--bg);width:100%;max-width:560px;height:96vh;border-radius:16px;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 10px 40px rgba(0,0,0,.35)")}>
+      <div style={css("background:var(--bg);width:100%;max-width:520px;max-height:96vh;border-radius:16px;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 10px 40px rgba(0,0,0,.35)")}>
         <div style={css("background:" + OA_GREEN + ";color:#fff;padding:12px 14px;display:flex;align-items:center;gap:10px;flex:none")}>
           <div style={css("flex:1;min-width:0")}>
             <div style={css("font-size:15px;font-weight:800")}>＋ ออเดอร์จาก LINE OA</div>
-            <div style={css("font-size:11.5px;opacity:.92")}>{step === 1 ? 'ขั้น 1/2 · แนบไฟล์ + เลือกงาน + จุดส่ง → ระบบคิดราคาแบบเดียวกับหน้าเว็บ' : 'ขั้น 2/2 · ข้อมูลลูกค้า + ยอดที่เก็บจริง + สลิป'}</div>
+            <div style={css("font-size:11.5px;opacity:.92")}>บันทึกยอดขายงานที่ส่งเสร็จแล้ว — กรอกเองทั้งหมด</div>
           </div>
           <button onClick={onClose} style={css("flex:none;width:34px;height:34px;border-radius:9px;border:none;background:rgba(255,255,255,.2);color:#fff;font-size:16px;cursor:pointer")}>✕</button>
         </div>
-        {/* iframe อยู่ตลอด (ซ่อนตอนขั้น 2) — กดย้อนกลับแล้วไฟล์/ตัวเลือกไม่หาย */}
-        <iframe ref={frameRef} src="index.html?oa=1" title="คิดราคาออเดอร์ LINE OA" style={{ flex: 1, border: 'none', width: '100%', display: step === 1 ? 'block' : 'none', background: '#fff' }}></iframe>
-        {step === 2 && data && (
-          <div style={css("flex:1;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:12px")}>
-            <div style={css("background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:6px;font-size:12.5px")}>
-              <div style={css("font-size:13px;font-weight:800")}>{data.plabel || 'งานปริ้น'} · {files.length} ไฟล์</div>
-              {files.map((f, i) => <div key={i} style={css("font-size:11.5px;color:var(--sub);overflow:hidden;text-overflow:ellipsis;white-space:nowrap")}>📄 {f.name} · {f.pages || '?'} หน้า{f.copies > 1 ? ' × ' + f.copies + ' ชุด' : ''}{f.path ? '' : ' · ⚠️ ไฟล์ยังไม่เข้าระบบ'}</div>)}
-              <div style={css("font-size:11.5px;color:var(--sub)")}>📍 {data.payload.addr || '-'}</div>
-              <div style={css("font-size:11.5px;font-weight:700;color:" + (data.payload.night ? "#5f3dc4" : "#a16207"))}>{data.payload.night ? '🌙 คิดราคาแบบกลางคืน' : '☀️ คิดราคาแบบกลางวัน'} <span style={css("font-weight:500;color:var(--sub)")}>(เปลี่ยนได้ที่ขั้น 1)</span></div>
-              <div style={css("border-top:1px dashed var(--line);padding-top:6px;display:flex;flex-direction:column;gap:3px")}>
-                {row2('ค่าปริ้น', '฿' + (b.print || 0))}
-                {(b.bind || 0) > 0 && row2('เข้าเล่ม/เย็บ', '฿' + b.bind)}
-                {row2('ค่าส่ง', '฿' + (b.delivery || 0))}
-                {(b.night || 0) > 0 && row2('ค่าบริการกลางคืน', '฿' + b.night)}
-                {row2('ยอดที่ระบบคิด', '฿' + calcTotal, true)}
-              </div>
-              {data.upFail > 0 && <div style={css("font-size:11.5px;color:#c92a2a;font-weight:700")}>⚠️ มีไฟล์ที่อัปเข้าระบบไม่สำเร็จ {data.upFail} ไฟล์ — บันทึกยอดได้ แต่ไฟล์นั้นจะไม่มีในการ์ด</div>}
-            </div>
-            <label style={css("display:flex;flex-direction:column;gap:5px")}><span style={css("font-size:12.5px;font-weight:700")}>ชื่อลูกค้า *</span>
-              <input value={name} onChange={e => setName(e.target.value)} placeholder="ชื่อลูกค้าใน LINE" style={css(inp)}/></label>
-            <div style={css("display:flex;gap:10px;flex-wrap:wrap")}>
-              <label style={css("flex:1;min-width:150px;display:flex;flex-direction:column;gap:5px")}><span style={css("font-size:12.5px;font-weight:700")}>เบอร์โทร <span style={css("font-weight:500;color:var(--sub)")}>(ถ้ามี)</span></span>
-                <input value={phone} onChange={e => setPhone(e.target.value)} inputMode="tel" placeholder="08x-xxx-xxxx" style={css(inp)}/></label>
-              <label style={css("flex:1;min-width:150px;display:flex;flex-direction:column;gap:5px")}><span style={css("font-size:12.5px;font-weight:700")}>วันเวลาที่สั่ง</span>
-                <input type="datetime-local" value={when} onChange={e => setWhen(e.target.value)} style={css(inp)}/></label>
-            </div>
-            <label style={css("display:flex;flex-direction:column;gap:5px")}><span style={css("font-size:12.5px;font-weight:700")}>ยอดรวมที่เก็บจริง (บาท) *</span>
-              <input value={total} onChange={e => setTotal(e.target.value.replace(/[^0-9.]/g, ''))} inputMode="decimal" style={css(inp + ";font-family:'IBM Plex Mono',monospace;font-size:17px;font-weight:700")}/>
-              {total !== '' && isFinite(fin) && diff !== 0 && <span style={css("font-size:11.5px;color:#a16207;font-weight:700")}>ต่างจากที่ระบบคิด {diff > 0 ? '+' : '−'}฿{Math.abs(diff)} — บันทึกเป็นรายการ "ปรับยอดตามที่ตกลงทาง LINE OA"</span>}</label>
-            <div style={css("display:flex;flex-direction:column;gap:6px")}>
-              <span style={css("font-size:12.5px;font-weight:700")}>สลิปโอนเงิน <span style={css("font-weight:500;color:var(--sub)")}>(แนะนำแนบไว้เป็นหลักฐาน)</span></span>
-              {slipUrl
-                ? <div style={css("display:flex;align-items:center;gap:10px")}><img src={slipUrl} alt="สลิป" style={css("width:72px;height:96px;object-fit:cover;border-radius:8px;border:1px solid var(--line)")}/>
-                    <button onClick={() => { setSlip(null); setSlipUrl(''); }} style={css("height:34px;padding:0 12px;border-radius:9px;border:1px solid #ffa8a8;background:#fff;color:#c92a2a;font-size:12px;font-weight:700;cursor:pointer")}>ลบสลิป</button></div>
-                : <label style={css("height:44px;border:1.5px dashed " + OA_GREEN + ";border-radius:10px;display:flex;align-items:center;justify-content:center;gap:6px;color:" + OA_GREEN + ";font-size:13px;font-weight:800;cursor:pointer;background:#f1fbf4")}>🧾 แนบสลิป<input type="file" accept="image/*" onChange={pickSlip} style={css("display:none")}/></label>}
-            </div>
-            <label style={css("display:flex;flex-direction:column;gap:5px")}><span style={css("font-size:12.5px;font-weight:700")}>หมายเหตุ <span style={css("font-weight:500;color:var(--sub)")}>(ถ้ามี)</span></span>
-              <input value={note} onChange={e => setNote(e.target.value)} placeholder="เช่น ชื่อ LINE ลูกค้า / ส่งให้เพื่อนรับแทน" style={css(inp)}/></label>
-            {err && <div style={css("font-size:12.5px;color:#c92a2a;font-weight:700;line-height:1.5")}>{err}</div>}
-            <div style={css("display:flex;gap:8px;margin-top:2px;padding-bottom:6px")}>
-              <button onClick={() => { setStep(1); setErr(''); }} disabled={busy} style={css("flex:none;height:46px;padding:0 14px;border-radius:12px;border:1px solid var(--line);background:var(--card);color:var(--ink);font-size:13px;font-weight:700;cursor:pointer")}>← แก้ไฟล์/จุดส่ง</button>
-              <button onClick={save} disabled={busy} style={css("flex:1;height:46px;border-radius:12px;border:none;background:" + OA_GREEN + ";color:#fff;font-size:14px;font-weight:800;cursor:pointer" + (busy ? ";opacity:.6" : ""))}>{busy ? 'กำลังบันทึก…' : '✓ บันทึกยอดขาย (ส่งเสร็จแล้ว)'}</button>
-            </div>
+        <div style={css("flex:1;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:14px")}>
+          <label style={css(sec)}>{lab('1. ชื่อลูกค้า *')}<input value={name} onChange={e => setName(e.target.value)} placeholder="ชื่อลูกค้าใน LINE" style={css(inp)}/></label>
+          <div style={css(sec)}>{lab('2. ระดับงาน *')}
+            <OaChips items={[['standard', 'Standard — งานเอกสารทั่วไป'], ['pro', 'Pro — งานพิมพ์พิเศษ']]} value={tier} onPick={pickTier} color="var(--acc)"/>
+            {tier === 'pro' && <span style={css("font-size:11.5px;color:#a16207;line-height:1.5")}>งาน Pro จาก LINE OA = บันทึกยอดขายอย่างเดียว — ไม่เข้าหลังบ้านร้านพาร์ทเนอร์ ไม่คิดส่วนแบ่ง/ยอดค้างโอน</span>}
           </div>
-        )}
+          <div style={css(sec)}>{lab('3. ประเภทงาน *')}
+            <OaChips items={tier === 'pro' ? OA_PRO_TYPES.map(t => [t, t]) : OA_STD_TYPES} value={ptype} onPick={setPtype}/>
+          </div>
+          <div style={css("display:flex;gap:10px;flex-wrap:wrap")}>
+            <label style={css(sec + ";flex:1.3;min-width:150px")}>{lab('4. ราคารวม (บาท) *')}
+              <input value={total} onChange={e => setTotal(e.target.value.replace(/[^0-9.]/g, ''))} inputMode="decimal" placeholder="0" style={css(inp + ";font-family:'IBM Plex Mono',monospace;font-size:17px;font-weight:700")}/></label>
+            {!pickup && <label style={css(sec + ";flex:1;min-width:120px")}>{lab('ในนี้เป็นค่าส่ง', '(ถ้ามี)')}
+              <input value={ship} onChange={e => setShip(e.target.value.replace(/[^0-9.]/g, ''))} inputMode="decimal" placeholder="0" style={css(inp + ";font-family:'IBM Plex Mono',monospace")}/></label>}
+          </div>
+          <div style={css(sec)}>{lab('5. วันเวลาที่ลูกค้าสั่ง *')}
+            <input type="datetime-local" value={when} onChange={e => pickWhen(e.target.value)} style={css(inp)}/>
+            <OaChips items={[[false, '☀️ กลางวัน'], [true, '🌙 กลางคืน (22:00–06:00)']]} value={night} onPick={(b) => { setNight(b); setNightTouched(true); }} color="#5f3dc4"/>
+          </div>
+          <div style={css(sec)}>{lab('6. โซนของลูกค้า *')}
+            <OaChips items={OA_ZONES.map(z => [z, z]).concat([['pickup', '🏪 มารับเอง']])} value={zone} onPick={setZone}/>
+          </div>
+          <label style={css(sec)}>{lab('เบอร์โทร', '(ถ้ามี)')}<input value={phone} onChange={e => setPhone(e.target.value)} inputMode="tel" placeholder="08x-xxx-xxxx" style={css(inp)}/></label>
+          <div style={css(sec)}>{lab('สลิปโอนเงิน', '(แนะนำแนบไว้เป็นหลักฐาน)')}
+            {slipUrl
+              ? <div style={css("display:flex;align-items:center;gap:10px")}><img src={slipUrl} alt="สลิป" style={css("width:72px;height:96px;object-fit:cover;border-radius:8px;border:1px solid var(--line)")}/>
+                  <button onClick={() => { setSlip(null); setSlipUrl(''); }} style={css("height:34px;padding:0 12px;border-radius:9px;border:1px solid #ffa8a8;background:#fff;color:#c92a2a;font-size:12px;font-weight:700;cursor:pointer")}>ลบสลิป</button></div>
+              : <label style={css("height:44px;border:1.5px dashed " + OA_GREEN + ";border-radius:10px;display:flex;align-items:center;justify-content:center;gap:6px;color:" + OA_GREEN + ";font-size:13px;font-weight:800;cursor:pointer;background:#f1fbf4")}>🧾 แนบสลิป<input type="file" accept="image/*" onChange={pickSlip} style={css("display:none")}/></label>}
+          </div>
+          <label style={css(sec)}>{lab('หมายเหตุ', '(ถ้ามี)')}<input value={note} onChange={e => setNote(e.target.value)} placeholder="เช่น รายละเอียดงาน / ชื่อ LINE ลูกค้า" style={css(inp)}/></label>
+          {err && <div style={css("font-size:12.5px;color:#c92a2a;font-weight:700;line-height:1.5")}>{err}</div>}
+          <button onClick={save} disabled={busy} style={css("height:48px;border-radius:12px;border:none;background:" + OA_GREEN + ";color:#fff;font-size:14.5px;font-weight:800;cursor:pointer;flex:none" + (busy ? ";opacity:.6" : ""))}>{busy ? 'กำลังบันทึก…' : '✓ บันทึกยอดขาย (ส่งเสร็จแล้ว)'}</button>
+        </div>
       </div>
     </div>
   );
@@ -1147,7 +1155,25 @@ function OrderCard({ o, idx, due, onAdvance, onRetreat, onApplyEdits, onCancel, 
         <span style={css("font-family:'IBM Plex Mono',monospace;font-size:15px;font-weight:700;color:var(--acc);flex:none")}>฿{o.total}</span>
         <span style={css("color:var(--sub);font-size:12px;flex:none")}>{open ? '▲' : '▼'}</span>
       </div>
-      {open && (
+      {open && o.source === 'line' && !(o.files || []).length ? (
+        <div style={css("border-top:1px dashed var(--line);padding:14px 16px;display:flex;flex-direction:column;gap:9px;font-size:12.5px")}>
+          {[
+            ['ลูกค้า', <span><b>คุณ{o.customer_fname} {o.customer_lname}</b>{o.customer_phone ? <span> · <a href={'tel:' + String(o.customer_phone).replace(/[^0-9+]/g, '')} style={css("color:var(--acc)")}>{o.customer_phone}</a></span> : null}</span>],
+            ['ช่องทาง', <span style={css("color:#06C755;font-weight:800")}>LINE OA (แอดมินบันทึกเอง)</span>],
+            ['ประเภทงาน', o.ptype === 'pro' ? 'Pro · ' + (o.paper || '') : (PTYPE_LABELS[o.ptype] || o.ptype)],
+            ['โซน', isPickup(o) ? '🏪 มารับเอง' : (o.zone || '-')],
+            ['เวลาสั่ง', new Date(o.created_at).toLocaleString('th-TH', { dateStyle: 'medium', timeStyle: 'short' }) + (o.night ? ' · 🌙 กลางคืน' : ' · ☀️ กลางวัน')],
+            ['ราคา', <span style={css("font-family:'IBM Plex Mono',monospace;font-weight:700")}>฿{o.total}{(o.delivery_cost || 0) > 0 ? <span style={css("font-weight:400;color:var(--sub)")}> (ค่าส่ง ฿{o.delivery_cost})</span> : null}</span>],
+            o.note ? ['หมายเหตุ', o.note] : null,
+          ].filter(Boolean).map(([l, v], i) => (
+            <div key={i} style={css("display:flex;gap:10px")}><span style={css("flex:none;width:72px;color:var(--sub);font-weight:600")}>{l}</span><div style={css("flex:1;min-width:0;line-height:1.5")}>{v}</div></div>
+          ))}
+          <div style={css("display:flex;gap:10px")}><span style={css("flex:none;width:72px;color:var(--sub);font-weight:600")}>สลิป</span>
+            <div style={css("flex:1;min-width:0")}>{o.slip_path ? <StoredImg url={fileUrl(o.slip_path)} alt="สลิปโอนเงิน" style={css("max-width:170px;max-height:220px;border-radius:10px;border:1px solid var(--line)")}/> : <span style={css("color:var(--sub)")}>— ไม่ได้แนบสลิป</span>}</div></div>
+          <button disabled={busy} onClick={askDelete} style={{ marginTop: '4px', height: '38px', border: 'none', borderRadius: '10px', fontSize: '12.5px', fontWeight: 700, cursor: 'pointer',
+            background: confirmDel ? '#c92a2a' : '#ffe3e3', color: confirmDel ? '#fff' : '#c92a2a' }}>{busy ? 'กำลังลบ…' : confirmDel ? 'แน่ใจนะ? กดอีกครั้งเพื่อลบถาวร' : 'ลบออเดอร์นี้ (บันทึกผิด)'}</button>
+        </div>
+      ) : open && (
         <div style={css("border-top:1px dashed var(--line);padding:14px 16px;display:flex;flex-direction:column;gap:12px")}>
           {/* ป้ายรอทำ → แถวข้อมูล → ปุ่ม → แชทท้ายสุด · หัวสเปกตัวใหญ่+แถวชิป+ป้ายเตือนเย็บ/เข้าเล่ม ลบแล้ว ข้อมูลอยู่ในกล่องสเปก (เจ้าของสั่ง 2026-10-12) · ชื่อ+เบอร์ลูกค้าอยู่แถวจุดส่ง */}
           {o.status === 1 && (() => { const m = Math.max(0, Math.round((Date.now() - new Date(o.created_at).getTime()) / 60000)); const tt = m < 60 ? m + ' นาที' : (m / 60).toFixed(m < 600 ? 1 : 0).replace(/\.0$/, '') + ' ชม.'; return <div><span style={css("font-size:10.5px;font-weight:700;color:#a16207;background:#fff3bf;padding:3px 10px;border-radius:99px")}>{FI.clock(11)} รอเริ่มงาน · ผ่านมา {tt}</span></div>; })()}
@@ -1306,7 +1332,7 @@ function OrderCard({ o, idx, due, onAdvance, onRetreat, onApplyEdits, onCancel, 
                   </span>
                 </div>
                 {/* โซนไรเดอร์ (เดิมเป็นชิปบนหัวการ์ด — ย้ายมาอยู่คู่จุดส่ง 2026-10-12) */}
-                {!pickup && (() => { const z = zoneOf(o.lat, o.lng); return z ? <span style={{ marginTop: '6px', marginLeft: '6px', display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '12px', fontWeight: 700, color: z.fg, background: z.bg, padding: '5px 10px', borderRadius: '10px', verticalAlign: 'top' }}>{FI.pin(11)} {z.name}</span> : null; })()}
+                {!pickup && (() => { const z = zoneOfOrder(o); return z ? <span style={{ marginTop: '6px', marginLeft: '6px', display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '12px', fontWeight: 700, color: z.fg, background: z.bg, padding: '5px 10px', borderRadius: '10px', verticalAlign: 'top' }}>{FI.pin(11)} {z.name}</span> : null; })()}
                 {(hHand || hDrop) && (
                   <div style={css("margin-top:6px;margin-left:6px;display:inline-flex;align-items:center;gap:6px;background:" + (hDrop ? "#fff7e0" : "var(--accSoft)") + ";border:1.5px solid " + (hDrop ? "#f0c36d" : "var(--acc)") + ";border-radius:10px;padding:5px 10px;font-size:12px;font-weight:700;color:" + (hDrop ? "#8a6d1a" : "var(--acc)"))}>
                     {hDrop ? '📦 ลูกค้าให้วางไว้จุดวางของ — ดูจุดวางในที่อยู่' : '🤝 ลูกค้าขอรับกับมือ — โทรหาก่อนถึง'}
@@ -1715,7 +1741,7 @@ function OrderDashboard({ rows, loading, loadedAt, onReload }){
     const zm = {}, pm = {};
     cur.valid.forEach(o => {
       if (isPickup(o)) return;
-      const z = zoneOf(o.lat, o.lng); const zn = z ? z.name : 'ไม่ระบุ';
+      const z = zoneOfOrder(o); const zn = z ? z.name : 'ไม่ระบุ';
       zm[zn] = (zm[zn] || 0) + 1;
       if (o.point) pm[o.point] = (pm[o.point] || 0) + 1;
     });
@@ -1742,6 +1768,14 @@ function OrderDashboard({ rows, loading, loadedAt, onReload }){
     // ช่องทางสั่ง: เว็บ vs LINE OA (แอดมินบันทึกเอง)
     const src = { web: { n: 0, rev: 0 }, line: { n: 0, rev: 0 } };
     cur.valid.forEach(o => { const k = o.source === 'line' ? 'line' : 'web'; src[k].n++; src[k].rev += o.total || 0; });
+    // งาน LINE OA แยกตามประเภทงาน (เจ้าของถาม 2026-11-13: ดูให้รู้ว่างานจาก LINE OA เป็นงานอะไรบ้าง)
+    const lt = {};
+    cur.valid.filter(o => o.source === 'line').forEach(o => {
+      const k = o.ptype === 'pro' ? 'Pro · ' + (o.paper || 'งานพิมพ์พิเศษ') : (PTYPE_LABELS[o.ptype] || jobLabelOf(o));
+      if (!lt[k]) lt[k] = { label: k, n: 0, rev: 0 };
+      lt[k].n++; lt[k].rev += o.total || 0;
+    });
+    src.lineTypes = Object.values(lt).sort((a, b) => b.rev - a.rev);
 
     const leads = cur.valid.map(leadMinutes).filter(x => x != null);
     const leadAvg = leads.length ? Math.round(leads.reduce((a, x) => a + x, 0) / leads.length) : null;
@@ -1865,6 +1899,16 @@ function OrderDashboard({ rows, loading, loadedAt, onReload }){
                 <span style={css(mono + "font-weight:600;color:" + c)}>{baht(x.rev)} <span style={css("color:var(--sub);font-weight:400;font-size:10.5px")}>{cur.revenue ? Math.round(x.rev / cur.revenue * 100) : 0}%</span></span>
               </div>
             ))}
+            {d.src.lineTypes.length > 0 && (
+              <div style={css("margin-left:14px;padding-left:10px;border-left:2px solid #b7ebc6;display:flex;flex-direction:column;gap:4px")}>
+                {d.src.lineTypes.map((t, i) => (
+                  <div key={i} style={css("display:flex;justify-content:space-between;gap:8px;font-size:11.5px")}>
+                    <span style={css("color:var(--sub)")}>{t.label} <span style={css("font-size:10.5px")}>{t.n} ใบ</span></span>
+                    <span style={css(mono + "color:#06C755")}>{baht(t.rev)}</span>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </DashCard>
 
@@ -2051,7 +2095,7 @@ const proJobNet = (o) => Math.max(0, proJobValue(o) + (o.adjustments || []).redu
 const proCommRate = (o) => { const r = Number(o && o.comm_rate); return isFinite(r) && r > 0 && r < 1 ? r : PRO_COMMISSION; };
 const proPartnerOf = (o) => proJobNet(o) * (1 - proCommRate(o));
 const isPro = (o) => o.ptype === 'pro';
-const ownRevenue = (o) => (o.total || 0) - (isPro(o) ? proPartnerOf(o) : 0); // รายได้ที่เข้าร้านจริง: Standard = ทั้งบิล · Pro = บิล − ส่วนของร้านพาร์ทเนอร์
+const ownRevenue = (o) => (o.total || 0) - (isPro(o) && o.source !== 'line' ? proPartnerOf(o) : 0); // Pro จาก LINE OA = บันทึกยอดอย่างเดียว ไม่หักส่วนร้าน // รายได้ที่เข้าร้านจริง: Standard = ทั้งบิล · Pro = บิล − ส่วนของร้านพาร์ทเนอร์
 const STD_COLOR = 'var(--acc)', PRO_COLOR = '#7048e8'; // เขียว/ม่วง — ผ่านเช็กตาบอดสี (ΔE 30)
 
 function overviewSummary(rows, start, end){
@@ -2317,7 +2361,7 @@ function AdminApp(){
   const bnPreview = React.useMemo(() => bnFile ? URL.createObjectURL(bnFile) : null, [bnFile]); // พรีวิวรูปที่เลือก ให้เห็นเหมือนที่ลูกค้าจะเห็นก่อนกดสร้างจริง
 
   const [histAll, setHistAll] = React.useState(null); // ประวัติทุกออเดอร์ (Standard + Pro) สำหรับแท็บสรุปรวม
-  const histRows = React.useMemo(() => histAll && histAll.filter(o => o.ptype !== 'pro'), [histAll]); // เฉพาะ Standard สำหรับแท็บยอดขาย
+  const histRows = React.useMemo(() => histAll && histAll.filter(o => o.ptype !== 'pro' || o.source === 'line'), [histAll]); // เฉพาะ Standard สำหรับแท็บยอดขาย
   const [threads, setThreads] = React.useState(null); // รายการห้องแชททั้งหมด (แท็บแชท)
   const [orderMeta, setOrderMeta] = React.useState({}); // ข้อมูลย่อทุกออเดอร์รวมงาน Pro (state orders เก็บเฉพาะ Standard)
   const [chatType, setChatType] = React.useState('all'); // หมวดแชท: all | std | pro
@@ -2765,7 +2809,7 @@ function AdminApp(){
         const meta = {};
         data.forEach(o => { meta[o.id] = { ptype: o.ptype, fname: o.customer_fname, lname: o.customer_lname, phone: o.customer_phone, addr: o.addr, aphone: o.phone, total: o.total, status: o.status }; });
         setOrderMeta(meta);
-        setOrders(data.filter(o => o.ptype !== 'pro' && !cancelledExpired(o)));
+        setOrders(data.filter(o => (o.ptype !== 'pro' || o.source === 'line') && !cancelledExpired(o))); // งาน Pro จาก LINE OA = บันทึกยอดในหลังบ้านหลัก (ไม่ใช่งานร้านพาร์ทเนอร์)
         setLastSync(new Date());
         const fresh = takeNewOrders(data.filter(o => o.ptype !== 'pro'), 'mp_alarm_std'); // ออเดอร์ Standard ใหม่ → เสียงเรียก (งาน Pro ดังที่ pro.html)
         if (fresh.length) ringRef.current(fresh);
@@ -3058,9 +3102,9 @@ function AdminApp(){
   const statusShown = filter === 'done' ? ordDone : filter === 'cancelled' ? ordCancel : ordActive;
   // กรองตามโซนไรเดอร์
   const zoneCounts = {};
-  statusShown.forEach(o => { const z = zoneOf(o.lat, o.lng); if (z) zoneCounts[z.name] = (zoneCounts[z.name] || 0) + 1; });
+  statusShown.forEach(o => { const z = zoneOfOrder(o); if (z) zoneCounts[z.name] = (zoneCounts[z.name] || 0) + 1; });
   const shown = zoneFilter === 'all' ? statusShown
-    : statusShown.filter(o => { const z = zoneOf(o.lat, o.lng); return z && z.name === zoneFilter; });
+    : statusShown.filter(o => { const z = zoneOfOrder(o); return z && z.name === zoneFilter; });
 
   const NAV = [
     ['home', FI.home(17), 'ภาพรวม'], ['orders', FI.clipboard(17), 'ออเดอร์'], ['chats', FI.chat(17), 'ข้อความ'],
