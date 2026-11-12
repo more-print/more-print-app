@@ -808,7 +808,10 @@ class App extends React.Component {
     try { sessionStorage.setItem('mp_promo_seen', PROMO_POPUP.key); } catch (e) {}
     this.setState({ promoOpen: false });
   }
-  componentDidUpdate(){
+  componentDidUpdate(prevProps, prevState){
+    // เปลี่ยนหน้า = เริ่มที่บนสุดเสมอ (เจ้าของแจ้ง 2026-11-13: กดอัปโหลดจากหน้าแรกแล้วหน้าสั่งปริ้นค้างกลางจอ ไม่เห็นกล่องแนบไฟล์)
+    // ยกเว้นห้องแชท — syncChatScroll เลื่อนไปข้อความล่าสุดเอง
+    if (prevState && prevState.screen !== this.state.screen && this.state.screen !== 'chat') { try { window.scrollTo(0, 0); } catch (e) {} }
     this.syncNight(); this.syncMap(); this.syncChatScroll();
     // จำขั้นไกลสุดที่ลูกค้าเคยไปถึง (แถบ step แตะไปกลับได้ถึงขั้นนี้)
     const si = ['order', 'delivery', 'review', 'pay'].indexOf(this.state.screen) + 1;
