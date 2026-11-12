@@ -46,8 +46,24 @@ const CFG = window.MP_CONFIG || {};
 const DB = (CFG.SUPABASE_URL && CFG.SUPABASE_ANON_KEY && window.supabase)
   ? window.supabase.createClient(CFG.SUPABASE_URL, CFG.SUPABASE_ANON_KEY, { auth: { storageKey: 'mp-pro' } }) : null;
 
+// ── หลายร้านพาร์ทเนอร์ ล็อกอินหน้าเดียวกัน (เจ้าของสั่ง 2026-11-12) ──
+// บัญชีไหนเป็นร้านไหน = ตาราง partners (uid → shop รหัสร้าน + name ชื่อร้าน) — เพิ่มร้านใหม่ไม่ต้องแก้หน้านี้
+// ฐานข้อมูลกรองให้แต่ละร้านเห็นเฉพาะงานร้านตัวเอง (orders.partner = my_shop()) · หน้านี้กรองซ้ำอีกชั้น
+// ยังไม่รัน SQL แยกร้าน (ไม่มี my_partner) = ทำงานแบบเดิม (ร้านเดียว อุดมสุข) ไม่กรอง
+let SHOP = { code: 'udomsuk', name: 'ร้านอุดมสุขปริ้นติ้ง', filter: false };
+if (!DB) { // เดโม: ?shop=langmor ดูหน้าตาหลังบ้านของร้านอื่น
+  const q = new URLSearchParams(location.search).get('shop');
+  if (q === 'langmor') SHOP = { code: 'langmor', name: 'ร้านปริ้นท์หลังมอ', filter: false };
+}
+async function loadMyShop(){
+  if (!DB) return;
+  const { data, error } = await DB.rpc('my_partner');
+  if (!error && data && data.shop) SHOP = { code: String(data.shop), name: String(data.name || data.shop), filter: true };
+  const c = Number(data && data.comm); if (!error && isFinite(c) && c > 0 && c < 1) COMMISSION = c; // ค่าคอมของร้านนี้ (เจ้าของตั้งรายร้าน)
+}
+
 // ── ค่าคอมมิชชั่น MORE PRINT ต่อออเดอร์ Pro — แก้ที่นี่จุดเดียว ──
-const COMMISSION = 0.20; // ดีลสุดท้ายกับร้านอุดมสุข (2026-08-20): เรา 20% / ร้าน 80% ของค่างานปริ้น (ไม่รวมค่าส่ง — ค่าส่งเป็นของ MORE PRINT อยู่แล้ว) — ต้องตรงกับ commission.html
+let COMMISSION = 0.20; // ค่าเริ่มต้น — หลังรัน SQL แยกร้าน ใช้ค่าคอมของร้านที่ล็อกอิน (shops.comm) แทน · ดีลสุดท้ายกับร้านอุดมสุข (2026-08-20): เรา 20% / ร้าน 80% ของค่างานปริ้น (ไม่รวมค่าส่ง — ค่าส่งเป็นของ MORE PRINT อยู่แล้ว) — ต้องตรงกับ commission.html
 
 const STEPS = ['รับออเดอร์', 'กำลังผลิตสินค้า', 'ไรเดอร์กำลังมารับงาน', 'จัดส่งสำเร็จ']; // มุมมองร้านพาร์ทเนอร์ (ลูกค้าเห็น "กำลังจัดส่ง/ส่งแล้ว" ที่หน้าบ้านเหมือนเดิม)
 // ขั้นสถานะตามวิธีรับงาน: ลูกค้ามารับเอง = จบที่ร้าน / ให้ส่ง = MORE PRINT รับช่วงขั้นจัดส่ง
@@ -453,9 +469,9 @@ function ProLogin({ onOk }){
   // หน้านี้เป็นของร้านพาร์ทเนอร์เท่านั้น — บัญชีเจ้าของ MORE PRINT จัดการงาน Pro ที่หน้า commission.html
   const verify = async () => {
     const a = await DB.rpc('is_admin');
-    if (a.data) { setMsg('หน้านี้แยกเป็นของร้านพาร์ทเนอร์ (อุดมสุข) แล้ว — เจ้าของร้านจัดการงาน Pro ทั้งหมดได้ที่หน้า ค่าคอม (commission.html) ครับ'); setBusy(false); return; }
+    if (a.data) { setMsg('หน้านี้เป็นของร้านพาร์ทเนอร์ — เจ้าของร้านจัดการงาน Pro ทั้งหมดได้ที่หน้า ค่าคอม (commission.html) ครับ'); setBusy(false); return; }
     const p = await DB.rpc('is_partner');
-    if (p.data) { onOk('partner'); return; }
+    if (p.data) { await loadMyShop(); onOk('partner'); return; }
     const { data } = await DB.auth.getUser();
     setUuid((data && data.user && data.user.id) || '');
     setMsg(p.error
@@ -495,7 +511,7 @@ function ProLogin({ onOk }){
       <div style={css("background:var(--card);border:1px solid var(--line);border-radius:18px;padding:28px 24px;width:320px;box-shadow:var(--shadow);display:flex;flex-direction:column;gap:12px;align-items:center")}>
         <img src="assets/logo-black.png" alt="MORE PRINT" style={css("width:74px;height:auto;display:block")}/>
         <div style={css("font-family:'Montserrat',sans-serif;font-weight:800;font-size:17px;letter-spacing:1px")}><span style={css("color:var(--acc)")}>MORE</span> PRINT <span style={css("color:var(--acc)")}>PRO</span></div>
-        <div style={css("font-size:13px;color:var(--sub)")}>{reg ? 'สมัครบัญชีร้านพาร์ทเนอร์' : 'หลังบ้านร้านพาร์ทเนอร์ — อุดมสุขปริ้นติ้ง'}</div>
+        <div style={css("font-size:13px;color:var(--sub)")}>{reg ? 'สมัครบัญชีร้านพาร์ทเนอร์' : 'หลังบ้านร้านพาร์ทเนอร์ MORE PRINT'}</div>
         <input value={email} onChange={e => setEmail(e.target.value)} placeholder="อีเมล" inputMode="email" autoComplete="email"
           style={css("width:100%;box-sizing:border-box;height:46px;border:1px solid var(--line);border-radius:12px;background:var(--soft);color:var(--ink);padding:0 14px;font-size:14px;outline:none")}/>
         <input type="password" value={pass} onChange={e => setPass(e.target.value)} onKeyDown={e => !reg && e.key === 'Enter' && submit()} placeholder="รหัสผ่าน" autoComplete={reg ? 'new-password' : 'current-password'}
@@ -557,7 +573,7 @@ function MpChat({ o, me, title }){
               <div key={m.id} style={{ display: 'flex', justifyContent: m.sender === me ? 'flex-end' : 'flex-start' }}>
                 <div style={{ maxWidth: '82%', borderRadius: '11px', padding: '7px 11px', fontSize: '12px', lineHeight: 1.5, whiteSpace: 'pre-wrap', wordBreak: 'break-word',
                   background: m.sender === me ? 'var(--acc)' : 'var(--soft)', color: m.sender === me ? '#fff' : 'var(--ink)' }}>
-                  <div style={{ fontSize: '9.5px', opacity: .75, marginBottom: '2px' }}>{m.sender === 'partner' ? 'ร้านอุดมสุข' : 'MORE PRINT'} · {fmtWhen(m.created_at)}</div>
+                  <div style={{ fontSize: '9.5px', opacity: .75, marginBottom: '2px' }}>{m.sender === 'partner' ? SHOP.name : 'MORE PRINT'} · {fmtWhen(m.created_at)}</div>
                   {m.body}
                 </div>
               </div>
@@ -1080,7 +1096,7 @@ function ProOrder({ o, idx, isOwner, payoutReady, onPrice, onPayout, onAdvance, 
           )}
         </div>
       )}
-      <MpChat o={o} me={isOwner ? 'moreprint' : 'partner'} title={isOwner ? 'ช่องแชทกับร้านอุดมสุขปริ้นติ้ง (แจ้งปัญหา)' : 'แชทกับ MOREPRINT (แจ้งปัญหา)'}/>
+      <MpChat o={o} me={isOwner ? 'moreprint' : 'partner'} title={isOwner ? 'ช่องแชทกับ' + SHOP.name + ' (แจ้งปัญหา)' : 'แชทกับ MOREPRINT (แจ้งปัญหา)'}/>
       </div>}
     </div>
   );
@@ -1540,7 +1556,7 @@ function Dash({ role }){
   React.useEffect(() => {
     if (page !== 'payouts') return;
     if (!DB) { setPayouts([{ id: 1, label: '18 ส.ค. – 24 ส.ค. 69', ptype: 'w', amount: 536, n: 5, slip_path: null, created_at: new Date().toISOString() }]); return; }
-    DB.from('payouts').select('*').order('id', { ascending: false }).limit(24)
+    (SHOP.filter ? DB.from('payouts').select('*').eq('shop', SHOP.code) : DB.from('payouts').select('*')).order('id', { ascending: false }).limit(24)
       .then(({ data, error }) => setPayouts(error ? 'missing' : (data || [])));
   }, [page]);
   const [navOpen, setNavOpen] = React.useState(false);
@@ -1589,11 +1605,12 @@ function Dash({ role }){
     if (!DB) return;
     setLoading(true);
     const cols = 'id,created_at,status,times,cancel_reason,customer_fname,customer_lname,customer_phone,paper,sides,copies,print_cost,bind_cost,delivery_cost,night_fee,total,files,slip_path,addr,point,lat,lng';
-    let r = await DB.from('orders').select(cols + ',payout_at,pickup,cancelled_at,note,coupon,discount,adjustments,comm_rate').eq('ptype', 'pro').order('created_at', { ascending: false }).limit(2000); // comm_rate = เรทคอมรายใบ (ยังไม่รัน SQL = ตกลง fallback ล่างเอง)
-    if (r.error) r = await DB.from('orders').select(cols + ',payout_at,pickup').eq('ptype', 'pro').order('created_at', { ascending: false }).limit(2000); // ยังไม่รัน SQL ลบอัตโนมัติ
+    const proQ = (sel) => { const q = DB.from('orders').select(sel).eq('ptype', 'pro'); return SHOP.filter ? q.eq('partner', SHOP.code) : q; }; // งานของร้านนี้เท่านั้น
+    let r = await proQ(cols + ',payout_at,pickup,cancelled_at,note,coupon,discount,adjustments,comm_rate').order('created_at', { ascending: false }).limit(2000); // comm_rate = เรทคอมรายใบ (ยังไม่รัน SQL = ตกลง fallback ล่างเอง)
+    if (r.error) r = await proQ(cols + ',payout_at,pickup').order('created_at', { ascending: false }).limit(2000); // ยังไม่รัน SQL ลบอัตโนมัติ
     if (r.error) {
       // ยังไม่มีคอลัมน์ payout_at — โหลดแบบไม่มีไปก่อน (ตั้งราคายังใช้ได้ แต่บันทึกการโอนยังไม่ได้)
-      r = await DB.from('orders').select(cols).eq('ptype', 'pro').order('created_at', { ascending: false }).limit(2000);
+      r = await proQ(cols).order('created_at', { ascending: false }).limit(2000);
       setPayoutReady(false);
     } else setPayoutReady(true);
     if (!r.error && r.data) {
@@ -1858,6 +1875,7 @@ function Dash({ role }){
           <div style={css("min-width:0")}>
             <div style={css("font-family:'Montserrat',sans-serif;font-weight:800;font-size:13.5px;letter-spacing:1px;color:#fff")}><span style={css("color:var(--yellow)")}>MORE</span> PRINT <span style={css("color:var(--yellow)")}>PRO</span></div>
             <div style={css("font-size:9.5px;color:#9AA8CC;margin-top:2px")}>หลังบ้านร้านพาร์ทเนอร์</div>
+            <div style={css("font-size:11.5px;font-weight:700;color:var(--yellow);margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis")}>{SHOP.name}</div>
           </div>
           <button className="mp-close" onClick={() => setNavOpen(false)} style={css("margin-left:auto;background:none;border:none;color:#9AA8CC;font-size:16px;cursor:pointer;flex:none")}>✕</button>
         </div>
@@ -1878,7 +1896,7 @@ function Dash({ role }){
       <div style={css("background:var(--acc);color:#fff;padding:16px 18px;display:flex;align-items:center;gap:12px;position:sticky;top:0;z-index:10")}>
         <button className="mp-burger" onClick={() => setNavOpen(true)} style={css("background:rgba(255,255,255,.16);border:none;color:#fff;width:38px;height:38px;border-radius:10px;font-size:17px;cursor:pointer;align-items:center;justify-content:center;flex:none")}>☰</button>
         <div style={css("flex:1;min-width:0")}>
-          <div style={css("font-family:'Montserrat',sans-serif;font-weight:800;font-size:15px;letter-spacing:1px")}>PRINT PRO <span style={css("color:var(--yellow)")}>UDOMSUK</span></div>
+          <div style={css("font-family:'Montserrat',sans-serif;font-weight:800;font-size:15px;letter-spacing:1px")}>PRINT PRO <span style={css("color:var(--yellow);font-family:'IBM Plex Sans Thai',sans-serif;letter-spacing:0;display:inline-block;white-space:nowrap")}>{SHOP.name}</span></div>
           <div style={css("font-family:'IBM Plex Mono',monospace;font-size:9.5px;letter-spacing:2px;color:var(--yellow)")}>{isOwner ? 'PARTNER FINANCE · คอม ' + Math.round(COMMISSION * 100) + '%' : 'PARTNER VIEW · ส่วนแบ่งร้านคุณ ' + Math.round((1 - COMMISSION) * 100) + '%'}</div>
         </div>
         {!DB && <span style={css("font-size:10px;font-weight:700;background:#f59f00;color:#0B1E4A;padding:3px 10px;border-radius:99px")}>DEMO</span>}
