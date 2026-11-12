@@ -1,0 +1,490 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MORE PRINT — จัดการร้านพาร์ทเนอร์</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Montserrat:wght@700;800&display=swap" rel="stylesheet">
+<style>
+  @font-face{font-family:'Cloud Soft';src:url('assets/fonts/Cloud Soft-Light.ttf') format('truetype');font-weight:400;font-style:normal;font-display:swap}
+  @font-face{font-family:'Cloud Soft';src:url('assets/fonts/Cloud Soft-Light.ttf') format('truetype');font-weight:500;font-style:normal;font-display:swap}
+  @font-face{font-family:'Cloud Soft';src:url('assets/fonts/Cloud Soft-Bold.ttf') format('truetype');font-weight:600;font-style:normal;font-display:swap}
+  @font-face{font-family:'Cloud Soft';src:url('assets/fonts/Cloud Soft-Bold.ttf') format('truetype');font-weight:700;font-style:normal;font-display:swap}
+  @font-face{font-family:'Cloud Soft';src:url('assets/fonts/Cloud Soft-Bold.ttf') format('truetype');font-weight:800;font-style:normal;font-display:swap}
+  /* CI ชุดเดียวกับ admin.html / pro.html: น้ำเงิน #004FD6 หลัก · ขาวนวล #FFFFF7 พื้น · เหลือง #FADF29 เน้น */
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:'Cloud Soft','IBM Plex Sans Thai',sans-serif;
+  --bg:#FFFFF7;--card:#ffffff;--ink:#121A2E;--sub:#83827A;--line:#E7E6DA;--soft:#F3F3E9;
+  --acc:#004FD6;--accDark:#003DA8;--accSoft:#E8EFFD;--navy:#0B1E4A;--yellow:#FADF29;--green:#2f9e44;--greenSoft:#e6f6ea;--red:#c92a2a;--redSoft:#ffe9e9;--gold:#a16207;--goldBg:#fff7e0;--shadow:0 2px 10px rgba(0,0,0,.06)}
+  input,button,select,textarea{font-family:'Cloud Soft','IBM Plex Sans Thai',sans-serif}
+  .pa-grid{display:grid;grid-template-columns:1fr;gap:14px}
+  @media(min-width:900px){ .pa-grid{grid-template-columns:repeat(2,minmax(0,1fr))} }
+  .pa-kpi{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+  @media(min-width:700px){ .pa-kpi{grid-template-columns:repeat(4,minmax(0,1fr))} }
+  .pa-form{display:grid;grid-template-columns:1fr;gap:10px}
+  @media(min-width:600px){ .pa-form{grid-template-columns:repeat(2,minmax(0,1fr))} }
+  .pa-in{width:100%;box-sizing:border-box;height:42px;border:1px solid var(--line);border-radius:10px;background:var(--soft);color:var(--ink);padding:0 12px;font-size:14px;outline:none}
+  .pa-in:focus{border-color:var(--acc);background:#fff}
+  img{max-width:100%}
+</style>
+<script src="./config.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script crossorigin src="https://unpkg.com/react@18.3.1/umd/react.production.min.js"></script>
+<script crossorigin src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js"></script>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel" data-presets="react">
+// ══ หน้าจัดการร้านพาร์ทเนอร์ — เจ้าของ MORE PRINT เท่านั้น (เจ้าของสั่ง 2026-11-12) ══
+// เพิ่มร้าน · สร้างบัญชีล็อกอิน/ตั้งรหัสผ่านให้ร้าน (ผ่าน Edge Function partner-admin) · ตั้งค่าคอมรายร้าน · ช่องทางติดต่อ · ยอดขายรายร้าน
+// ข้อมูลร้าน = ตาราง shops · บัญชีไหนเป็นร้านไหน = partners.shop · ออเดอร์ Pro เป็นของร้านไหน = orders.partner
+// ทุกร้านล็อกอินที่ pro.html ที่เดียว — หน้าตาเดียวกัน ข้อมูลแยกตามร้าน
+const CFG = window.MP_CONFIG || {};
+const DB = (CFG.SUPABASE_URL && CFG.SUPABASE_ANON_KEY && window.supabase)
+  ? window.supabase.createClient(CFG.SUPABASE_URL, CFG.SUPABASE_ANON_KEY, { auth: { storageKey: 'mp-partners' } }) : null;
+const FN = (CFG.SUPABASE_URL || '') + '/functions/v1/partner-admin';
+const DEFAULT_COMM = 0.20;
+const PRO_URL = location.href.replace(/[^/]*([?#].*)?$/, '') + 'pro.html';
+
+function css(str){
+  const o = {};
+  String(str).split(';').forEach(decl => {
+    const i = decl.indexOf(':');
+    if (i < 0) return;
+    const prop = decl.slice(0, i).trim();
+    if (!prop) return;
+    o[prop.startsWith('--') ? prop : prop.replace(/-([a-z])/g, (_, c) => c.toUpperCase())] = decl.slice(i + 1).trim();
+  });
+  return o;
+}
+const baht = (n) => '฿' + (Math.round((n || 0) * 100) / 100).toLocaleString('th-TH');
+const pct = (r) => Math.round((Number(r) || 0) * 1000) / 10;
+const TH_MONTHS = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
+const fmtDate = (iso) => { if (!iso) return '-'; const d = new Date(iso); return d.getDate() + ' ' + TH_MONTHS[d.getMonth()] + ' ' + ((d.getFullYear() + 543) % 100); };
+
+// ── สูตรเงินชุดเดียวกับ commission.html / pro.html (ห้ามแก้ที่นี่ที่เดียว) ──
+const jobValue = (o) => (o.print_cost || 0) + (o.bind_cost || 0);
+const printDisc = (o) => { const d = o.discount || 0; if (d <= 0) return 0; if ((o.delivery_cost || 0) > 0 && d === o.delivery_cost) return 0; return Math.min(d, jobValue(o)); };
+const shipAdj = (a) => a && (a.kind === 'ship' || /^(เปลี่ยนเป็นจัดส่งถึงที่|เปลี่ยนเป็นมารับเองที่ร้าน|แก้จุดส่ง)/.test(String(a.label || '')));
+const adjJob = (o) => (o.adjustments || []).reduce((sm, a) => sm + (shipAdj(a) ? 0 : (Number(a.amt) || 0)), 0);
+const jobNet = (o) => Math.max(0, jobValue(o) + adjJob(o) - printDisc(o));
+// เรทคอม: ใบดีลพิเศษ (orders.comm_rate) ก่อน → ค่าคอมของร้าน (shops.comm) → 20%
+const commRateOf = (o, shop) => { const r = Number(o && o.comm_rate); if (isFinite(r) && r > 0 && r < 1) return r; const c = Number(shop && shop.comm); return isFinite(c) && c > 0 && c < 1 ? c : DEFAULT_COMM; };
+const commOf = (o, shop) => jobNet(o) * commRateOf(o, shop);
+const partnerOf = (o, shop) => jobNet(o) - commOf(o, shop);
+
+const lineUrl = (v) => { const s = String(v || '').trim(); if (!s) return null; if (/^https?:\/\//i.test(s)) return s; if (s[0] === '@') return 'https://line.me/R/ti/p/' + encodeURIComponent(s); return 'https://line.me/ti/p/~' + encodeURIComponent(s); };
+const telUrl = (v) => { const s = String(v || '').replace(/[^0-9+]/g, ''); return s ? 'tel:' + s : null; };
+const newCode = () => 's' + Date.now().toString(36); // รหัสร้าน (ใช้ภายในระบบ ลูกค้าไม่เห็น)
+
+// เรียก Edge Function partner-admin ด้วย token ของเจ้าของที่ล็อกอินอยู่
+async function fnCall(body){
+  const { data } = await DB.auth.getSession();
+  const tok = data && data.session ? data.session.access_token : '';
+  const r = await fetch(FN, { method: 'POST', headers: { apikey: CFG.SUPABASE_ANON_KEY, Authorization: 'Bearer ' + tok, 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) { const e = new Error(j.error || ('HTTP ' + r.status)); e.code = j.error || ('HTTP ' + r.status); e.detail = j.detail; throw e; }
+  return j;
+}
+const FN_ERR = {
+  'bad-email': 'รูปแบบอีเมลไม่ถูกต้อง',
+  'short-password': 'รหัสผ่านต้องยาวอย่างน้อย 8 ตัวอักษร',
+  'no-shop': 'ไม่พบร้านนี้ในระบบ',
+  'is-owner-account': 'อีเมลนี้เป็นบัญชีเจ้าของ MORE PRINT — ใช้เป็นบัญชีร้านไม่ได้',
+  'not-partner': 'บัญชีนี้ไม่ใช่บัญชีร้านพาร์ทเนอร์',
+  'owner-only': 'ต้องล็อกอินด้วยบัญชีเจ้าของ MORE PRINT',
+  'create-failed': 'สร้างบัญชีไม่สำเร็จ',
+};
+const fnErrText = (e) => {
+  if (/Failed to fetch|HTTP 404|NetworkError/i.test(String(e && (e.code || e.message)))) return 'ยังไม่ได้ติดตั้งฟังก์ชัน partner-admin ใน Supabase — ติดตั้งก่อนถึงจะสร้างบัญชี/ตั้งรหัสผ่านได้';
+  return (FN_ERR[e.code] || ('ไม่สำเร็จ: ' + (e.code || e.message))) + (e.detail ? ' (' + String(e.detail).slice(0, 120) + ')' : '');
+};
+
+// ── เดโม (ไม่มีฐานข้อมูล) ──
+const DAY = 24 * 3600000;
+const DEMO_SHOPS = [
+  { code: 'udomsuk', name: 'ร้านอุดมสุขปริ้นติ้ง', comm: 0.20, phone: '081-234-5678', line: '@udomsuk', contact: 'คุณสมศักดิ์', note: 'ฝั่งกังสดาล · งานเพลท/โปสเตอร์', active: true, created_at: new Date(Date.now() - 90 * DAY).toISOString() },
+  { code: 'langmor', name: 'ร้านปริ้นท์หลังมอ', comm: 0.20, phone: '', line: '', contact: '', note: 'ร้านใหม่ ฝั่งหลังมอ', active: true, created_at: new Date().toISOString() },
+];
+const DEMO_ORDERS = [
+  { id: '#MP-PRO201', created_at: new Date().toISOString(), status: 4, print_cost: 600, bind_cost: 0, delivery_cost: 39, partner: 'udomsuk', payout_at: null },
+  { id: '#MP-PRO202', created_at: new Date(Date.now() - 2 * 3600000).toISOString(), status: 2, print_cost: 350, bind_cost: 0, partner: 'udomsuk', payout_at: null },
+  { id: '#MP-PRO203', created_at: new Date(Date.now() - 3 * DAY).toISOString(), status: 4, print_cost: 1200, bind_cost: 0, partner: 'udomsuk', payout_at: new Date().toISOString() },
+  { id: '#MP-PRO204', created_at: new Date(Date.now() - 5 * DAY).toISOString(), status: 4, print_cost: 450, bind_cost: 0, partner: 'udomsuk', payout_at: null },
+  { id: '#MP-PRO205', created_at: new Date(Date.now() - 1 * DAY).toISOString(), status: 0, print_cost: 300, bind_cost: 0, partner: 'udomsuk', payout_at: null },
+];
+const DEMO_ACCOUNTS = [
+  { uid: 'demo-1', shop: 'udomsuk', email: 'udomsuk@example.com', last_sign_in_at: new Date(Date.now() - 3600000).toISOString(), created_at: new Date(Date.now() - 90 * DAY).toISOString() },
+];
+
+function Login({ onOk }){
+  const [email, setEmail] = React.useState('');
+  const [pass, setPass] = React.useState('');
+  const [busy, setBusy] = React.useState(false);
+  const [msg, setMsg] = React.useState('');
+  const verify = async () => {
+    const a = await DB.rpc('is_admin');
+    if (a.data) { onOk(); return; }
+    const p = await DB.rpc('is_partner');
+    setMsg(p.data ? 'หน้านี้สำหรับเจ้าของ MORE PRINT เท่านั้น — ร้านพาร์ทเนอร์ใช้หน้า pro.html ครับ' : 'บัญชีนี้ไม่ใช่เจ้าของ MORE PRINT');
+    setBusy(false);
+  };
+  React.useEffect(() => {
+    if (!DB) { onOk(); return; }
+    DB.auth.getSession().then(({ data }) => { if (data.session) { setBusy(true); verify(); } });
+  }, []);
+  const submit = async () => {
+    if (!DB) return onOk();
+    if (!email.trim() || !pass) return setMsg('กรอกอีเมลและรหัสผ่านก่อนครับ');
+    setBusy(true); setMsg('');
+    const { error } = await DB.auth.signInWithPassword({ email: email.trim().toLowerCase(), password: pass });
+    if (error) { setBusy(false); return setMsg('อีเมลหรือรหัสผ่านไม่ถูกต้อง ❌'); }
+    await verify();
+  };
+  return (
+    <div style={css("min-height:100vh;display:flex;align-items:center;justify-content:center;background:var(--bg);padding:20px;box-sizing:border-box")}>
+      <div style={css("background:var(--card);border:1px solid var(--line);border-radius:18px;padding:28px 24px;width:320px;max-width:100%;box-sizing:border-box;box-shadow:var(--shadow);display:flex;flex-direction:column;gap:12px;align-items:center")}>
+        <img src="assets/logo-black.png" alt="MORE PRINT" style={css("width:74px;height:auto;display:block")}/>
+        <div style={css("font-family:'Montserrat',sans-serif;font-weight:800;font-size:16px;letter-spacing:1px")}><span style={css("color:var(--acc)")}>MORE</span> PRINT <span style={css("color:var(--acc)")}>PARTNERS</span></div>
+        <div style={css("font-size:13px;color:var(--sub);text-align:center")}>จัดการร้านพาร์ทเนอร์ — เจ้าของเท่านั้น</div>
+        <input className="pa-in" value={email} onChange={e => setEmail(e.target.value)} placeholder="อีเมลเจ้าของร้าน" inputMode="email" autoComplete="email" style={css("height:46px;border-radius:12px")}/>
+        <input className="pa-in" type="password" value={pass} onChange={e => setPass(e.target.value)} onKeyDown={e => e.key === 'Enter' && submit()} placeholder="รหัสผ่าน" autoComplete="current-password" style={css("height:46px;border-radius:12px")}/>
+        {msg && <div style={css("font-size:12px;color:#d9480f;text-align:center;line-height:1.5")}>{msg}</div>}
+        <button onClick={submit} disabled={busy} style={css("width:100%;height:46px;border:none;border-radius:12px;background:var(--acc);color:#fff;font-size:14px;font-weight:700;cursor:pointer" + (busy ? ";opacity:.6" : ""))}>{busy ? 'กำลังตรวจสอบ…' : 'เข้าสู่ระบบ →'}</button>
+      </div>
+    </div>
+  );
+}
+
+function Field({ label, hint, children, full }){
+  return (
+    <label style={css("display:flex;flex-direction:column;gap:5px;min-width:0" + (full ? ";grid-column:1 / -1" : ""))}>
+      <span style={css("font-size:12.5px;font-weight:700")}>{label}{hint ? <span style={css("font-weight:500;color:var(--sub)")}> — {hint}</span> : null}</span>
+      {children}
+    </label>
+  );
+}
+const btn = (kind) => css("height:36px;padding:0 14px;border-radius:10px;font-size:12.5px;font-weight:700;cursor:pointer;white-space:nowrap;display:inline-flex;align-items:center;justify-content:center;gap:6px;text-decoration:none;box-sizing:border-box;"
+  + (kind === 'pri' ? "border:none;background:var(--acc);color:#fff" : kind === 'red' ? "border:1px solid #f1b5b5;background:#fff;color:var(--red)" : kind === 'line' ? "border:none;background:#06C755;color:#fff" : "border:1px solid var(--line);background:#fff;color:var(--ink)"));
+
+// ── ฟอร์มเพิ่ม/แก้ร้าน ──
+function ShopForm({ shop, onSave, onCancel, busy }){
+  const isNew = !shop;
+  const [f, setF] = React.useState(() => ({ name: shop ? shop.name : '', comm: String(pct(shop ? shop.comm : DEFAULT_COMM)), phone: (shop && shop.phone) || '', line: (shop && shop.line) || '',
+    contact: (shop && shop.contact) || '', note: (shop && shop.note) || '', email: '', password: '' }));
+  const [err, setErr] = React.useState('');
+  const set = (k) => (e) => setF(x => ({ ...x, [k]: e.target.value }));
+  const submit = () => {
+    const name = f.name.trim();
+    const comm = Number(f.comm);
+    if (!name) return setErr('ใส่ชื่อร้านก่อนครับ');
+    if (!isFinite(comm) || comm <= 0 || comm >= 100) return setErr('ค่าคอมต้องอยู่ระหว่าง 1–99 %');
+    const email = f.email.trim().toLowerCase();
+    if (isNew && (email || f.password)) {
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) return setErr('อีเมลบัญชีร้านไม่ถูกต้อง');
+      if (f.password.length < 8) return setErr('รหัสผ่านบัญชีร้านต้องยาวอย่างน้อย 8 ตัวอักษร');
+    }
+    setErr('');
+    onSave({ name, comm: Math.round(comm * 10) / 1000, phone: f.phone.trim(), line: f.line.trim(), contact: f.contact.trim(), note: f.note.trim() },
+      isNew && email ? { email, password: f.password } : null);
+  };
+  return (
+    <div style={css("background:var(--card);border:2px solid var(--acc);border-radius:16px;padding:16px;box-shadow:var(--shadow);display:flex;flex-direction:column;gap:12px")}>
+      <div style={css("font-size:15px;font-weight:800")}>{isNew ? '＋ เพิ่มร้านพาร์ทเนอร์ใหม่' : 'แก้ไขข้อมูลร้าน — ' + shop.name}</div>
+      <div className="pa-form">
+        <Field label="ชื่อร้าน *" full><input className="pa-in" value={f.name} onChange={set('name')} placeholder="เช่น ร้านปริ้นท์หลังมอ"/></Field>
+        <Field label="ค่าคอม MORE PRINT (%)" hint={'ร้านได้ ' + (isFinite(Number(f.comm)) ? Math.round((100 - Number(f.comm)) * 10) / 10 : '-') + '%'}><input className="pa-in" value={f.comm} onChange={set('comm')} inputMode="decimal" placeholder="20"/></Field>
+        <Field label="ผู้ติดต่อ"><input className="pa-in" value={f.contact} onChange={set('contact')} placeholder="ชื่อเจ้าของ/ผู้ดูแลร้าน"/></Field>
+        <Field label="เบอร์โทร"><input className="pa-in" value={f.phone} onChange={set('phone')} inputMode="tel" placeholder="08x-xxx-xxxx"/></Field>
+        <Field label="LINE" hint="ไอดี / @ไอดีร้าน / ลิงก์"><input className="pa-in" value={f.line} onChange={set('line')} placeholder="@ไอดีร้าน หรือ https://line.me/…"/></Field>
+        <Field label="หมายเหตุ" full><input className="pa-in" value={f.note} onChange={set('note')} placeholder="เช่น ทำเล งานที่รับ เวลาเปิด-ปิด"/></Field>
+        {isNew && <div style={css("grid-column:1 / -1;border-top:1px dashed var(--line);padding-top:10px;font-size:12.5px;font-weight:800;color:var(--acc)")}>บัญชีล็อกอินหลังบ้านของร้าน (ใส่ตอนนี้ หรือเพิ่มทีหลังก็ได้)</div>}
+        {isNew && <Field label="อีเมลร้าน" hint="ใช้ล็อกอิน pro.html"><input className="pa-in" value={f.email} onChange={set('email')} inputMode="email" autoComplete="off" placeholder="shop@gmail.com"/></Field>}
+        {isNew && <Field label="รหัสผ่าน" hint="อย่างน้อย 8 ตัว"><input className="pa-in" value={f.password} onChange={set('password')} autoComplete="new-password" placeholder="ตั้งรหัสให้ร้าน"/></Field>}
+      </div>
+      {err && <div style={css("font-size:12.5px;color:var(--red);font-weight:700")}>{err}</div>}
+      <div style={css("display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap")}>
+        <button onClick={onCancel} style={btn()}>ยกเลิก</button>
+        <button onClick={submit} disabled={busy} style={{ ...btn('pri'), opacity: busy ? .6 : 1 }}>{busy ? 'กำลังบันทึก…' : isNew ? 'เพิ่มร้าน' : 'บันทึก'}</button>
+      </div>
+    </div>
+  );
+}
+
+// ── บัญชีล็อกอินของร้าน: ตั้งรหัสใหม่ / เอาออก / เพิ่มบัญชี ──
+function Accounts({ shop, accounts, fnReady, onCreate, onPassword, onUnlink }){
+  const [mode, setMode] = React.useState(null); // null | 'add' | uid (ตั้งรหัสใหม่)
+  const [email, setEmail] = React.useState('');
+  const [pw, setPw] = React.useState('');
+  const [busy, setBusy] = React.useState(false);
+  const [msg, setMsg] = React.useState('');
+  const reset = () => { setMode(null); setEmail(''); setPw(''); setMsg(''); };
+  const run = async (fn) => { setBusy(true); setMsg(''); try { const m = await fn(); reset(); if (m) setMsg(m); } catch (e) { setMsg(fnErrText(e)); } setBusy(false); };
+  const doAdd = () => {
+    const em = email.trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(em)) return setMsg('อีเมลไม่ถูกต้อง');
+    if (pw.length < 8) return setMsg('รหัสผ่านต้องยาวอย่างน้อย 8 ตัวอักษร');
+    run(async () => { const r = await onCreate(shop, em, pw); return r && r.existing ? '✓ อีเมลนี้มีบัญชีอยู่แล้ว — ผูกกับร้านให้แล้ว (ใช้รหัสผ่านเดิมของบัญชีนั้น)' : '✓ สร้างบัญชีแล้ว ส่งอีเมล + รหัสผ่านให้ร้านล็อกอินที่ pro.html ได้เลย'; });
+  };
+  const doPw = (a) => { if (pw.length < 8) return setMsg('รหัสผ่านต้องยาวอย่างน้อย 8 ตัวอักษร'); run(async () => { await onPassword(a, pw); return '✓ ตั้งรหัสผ่านใหม่ให้ ' + a.email + ' แล้ว'; }); };
+  const doUnlink = (a) => { if (!window.confirm('เอาบัญชี ' + a.email + ' ออกจาก ' + shop.name + '?\nบัญชีนี้จะเข้าหลังบ้านร้านไม่ได้อีก (ผูกกลับได้ทีหลัง)')) return; run(async () => { await onUnlink(a); return '✓ เอาบัญชีออกแล้ว'; }); };
+  return (
+    <div style={css("border-top:1px dashed var(--line);padding-top:10px;display:flex;flex-direction:column;gap:8px")}>
+      <div style={css("display:flex;align-items:center;justify-content:space-between;gap:8px")}>
+        <div style={css("font-size:12.5px;font-weight:800")}>บัญชีล็อกอินหลังบ้าน ({accounts ? accounts.length : '…'})</div>
+        {fnReady && mode !== 'add' && <button onClick={() => { reset(); setMode('add'); }} style={btn()}>＋ เพิ่มบัญชี</button>}
+      </div>
+      {!fnReady && <div style={css("font-size:11.5px;color:var(--gold);background:var(--goldBg);border-radius:9px;padding:7px 10px;line-height:1.5")}>ยังไม่ได้ติดตั้งฟังก์ชัน partner-admin — ติดตั้งแล้วจะเห็นอีเมลบัญชีร้าน สร้างบัญชี และตั้งรหัสผ่านได้จากหน้านี้</div>}
+      {accounts && accounts.length === 0 && fnReady && <div style={css("font-size:12px;color:var(--sub)")}>ยังไม่มีบัญชี — กด "เพิ่มบัญชี" เพื่อสร้างอีเมล + รหัสผ่านให้ร้าน</div>}
+      {(accounts || []).map(a => (
+        <div key={a.uid} style={css("border:1px solid var(--line);border-radius:10px;padding:8px 10px;display:flex;flex-direction:column;gap:7px")}>
+          <div style={css("display:flex;align-items:center;gap:8px;flex-wrap:wrap")}>
+            <div style={css("flex:1;min-width:150px")}>
+              <div style={css("font-size:13px;font-weight:700;word-break:break-all")}>{a.email}</div>
+              <div style={css("font-size:11px;color:var(--sub)")}>เข้าใช้ล่าสุด {a.last_sign_in_at ? fmtDate(a.last_sign_in_at) : 'ยังไม่เคย'}</div>
+            </div>
+            {mode !== a.uid && <button onClick={() => { reset(); setMode(a.uid); }} style={btn()}>ตั้งรหัสใหม่</button>}
+            {mode !== a.uid && <button onClick={() => doUnlink(a)} style={btn('red')}>เอาออก</button>}
+          </div>
+          {mode === a.uid && (
+            <div style={css("display:flex;gap:6px;flex-wrap:wrap")}>
+              <input className="pa-in" value={pw} onChange={e => setPw(e.target.value)} placeholder="รหัสผ่านใหม่ (อย่างน้อย 8 ตัว)" autoComplete="new-password" style={css("flex:1;min-width:160px;height:36px")}/>
+              <button onClick={() => doPw(a)} disabled={busy} style={btn('pri')}>{busy ? '…' : 'บันทึกรหัส'}</button>
+              <button onClick={reset} style={btn()}>ยกเลิก</button>
+            </div>
+          )}
+        </div>
+      ))}
+      {mode === 'add' && (
+        <div style={css("border:1px solid var(--acc);border-radius:10px;padding:10px;display:flex;flex-direction:column;gap:7px;background:var(--accSoft)")}>
+          <input className="pa-in" value={email} onChange={e => setEmail(e.target.value)} inputMode="email" autoComplete="off" placeholder="อีเมลร้าน (ใช้ล็อกอิน)" style={css("background:#fff")}/>
+          <input className="pa-in" value={pw} onChange={e => setPw(e.target.value)} autoComplete="new-password" placeholder="รหัสผ่าน (อย่างน้อย 8 ตัว)" style={css("background:#fff")}/>
+          <div style={css("display:flex;gap:6px;justify-content:flex-end")}>
+            <button onClick={reset} style={btn()}>ยกเลิก</button>
+            <button onClick={doAdd} disabled={busy} style={btn('pri')}>{busy ? 'กำลังสร้าง…' : 'สร้างบัญชี'}</button>
+          </div>
+        </div>
+      )}
+      {msg && <div style={css("font-size:12px;font-weight:700;line-height:1.5;color:" + (msg[0] === '✓' ? "var(--green)" : "var(--red)"))}>{msg}</div>}
+    </div>
+  );
+}
+
+const PERIODS = [['today', 'วันนี้'], ['month', 'เดือนนี้'], ['all', 'ทั้งหมด']];
+function periodStart(key){
+  const n = new Date();
+  if (key === 'today') return new Date(n.getFullYear(), n.getMonth(), n.getDate());
+  if (key === 'month') return new Date(n.getFullYear(), n.getMonth(), 1);
+  return new Date(0);
+}
+// ยอดของร้านในช่วงที่เลือก (ไม่นับยกเลิก) · คอม/ส่วนร้าน นับเมื่องานจบ (status 4) แบบเดียวกับ commission.html
+function shopStats(shop, orders, start){
+  const mine = orders.filter(o => o.partner === shop.code);
+  const inP = mine.filter(o => o.status > 0 && new Date(o.created_at) >= start);
+  const done = inP.filter(o => o.status === 4);
+  const unpaid = mine.filter(o => o.status === 4 && jobValue(o) > 0 && !o.payout_at);
+  return {
+    n: inP.length,
+    job: inP.reduce((a, o) => a + jobNet(o), 0),
+    comm: done.reduce((a, o) => a + commOf(o, shop), 0),
+    share: done.reduce((a, o) => a + partnerOf(o, shop), 0),
+    working: mine.filter(o => o.status >= 1 && o.status <= 3).length,
+    unpaidN: unpaid.length,
+    unpaid: unpaid.reduce((a, o) => a + partnerOf(o, shop), 0),
+    last: mine.reduce((m, o) => (!m || new Date(o.created_at) > new Date(m)) ? o.created_at : m, null),
+  };
+}
+
+function Stat({ label, value, color, sub }){
+  return (
+    <div style={css("background:var(--soft);border-radius:10px;padding:8px 10px;min-width:0")}>
+      <div style={css("font-size:11px;color:var(--sub);font-weight:700")}>{label}</div>
+      <div style={css("font-family:'IBM Plex Mono',monospace;font-size:16px;font-weight:700;color:" + (color || "var(--ink)"))}>{value}</div>
+      {sub && <div style={css("font-size:10.5px;color:var(--sub)")}>{sub}</div>}
+    </div>
+  );
+}
+
+function ShopCard({ shop, stats, accounts, fnReady, onEdit, onToggle, onCreate, onPassword, onUnlink, periodLabel }){
+  const tel = telUrl(shop.phone), line = lineUrl(shop.line);
+  const [copied, setCopied] = React.useState(false);
+  const copyLink = () => { try { navigator.clipboard.writeText(PRO_URL); setCopied(true); setTimeout(() => setCopied(false), 1800); } catch (e) {} };
+  return (
+    <div style={css("background:var(--card);border:1px solid var(--line);border-radius:16px;padding:14px;box-shadow:var(--shadow);display:flex;flex-direction:column;gap:10px;min-width:0" + (shop.active ? "" : ";opacity:.75"))}>
+      <div style={css("display:flex;align-items:flex-start;gap:10px")}>
+        <div style={css("width:40px;height:40px;border-radius:11px;background:var(--accSoft);color:var(--acc);display:flex;align-items:center;justify-content:center;font-size:20px;flex:none")}>🏪</div>
+        <div style={css("flex:1;min-width:0")}>
+          <div style={css("font-size:16px;font-weight:800;line-height:1.3")}>{shop.name}</div>
+          <div style={css("font-size:11.5px;color:var(--sub)")}>{shop.contact ? 'ผู้ติดต่อ: ' + shop.contact + ' · ' : ''}เข้าร่วม {fmtDate(shop.created_at)}</div>
+        </div>
+        <span style={css("flex:none;font-size:11px;font-weight:800;padding:3px 10px;border-radius:99px;" + (shop.active ? "background:var(--greenSoft);color:var(--green)" : "background:#eee;color:#666"))}>{shop.active ? '● เปิดอยู่' : 'ปิดชั่วคราว'}</span>
+      </div>
+      {shop.note && <div style={css("font-size:12px;color:var(--sub);line-height:1.5")}>{shop.note}</div>}
+      <div style={css("display:flex;align-items:center;gap:6px;flex-wrap:wrap")}>
+        <span style={css("font-size:12px;font-weight:800;background:var(--accSoft);color:var(--acc);border-radius:8px;padding:5px 9px")}>คอม MORE PRINT {pct(shop.comm)}% · ร้านได้ {Math.round((100 - pct(shop.comm)) * 10) / 10}%</span>
+        {tel && <a href={tel} style={btn()}>📞 {shop.phone}</a>}
+        {line && <a href={line} target="_blank" rel="noreferrer" style={btn('line')}>LINE</a>}
+        {!tel && !line && <span style={css("font-size:11.5px;color:var(--sub)")}>ยังไม่มีช่องทางติดต่อ — กดแก้ไขข้อมูลร้านเพื่อเพิ่ม</span>}
+      </div>
+      <div style={css("font-size:12px;font-weight:800;color:var(--sub)")}>ยอดขาย{periodLabel}</div>
+      <div className="pa-kpi">
+        <Stat label="ออเดอร์" value={stats.n} sub="ไม่นับที่ยกเลิก"/>
+        <Stat label="ยอดงานปริ้น" value={baht(stats.job)} color="var(--acc)"/>
+        <Stat label="คอมเรา" value={baht(stats.comm)} color="var(--green)" sub="งานที่เสร็จแล้ว"/>
+        <Stat label="ส่วนของร้าน" value={baht(stats.share)} color="var(--gold)" sub="งานที่เสร็จแล้ว"/>
+      </div>
+      <div style={css("display:flex;gap:8px;flex-wrap:wrap;font-size:12px")}>
+        <span style={css("background:var(--soft);border-radius:8px;padding:5px 9px")}>กำลังทำอยู่ <b>{stats.working}</b> งาน</span>
+        <span style={css("border-radius:8px;padding:5px 9px;" + (stats.unpaid > 0 ? "background:var(--goldBg);color:var(--gold)" : "background:var(--soft)"))}>ค้างโอนให้ร้าน <b>{baht(stats.unpaid)}</b>{stats.unpaidN ? ' (' + stats.unpaidN + ' งาน)' : ''}</span>
+        <span style={css("background:var(--soft);border-radius:8px;padding:5px 9px;color:var(--sub)")}>ออเดอร์ล่าสุด {stats.last ? fmtDate(stats.last) : '-'}</span>
+      </div>
+      <Accounts shop={shop} accounts={accounts} fnReady={fnReady} onCreate={onCreate} onPassword={onPassword} onUnlink={onUnlink}/>
+      <div style={css("display:flex;gap:6px;flex-wrap:wrap;border-top:1px dashed var(--line);padding-top:10px")}>
+        <button onClick={onEdit} style={btn()}>✎ แก้ไขข้อมูลร้าน</button>
+        <button onClick={copyLink} style={btn()}>{copied ? '✓ คัดลอกแล้ว' : '🔗 คัดลอกลิงก์หลังบ้านให้ร้าน'}</button>
+        <button onClick={onToggle} style={btn(shop.active ? 'red' : 'pri')}>{shop.active ? 'ปิดร้านชั่วคราว' : 'เปิดร้านอีกครั้ง'}</button>
+      </div>
+    </div>
+  );
+}
+
+function Dash(){
+  const [shops, setShops] = React.useState(DB ? null : DEMO_SHOPS);
+  const [orders, setOrders] = React.useState(DB ? [] : DEMO_ORDERS);
+  const [accounts, setAccounts] = React.useState(DB ? null : DEMO_ACCOUNTS);
+  const [fnReady, setFnReady] = React.useState(!DB);
+  const [loading, setLoading] = React.useState(!!DB);
+  const [err, setErr] = React.useState('');
+  const [period, setPeriod] = React.useState('month');
+  const [editing, setEditing] = React.useState(null); // null | 'new' | shop code
+  const [busy, setBusy] = React.useState(false);
+  const [toast, setToast] = React.useState('');
+  const say = (t) => { setToast(t); setTimeout(() => setToast(''), 3500); };
+
+  const load = React.useCallback(async () => {
+    if (!DB) return;
+    setLoading(true); setErr('');
+    const s = await DB.from('shops').select('*').order('created_at', { ascending: true });
+    if (s.error) { setErr('ยังไม่มีตารางร้าน (shops) — ต้องรัน SQL แยกร้านพาร์ทเนอร์ก่อน'); setShops([]); setLoading(false); return; }
+    setShops(s.data || []);
+    const o = await DB.from('orders').select('id,created_at,status,print_cost,bind_cost,delivery_cost,discount,adjustments,comm_rate,payout_at,partner').eq('ptype', 'pro').order('created_at', { ascending: false }).limit(5000);
+    setOrders(o.error ? [] : (o.data || []));
+    try { const j = await fnCall({ action: 'list' }); setAccounts(j.accounts || []); setFnReady(true); }
+    catch (e) { setAccounts([]); setFnReady(false); }
+    setLoading(false);
+  }, []);
+  React.useEffect(() => { load(); }, [load]);
+
+  const saveShop = async (vals, acct) => {
+    setBusy(true);
+    try {
+      if (editing === 'new') {
+        const code = newCode();
+        const row = { code, ...vals, active: true };
+        if (DB) { const { error } = await DB.from('shops').insert(row); if (error) throw new Error(error.message); }
+        else setShops(l => l.concat({ ...row, created_at: new Date().toISOString() }));
+        let note = '✓ เพิ่ม ' + vals.name + ' แล้ว';
+        if (acct) {
+          try { await createAcct({ code, name: vals.name }, acct.email, acct.password); note += ' + สร้างบัญชี ' + acct.email; }
+          catch (e) { note += ' — แต่สร้างบัญชีไม่สำเร็จ: ' + fnErrText(e); }
+        }
+        say(note);
+      } else {
+        if (DB) { const { error } = await DB.from('shops').update(vals).eq('code', editing); if (error) throw new Error(error.message); }
+        else setShops(l => l.map(x => x.code === editing ? { ...x, ...vals } : x));
+        say('✓ บันทึกข้อมูลร้านแล้ว');
+      }
+      setEditing(null);
+      await load();
+    } catch (e) { alert('บันทึกไม่สำเร็จ: ' + e.message); }
+    setBusy(false);
+  };
+  const toggleShop = async (shop) => {
+    const to = !shop.active;
+    if (!to && !window.confirm('ปิด ' + shop.name + ' ชั่วคราว?\nบัญชีของร้านนี้จะเข้าหลังบ้านไม่ได้จนกว่าจะเปิดอีกครั้ง')) return;
+    if (DB) { const { error } = await DB.from('shops').update({ active: to }).eq('code', shop.code); if (error) return alert('ไม่สำเร็จ: ' + error.message); await load(); }
+    else setShops(l => l.map(x => x.code === shop.code ? { ...x, active: to } : x));
+    say(to ? '✓ เปิด ' + shop.name + ' แล้ว' : '✓ ปิด ' + shop.name + ' ชั่วคราวแล้ว');
+  };
+  const createAcct = async (shop, email, password) => {
+    if (!DB) { const ex = (accounts || []).some(a => a.email === email); if (!ex) setAccounts(l => (l || []).concat({ uid: 'demo-' + Date.now(), shop: shop.code, email, last_sign_in_at: null })); return { existing: ex }; }
+    const r = await fnCall({ action: 'create', email, password, shop: shop.code });
+    await load();
+    return r;
+  };
+  const setPassword = async (a, password) => { if (!DB) return; await fnCall({ action: 'password', uid: a.uid, password }); };
+  const unlink = async (a) => { if (!DB) { setAccounts(l => l.filter(x => x.uid !== a.uid)); return; } await fnCall({ action: 'unlink', uid: a.uid }); await load(); };
+
+  const start = periodStart(period);
+  const periodLabel = ' ' + (PERIODS.find(p => p[0] === period) || [, ''])[1];
+  const list = shops || [];
+  const all = list.map(s => ({ shop: s, st: shopStats(s, orders, start) }));
+  const tot = all.reduce((a, x) => ({ n: a.n + x.st.n, job: a.job + x.st.job, comm: a.comm + x.st.comm, unpaid: a.unpaid + x.st.unpaid }), { n: 0, job: 0, comm: 0, unpaid: 0 });
+  const unassigned = orders.filter(o => !o.partner && o.status > 0).length;
+
+  return (
+    <div style={css("min-height:100vh;background:var(--bg)")}>
+      <div style={css("background:var(--acc);color:#fff;padding:14px 18px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;position:sticky;top:0;z-index:10")}>
+        <div style={css("width:38px;height:38px;border-radius:10px;background:#fff;flex:none;display:flex;align-items:center;justify-content:center;overflow:hidden")}><img src="assets/logo-black.png" alt="MORE PRINT" style={css("width:32px;height:auto;display:block")}/></div>
+        <div style={css("flex:1;min-width:160px")}>
+          <div style={css("font-family:'Montserrat',sans-serif;font-weight:800;font-size:15px;letter-spacing:1px")}>MORE PRINT <span style={css("color:var(--yellow)")}>PARTNERS</span></div>
+          <div style={css("font-size:11.5px;color:#DCE6FB")}>จัดการร้านพาร์ทเนอร์ — เจ้าของเท่านั้น</div>
+        </div>
+        {!DB && <span style={css("font-size:10px;font-weight:700;background:#f59f00;color:#0B1E4A;padding:3px 10px;border-radius:99px")}>DEMO</span>}
+        <a href="commission.html" style={css("color:var(--yellow);font-size:12px;font-weight:700;text-decoration:none")}>฿ ค่าคอม</a>
+        <a href="admin.html" style={css("color:#fff;font-size:12px;font-weight:700;text-decoration:none")}>← หลังบ้านหลัก</a>
+        <button onClick={load} style={css("height:32px;padding:0 12px;border:1px solid rgba(255,255,255,.35);border-radius:9px;background:none;color:#fff;font-size:12px;cursor:pointer")}>{loading ? '…' : '⟳ รีเฟรช'}</button>
+        {DB && <button onClick={() => DB.auth.signOut().then(() => location.reload())} style={css("height:32px;padding:0 12px;border:1px solid rgba(255,255,255,.35);border-radius:9px;background:none;color:#fff;font-size:12px;cursor:pointer")}>ออกจากระบบ</button>}
+      </div>
+
+      <div style={css("max-width:1060px;margin:0 auto;padding:16px;box-sizing:border-box;display:flex;flex-direction:column;gap:14px")}>
+        {!DB && <div style={css("background:var(--goldBg);border:1px solid #f0d58a;color:var(--gold);border-radius:12px;padding:10px 14px;font-size:12.5px")}>⚠️ โหมดตัวอย่าง — ข้อมูลด้านล่างเป็นเพียงตัวอย่าง</div>}
+        {err && <div style={css("background:var(--redSoft);color:var(--red);border-radius:12px;padding:10px 14px;font-size:13px;font-weight:700")}>{err}</div>}
+        {toast && <div style={css("position:fixed;left:50%;bottom:22px;transform:translateX(-50%);background:var(--navy);color:#fff;padding:10px 16px;border-radius:12px;font-size:13px;font-weight:700;z-index:50;max-width:90vw;box-shadow:0 6px 20px rgba(0,0,0,.25)")}>{toast}</div>}
+
+        <div style={css("display:flex;align-items:flex-end;justify-content:space-between;gap:10px;flex-wrap:wrap")}>
+          <div>
+            <div style={css("font-size:20px;font-weight:800")}>ร้านพาร์ทเนอร์ ({list.length})</div>
+            <div style={css("font-size:12px;color:var(--sub)")}>ทุกร้านล็อกอินที่หน้า pro.html ที่เดียว — แต่ละบัญชีเห็นเฉพาะงานของร้านตัวเอง</div>
+          </div>
+          {editing !== 'new' && <button onClick={() => setEditing('new')} style={{ ...btn('pri'), height: '40px', fontSize: '13.5px' }}>＋ เพิ่มร้านใหม่</button>}
+        </div>
+
+        {editing === 'new' && <ShopForm onSave={saveShop} onCancel={() => setEditing(null)} busy={busy}/>}
+
+        <div style={css("display:flex;gap:6px;flex-wrap:wrap")}>
+          {PERIODS.map(([k, l]) => <button key={k} onClick={() => setPeriod(k)} style={css("height:32px;padding:0 14px;border-radius:99px;font-size:12.5px;font-weight:700;cursor:pointer;" + (period === k ? "border:1px solid var(--acc);background:var(--acc);color:#fff" : "border:1px solid var(--line);background:#fff;color:var(--ink)"))}>{l}</button>)}
+        </div>
+        <div className="pa-kpi">
+          <Stat label={'ออเดอร์ Pro รวม' + periodLabel} value={tot.n}/>
+          <Stat label={'ยอดงานปริ้นรวม' + periodLabel} value={baht(tot.job)} color="var(--acc)"/>
+          <Stat label={'คอมเรารวม' + periodLabel} value={baht(tot.comm)} color="var(--green)" sub="งานที่เสร็จแล้ว"/>
+          <Stat label="ค้างโอนให้ทุกร้าน" value={baht(tot.unpaid)} color="var(--gold)" sub="งานเสร็จที่ยังไม่โอน"/>
+        </div>
+        {unassigned > 0 && <div style={css("font-size:12px;color:var(--gold)")}>มีออเดอร์ Pro {unassigned} งานที่ยังไม่ระบุร้าน (ไม่นับในยอดร้านใด)</div>}
+
+        {shops === null ? <div style={css("color:var(--sub);font-size:13px")}>กำลังโหลด…</div> : (
+          <div className="pa-grid">
+            {all.map(({ shop, st }) => editing === shop.code
+              ? <ShopForm key={shop.code} shop={shop} onSave={saveShop} onCancel={() => setEditing(null)} busy={busy}/>
+              : <ShopCard key={shop.code} shop={shop} stats={st} periodLabel={periodLabel} fnReady={fnReady}
+                  accounts={accounts ? accounts.filter(a => a.shop === shop.code) : null}
+                  onEdit={() => setEditing(shop.code)} onToggle={() => toggleShop(shop)}
+                  onCreate={createAcct} onPassword={setPassword} onUnlink={unlink}/>)}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function App(){
+  const [ok, setOk] = React.useState(false);
+  if (!ok) return <Login onOk={() => setOk(true)}/>;
+  return <Dash/>;
+}
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
+</body>
+</html>

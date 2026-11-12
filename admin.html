@@ -2927,6 +2927,7 @@ function AdminApp(){
             </button>
           ))}
           <a href="commission.html" style={css("display:flex;align-items:center;gap:10px;height:42px;padding:0 12px;border-radius:11px;font-size:13px;font-weight:700;color:#e6c366;text-decoration:none")}><span style={css("line-height:0")}>{FI.baht(16)}</span>งาน PRO / ค่าคอม</a>
+          <a href="partners.html" style={css("display:flex;align-items:center;gap:10px;height:42px;padding:0 12px;border-radius:11px;font-size:13px;font-weight:700;color:#e6c366;text-decoration:none")}><span style={css("font-size:15px;line-height:1")}>🏪</span>ร้านพาร์ทเนอร์</a>
         </div>
         {DB && <button onClick={() => DB.auth.signOut().then(() => location.reload())} style={css("display:flex;align-items:center;gap:10px;height:42px;padding:0 12px;border-radius:11px;border:1px solid rgba(255,255,255,.14);background:none;color:#9AA8CC;cursor:pointer;font-family:inherit;font-size:12.5px;font-weight:700")}>⎋ ออกจากระบบ</button>}
       </div>
