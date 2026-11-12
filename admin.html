@@ -918,7 +918,7 @@ function ReceiptTool({ o, isPro, onClose }){
 }
 
 // ══ ออเดอร์จาก LINE OA — แอดมินกรอกเองทั้งหมด (เจ้าของสั่ง 2026-11-13 แทนแบบคิดราคาจากไฟล์) ══
-// งานที่รับทาง LINE และส่งเสร็จแล้ว แค่บันทึกยอดขายจริง: ชื่อลูกค้า · Standard/Pro · ประเภทงาน · ราคา · วันเวลา · โซน (+ เบอร์/สลิป/หมายเหตุ ถ้ามี)
+// งานที่รับทาง LINE และส่งเสร็จแล้ว แค่บันทึกยอดขายจริง: ชื่อลูกค้า · Standard/Pro · ประเภทงาน · ราคา · วันเวลา · โซน (+ เบอร์/หมายเหตุ ถ้ามี) — ไม่มีช่องแนบสลิป (เจ้าของสั่งตัด 2026-11-13)
 // บันทึกเป็นสถานะ "ส่งแล้ว" ทันที · source='line' (ฐานข้อมูลยอมเฉพาะแอดมิน) · ไม่แจ้งเตือนกลุ่ม LINE
 // งาน Pro = บันทึกยอดอย่างเดียว: ไม่ผูกร้านพาร์ทเนอร์ (partner ว่าง) → ร้านไม่เห็น · ไม่เข้าหน้าค่าคอม/ยอดค้างโอน
 const OA_GREEN = '#06C755';
@@ -927,21 +927,6 @@ const OA_PRO_TYPES = ['โปสเตอร์', 'เพลท', 'Postcard', '�
 const OA_ZONES = ['ในมอ', 'กังสดาล', 'หลังมอ', 'โคลัมโบ', 'นอกเขต'];
 const dtLocal = (d) => { const z = (n) => String(n).padStart(2, '0'); return d.getFullYear() + '-' + z(d.getMonth() + 1) + '-' + z(d.getDate()) + 'T' + z(d.getHours()) + ':' + z(d.getMinutes()); };
 const nightAt = (d) => { const h = d.getHours(); return h >= 22 || h < 6; };
-async function storeSlipAdmin(oid, file){
-  const type = file.type || 'image/jpeg';
-  if (CFG.R2_UPLOADS) {
-    try {
-      const j = await r2Call({ action: 'put', kind: 'slip', name: file.name || 'slip.jpg', size: file.size, contentType: type });
-      const p = await fetch(j.url, { method: 'PUT', headers: { ...(j.headers || {}), 'Content-Type': type }, body: file });
-      if (p.ok && j.key) return 'r2:' + j.key;
-    } catch (e) { console.error('slip r2:', e); }
-  }
-  const ext = ((file.name || '').split('.').pop() || 'jpg').replace(/[^a-zA-Z0-9]/g, '').slice(0, 5) || 'jpg';
-  const path = String(oid).replace('#', '') + '/slip.' + ext;
-  const { error } = await DB.storage.from('uploads').upload(path, file);
-  if (error) throw error;
-  return path;
-}
 function OaChips({ items, value, onPick, color }){
   return (
     <div style={css("display:flex;flex-wrap:wrap;gap:6px")}>
@@ -963,15 +948,11 @@ function OaOrderModal({ onClose, onSaved }){
   const [nightTouched, setNightTouched] = React.useState(false);
   const [zone, setZone] = React.useState('');
   const [phone, setPhone] = React.useState('');
-  const [slip, setSlip] = React.useState(null);
-  const [slipUrl, setSlipUrl] = React.useState('');
   const [note, setNote] = React.useState('');
   const [busy, setBusy] = React.useState(false);
   const [err, setErr] = React.useState('');
-  React.useEffect(() => () => { if (slipUrl) URL.revokeObjectURL(slipUrl); }, [slipUrl]);
   const pickTier = (t) => { if (t !== tier) { setTier(t); setPtype(''); } };
   const pickWhen = (v) => { setWhen(v); const d = new Date(v); if (!nightTouched && !isNaN(d.getTime())) setNight(nightAt(d)); }; // กลางวัน/กลางคืนตามเวลาที่กรอก (กดเลือกเองทับได้)
-  const pickSlip = (e) => { const f = e.target.files && e.target.files[0]; e.target.value = ''; if (!f) return; if (!/^image\//.test(f.type)) return setErr('สลิปต้องเป็นไฟล์รูปภาพ'); setSlip(f); setSlipUrl(URL.createObjectURL(f)); setErr(''); };
   const fin = Math.round(Number(total));
   const pickup = zone === 'pickup';
   const shipN = pickup ? 0 : Math.round(Number(ship) || 0);
@@ -991,11 +972,9 @@ function OaOrderModal({ onClose, onSaved }){
     const id = '#MP-' + Array.from(crypto.getRandomValues(new Uint8Array(8))).map(b => 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'[b % 31]).join('');
     setBusy(true); setErr('');
     try {
-      let slip_path = null;
-      if (slip && DB) slip_path = await storeSlipAdmin(id, slip);
       const z = (n) => String(n).padStart(2, '0'), hm = z(at.getHours()) + ':' + z(at.getMinutes());
       const row = {
-        id, slip_path, source: 'line',
+        id, slip_path: null, source: 'line',
         customer_fname: nm, customer_lname: '', customer_phone: ph, customer_email: '', phone: ph,
         files: [], ptype: isPro ? 'pro' : ptype, color: !isPro && ptype === 'color', paper: isPro ? ptype : 'A4',
         point: '', lat: null, lng: null, zone: pickup ? null : zone, pickup,
@@ -1053,12 +1032,6 @@ function OaOrderModal({ onClose, onSaved }){
             <OaChips items={OA_ZONES.map(z => [z, z]).concat([['pickup', '🏪 มารับเอง']])} value={zone} onPick={setZone}/>
           </div>
           <label style={css(sec)}>{lab('เบอร์โทร', '(ถ้ามี)')}<input value={phone} onChange={e => setPhone(e.target.value)} inputMode="tel" placeholder="08x-xxx-xxxx" style={css(inp)}/></label>
-          <div style={css(sec)}>{lab('สลิปโอนเงิน', '(แนะนำแนบไว้เป็นหลักฐาน)')}
-            {slipUrl
-              ? <div style={css("display:flex;align-items:center;gap:10px")}><img src={slipUrl} alt="สลิป" style={css("width:72px;height:96px;object-fit:cover;border-radius:8px;border:1px solid var(--line)")}/>
-                  <button onClick={() => { setSlip(null); setSlipUrl(''); }} style={css("height:34px;padding:0 12px;border-radius:9px;border:1px solid #ffa8a8;background:#fff;color:#c92a2a;font-size:12px;font-weight:700;cursor:pointer")}>ลบสลิป</button></div>
-              : <label style={css("height:44px;border:1.5px dashed " + OA_GREEN + ";border-radius:10px;display:flex;align-items:center;justify-content:center;gap:6px;color:" + OA_GREEN + ";font-size:13px;font-weight:800;cursor:pointer;background:#f1fbf4")}>🧾 แนบสลิป<input type="file" accept="image/*" onChange={pickSlip} style={css("display:none")}/></label>}
-          </div>
           <label style={css(sec)}>{lab('หมายเหตุ', '(ถ้ามี)')}<input value={note} onChange={e => setNote(e.target.value)} placeholder="เช่น รายละเอียดงาน / ชื่อ LINE ลูกค้า" style={css(inp)}/></label>
           {err && <div style={css("font-size:12.5px;color:#c92a2a;font-weight:700;line-height:1.5")}>{err}</div>}
           <button onClick={save} disabled={busy} style={css("height:48px;border-radius:12px;border:none;background:" + OA_GREEN + ";color:#fff;font-size:14.5px;font-weight:800;cursor:pointer;flex:none" + (busy ? ";opacity:.6" : ""))}>{busy ? 'กำลังบันทึก…' : '✓ บันทึกยอดขาย (ส่งเสร็จแล้ว)'}</button>
@@ -1168,8 +1141,8 @@ function OrderCard({ o, idx, due, onAdvance, onRetreat, onApplyEdits, onCancel, 
           ].filter(Boolean).map(([l, v], i) => (
             <div key={i} style={css("display:flex;gap:10px")}><span style={css("flex:none;width:72px;color:var(--sub);font-weight:600")}>{l}</span><div style={css("flex:1;min-width:0;line-height:1.5")}>{v}</div></div>
           ))}
-          <div style={css("display:flex;gap:10px")}><span style={css("flex:none;width:72px;color:var(--sub);font-weight:600")}>สลิป</span>
-            <div style={css("flex:1;min-width:0")}>{o.slip_path ? <StoredImg url={fileUrl(o.slip_path)} alt="สลิปโอนเงิน" style={css("max-width:170px;max-height:220px;border-radius:10px;border:1px solid var(--line)")}/> : <span style={css("color:var(--sub)")}>— ไม่ได้แนบสลิป</span>}</div></div>
+          {o.slip_path && <div style={css("display:flex;gap:10px")}><span style={css("flex:none;width:72px;color:var(--sub);font-weight:600")}>สลิป</span>
+            <div style={css("flex:1;min-width:0")}><StoredImg url={fileUrl(o.slip_path)} alt="สลิปโอนเงิน" style={css("max-width:170px;max-height:220px;border-radius:10px;border:1px solid var(--line)")}/></div></div>}
           <button disabled={busy} onClick={askDelete} style={{ marginTop: '4px', height: '38px', border: 'none', borderRadius: '10px', fontSize: '12.5px', fontWeight: 700, cursor: 'pointer',
             background: confirmDel ? '#c92a2a' : '#ffe3e3', color: confirmDel ? '#fff' : '#c92a2a' }}>{busy ? 'กำลังลบ…' : confirmDel ? 'แน่ใจนะ? กดอีกครั้งเพื่อลบถาวร' : 'ลบออเดอร์นี้ (บันทึกผิด)'}</button>
         </div>
