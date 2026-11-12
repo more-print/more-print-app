@@ -1817,7 +1817,8 @@ class App extends React.Component {
       sides: s.tier === 'pro' ? (s.sides === 2 ? 2 : 1) : (f.sides === 2 ? 2 : 1), // ด้านที่พิมพ์รายไฟล์ (2026-10-12) · งาน Pro ยังเลือกครั้งเดียวทั้งออเดอร์
       orient: f.orient === 'landscape' ? 'landscape' : 'portrait',
       nup: nupLock ? 1 : ([2, 4, 6].includes(f.nup) ? f.nup : 1),
-      bind: (s.tier === 'pro' || s.ptype === 'poster') ? 'none' : (f.bind === 'corner' || STD_BINDS.some(b => b.k === f.bind) ? f.bind : 'none'),
+      // ไฟล์ 1 หน้าไม่มีอะไรให้เย็บ — ตัวเลือกเย็บมุมถูกซ่อน (เจ้าของสั่ง 2026-11-12) จึงล้างค่าเย็บมุมที่ค้างไว้ด้วย
+      bind: (s.tier === 'pro' || s.ptype === 'poster') ? 'none' : (f.bind === 'corner' && f.pages === 1) ? 'none' : (f.bind === 'corner' || STD_BINDS.some(b => b.k === f.bind) ? f.bind : 'none'),
       copies: s.tier === 'pro' ? Math.max(1, s.copies || 1) : Math.max(1, Math.floor(f.copies) || 1), // จำนวนชุดรายไฟล์ (เจ้าของสั่ง 2026-11-02) · Pro ใช้ช่องเดียวทั้งออเดอร์
       nupLock
     };
@@ -3209,7 +3210,8 @@ class App extends React.Component {
             bookSegs: [{ k: 'nobook', label: 'ไม่เข้าเล่ม', on: !isBook, pick: () => setOpt({ bind: isBook ? 'none' : o.bind }) },
               ...STD_BINDS.map(b => ({ k: b.k, label: STD_BIND_SHORT[b.k], on: o.bind === b.k, pick: () => setOpt({ bind: b.k }) }))],
             bindBook: stdBindPrice(Math.ceil((f.pages || 1) / (o.sides * o.nup))),
-            bindSheets: Math.ceil((f.pages || 1) / (o.sides * o.nup))
+            bindSheets: Math.ceil((f.pages || 1) / (o.sides * o.nup)),
+            onePage: f.pages === 1 // ไฟล์ 1 หน้า: ไม่ต้องมีตัวเลือกเย็บมุม (ไม่มีอะไรให้เย็บ)
           };
         })(),
         setFspec: (e) => { const v2 = e.target.value; this.setState(st => ({ files: st.files.map((x, j) => j === i ? { ...x, fspec: v2 } : x) })); },
@@ -4838,7 +4840,7 @@ class App extends React.Component {
                           ? <div style={css("font-size:11.5px;color:var(--sub);line-height:1.6")}>ℹ️ ไฟล์ที่ระบุหน้าสีพิมพ์ 1 หน้า/แผ่นเท่านั้น (หน้าสีกับขาวดำจะอยู่บนแผ่นเดียวกัน)</div>
                           : <div style={css("display:flex;gap:6px")}>{f.nupSegs.map((o, j) => <button key={j} onClick={o.pick} style={o.st}>{o.label}</button>)}</div>}
                       </div>
-                      {v.showBind && <div style={css("margin-top:9px")}>
+                      {v.showBind && !f.onePage && <div style={css("margin-top:9px")}>
                         <div style={css("font-size:11.5px;font-weight:700;color:var(--sub);margin-bottom:4px")}>เย็บมุม</div>
                         <div style={css("display:flex;gap:6px")}>{f.cornerSegs.map((o, j) => <button key={j} onClick={o.pick} style={o.st}>{o.label}</button>)}</div>
                       </div>}
