@@ -13,10 +13,11 @@
   @font-face{font-family:'Cloud Soft';src:url('assets/fonts/Cloud Soft-Bold.ttf') format('truetype');font-weight:700;font-style:normal;font-display:swap}
   @font-face{font-family:'Cloud Soft';src:url('assets/fonts/Cloud Soft-Bold.ttf') format('truetype');font-weight:800;font-style:normal;font-display:swap}
   body{margin:0;zoom:1.15;background:var(--bg);font-family:'Cloud Soft','IBM Plex Sans Thai',sans-serif;
-  --bg:#f2f7fb;--card:#ffffff;--ink:#111111;--sub:#7d8894;--line:#dbe7f0;--soft:#ecf4fa;
-  --acc:#008BEF;--accSoft:#e1f2ff;--gold:#a16207;--goldBg:#fff7e0;--shadow:0 2px 10px rgba(0,0,0,.06)}
+  /* CI ใหม่ (เจ้าของสั่ง 2026-11-12 — ชุดเดียวกับ admin.html/index.html): น้ำเงิน #004FD6 หลัก · ขาวนวล #FFFFF7 พื้น · เหลือง #FADF29 เน้น */
+  --bg:#FFFFF7;--card:#ffffff;--ink:#121A2E;--sub:#83827A;--line:#E7E6DA;--soft:#F3F3E9;
+  --acc:#004FD6;--accDark:#003DA8;--accSoft:#E8EFFD;--navy:#0B1E4A;--yellow:#FADF29;--gold:#a16207;--goldBg:#fff7e0;--shadow:0 2px 10px rgba(0,0,0,.06)}
   input,button,select,textarea{font-family:'Cloud Soft','IBM Plex Sans Thai',sans-serif}
-  .mp-side{position:fixed;top:0;left:0;bottom:0;width:212px;background:#0e2a44;z-index:60;display:flex;flex-direction:column;padding:18px 12px 14px;box-sizing:border-box;transition:transform .22s ease;overflow-y:auto}
+  .mp-side{position:fixed;top:0;left:0;bottom:0;width:212px;background:var(--navy);z-index:60;display:flex;flex-direction:column;padding:18px 12px 14px;box-sizing:border-box;transition:transform .22s ease;overflow-y:auto}
   .mp-scrim{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:55;display:none}
   .mp-main{min-width:0}
   .mp-burger{display:none}
@@ -184,7 +185,7 @@ function openInlineViewer(src, kind, name){
   const box = document.createElement('div');
   // กล่องทั้งใบเป็นตัวเลื่อน + หัวติดด้านบน (sticky) — เดิมให้กล่องลูกแบบ flex เลื่อน มือถือ/แอป LINE บางรุ่นเลื่อนไม่ได้ เห็นแค่หน้าแรก (เจ้าของแจ้ง 2026-11-01)
   box.setAttribute('style', 'position:fixed;inset:0;z-index:99999;background:#3a3a38;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain');
-  box.innerHTML = '<div style="position:sticky;top:0;z-index:2;display:flex;align-items:center;gap:8px;padding:10px 12px;background:#161612;color:#fff;font-size:13px"><span data-t style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">⏳ กำลังเปิดไฟล์… (ไฟล์ใหญ่อาจใช้เวลาสักครู่)</span>' + (name ? '<button data-d style="flex:none;height:34px;padding:0 12px;border:1px solid #00b368;border-radius:9px;background:transparent;color:#7ee2b0;font-size:13px;font-weight:700">⬇ ดาวน์โหลด</button>' : '') + '<button data-x style="flex:none;height:34px;padding:0 14px;border:none;border-radius:9px;background:#00b368;color:#fff;font-size:13px;font-weight:700">✕ ปิด</button></div><div data-b style="padding:10px 0 40px;display:flex;flex-direction:column;align-items:center;gap:6px"></div>';
+  box.innerHTML = '<div style="position:sticky;top:0;z-index:2;display:flex;align-items:center;gap:8px;padding:10px 12px;background:#0B1E4A;color:#fff;font-size:13px"><span data-t style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">⏳ กำลังเปิดไฟล์… (ไฟล์ใหญ่อาจใช้เวลาสักครู่)</span>' + (name ? '<button data-d style="flex:none;height:34px;padding:0 12px;border:1px solid #FADF29;border-radius:9px;background:transparent;color:#FADF29;font-size:13px;font-weight:700">⬇ ดาวน์โหลด</button>' : '') + '<button data-x style="flex:none;height:34px;padding:0 14px;border:none;border-radius:9px;background:#004FD6;color:#fff;font-size:13px;font-weight:700">✕ ปิด</button></div><div data-b style="padding:10px 0 40px;display:flex;flex-direction:column;align-items:center;gap:6px"></div>';
   const title = box.querySelector('[data-t]'), body = box.querySelector('[data-b]');
   let closed = false;
   const prevOverflow = document.body.style.overflow;
@@ -411,7 +412,7 @@ function ProSpecs({ o }){
   if (!proPerFile(o)) return <SpecBox rows={proSpecRows(o)}/>;
   return (
     <React.Fragment>
-      <div style={css("margin-bottom:5px;font-size:11px;font-weight:700;color:#00b368")}>สั่ง {o.files.length} ไฟล์ · แต่ละไฟล์คนละสเปก — เลื่อนไปทางขวาดูครบทุกไฟล์ →</div>
+      <div style={css("margin-bottom:5px;font-size:11px;font-weight:700;color:var(--acc)")}>สั่ง {o.files.length} ไฟล์ · แต่ละไฟล์คนละสเปก — เลื่อนไปทางขวาดูครบทุกไฟล์ →</div>
       <div style={css("display:flex;gap:8px;overflow-x:auto;padding-bottom:3px")}>
         {o.files.map((f, i) => <SpecBox key={i} grow title={'ไฟล์ ' + (i + 1)} sub={f.name} rows={proFileRows(o, f)}/>)}
       </div>
@@ -422,17 +423,17 @@ function ProSpecs({ o }){
 // title/sub = หัวกล่องรายไฟล์ (ไฟล์ 1 · ชื่อไฟล์) · grow = กล่องเรียงต่อกันไปทางขวา
 function SpecBox({ rows, title, sub, grow }){
   return (
-    <div style={css("border:1.5px solid #00b368;background:#fff;border-radius:12px;padding:9px 13px;box-sizing:border-box;font-size:12.5px;line-height:1.5" + (grow ? ";flex:1 0 220px" : ""))}>
+    <div style={css("border:1.5px solid var(--acc);background:#fff;border-radius:12px;padding:9px 13px;box-sizing:border-box;font-size:12.5px;line-height:1.5" + (grow ? ";flex:1 0 220px" : ""))}>
       {title && (
-        <div style={css("margin-bottom:6px;padding-bottom:5px;border-bottom:1px dashed #9fdcbf;display:flex;align-items:baseline;gap:7px")}>
-          <b style={css("flex:none;color:#00b368;font-size:13px")}>{title}</b>
+        <div style={css("margin-bottom:6px;padding-bottom:5px;border-bottom:1px dashed #A8C2F0;display:flex;align-items:baseline;gap:7px")}>
+          <b style={css("flex:none;color:var(--acc);font-size:13px")}>{title}</b>
           {sub && <span style={css("flex:1;min-width:0;font-size:11px;color:var(--sub);overflow:hidden;text-overflow:ellipsis;white-space:nowrap")}>{sub}</span>}
         </div>
       )}
       <div style={css("display:grid;grid-template-columns:auto minmax(0,1fr);column-gap:12px;row-gap:5px")}>
         {rows.map(([k, v], i) => (
           <React.Fragment key={i}>
-            <span style={css("color:#00b368;font-weight:700;white-space:nowrap")}>{k}:</span>
+            <span style={css("color:var(--acc);font-weight:700;white-space:nowrap")}>{k}:</span>
             <span style={css("color:var(--ink);font-weight:600;overflow-wrap:anywhere")}>{v}</span>
           </React.Fragment>
         ))}
@@ -674,14 +675,14 @@ function ReceiptTool({ o, isPro, onClose }){
             ยอดรวมในใบเสร็จ ฿{rcMoney(total)} · ลูกค้าจ่ายจริง ฿{rcMoney(paid)}{mismatch ? ' — ไม่ตรงกัน ตรวจรายการ/ส่วนลดก่อนพิมพ์' : ' ✓ ตรงกัน'}
           </div>
           {msg && <div style={css("margin-top:6px;font-size:11.5px;color:#c92a2a;font-weight:700")}>{msg}</div>}
-          <button onClick={doPrint} disabled={busy} style={css("margin-top:10px;width:100%;height:44px;border:none;border-radius:11px;background:#00b368;color:#fff;font-size:14px;font-weight:800;cursor:pointer;font-family:inherit")}>🖨️ พิมพ์ / บันทึกเป็น PDF</button>
+          <button onClick={doPrint} disabled={busy} style={css("margin-top:10px;width:100%;height:44px;border:none;border-radius:11px;background:var(--acc);color:#fff;font-size:14px;font-weight:800;cursor:pointer;font-family:inherit")}>🖨️ พิมพ์ / บันทึกเป็น PDF</button>
           <div style={css("margin-top:5px;font-size:10.5px;color:var(--sub)")}>ในหน้าต่างพิมพ์เลือก "บันทึกเป็น PDF" (iPhone: แชร์ → พิมพ์ → ถ่างนิ้วที่ภาพตัวอย่าง → บันทึก)</div>
         </div>
         {/* ── ใบเสร็จ (ส่วนที่พิมพ์ออก — ดีไซน์เดียวกับบิลเปล่า MORE PRINT) ── */}
         <div id="mpRcSheet" style={{ background: '#fff', color: '#111', borderRadius: '10px', padding: '28px 30px 22px', boxShadow: '0 10px 40px rgba(0,0,0,.35)', fontFamily: "'Thonburi','Sukhumvit Set','Noto Sans Thai','Sarabun',sans-serif", width: '100%', boxSizing: 'border-box' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <img src="assets/logo-icon.png" alt="" onError={(e) => { e.target.style.display = 'none'; }} style={{ height: '46px', width: 'auto', display: 'block' }}/>
-            <div style={{ fontFamily: "'Montserrat','Avenir Next',sans-serif", fontSize: '24px', fontWeight: 900, letterSpacing: '1px', flex: 1 }}>MORE <span style={{ color: '#00b368' }}>PRINT</span></div>
+            <img src="assets/logo-icon-blue.png" alt="" onError={(e) => { e.target.style.display = 'none'; }} style={{ height: '46px', width: 'auto', display: 'block' }}/>
+            <div style={{ fontFamily: "'Montserrat','Avenir Next',sans-serif", fontSize: '24px', fontWeight: 900, letterSpacing: '1px', flex: 1 }}>MORE <span style={{ color: '#004FD6' }}>PRINT</span></div>
             <div style={{ fontSize: '20px', fontWeight: 800, flex: 'none' }}>ใบเสร็จรับเงิน</div>
           </div>
           <div style={{ marginTop: '26px', display: 'flex', gap: '24px', fontSize: '14px' }}>
@@ -804,7 +805,7 @@ function ProOrder({ o, idx, isOwner, payoutReady, onPrice, onPayout, onAdvance, 
         {isOwner && (
           <div style={css("display:flex;gap:10px;font-size:12px")}>
             <span style={css("flex:none;width:76px;color:var(--sub);font-weight:600;padding-top:3px")}>{FI.user(13)} ลูกค้า</span>
-            <div style={css("flex:1;min-width:0;font-size:14px;font-weight:700;color:var(--ink);line-height:1.5")}>คุณ{o.customer_fname} {o.customer_lname || ''}{o.customer_phone ? <span> · <a href={'tel:' + String(o.customer_phone || '').replace(/[^0-9+]/g, '')} style={css("font-family:'IBM Plex Mono',monospace;font-size:14px;color:#00b368;text-decoration:underline")}>{o.customer_phone}</a></span> : null}</div>
+            <div style={css("flex:1;min-width:0;font-size:14px;font-weight:700;color:var(--ink);line-height:1.5")}>คุณ{o.customer_fname} {o.customer_lname || ''}{o.customer_phone ? <span> · <a href={'tel:' + String(o.customer_phone || '').replace(/[^0-9+]/g, '')} style={css("font-family:'IBM Plex Mono',monospace;font-size:14px;color:var(--acc);text-decoration:underline")}>{o.customer_phone}</a></span> : null}</div>
           </div>
         )}
         {/* ลำดับ (เจ้าของสั่ง 2026-10-12): ไฟล์บนสุด → สรุปสติ๊กเกอร์ → สเปกงาน */}
@@ -925,7 +926,7 @@ function ProOrder({ o, idx, isOwner, payoutReady, onPrice, onPayout, onAdvance, 
         <div style={css("margin-top:10px;display:flex;gap:8px;align-items:center")}>
           <input value={price} onChange={e => setPrice(e.target.value.replace(/[^0-9]/g, ''))} onKeyDown={e => e.key === 'Enter' && save()} placeholder="ราคางานที่ตกลงกับลูกค้า (บาท)" inputMode="numeric"
             style={css("flex:1;box-sizing:border-box;height:40px;border:1px solid var(--line);border-radius:10px;background:var(--soft);color:var(--ink);padding:0 12px;font-size:13px;outline:none")}/>
-          <button onClick={save} disabled={!price} style={css("height:40px;padding:0 16px;border:none;border-radius:10px;background:" + (price ? "var(--acc)" : "#9fd0f5") + ";color:#fff;font-size:12.5px;font-weight:700;cursor:pointer")}>บันทึกราคา</button>
+          <button onClick={save} disabled={!price} style={css("height:40px;padding:0 16px;border:none;border-radius:10px;background:" + (price ? "var(--acc)" : "#A8C2F0") + ";color:#fff;font-size:12.5px;font-weight:700;cursor:pointer")}>บันทึกราคา</button>
         </div>
       ) : (
         <div style={css("margin-top:10px;background:var(--goldBg);border-radius:10px;padding:9px 12px;font-size:11.5px;color:var(--gold);font-weight:600")}>⏳ MORE PRINT กำลังตกลงราคากับลูกค้า — เดี๋ยวยอดจะขึ้นตรงนี้ครับ</div>
@@ -997,7 +998,7 @@ function ProOrder({ o, idx, isOwner, payoutReady, onPrice, onPayout, onAdvance, 
       )}
       {/* ออกใบเสร็จโดยร้าน (เจ้าของสั่ง 2026-10-19) — เฉพาะเจ้าของ */}
       {isOwner && o.status !== 0 && (
-        <button onClick={() => setRcOpen(true)} style={css("margin-top:9px;width:100%;height:38px;border:1.5px solid #00b368;border-radius:12px;background:#e6f7ef;color:#00744a;font-size:12.5px;font-weight:800;cursor:pointer;font-family:inherit")}>🧾 ออกใบเสร็จให้ลูกค้า (ร้านกรอกเอง)</button>
+        <button onClick={() => setRcOpen(true)} style={css("margin-top:9px;width:100%;height:38px;border:1.5px solid var(--acc);border-radius:12px;background:var(--accSoft);color:var(--accDark);font-size:12.5px;font-weight:800;cursor:pointer;font-family:inherit")}>🧾 ออกใบเสร็จให้ลูกค้า (ร้านกรอกเอง)</button>
       )}
       {rcOpen && <ReceiptTool o={o} isPro={true} onClose={() => setRcOpen(false)}/>}
       {/* ปรับแต่งออเดอร์ + การรับงาน/จุดส่ง รวมแผงเดียว (เฉพาะเจ้าของ — เจ้าของสั่งรวม 2026-09-15) */}
@@ -1200,9 +1201,9 @@ function AlarmPopup({ list, line, onAck }){
 const DASH_MONTHS = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
 const DASH_DAYS = ['อา', 'จ', 'อ', 'พ', 'พฤ', 'ศ', 'ส'];
 const DASH_PERIODS = [['today', 'วันนี้'], ['7d', '7 วัน'], ['30d', '30 วัน'], ['month', 'เดือนนี้'], ['year', 'ปีนี้'], ['custom', 'กำหนดเอง']];
-const STEP_COLORS = ['#8a6d1a', '#0b7285', '#9c36b5', '#00b368'];
-const STEP_BG = ['#fff7e0', '#e3fafc', '#f8f0fc', '#e6f7ef'];
-const GREEN = '#00b368';
+const STEP_COLORS = ['#8a6d1a', '#0b7285', '#9c36b5', '#004FD6'];
+const STEP_BG = ['#fff7e0', '#e3fafc', '#f8f0fc', '#E8EFFD'];
+const GREEN = '#2f9e44'; // เขียวเชิงความหมาย (ยอดโต/ใหม่) — ไม่ใช่สีแบรนด์
 const isPickup = (o) => !!o.pickup || String(o.addr || '').indexOf('🏪') === 0;
 const custKey = (o) => o.customer_phone || ((o.customer_fname || '') + ' ' + (o.customer_lname || '')).trim() || '?';
 const ymd = (d) => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
@@ -1433,7 +1434,7 @@ function SalesDashboard({ rows, loading, loadedAt, onReload, isOwner }){
             <div key={i} onMouseEnter={() => setHover(i)} onClick={() => setHover(i)} title={b.long + ' · ' + baht(b.v) + ' · ' + b.n + ' ออเดอร์'}
               style={css("flex:1;min-width:0;height:100%;display:flex;align-items:flex-end;justify-content:center;cursor:pointer")}>
               <div style={{ width: '78%', maxWidth: '30px', borderRadius: '4px 4px 0 0', height: (b.v > 0 ? Math.max(4, Math.round(b.v / d.bMax * 100)) : 1) + '%',
-                background: hover === i || b.isNow ? 'var(--acc)' : '#9fd3ff', opacity: hover != null && hover !== i ? .55 : 1 }}></div>
+                background: hover === i || b.isNow ? 'var(--acc)' : '#9DBCF2', opacity: hover != null && hover !== i ? .55 : 1 }}></div>
             </div>
           ))}
         </div>
@@ -1852,38 +1853,38 @@ function Dash({ role }){
     <div>
       {/* ── แถบเมนูซ้าย (ตามเรฟ) ── */}
       <div className={"mp-side" + (navOpen ? " open" : "")}>
-        <div style={css("display:flex;align-items:center;gap:10px;padding:2px 8px 14px;border-bottom:1px solid #1d4568")}>
+        <div style={css("display:flex;align-items:center;gap:10px;padding:2px 8px 14px;border-bottom:1px solid rgba(255,255,255,.12)")}>
           <div style={css("width:38px;height:38px;border-radius:10px;background:#fff;flex:none;display:flex;align-items:center;justify-content:center;overflow:hidden")}><img src="assets/logo-black.png" alt="MORE PRINT" style={css("width:32px;height:auto;display:block")}/></div>
           <div style={css("min-width:0")}>
-            <div style={css("font-family:'Montserrat',sans-serif;font-weight:800;font-size:13.5px;letter-spacing:1px;color:#fff")}><span style={css("color:#5fc0ff")}>MORE</span> PRINT <span style={css("color:#5fc0ff")}>PRO</span></div>
-            <div style={css("font-size:9.5px;color:#8fb4d1;margin-top:2px")}>หลังบ้านร้านพาร์ทเนอร์</div>
+            <div style={css("font-family:'Montserrat',sans-serif;font-weight:800;font-size:13.5px;letter-spacing:1px;color:#fff")}><span style={css("color:var(--yellow)")}>MORE</span> PRINT <span style={css("color:var(--yellow)")}>PRO</span></div>
+            <div style={css("font-size:9.5px;color:#9AA8CC;margin-top:2px")}>หลังบ้านร้านพาร์ทเนอร์</div>
           </div>
-          <button className="mp-close" onClick={() => setNavOpen(false)} style={css("margin-left:auto;background:none;border:none;color:#8fb4d1;font-size:16px;cursor:pointer;flex:none")}>✕</button>
+          <button className="mp-close" onClick={() => setNavOpen(false)} style={css("margin-left:auto;background:none;border:none;color:#9AA8CC;font-size:16px;cursor:pointer;flex:none")}>✕</button>
         </div>
         <div style={css("margin-top:12px;display:flex;flex-direction:column;gap:4px;flex:1")}>
           {NAV.map(([k, ic, label]) => (
             <button key={k} onClick={() => { setPage(k); setNavOpen(false); }} style={{ display: 'flex', alignItems: 'center', gap: '10px', height: '42px', padding: '0 12px', borderRadius: '11px', border: 'none', cursor: 'pointer', fontFamily: 'inherit', fontSize: '13px', fontWeight: 700, textAlign: 'left',
-              background: page === k ? 'var(--acc)' : 'transparent', color: page === k ? '#fff' : '#a8cbe4' }}>
+              background: page === k ? 'var(--yellow)' : 'transparent', color: page === k ? 'var(--navy)' : '#C9D3EC' }}>
               <span style={css("font-size:16px")}>{ic}</span>{label}
             </button>
           ))}
         </div>
-        {DB && <button onClick={() => DB.auth.signOut().then(() => location.reload())} style={css("display:flex;align-items:center;gap:10px;height:42px;padding:0 12px;border-radius:11px;border:1px solid #1d4568;background:none;color:#8fb4d1;cursor:pointer;font-family:inherit;font-size:12.5px;font-weight:700")}>{FI.out(15)} ออกจากระบบ</button>}
+        {DB && <button onClick={() => DB.auth.signOut().then(() => location.reload())} style={css("display:flex;align-items:center;gap:10px;height:42px;padding:0 12px;border-radius:11px;border:1px solid rgba(255,255,255,.14);background:none;color:#9AA8CC;cursor:pointer;font-family:inherit;font-size:12.5px;font-weight:700")}>{FI.out(15)} ออกจากระบบ</button>}
       </div>
       <div className={"mp-scrim" + (navOpen ? " show" : "")} onClick={() => setNavOpen(false)}></div>
 
       <div className="mp-main">
     <div style={css("min-height:100vh;background:var(--bg)")}>
-      <div style={css("background:#0e2a44;color:#fff;padding:16px 18px;display:flex;align-items:center;gap:12px;position:sticky;top:0;z-index:10")}>
-        <button className="mp-burger" onClick={() => setNavOpen(true)} style={css("background:#1d4568;border:none;color:#fff;width:38px;height:38px;border-radius:10px;font-size:17px;cursor:pointer;align-items:center;justify-content:center;flex:none")}>☰</button>
+      <div style={css("background:var(--acc);color:#fff;padding:16px 18px;display:flex;align-items:center;gap:12px;position:sticky;top:0;z-index:10")}>
+        <button className="mp-burger" onClick={() => setNavOpen(true)} style={css("background:rgba(255,255,255,.16);border:none;color:#fff;width:38px;height:38px;border-radius:10px;font-size:17px;cursor:pointer;align-items:center;justify-content:center;flex:none")}>☰</button>
         <div style={css("flex:1;min-width:0")}>
-          <div style={css("font-family:'Montserrat',sans-serif;font-weight:800;font-size:15px;letter-spacing:1px")}>PRINT PRO <span style={css("color:#5fc0ff")}>UDOMSUK</span></div>
-          <div style={css("font-family:'IBM Plex Mono',monospace;font-size:9.5px;letter-spacing:2px;color:#5fc0ff")}>{isOwner ? 'PARTNER FINANCE · คอม ' + Math.round(COMMISSION * 100) + '%' : 'PARTNER VIEW · ส่วนแบ่งร้านคุณ ' + Math.round((1 - COMMISSION) * 100) + '%'}</div>
+          <div style={css("font-family:'Montserrat',sans-serif;font-weight:800;font-size:15px;letter-spacing:1px")}>PRINT PRO <span style={css("color:var(--yellow)")}>UDOMSUK</span></div>
+          <div style={css("font-family:'IBM Plex Mono',monospace;font-size:9.5px;letter-spacing:2px;color:var(--yellow)")}>{isOwner ? 'PARTNER FINANCE · คอม ' + Math.round(COMMISSION * 100) + '%' : 'PARTNER VIEW · ส่วนแบ่งร้านคุณ ' + Math.round((1 - COMMISSION) * 100) + '%'}</div>
         </div>
-        {!DB && <span style={css("font-size:10px;font-weight:700;background:#f59f00;color:#0e2a44;padding:3px 10px;border-radius:99px")}>DEMO</span>}
+        {!DB && <span style={css("font-size:10px;font-weight:700;background:#f59f00;color:#0B1E4A;padding:3px 10px;border-radius:99px")}>DEMO</span>}
         {isOwner && <a href="commission.html" style={css("color:#ffd43b;font-size:11.5px;font-weight:700;text-decoration:none")}>{FI.baht(12)} ค่าคอม</a>}
-        {isOwner && <a href="admin.html" style={css("color:#5fc0ff;font-size:11.5px;font-weight:700;text-decoration:none")}>← หลังบ้านหลัก</a>}
-        <button onClick={load} style={css("height:32px;padding:0 12px;border:1px solid #2b5c85;border-radius:9px;background:none;color:#fff;font-size:11.5px;cursor:pointer")}>{loading ? '…' : '⟳ รีเฟรช'}</button>
+        {isOwner && <a href="admin.html" style={css("color:#fff;font-size:11.5px;font-weight:700;text-decoration:none")}>← หลังบ้านหลัก</a>}
+        <button onClick={load} style={css("height:32px;padding:0 12px;border:1px solid rgba(255,255,255,.35);border-radius:9px;background:none;color:#fff;font-size:11.5px;cursor:pointer")}>{loading ? '…' : '⟳ รีเฟรช'}</button>
 
       </div>
 
