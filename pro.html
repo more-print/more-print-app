@@ -410,7 +410,7 @@ function proSpecRows(o){
   else if ((m = base.match(/^Postcard (\S+) \((.+)\)$/))) rows.push(['ประเภทงาน', 'Postcard'], ['ขนาด', m[1] + ' (' + m[2] + ')']);
   else if ((m = base.match(/^พับครึ่ง เล่ม (\S+) \(กระดาษ (\S+)\)$/))) rows.push(['ประเภทงาน', 'พับครึ่ง (เข้าเล่ม/เมนู)'], ['ขนาดเล่ม', m[1]], ['ขนาดกระดาษ', m[2]]);
   else if ((m = base.match(/^นามบัตร (\d+) ใบ ?(หน้า-หลัง|หน้าเดียว)?$/))) { rows.push(['ประเภทงาน', 'นามบัตร'], ['จำนวนใบ', m[1] + ' ใบ']); if (m[2]) rows.push(['ด้านที่พิมพ์', m[2]]); }
-  else if ((m = base.match(/^(ปริ้นสีขาวดำขนาดใหญ่.*) (A\d)$/))) rows.push(['ประเภทงาน', m[1]], ['ขนาด', m[2]]);
+  else if ((m = base.match(/^((?:ปริ้น|พิมพ์)สีขาวดำขนาดใหญ่.*) (A\d)$/))) rows.push(['ประเภทงาน', m[1]], ['ขนาด', m[2]]);
   else if ((m = base.match(/^สติ๊กเกอร์ ?(.*)$/))) { rows.push(['ประเภทงาน', 'สติ๊กเกอร์']); if (m[1]) rows.push(['เนื้อสติ๊กเกอร์', m[1]]); }
   else if (/^A\d$/.test(base)) rows.push(['ขนาด', base]); // ออเดอร์รุ่นแรกเก็บแค่ขนาดกระดาษ
   else rows.push(['ประเภทงาน', base || 'งาน PRO']);
@@ -1232,7 +1232,7 @@ const proKindOf = (o) => {
     if (/^Postcard/.test(b)) return 'Postcard';
     if (/^พับครึ่ง/.test(b)) return 'พับครึ่ง (เข้าเล่ม/เมนู)';
     if (/^นามบัตร/.test(b)) return 'นามบัตร';
-    if (/^ปริ้นสีขาวดำขนาดใหญ่/.test(b)) return 'ปริ้นสีขาวดำขนาดใหญ่';
+    if (/^(?:ปริ้น|พิมพ์)สีขาวดำขนาดใหญ่/.test(b)) return 'ปริ้นสีขาวดำขนาดใหญ่';
     if (/^สติ๊กเกอร์/.test(b)) return 'สติ๊กเกอร์';
     if (/^Portfolio/i.test(b)) return 'Portfolio';
     if (/Standy|สแตนดี้/.test(b)) return 'Standy';

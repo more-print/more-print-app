@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>MORE PRINT — เว็บปริ้นเอกสาร มข.</title>
+<title>MORE PRINT — เว็บพิมพ์เอกสาร มข.</title>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Montserrat:wght@700;800&display=swap" rel="stylesheet">
 <style>
   /* ── ฟอนต์หลักทั้งเว็บ: Cloud Soft (Typomancer — รุ่นฟรี Light/Bold, EULA อนุญาตใช้เชิงพาณิชย์+@font-face ชัดเจน, ไฟล์+สัญญาอยู่ assets/fonts/) ──
@@ -99,14 +99,14 @@ const CONFIG = { nightOverride: 'auto', nightFee: 19, expressFee: 20, expressEna
   stdShopLat: 16.4850584, stdShopLng: 102.8165144, // จุดร้านงาน Standard: หน้าร้าน MORE PRINT (หอพักบริบูรณ์เพลส) — ค่าส่งแยกต้นทางตามประเภทงาน (นโยบาย 2026-09-08)
   deliveryBase: 19, bikePerKm: 6,
   carTiers: [[2, 69], [4, 89], [6, 129]],
-  // ปริ้นสี: คิดตามปริมาณสีที่สแกนจากไฟล์ (สัดส่วนพื้นที่สีเกิน colorHeavyPct% = หน้าสีเยอะ)
+  // พิมพ์สี: คิดตามปริมาณสีที่สแกนจากไฟล์ (สัดส่วนพื้นที่สีเกิน colorHeavyPct% = หน้าสีเยอะ)
   colorLightPrice: 5, colorHeavyPrice: 7, colorHeavyPct: 50,
   colorLightDuplex: 3.5, colorHeavyDuplex: 5, // หน้า-หลัง: สีน้อยแผ่นละ 7 (หน้าละ 3.5) · สีเยอะแผ่นละ 10 (หน้าละ 5)
   photoInkPct: 80, photoMinColorPct: 15, // กฎจับหน้ารูปภาพเต็มหน้า: หมึกคลุม >80% + มีสีจริง >15% = สีเยอะ
-  // ปริ้นขาวดำ "หน้าพื้นสีเต็ม" เช่นสไลด์พรีเซนต์ (เจ้าของสั่ง 2026-11-01): หน้าพิมพ์ละ ฿slidePrice คงที่ ไม่มีขั้นลด ไม่ว่าหน้าเดียว/หน้า-หลัง
+  // พิมพ์ขาวดำ "หน้าพื้นสีเต็ม" เช่นสไลด์พรีเซนต์ (เจ้าของสั่ง 2026-11-01): หน้าพิมพ์ละ ฿slidePrice คงที่ ไม่มีขั้นลด ไม่ว่าหน้าเดียว/หน้า-หลัง
   // เกณฑ์จับ (ทดสอบกับไฟล์จริง 716 หน้า): หมึกเฉลี่ยทั้งหน้า ≥ slideMinToner% และช่องพื้นหลังที่ไม่ขาว (สว่าง < slideBgLum) ≥ slideFillPct% ของหน้า
   slidePrice: 3, slideMinToner: 6, slideBgLum: 245, slideFillPct: 15,
-  photoPaperPrice: 25, // ปริ้นสีบนกระดาษโฟโต้ (Standard) ฿/หน้าพิมพ์ เหมารวม ไม่คิดตามปริมาณสี — เจ้าของสั่ง 2026-11-12
+  photoPaperPrice: 25, // พิมพ์สีบนกระดาษโฟโต้ (Standard) ฿/หน้าพิมพ์ เหมารวม ไม่คิดตามปริมาณสี — เจ้าของสั่ง 2026-11-12
   // เวลาผลิต+ส่งโดยประมาณ (นาที) — บวกเพิ่มตามคิวค้างจริง: คิวก่อนหน้า × queuePerOrderMin
   etaStandardMin: 45, queuePerOrderMin: 15,
   cancelWindowMin: 10, // ลูกค้ายกเลิกเองได้ภายในกี่นาทีหลังชำระ (ต้องยังสถานะ "รับออเดอร์") — SQL customer_cancel ใช้เลขเดียวกัน แก้ต้องแก้คู่กัน
@@ -196,21 +196,21 @@ const ICON_COLORPRINT = (
   </svg>
 );
 
-// ── ประเภทงานปริ้น + เรทราคา (ตามป้ายราคาหน้าร้าน) ──
+// ── ประเภทงานพิมพ์ + เรทราคา (ตามป้ายราคาหน้าร้าน) ──
 // งาน Standard มีแค่ 2 ประเภท (งานใหญ่/พิเศษไปทาง Pro) — ptype เก่า laser/portfolio/poster ยังแสดงในหลังบ้านได้
 const PRO_CLOSED_MSG = 'ขออภัยครับ ตอนนี้ปิดรับงาน PRO ชั่วคราว 🙏 งาน Standard สั่งได้ปกติ';
 const STD_CLOSED_MSG = 'ขออภัยครับ ตอนนี้ปิดรับงาน Standard ชั่วคราว 🙏 งาน PRO สั่งได้ปกติ'; // สวิตช์ 2 ปุ่มแยกกัน (เจ้าของสั่ง 2026-10-17): open = Standard · pro_open = PRO · ปิดทั้งคู่ = ปิดร้าน // สวิตช์ปิดรับเฉพาะงาน PRO จากหลังบ้าน (shop_status.pro_open — 2026-10-17)
 const PRINT_TYPES = [
-  { k: 'bw', icon: '📄', label: 'ปริ้นขาวดำ', desc: 'หน้าละ ฿1 · เกิน 75 หน้า 75 สต. · เกิน 150 หน้า 50 สต.' }, // คำกำกับจริงถูกแทนที่แบบไดนามิกใน typeOpts — กลางคืนใช้ขั้น 100/200 (2026-09-17)
-  { k: 'color', icon: ICON_COLORPRINT, label: 'ปริ้นสี', desc: '฿5-7/หน้า ตามปริมาณสี สแกนให้อัตโนมัติ' },
-  { k: 'mix', icon: '🎨', label: 'ปริ้นผสม', desc: 'ระบุหน้าสี/ขาวดำได้เอง · คิดราคารวมให้อัตโนมัติ' } // เจ้าของสั่ง 2026-10-08: สี+ขาวดำในออเดอร์เดียว เลือกรายไฟล์/รายหน้า
+  { k: 'bw', icon: '📄', label: 'พิมพ์ขาวดำ', desc: 'หน้าละ ฿1 · เกิน 75 หน้า 75 สต. · เกิน 150 หน้า 50 สต.' }, // คำกำกับจริงถูกแทนที่แบบไดนามิกใน typeOpts — กลางคืนใช้ขั้น 100/200 (2026-09-17)
+  { k: 'color', icon: ICON_COLORPRINT, label: 'พิมพ์สี', desc: '฿5-7/หน้า ตามปริมาณสี สแกนให้อัตโนมัติ' },
+  { k: 'mix', icon: '🎨', label: 'พิมพ์ผสม', desc: 'ระบุหน้าสี/ขาวดำได้เอง · คิดราคารวมให้อัตโนมัติ' } // เจ้าของสั่ง 2026-10-08: สี+ขาวดำในออเดอร์เดียว เลือกรายไฟล์/รายหน้า
 ];
 const SIZE_BY_TYPE = { bw: ['A4'], color: ['A4'], mix: ['A4'] };
-// ตัวเลือกต่อไฟล์ของงานปริ้นผสม — การ์ดประเภทงานเวอร์ชันย่อส่วน (ดีไซน์ที่เจ้าของอนุมัติ 2026-10-08)
+// ตัวเลือกต่อไฟล์ของงานพิมพ์ผสม — การ์ดประเภทงานเวอร์ชันย่อส่วน (ดีไซน์ที่เจ้าของอนุมัติ 2026-10-08)
 const MIX_FMODES = [
-  { k: 'bw', nm: '📄 ปริ้นขาวดำ', ds: 'ทั้งไฟล์นี้' },
-  { k: 'color', nm: <React.Fragment>{React.cloneElement(ICON_COLORPRINT, { width: 15, height: 15, style: { verticalAlign: '-3px' } })} ปริ้นสี</React.Fragment>, ds: 'ทั้งไฟล์นี้' }, // ไอคอนเดียวกับการ์ดปริ้นสีด้านบน (เจ้าของสั่ง 2026-10-12 — เดิม 🌈)
-  { k: 'pages', nm: '🎨 ปริ้นผสม', ds: 'ระบุหน้าที่พิมพ์สี' }
+  { k: 'bw', nm: '📄 พิมพ์ขาวดำ', ds: 'ทั้งไฟล์นี้' },
+  { k: 'color', nm: <React.Fragment>{React.cloneElement(ICON_COLORPRINT, { width: 15, height: 15, style: { verticalAlign: '-3px' } })} พิมพ์สี</React.Fragment>, ds: 'ทั้งไฟล์นี้' }, // ไอคอนเดียวกับการ์ดพิมพ์สีด้านบน (เจ้าของสั่ง 2026-10-12 — เดิม 🌈)
+  { k: 'pages', nm: '🎨 พิมพ์ผสม', ds: 'ระบุหน้าที่พิมพ์สี' }
 ];
 // ── แกะป้ายงาน Pro เป็นหัวข้อ (ก๊อปจาก pro.html/commission.html — แก้ต้องแก้คู่กัน) ใช้กับหน้าตรวจสอบ Pro หลายไฟล์ ──
 const PRO_SPEC_RX = [
@@ -234,7 +234,7 @@ function proSpecRowsC(o){
   else if ((m = base.match(/^Postcard (\S+) \((.+)\)$/))) rows.push(['ประเภทงาน', 'Postcard'], ['ขนาด', m[1] + ' (' + m[2] + ')']);
   else if ((m = base.match(/^พับครึ่ง เล่ม (\S+) \(กระดาษ (\S+)\)$/))) rows.push(['ประเภทงาน', 'พับครึ่ง (เข้าเล่ม/เมนู)'], ['ขนาดเล่ม', m[1]], ['ขนาดกระดาษ', m[2]]);
   else if ((m = base.match(/^นามบัตร (\d+) ใบ ?(หน้า-หลัง|หน้าเดียว)?$/))) { rows.push(['ประเภทงาน', 'นามบัตร'], ['จำนวนใบ', m[1] + ' ใบ']); if (m[2]) rows.push(['ด้านที่พิมพ์', m[2]]); }
-  else if ((m = base.match(/^(ปริ้นสีขาวดำขนาดใหญ่.*) (A\d)$/))) rows.push(['ประเภทงาน', m[1]], ['ขนาด', m[2]]);
+  else if ((m = base.match(/^((?:ปริ้น|พิมพ์)สีขาวดำขนาดใหญ่.*) (A\d)$/))) rows.push(['ประเภทงาน', m[1]], ['ขนาด', m[2]]);
   else if ((m = base.match(/^สติ๊กเกอร์ ?(.*)$/))) { rows.push(['ประเภทงาน', 'สติ๊กเกอร์']); if (m[1]) rows.push(['เนื้อสติ๊กเกอร์', m[1]]); }
   else if (/^A\d$/.test(base)) rows.push(['ขนาด', base]); // ออเดอร์รุ่นแรกเก็บแค่ขนาดกระดาษ
   else rows.push(['ประเภทงาน', base || 'งาน PRO']);
@@ -379,7 +379,7 @@ const PRO_TYPES = [
   { k: 'sticker', icon: '🏷️', label: 'สติ๊กเกอร์' },
   { k: 'namecard', icon: '💳', label: 'นามบัตร', qty: [100, 200, 300] },
   { k: 'standee', icon: '🧍', label: 'Standy (สแตนดี้)' },
-  { k: 'blueprint', icon: '📐', label: 'ปริ้นสีขาวดำขนาดใหญ่ (แบบแปลน,เอกสาร)', sizes: ['A3', 'A2', 'A1'] } // ชื่อใหม่ตามเจ้าของ 2026-09-11 · กระดาษ 80 แกรมทุกขนาด (คำกำกับอยู่ที่ปุ่มขนาด)
+  { k: 'blueprint', icon: '📐', label: 'พิมพ์สีขาวดำขนาดใหญ่ (แบบแปลน,เอกสาร)', sizes: ['A3', 'A2', 'A1'] } // ชื่อใหม่ตามเจ้าของ 2026-09-11 · กระดาษ 80 แกรมทุกขนาด (คำกำกับอยู่ที่ปุ่มขนาด)
 ];
 // สเปกงาน Pro รายไฟล์ (เจ้าของสั่ง 2026-10-12): สั่ง Pro หลายไฟล์ = แต่ละไฟล์เลือกประเภทงาน+สเปก+จำนวนชุดของตัวเอง
 // state ชุดนี้ = "ไฟล์ที่กำลังเลือก" (proActive) · ไฟล์อื่นเก็บไว้ใน files[i].pro · ยืนยันแล้ว = files[i].proOk
@@ -443,7 +443,7 @@ const POSTER_PRICE = { A5: 10, A4: 15, A3: 30, A2: 130, A1: 250, A0: 500 };
 //   กลางวัน: 1–75 หน้า ฿1 · 76–150 ฿0.75 · เกิน 150 ฿0.50
 //   กลางคืน (22:00–06:00): ขั้นขยับขึ้น 1–100 ฿1 · 101–200 ฿0.75 · เกิน 200 ฿0.50
 // หน้า-หลังพิมพ์ 2 ด้านก็คิด 2 หน้า — ด้านหลังไม่ฟรี (นโยบาย 2026-08-27) · การกำหนดหน้า (nup) เท่านั้นที่ทำให้จำนวนหน้าพิมพ์ลดลง
-const PHOTO_PRICE = CONFIG.photoPaperPrice ?? 25; // กระดาษโฟโต้ ฿/หน้าพิมพ์ (ปริ้นสี Standard) — แก้ที่ CONFIG.photoPaperPrice
+const PHOTO_PRICE = CONFIG.photoPaperPrice ?? 25; // กระดาษโฟโต้ ฿/หน้าพิมพ์ (พิมพ์สี Standard) — แก้ที่ CONFIG.photoPaperPrice
 const SLIDE_PRICE = CONFIG.slidePrice ?? 3; // ขาวดำหน้าพื้นสีเต็ม (สไลด์) ฿/หน้าพิมพ์ — แก้ที่ CONFIG.slidePrice
 function bwSheetRate(totalSheets, sides, night){
   if (night) return totalSheets > 200 ? 0.50 : totalSheets > 100 ? 0.75 : 1.00;
@@ -575,19 +575,19 @@ function MpStepper({ cur, max, onJump }){
   );
 }
 
-// แถวค่าปริ้นในบิลราคาโดยประมาณ — แตกราคารายไฟล์เมื่อ v.billLines มีค่า (ใช้ซ้ำ 3 จุด: หน้าสั่ง/ตรวจสอบ/ชำระเงิน)
+// แถวค่าพิมพ์ในบิลราคาโดยประมาณ — แตกราคารายไฟล์เมื่อ v.billLines มีค่า (ใช้ซ้ำ 3 จุด: หน้าสั่ง/ตรวจสอบ/ชำระเงิน)
 // ยอดทุกบรรทัด + บรรทัดปรับ = ฿printCost ของ calc() เสมอ (การันตีใน billLines ด้วยการปัดแบบสะสม)
 function BillPrint({ v }){
   if (!v.billLines) return (
     <React.Fragment>
-      {/* เจ้าของสั่งจัดใหม่ 2026-09-22: ค่าปริ้นล้วน ๆ 1 บรรทัด + ค่ากลางคืนแยกบรรทัด +฿ ของตัวเอง — เลิกยัดรวมในบรรทัดเดียวแล้วเขียนหมายเหตุ (ลูกค้างง ยอดบรรทัดไม่ตรงยอดรวม) */}
-      <div style={css("display:flex;justify-content:space-between")}><span style={css("color:var(--sub)")}>ค่าปริ้น {v.pageSummary}</span><span style={css("font-family:'IBM Plex Mono',monospace")}>฿{v.printCostRaw}</span></div>
+      {/* เจ้าของสั่งจัดใหม่ 2026-09-22: ค่าพิมพ์ล้วน ๆ 1 บรรทัด + ค่ากลางคืนแยกบรรทัด +฿ ของตัวเอง — เลิกยัดรวมในบรรทัดเดียวแล้วเขียนหมายเหตุ (ลูกค้างง ยอดบรรทัดไม่ตรงยอดรวม) */}
+      <div style={css("display:flex;justify-content:space-between")}><span style={css("color:var(--sub)")}>ค่าพิมพ์ {v.pageSummary}</span><span style={css("font-family:'IBM Plex Mono',monospace")}>฿{v.printCostRaw}</span></div>
       {v.nightCharged && <div style={css("display:flex;justify-content:space-between")}><span style={css("color:var(--warnInk)")}>🌙 ค่าบริการตอนกลางคืน (22:00–06:00)</span><span style={css("font-family:'IBM Plex Mono',monospace;color:var(--warnInk)")}>+฿{v.nightFee}</span></div>}
     </React.Fragment>
   );
   return (
     <React.Fragment>
-      <div style={css("color:var(--sub);font-weight:700")}>ค่าปริ้น — แยกราคาตามไฟล์</div>
+      <div style={css("color:var(--sub);font-weight:700")}>ค่าพิมพ์ — แยกราคาตามไฟล์</div>
       {v.billLines.lines.map((l, i) => (
         <div key={i} style={css("display:flex;justify-content:space-between;gap:10px")}>
           <span style={css("flex:1;min-width:0;color:var(--sub)")}>
@@ -600,7 +600,7 @@ function BillPrint({ v }){
       {v.billLines.adjust.map((a, i) => (
         <div key={'a' + i} style={css("display:flex;justify-content:space-between;gap:10px")}><span style={css("color:var(--sub)")}>{a.label}</span><span style={css("font-family:'IBM Plex Mono',monospace;flex:none")}>+฿{a.amt}</span></div>
       ))}
-      <div style={css("display:flex;justify-content:space-between")}><span style={css("color:var(--sub);font-weight:700")}>ค่าปริ้นรวมทุกไฟล์</span><span style={css("font-family:'IBM Plex Mono',monospace")}>฿{v.printCost}</span></div>
+      <div style={css("display:flex;justify-content:space-between")}><span style={css("color:var(--sub);font-weight:700")}>ค่าพิมพ์รวมทุกไฟล์</span><span style={css("font-family:'IBM Plex Mono',monospace")}>฿{v.printCost}</span></div>
     </React.Fragment>
   );
 }
@@ -729,8 +729,8 @@ class App extends React.Component {
     }
     // โหมดตัวอย่าง (ยังไม่เชื่อมฐานข้อมูล): โชว์รีวิวตัวอย่างไว้ดูหน้าตา
     if (!this.db) this.setState({ reviewsReady: true, reviews: [
-      { id: 3, order_id: '#MP-DEMO0003', name: 'มินตรา', stars: 5, comment: 'ส่งไวมาก งานคมชัด แนะนำเลยค่ะ', ptype: 'ปริ้นสี', auto: false, created_at: new Date().toISOString() },
-      { id: 2, order_id: '#MP-DEMO0002', name: 'ก้อง', stars: 5, comment: null, ptype: 'ปริ้นขาวดำ', auto: true, created_at: new Date().toISOString() },
+      { id: 3, order_id: '#MP-DEMO0003', name: 'มินตรา', stars: 5, comment: 'ส่งไวมาก งานคมชัด แนะนำเลยค่ะ', ptype: 'พิมพ์สี', auto: false, created_at: new Date().toISOString() },
+      { id: 2, order_id: '#MP-DEMO0002', name: 'ก้อง', stars: 5, comment: null, ptype: 'พิมพ์ขาวดำ', auto: true, created_at: new Date().toISOString() },
       { id: 1, order_id: null, name: 'boat', stars: 4, comment: 'ดีครับ ราคาโอเค ส่งตรงเวลา', ptype: null, auto: false, created_at: new Date().toISOString() }
     ] });
     // เช็คเงียบ ๆ ว่าประเภทงาน Pro ไหนมีรูปตัวอย่าง (assets/pro/<ประเภท>.jpg) — มีถึงโชว์ป้าย "กดดูตัวอย่างงาน"
@@ -1441,7 +1441,7 @@ class App extends React.Component {
         const buf = await f.arrayBuffer();
         const doc = await lib.getDocument({ data: buf }).promise;
         const n = doc.numPages;
-        const cs = await this.scanColor(doc); // cs.heavyList = เลขหน้าที่พบสีเด่น (ใช้ในงานปริ้นผสม)
+        const cs = await this.scanColor(doc); // cs.heavyList = เลขหน้าที่พบสีเด่น (ใช้ในงานพิมพ์ผสม)
         doc.destroy();
         return { pages: Math.max(1, n), auto: true, heavy: cs.heavy, heavyList: cs.heavyList || [], slideList: cs.slideList || [], scanned: cs.scanned, thumb: cs.thumb };
       } catch (e) { console.error('pdf count:', e); return { pages: 1, auto: false, heavy: 0, scanned: false }; }
@@ -1456,8 +1456,8 @@ class App extends React.Component {
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d', { willReadFrequently: true });
     let heavy = 0, thumb = null;
-    const heavyList = []; // เลขหน้าที่สแกนพบสีเด่น (ไว้ให้งานปริ้นผสมคิดเรทรายหน้า + ปุ่มเลือกหน้าสีอัตโนมัติ)
-    const slideList = []; // เลขหน้าพื้นสีเต็ม (สไลด์) — ปริ้นขาวดำหน้าพวกนี้คิด ฿slidePrice (2026-11-01)
+    const heavyList = []; // เลขหน้าที่สแกนพบสีเด่น (ไว้ให้งานพิมพ์ผสมคิดเรทรายหน้า + ปุ่มเลือกหน้าสีอัตโนมัติ)
+    const slideList = []; // เลขหน้าพื้นสีเต็ม (สไลด์) — พิมพ์ขาวดำหน้าพวกนี้คิด ฿slidePrice (2026-11-01)
     for (let i = 1; i <= doc.numPages; i++) {
       try {
         const page = await doc.getPage(i);
@@ -1736,7 +1736,7 @@ class App extends React.Component {
     return s.handoff === 'hand' ? '🤝 รับกับมือ' : s.handoff === 'drop' ? '📦 วางไว้จุดวางของ' : '';
   }
 
-  // ── งานปริ้นผสม (เจ้าของสั่ง 2026-10-08): สรุปต่อไฟล์ว่าหน้าไหนพิมพ์สี หน้าไหนขาวดำ — จุดเดียวใช้ทั้งคิดเงิน/บิล/บันทึก/ด่านตรวจ ──
+  // ── งานพิมพ์ผสม (เจ้าของสั่ง 2026-10-08): สรุปต่อไฟล์ว่าหน้าไหนพิมพ์สี หน้าไหนขาวดำ — จุดเดียวใช้ทั้งคิดเงิน/บิล/บันทึก/ด่านตรวจ ──
   // ต่อไฟล์เลือกได้ 3 แบบ (f.fmode): 'bw' ขาวดำทั้งไฟล์ (ค่าเริ่มต้น) · 'color' สีทั้งไฟล์ · 'pages' ระบุหน้าสีเอง (f.fspec เช่น "1, 5, 10-12")
   // หน้าสีคิดเรทสแกนเดิม (สีเด่นตาม heavyList = สีเยอะ) · หน้าขาวดำทุกไฟล์รวมกันเข้าขั้นเรทปริมาณปกติ
   mixInfo(){
@@ -1747,7 +1747,7 @@ class App extends React.Component {
       if (mode === 'color') { for (let p = 1; p <= f.pages; p++) set.add(p); }
       else if (mode === 'pages') { const r = parsePageSpec(f.fspec, f.pages); set = r.set; err = r.err; }
       let ch = 0, cl = 0;
-      if (mode === 'color') { ch = Math.min(f.heavy || 0, f.pages); cl = f.pages - ch; } // ทั้งไฟล์ = ใช้ยอดสแกนรวมเหมือนงานปริ้นสีเดิมเป๊ะ
+      if (mode === 'color') { ch = Math.min(f.heavy || 0, f.pages); cl = f.pages - ch; } // ทั้งไฟล์ = ใช้ยอดสแกนรวมเหมือนงานพิมพ์สีเดิมเป๊ะ
       else { const hl = Array.isArray(f.heavyList) ? f.heavyList : []; set.forEach(p => { hl.includes(p) ? ch++ : cl++; }); } // รายหน้า — ไฟล์ที่สแกนไม่ได้ = คิดสีน้อยไว้ก่อน (นโยบายเดิม ร้านตรวจยืนยัน)
       const sBwList = this.slidePagesBw(f, set); // หน้าพื้นสีเต็มที่ยังพิมพ์ขาวดำ (หน้าที่เลือกพิมพ์สีแล้วไม่นับ)
       return { mode, set, err, ch, cl, cBw: Math.max(0, f.pages - set.size), sBw: sBwList.length, sBwList, pages: f.pages, spec: (f.fspec || '').trim() };
@@ -1873,7 +1873,7 @@ class App extends React.Component {
   fileOpt(f){
     const s = this.state;
     const nupLock = s.tier === 'pro' || (s.ptype === 'mix' && (f.fmode || 'bw') === 'pages');
-    const photo = s.tier !== 'pro' && s.ptype === 'color' && f.media === 'photo'; // กระดาษโฟโต้ — เฉพาะปริ้นสี Standard (เจ้าของสั่ง 2026-11-12)
+    const photo = s.tier !== 'pro' && s.ptype === 'color' && f.media === 'photo'; // กระดาษโฟโต้ — เฉพาะพิมพ์สี Standard (เจ้าของสั่ง 2026-11-12)
     return {
       sides: s.tier === 'pro' ? (s.sides === 2 ? 2 : 1) : (f.sides === 2 && !photo ? 2 : 1), // ด้านที่พิมพ์รายไฟล์ (2026-10-12) · งาน Pro ยังเลือกครั้งเดียวทั้งออเดอร์ · กระดาษโฟโต้พิมพ์ได้ด้านเดียว
       orient: f.orient === 'landscape' ? 'landscape' : 'portrait',
@@ -1944,7 +1944,7 @@ class App extends React.Component {
       rate = bwSheetRate(sheets, s.sides, this.isNight()); // กลางคืนใช้ขั้นเรท 100/200 (เจ้าของปรับ 2026-09-17)
       printCost = Math.ceil(sheets * rate) + slideSheets * SLIDE_PRICE;
     }
-    // ปริ้นสี: คิดทีละหน้าตามผลสแกนปริมาณสี (หน้า/ไฟล์ที่สแกนไม่ได้ = คิดเรทสีน้อยไว้ก่อน ร้านตรวจยืนยัน)
+    // พิมพ์สี: คิดทีละหน้าตามผลสแกนปริมาณสี (หน้า/ไฟล์ที่สแกนไม่ได้ = คิดเรทสีน้อยไว้ก่อน ร้านตรวจยืนยัน)
     let heavyPages = 0, lightPages = 0, photoSheets = 0;
     if (s.ptype === 'color') {
       // กระดาษโฟโต้ (2026-11-12): ราคาเหมาต่อหน้าพิมพ์ ไม่สแกนสี — สีน้อย/สีเยอะนับเฉพาะไฟล์กระดาษปกติ
@@ -1956,7 +1956,7 @@ class App extends React.Component {
       const colRaw = s.files.reduce((a, f) => { const o = this.fileOpt(f), r = this.colorRates(o.sides), h = Math.min(f.heavy || 0, f.pages); return o.media === 'photo' ? a : a + ((f.pages - h) * r.lp + h * r.hp) / o.nup * o.copies; }, 0);
       printCost = Math.ceil(colRaw - 1e-9) + photoSheets * PHOTO_PRICE;
     }
-    // ปริ้นผสม (เจ้าของสั่ง 2026-10-08): หน้าสีเรทสแกนเดิม (สีน้อย 5 / สีเยอะ 7 · หน้า-หลัง 3.5/5)
+    // พิมพ์ผสม (เจ้าของสั่ง 2026-10-08): หน้าสีเรทสแกนเดิม (สีน้อย 5 / สีเยอะ 7 · หน้า-หลัง 3.5/5)
     // หน้าขาวดำทุกไฟล์รวมกันเข้าขั้นเรทปริมาณเหมือนงานขาวดำ — ห้ามใช้กับรวมหน้า (nup ถูกล็อก 1 ตอนเลือกประเภทนี้)
     if (s.ptype === 'mix' && s.tier !== 'pro') {
       const mi = this.mixInfo();
@@ -2018,7 +2018,7 @@ class App extends React.Component {
     // เข้าเล่มรายไฟล์ (เจ้าของสั่ง 2026-10-12): ไฟล์ไหนเลือกเข้าเล่ม = 1 เล่ม คิดเล่มละครั้งตามแผ่นจริงของไฟล์นั้น × จำนวนชุด · เย็บมุมฟรี
     const bindCost = s.tier === 'pro' ? 0 : s.files.reduce((a, f) => a + this.fileBindPrice(f) * cpOf(f), 0); // เล่มละไฟล์ × ชุดของไฟล์นั้น
     const deliveryCost = proPickupOn ? 0 : deliveryFee + expressFee;
-    const nightFee2 = s.tier === 'pro' ? 0 : nightFee; // งาน Pro ไม่มีค่ากลางคืน · Standard คิดทุกแบบรวมมารับเอง (เจ้าของสั่ง 2026-09-17 — กลางคืนเป็นค่าปริ้นงาน ไม่ใช่ค่าส่ง)
+    const nightFee2 = s.tier === 'pro' ? 0 : nightFee; // งาน Pro ไม่มีค่ากลางคืน · Standard คิดทุกแบบรวมมารับเอง (เจ้าของสั่ง 2026-09-17 — กลางคืนเป็นค่าพิมพ์งาน ไม่ใช่ค่าส่ง)
     // ── โค้ดส่วนลด: หักจากยอดรวมท้ายสุด (ไม่ติดลบ) ──
     const beforeDiscount = printCost + bindCost + deliveryCost + nightFee2;
     let discount = 0;
@@ -2124,7 +2124,7 @@ class App extends React.Component {
       cost: ppSheets * ppRate + pvcCost };
   }
 
-  // ── บิลราคาโดยประมาณ: แตกค่าปริ้นรายไฟล์เมื่อสั่งหลายไฟล์ (เจ้าของสั่ง 2026-09-09 — ทุกประเภทงาน) ──
+  // ── บิลราคาโดยประมาณ: แตกค่าพิมพ์รายไฟล์เมื่อสั่งหลายไฟล์ (เจ้าของสั่ง 2026-09-09 — ทุกประเภทงาน) ──
   // ผลรวมทุกบรรทัดต้องเท่ากับ printCost ของ calc() เป๊ะ: ใช้การปัดแบบสะสม (ceil ยอดสะสม − ceil ยอดสะสมก่อนหน้า)
   // คืน null = ไม่ต้องแตก (ไฟล์เดียว / งานคิดต่อออเดอร์เช่นนามบัตร-Standy / สติ๊กเกอร์ยังกรอกไม่ครบ)
   billLines(c){
@@ -2173,7 +2173,7 @@ class App extends React.Component {
       s.files.forEach((f, i) => lines.push({ name: 'ไฟล์ที่ ' + (i + 1) + ' · ' + f.name,
         desc: cpTag(i) + (fos[i].media === 'photo' ? '📸 กระดาษโฟโต้ ' + phs[i] + ' หน้าพิมพ์ × ฿' + PHOTO_PRICE : (f.pages * cps[i]) + ' หน้า' + (hvs[i] > 0 ? ' (สีเยอะ ' + (hvs[i] * cps[i]) + ' หน้า)' : '')), amt: amts[i] }));
     } else if (s.ptype === 'mix') {
-      // ปริ้นผสม: ยอดต่อไฟล์ = หน้าขาวดำ × เรทขั้น (c.rate จาก calc) + หน้าสีตามสแกน — ปัดสะสมด้วย alloc ให้รวมเท่ายอดจริงเสมอ
+      // พิมพ์ผสม: ยอดต่อไฟล์ = หน้าขาวดำ × เรทขั้น (c.rate จาก calc) + หน้าสีตามสแกน — ปัดสะสมด้วย alloc ให้รวมเท่ายอดจริงเสมอ
       const mi = this.mixInfo();
       if (mi.err) return null; // เลขหน้ายังเพี้ยน — โชว์บรรทัดเดียวไปก่อน (ด่านไปต่อบล็อกอยู่แล้ว)
       const nps = s.files.map(f => this.fileOpt(f).nup), rts = s.files.map(f => this.colorRates(this.fileOpt(f).sides)); // ด้าน+หน้า/แผ่นรายไฟล์ — ต้องตรงสูตร calc
@@ -2192,7 +2192,7 @@ class App extends React.Component {
       const amts = alloc(s.files.map(f => f.pages * cp * c.rate));
       s.files.forEach((f, i) => lines.push({ name: 'ไฟล์ที่ ' + (i + 1) + ' · ' + f.name, desc: (f.pages * cp) + ' หน้า × ฿' + c.rate, amt: amts[i] }));
     }
-    // ค่าบริการกลางคืนเป็นบรรทัดหนึ่งของค่าปริ้น (เจ้าของสั่ง 2026-09-17) — รวมแล้วเท่ากับ ค่าปริ้นรวมทุกไฟล์ ที่โชว์
+    // ค่าบริการกลางคืนเป็นบรรทัดหนึ่งของค่าพิมพ์ (เจ้าของสั่ง 2026-09-17) — รวมแล้วเท่ากับ ค่าพิมพ์รวมทุกไฟล์ ที่โชว์
     if ((c.nightFee || 0) > 0) adjust.push({ label: '🌙 ค่าบริการตอนกลางคืน (22:00–06:00)', amt: c.nightFee });
     return { lines, adjust };
   }
@@ -2206,8 +2206,8 @@ class App extends React.Component {
       : t.k === 'postcard' ? 'Postcard A3 (9 ใบ/แผ่น)'
       : t.k === 'foldbook' ? 'พับครึ่ง เล่ม ' + ((FOLDBOOK_BOOK[s.proSize] || {}).book || s.proSize) + ' (กระดาษ ' + s.proSize + ')'
       : t.k === 'namecard' ? 'นามบัตร ' + s.proQty + ' ใบ' + (s.sides === 2 ? ' หน้า-หลัง' : ' หน้าเดียว')
-      : t.k === 'blueprint' ? 'ปริ้นสีขาวดำขนาดใหญ่ (แบบแปลน,เอกสาร) ' + s.proSize
-      : t.k === 'sticker' ? (() => { // พ่วงเนื้อ (รายลาย/ผสม)+ขนาด+จำนวนชิ้น/แผ่นเข้าไปในป้าย — หลังบ้าน/ร้านพาร์ทเนอร์เห็นทันทีว่าต้องปริ้นอะไร
+      : t.k === 'blueprint' ? 'พิมพ์สีขาวดำขนาดใหญ่ (แบบแปลน,เอกสาร) ' + s.proSize
+      : t.k === 'sticker' ? (() => { // พ่วงเนื้อ (รายลาย/ผสม)+ขนาด+จำนวนชิ้น/แผ่นเข้าไปในป้าย — หลังบ้าน/ร้านพาร์ทเนอร์เห็นทันทีว่าต้องพิมพ์อะไร
           const si = this.stickerInfo();
           const ts = [...new Set(si.list.map(x => x.t).filter(Boolean))];
           const tp = ts.length ? ' ' + ts.map(x => x.toUpperCase()).join('+') : '';
@@ -2313,7 +2313,7 @@ class App extends React.Component {
         const sti = (pItems ? pItems[i].spec.proType === 'sticker' : (s.tier === 'pro' && s.proType === 'sticker')) ? (D.si && D.si.list[i]) : null;
         const row = { name: f.name, pages: f.pages, path: null, drive_url: f.big ? (f.b2Url || null) : null, auto: !!f.auto, heavy: f.heavy || 0, scanned: !!f.scanned, qty: sti ? Math.max(1, sti.q || 1) : null };
         if (sti && sti.ok) { row.w = sti.w; row.h = sti.h; row.sh = sti.sheets; row.stk = sti.t || null; } // stk = เนื้อของลายนี้ (pp/pvc)
-        // งานปริ้นผสม: บันทึกต่อไฟล์ว่าพิมพ์แบบไหน + หน้าสีหน้าไหน — หลังบ้าน/ทีมผลิตอ่านจากการ์ดได้เลย (เจ้าของสั่ง 2026-10-08)
+        // งานพิมพ์ผสม: บันทึกต่อไฟล์ว่าพิมพ์แบบไหน + หน้าสีหน้าไหน — หลังบ้าน/ทีมผลิตอ่านจากการ์ดได้เลย (เจ้าของสั่ง 2026-10-08)
         if (s.tier !== 'pro' && s.ptype === 'mix') {
           const mx = (D.mi && D.mi.list[i]) || {};
           row.cmode = mx.mode || 'bw'; // bw = ขาวดำทั้งไฟล์ · color = สีทั้งไฟล์ · pages = ระบุหน้าสีเอง
@@ -2390,8 +2390,8 @@ class App extends React.Component {
         night_fee: c.nightFee || 0, // ตามสูตรจริง — งาน Pro = 0 (Standard คิดทุกแบบรวมมารับเอง ตั้งแต่ 2026-09-17)
         total: c.grandTotal, status: 1, times: [t0, '', '', ''],
         coupon: c.coupon || null, discount: c.discount || 0,
-        note: (s.note || '').trim().slice(0, 300) || null, // หมายเหตุการปริ้น/รายละเอียดงานจากลูกค้า
-        ship_note: (s.shipNote || '').trim().slice(0, 300) || null // หมายเหตุการส่ง (ขั้นจุดส่ง — เจ้าของสั่ง 2026-10-07 แยกจากหมายเหตุการปริ้นชัดเจน)
+        note: (s.note || '').trim().slice(0, 300) || null, // หมายเหตุการพิมพ์/รายละเอียดงานจากลูกค้า
+        ship_note: (s.shipNote || '').trim().slice(0, 300) || null // หมายเหตุการส่ง (ขั้นจุดส่ง — เจ้าของสั่ง 2026-10-07 แยกจากหมายเหตุการพิมพ์ชัดเจน)
       };
       if (exportOnly) return { payload, upFail };
       // ── ตาข่ายกันออเดอร์หลุด (2026-09-14 — เคสจริง: เน็ตลูกค้าสะดุดตอนกดยืนยัน แถวออเดอร์ไม่ลงฐานข้อมูล หลังบ้าน/LINE ไม่เห็นเลย) ──
@@ -2493,7 +2493,7 @@ class App extends React.Component {
       const mk = (row) => { const rawAddr = row.addr ? String(row.addr) : ''; return {
         id: row.id, step: row.status, times: row.times || ['', '', '', ''], total: row.total || 0, adjs: row.adjustments || [],
         pickup: !!row.pickup, addr: rawAddr.replace(/^[🚗🏍️🏪\s]+/, ''), veh: row.pickup ? '' : (rawAddr.startsWith('🚗') ? '🚗 รถยนต์' : '🏍️ มอเตอร์ไซค์'),
-        plabel: row.paper || 'งานปริ้น', pages: row.pages || 0, copies: row.copies || 1,
+        plabel: row.paper || 'งานพิมพ์', pages: row.pages || 0, copies: row.copies || 1,
         ts: row.created_at ? new Date(row.created_at).getTime() : Date.now() }; };
       rows.filter(r => r.status >= 4).slice(0, 10).reverse().forEach(r => this.addHistory(mk(r))); // ใบจบแล้ว → ประวัติ (ใส่เก่า→ใหม่ ให้ใบล่าสุดอยู่บนสุด · กันซ้ำด้วย id ใน addHistory)
       const actives = rows.filter(r => r.status > 0 && r.status < 4);
@@ -2528,7 +2528,7 @@ class App extends React.Component {
       const addr = rawAddr.replace(/^[🚗🏍️🏪\s]+/, '');
       const od = { id, step: row.status, times: row.times || ['', '', '', ''], total: row.total || 0, adjs: row.adjustments || [],
         pickup: !!row.pickup, addr, veh: row.pickup ? '' : (rawAddr.startsWith('🚗') ? '🚗 รถยนต์' : '🏍️ มอเตอร์ไซค์'),
-        plabel: 'งานปริ้น', ts: Date.now(), cancelReason: row.cancel_reason || '' };
+        plabel: 'งานพิมพ์', ts: Date.now(), cancelReason: row.cancel_reason || '' };
       try { localStorage.setItem('mp_order', JSON.stringify(od)); this.upsertOrderList(od); } catch (e) {}
       this.setState({ trkCode: '', trackStep: row.status == null ? 1 : row.status, cancelReason: row.cancel_reason || '',
         order: { id, total: od.total, times: od.times, plabel: od.plabel, eta: null, pickup: od.pickup, ts: od.ts, express: false, adjs: od.adjs,
@@ -2652,7 +2652,7 @@ class App extends React.Component {
     this.trackTimer = setInterval(() => this.fetchOrderStatus(id), 8000);
   }
 
-  // ── ลูกค้ายกเลิกออเดอร์เอง: ทำได้เฉพาะตอนร้านยังไม่เริ่มปริ้น (สถานะ 1) และไม่เกิน cancelWindowMin นาทีหลังชำระ
+  // ── ลูกค้ายกเลิกออเดอร์เอง: ทำได้เฉพาะตอนร้านยังไม่เริ่มพิมพ์ (สถานะ 1) และไม่เกิน cancelWindowMin นาทีหลังชำระ
   // เงื่อนไขจริงตัดสินที่ SQL customer_cancel (SECURITY DEFINER) — ฝั่งเว็บเป็นแค่หน้าจอ เดาเวลา/สถานะเองไม่ได้
   async selfCancel(){
     const s = this.state;
@@ -2683,7 +2683,7 @@ class App extends React.Component {
       if (data === 'printing') { fail('ร้านเริ่มทำงานนี้แล้ว ยกเลิกจากหน้าเว็บไม่ได้ — รีบทักแชทร้านเลยครับ 💬'); return this.fetchOrderStatus(s.order.id); }
       if (data === 'timeout') return fail('เลยช่วงยกเลิก ' + (CONFIG.cancelWindowMin ?? 10) + ' นาทีแล้ว — ทักแชทร้านทาง LINE ครับ 💬');
       if (data !== 'ok') return fail('ยกเลิกไม่สำเร็จ — ทักแชทร้านทาง LINE ครับ 🙏');
-      // แจ้งร้านทาง LINE ว่าลูกค้ายกเลิกเอง จะได้ไม่ปริ้นทิ้ง (ยิงแบบไม่รอผล)
+      // แจ้งร้านทาง LINE ว่าลูกค้ายกเลิกเอง จะได้ไม่พิมพ์ทิ้ง (ยิงแบบไม่รอผล)
       try { fetch((window.MP_CONFIG || {}).SUPABASE_URL + '/functions/v1/notify-order?action=customer-cancelled', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: s.order.id }) }); } catch (e) {}
       markCancelled();
     } catch (e) { fail('ยกเลิกไม่สำเร็จ ลองอีกครั้งครับ 🙏'); }
@@ -2950,7 +2950,7 @@ class App extends React.Component {
       const h = JSON.parse(localStorage.getItem('mp_history') || '[]');
       if (h.some(x => x.id === o.id)) return;
       h.unshift({ id: o.id, ts: o.ts || Date.now(), doneAt: Date.now(), total: o.total || 0,
-        plabel: o.plabel || 'งานปริ้น', pages: o.pages || 0, copies: o.copies || 1,
+        plabel: o.plabel || 'งานพิมพ์', pages: o.pages || 0, copies: o.copies || 1,
         pickup: !!o.pickup, veh: o.veh || '', addr: o.addr || '', rc: o.rc || null, cp: o.cp || null }); // rc+cp ต้องติดไปด้วย — ใบเสร็จ (พร้อมบรรทัดส่วนลด) เปิดจากประวัติได้
       const cut = h.slice(0, 30);
       localStorage.setItem('mp_history', JSON.stringify(cut));
@@ -3053,7 +3053,7 @@ class App extends React.Component {
   vals(){
     const s = this.state, c = this.calc(), night = this.isNight();
     const set = (k) => (v) => this.setState({ [k]: v });
-    const STEPS = ['รับออเดอร์', 'กำลังปริ้น', 'กำลังจัดส่ง', 'ส่งแล้ว'];
+    const STEPS = ['รับออเดอร์', 'กำลังพิมพ์', 'กำลังจัดส่ง', 'ส่งแล้ว'];
     const step = s.order ? s.trackStep : 0;
     const cancelled = !!s.order && s.trackStep === 0;
     return {
@@ -3236,7 +3236,7 @@ class App extends React.Component {
       },
       files: (() => { const pMulti = this.proMulti(), pAct = this.proActiveIdx(), pItems = pMulti ? this.proItems() : null; // Pro หลายไฟล์ (2026-10-12)
         const stOn = s.tier === 'pro' && s.proType === 'sticker' && !pMulti; const si = stOn ? this.stickerInfo() : null;
-        const mixOn = s.tier !== 'pro' && s.ptype === 'mix'; const mi = mixOn ? this.mixInfo() : null; // งานปริ้นผสม: สรุปหน้าสี/ขาวดำต่อไฟล์
+        const mixOn = s.tier !== 'pro' && s.ptype === 'mix'; const mi = mixOn ? this.mixInfo() : null; // งานพิมพ์ผสม: สรุปหน้าสี/ขาวดำต่อไฟล์
         return s.files.map((f, i) => ({
         name: f.name, pages: f.pages, big: !!f.big, sizeMB: f.sizeMB || 0,
         auto: !!f.auto, counting: !!f.counting, // ไว้ล็อกปุ่มแก้จำนวนหน้าของไฟล์ที่นับอัตโนมัติแล้ว
@@ -3255,7 +3255,7 @@ class App extends React.Component {
           ? (si.list[i] && si.list[i].ok && !si.list[i].over
               ? '🏷️ ลายนี้ ' + si.list[i].w + '×' + si.list[i].h + ' ซม. · ' + si.list[i].sheets + ' ' + stkUnit(si.list[i].t) + ' × ' + si.list[i].cap + ' ชิ้น/' + stkUnit(si.list[i].t) + ' = ' + si.list[i].q + ' ชิ้น'
               : '🏷️ กรอกเนื้อ/ขนาด/จำนวนแผ่นที่ช่องด้านล่าง')
-          : f.counting ? '⏳ กำลังอ่านไฟล์ (นับหน้า + สแกนปริมาณสี)…' : ((f.auto ? '🔒 นับหน้าจากไฟล์จริงแล้ว — ล็อกจำนวน' : '✏️ ระบุจำนวนหน้าเองด้วยปุ่ม + / − (ร้านเปิดไฟล์เช็คก่อนปริ้นเสมอ)') + (s.ptype === 'color' && f.scanned ? ' · 🎨 สีเยอะ ' + (f.heavy || 0) + ' หน้า' : '')
+          : f.counting ? '⏳ กำลังอ่านไฟล์ (นับหน้า + สแกนปริมาณสี)…' : ((f.auto ? '🔒 นับหน้าจากไฟล์จริงแล้ว — ล็อกจำนวน' : '✏️ ระบุจำนวนหน้าเองด้วยปุ่ม + / − (ร้านเปิดไฟล์เช็คก่อนพิมพ์เสมอ)') + (s.ptype === 'color' && f.scanned ? ' · 🎨 สีเยอะ ' + (f.heavy || 0) + ' หน้า' : '')
             + (s.tier !== 'pro' && (s.ptype === 'bw' || s.ptype === 'mix') && this.slidePagesBw(f, mi ? mi.list[i].set : null).length ? ' · 🖼️ หน้าพื้นสีเต็ม ' + this.slidePagesBw(f, mi ? mi.list[i].set : null).length + ' หน้า (ขาวดำ ฿' + SLIDE_PRICE + '/หน้า)' : '')),
         // ไฟล์ที่ระบบอ่านนับหน้าได้เอง = ล็อกจำนวนตามไฟล์จริง แก้ไม่ได้ (กันกดลดหน้าให้ราคาถูกกว่าความจริง) — แก้ได้เฉพาะไฟล์ที่เว็บนับไม่ได้ (เช่น DOCX)
         inc: () => { if (f.auto) return this.showToast('ไฟล์นี้ระบบนับหน้าจากตัวไฟล์จริงแล้ว ล็อกจำนวนไว้ครับ 🔒'); this.setState(st => ({ files: st.files.map((x, j) => j === i ? { ...x, pages: x.pages + 1 } : x) })); },
@@ -3265,7 +3265,7 @@ class App extends React.Component {
         proOn: pMulti, proActive: pMulti && i === pAct, proOk: !!f.proOk,
         proText: pItems ? pItems[i].label + (pItems[i].spec.proType === 'sticker' ? '' : ' × ' + (pItems[i].spec.copies || 1) + ' ชุด') : '',
         pickPro: () => this.proSelect(i),
-        // ── งานปริ้นผสม: ตัวเลือกต่อไฟล์ + ช่องเลขหน้าสี (เจ้าของสั่ง 2026-10-08) ──
+        // ── งานพิมพ์ผสม: ตัวเลือกต่อไฟล์ + ช่องเลขหน้าสี (เจ้าของสั่ง 2026-10-08) ──
         mix: mi ? mi.list[i] : null,
         fmode: f.fmode || 'bw', fspec: f.fspec || '',
         setFmode: (k) => this.setState(st => ({ files: st.files.map((x, j) => j === i ? { ...x, fmode: k } : x) })),
@@ -3282,9 +3282,9 @@ class App extends React.Component {
             // แถวสเปกรายไฟล์บนหน้าตรวจสอบ (เจ้าของสั่ง 2026-10-12: สั่งหลายไฟล์ต้องเห็นชัดว่าไฟล์ไหนสเปกไหน)
             reviewRows: pItems ? proSpecRowsC({ paper: pItems[i].label, copies: pItems[i].spec.proType === 'sticker' ? 1 : pItems[i].spec.copies, sides: pItems[i].spec.sides, bind: pItems[i].spec.proType === 'foldbook' ? pItems[i].spec.proBind : 'none' }) : [
               ['ประเภท', !mi ? ((PRINT_TYPES.find(t => t.k === s.ptype) || {}).label || '')
-                : (() => { const x = mi.list[i]; if (!x || x.set.size === 0) return 'ปริ้นขาวดำทั้งไฟล์'; if (x.cBw === 0) return 'ปริ้นสีทั้งไฟล์';
+                : (() => { const x = mi.list[i]; if (!x || x.set.size === 0) return 'พิมพ์ขาวดำทั้งไฟล์'; if (x.cBw === 0) return 'พิมพ์สีทั้งไฟล์';
                     const bw = []; for (let p = 1; p <= f.pages; p++) if (!x.set.has(p)) bw.push(p);
-                    return 'ปริ้นสี หน้าที่ ' + pagesToRanges([...x.set]) + ' , ปริ้นขาวดำ หน้าที่ ' + pagesToRanges(bw); })()],
+                    return 'พิมพ์สี หน้าที่ ' + pagesToRanges([...x.set]) + ' , พิมพ์ขาวดำ หน้าที่ ' + pagesToRanges(bw); })()],
               ...(o.media === 'photo' ? [['ตัวเลือกเสริม', 'กระดาษโฟโต้']] : []), // ไม่เลือก = กระดาษปกติ ไม่ขึ้นแถวนี้ — ข้อความตรงกับ stdSpecRows ใน admin.html
               ['ด้านที่พิมพ์', o.sides === 2 ? 'หน้า-หลัง' : 'หน้าเดียว'],
               ['แนวกระดาษ', o.orient === 'landscape' ? 'แนวนอน' : 'แนวตั้ง'],
@@ -3297,7 +3297,7 @@ class App extends React.Component {
                 return sl.length ? [['หน้าพื้นสีเต็ม', 'หน้าที่ ' + pagesToRanges(sl) + ' (ขาวดำ ฿' + SLIDE_PRICE + '/หน้า)']] : []; })()
             ],
             sidesSegs: [sm(this.seg('หน้าเดียว', o.sides === 1, () => setOpt({ sides: 1 }))), sm(this.seg('หน้า-หลัง', o.sides === 2, () => setOpt({ sides: 2 })))],
-            // ตัวเลือกกระดาษเสริม (เฉพาะปริ้นสี Standard — เจ้าของสั่ง 2026-11-12): กระดาษปกติ / กระดาษโฟโต้ ฿PHOTO_PRICE ต่อหน้าเหมา
+            // ตัวเลือกกระดาษเสริม (เฉพาะพิมพ์สี Standard — เจ้าของสั่ง 2026-11-12): กระดาษปกติ / กระดาษโฟโต้ ฿PHOTO_PRICE ต่อหน้าเหมา
             showMedia: s.tier !== 'pro' && s.ptype === 'color', isPhoto: o.media === 'photo',
             mediaSegs: [sm(this.seg('กระดาษปกติ', o.media !== 'photo', () => setOpt({ media: 'plain' }))), sm(this.seg('กระดาษโฟโต้ ฿' + PHOTO_PRICE + '/หน้า', o.media === 'photo', () => setOpt({ media: 'photo' })))],
             orientSegs: [sm(this.seg('แนวตั้ง', o.orient === 'portrait', () => setOpt({ orient: 'portrait' }))), sm(this.seg('แนวนอน', o.orient === 'landscape', () => setOpt({ orient: 'landscape' })))],
@@ -3326,12 +3326,12 @@ class App extends React.Component {
           ? 'หน้าละ ฿1 · เกิน 100 หน้า 75 สต. · เกิน 200 หน้า 50 สต.'
           : 'หน้าละ ฿1 · เกิน 75 หน้า 75 สต. · เกิน 150 หน้า 50 สต.') : t.desc,
         on: s.ptype === t.k,
-        // ปริ้นผสมใช้กับ "รวมหน้า/แผ่น" ไม่ได้ (หน้าสีกับขาวดำจะปนแผ่นเดียวกัน) — เลือกปุ๊บล็อก nup กลับเป็น 1 หน้า/แผ่นทันที
+        // พิมพ์ผสมใช้กับ "รวมหน้า/แผ่น" ไม่ได้ (หน้าสีกับขาวดำจะปนแผ่นเดียวกัน) — เลือกปุ๊บล็อก nup กลับเป็น 1 หน้า/แผ่นทันที
         pick: () => this.setState({ ptype: t.k, paper: SIZE_BY_TYPE[t.k][0], ...(t.k === 'mix' ? { nup: 1 } : {}) })
       })),
       isMix: s.tier !== 'pro' && s.ptype === 'mix',
       mixFmodes: MIX_FMODES,
-      // ระดับงาน: Standard = งานปริ้นทั่วไป (ของเดิม) · Pro = งานขั้นสูง A3/A2/A1 (ราคารอเจ้าของกำหนด)
+      // ระดับงาน: Standard = งานพิมพ์ทั่วไป (ของเดิม) · Pro = งานขั้นสูง A3/A2/A1 (ราคารอเจ้าของกำหนด)
       isPro: s.tier === 'pro',
       // งาน Pro สั่งได้ 24 ชม. — ออเดอร์หลัง 17:00 (ถึงก่อน 08:30) เริ่มผลิตวันถัดไป 08:30 (นโยบาย 2026-08-24)
       proAfterCut: (() => { const h = s.now.getHours(), m = s.now.getMinutes(); return h >= 17 || h < 8 || (h === 8 && m < 30); })(),
@@ -3416,7 +3416,7 @@ class App extends React.Component {
       // โปสเตอร์: ประเภทกระดาษ (เจ้าของสั่ง 2026-09-15 — ไม่บวกราคา · กระดาษอาร์ต = ค่าพื้นฐาน เลือกให้อัตโนมัติ)
       proPoPaperOpts: s.proType === 'poster' ? [['pp', 'พีพีฟิล์ม'], ['vinyl', 'ไวนิล'], ['art', 'กระดาษอาร์ต (พื้นฐาน)']].map(([k, label]) => // กระดาษโฟโต้ถอดออก (2026-10-05) · 3 ช่องแถวเดียว ป้ายเต็มคงเดิม (เจ้าของยืนยัน 2026-10-09)
         this.seg(label, (s.proPoPaper || 'art') === k, () => this.setState({ proPoPaper: k }), true)) : [],
-      // ปริ้นขาวดำขนาดใหญ่: ความหนากระดาษ 80/100/120 แกรม (ไม่บวกราคา — 2026-09-09)
+      // พิมพ์ขาวดำขนาดใหญ่: ความหนากระดาษ 80/100/120 แกรม (ไม่บวกราคา — 2026-09-09)
       // ความหนากระดาษแบบแปลน (80/100/120 แกรม) ซ่อนชั่วคราว — ยังไม่รู้ราคา (เจ้าของสั่ง 2026-09-12); เปิดคืน: เอา `false &&` ออก
       proGramOpts: (false && s.proType === 'blueprint') ? [80, 100, 120].map(g =>
         this.seg(g + ' แกรม', (s.proGram || 80) === g, () => this.setState({ proGram: g }), true)) : [],
@@ -3534,7 +3534,7 @@ class App extends React.Component {
         : (s.ptype === 'color' || s.ptype === 'mix')
         ? (!s.files.length ? '* หน้าสีเกิน ' + (CONFIG.colorHeavyPct ?? 50) + '% ของพื้นที่ หรือเป็นรูปภาพเต็มหน้า = สีเยอะ ฿' + (CONFIG.colorHeavyPrice ?? 7)
           : s.ptype === 'color' && s.files.every(f => this.fileOpt(f).media === 'photo') ? '* กระดาษโฟโต้ ราคาเหมาหน้าละ ฿' + PHOTO_PRICE + ' (ไม่คิดตามปริมาณสี)'
-          : s.files.some(f => !f.scanned) ? '* ไฟล์ที่ระบบสแกนสีไม่ได้ คิดเรทสีน้อยไว้ก่อน — ร้านตรวจไฟล์จริงและยืนยันราคาก่อนปริ้น'
+          : s.files.some(f => !f.scanned) ? '* ไฟล์ที่ระบบสแกนสีไม่ได้ คิดเรทสีน้อยไว้ก่อน — ร้านตรวจไฟล์จริงและยืนยันราคาก่อนพิมพ์'
           : c.heavyPages > 0 ? (this.sidesMix().mixed ? '* สแกนไฟล์แล้ว: สีเยอะ ' + c.heavyPages + ' หน้า · สีน้อย ' + c.lightPages + ' หน้า (เรทตามด้านที่พิมพ์ของแต่ละไฟล์)'
             : '* สแกนไฟล์แล้ว: สีเยอะ ' + c.heavyPages + ' หน้า × ฿' + this.colorRates(this.sidesMix().all2 ? 2 : 1).hp + ' · สีน้อย ' + c.lightPages + ' หน้า × ฿' + this.colorRates(this.sidesMix().all2 ? 2 : 1).lp)
           : s.ptype === 'color' ? '* สแกนไฟล์แล้ว: ทุกหน้าสีน้อย ฿' + (CONFIG.colorLightPrice ?? 5) + '/หน้า' : '')
@@ -3566,7 +3566,7 @@ class App extends React.Component {
       slideNote: s.tier !== 'pro' && (s.ptype === 'bw' || s.ptype === 'mix') && c.slideSheets > 0
         ? '🖼️ พบหน้าพื้นสีเต็ม (แบบสไลด์) ' + c.slideSheets + ' หน้า คิดหน้าละ ฿' + SLIDE_PRICE + ' · หน้าอื่นราคาปกติ' : '',
       typeLabel: s.tier === 'pro' ? '✨ PRO พรีเมียม' : ((PRINT_TYPES.find(t => t.k === s.ptype) || {}).label || ''),
-      billLines: this.billLines(c), // แตกค่าปริ้นรายไฟล์ในบิล (null = โชว์บรรทัดเดียวแบบเดิม)
+      billLines: this.billLines(c), // แตกค่าพิมพ์รายไฟล์ในบิล (null = โชว์บรรทัดเดียวแบบเดิม)
       // สติ๊กเกอร์ไม่นับเป็น "หน้า" — บิลสรุปเป็นชิ้น/แผ่น A3 แทน กันลูกค้างง (เจ้าของสั่ง 2026-09-09)
       pageSummary: (s.tier === 'pro' && s.proType === 'sticker' && !this.proMulti()) ? (() => {
           const si = this.stickerInfo();
@@ -3578,9 +3578,9 @@ class App extends React.Component {
         })()
         : this.proMulti() ? 'PRO ' + s.files.length + ' ไฟล์ · ' + c.pages + ' หน้า (ประเภท/สเปก/จำนวนชุดตามแต่ละไฟล์)'
         : (s.tier === 'pro' ? c.pages + ' หน้า × ' + s.copies + ' ชุด' : this.stdCopies() ? c.pages + ' หน้า × ' + this.stdCopies() + ' ชุด' : 'รวม ' + c.totalPages + ' หน้า (จำนวนชุดตามแต่ละไฟล์)') + ' (' + (s.tier === 'pro' ? 'PRO ' + this.proLabel() : ((PRINT_TYPES.find(t => t.k === s.ptype) || {}).label || '') + ' ' + s.paper + (() => { const nps = [...new Set(s.files.map(f => this.fileOpt(f).nup))]; return nps.length > 1 ? ' · หน้า/แผ่นตามแต่ละไฟล์' : nps[0] > 1 ? ' · ' + nps[0] + ' หน้า/แผ่น' : ''; })()) + ')',
-      // ค่าปริ้นที่โชว์ลูกค้ารวมค่าบริการกลางคืนแล้ว (เจ้าของสั่ง 2026-09-17: กลางคืนเป็นค่าปริ้นงาน ไม่ใช่ค่าส่ง) — ยอดบันทึกลงฐานข้อมูล (print_cost/night_fee) แยกคอลัมน์เหมือนเดิม
+      // ค่าพิมพ์ที่โชว์ลูกค้ารวมค่าบริการกลางคืนแล้ว (เจ้าของสั่ง 2026-09-17: กลางคืนเป็นค่าพิมพ์งาน ไม่ใช่ค่าส่ง) — ยอดบันทึกลงฐานข้อมูล (print_cost/night_fee) แยกคอลัมน์เหมือนเดิม
       printCost: c.printCost + c.nightFee, printCostRaw: c.printCost, bindCost: c.bindCost, printTotal: c.printTotal,
-      printTotalAll: c.printTotal + c.nightFee, // ยอดบรรทัด "ทั้งหมด" ของกล่องราคาโดยประมาณ = ปริ้น + เข้าเล่ม + กลางคืน (เดิมโชว์ printTotal ที่ไม่รวมกลางคืน — ขัดกับบรรทัดบน ลูกค้างง)
+      printTotalAll: c.printTotal + c.nightFee, // ยอดบรรทัด "ทั้งหมด" ของกล่องราคาโดยประมาณ = พิมพ์ + เข้าเล่ม + กลางคืน (เดิมโชว์ printTotal ที่ไม่รวมกลางคืน — ขัดกับบรรทัดบน ลูกค้างง)
       deliveryCost: c.deliveryCost, grandTotal: c.grandTotal,
       noteText: s.note, setNote: (e) => this.setState({ note: e.target.value }),
       shipNoteText: s.shipNote, setShipNote: (e) => this.setState({ shipNote: e.target.value }),
@@ -3606,7 +3606,7 @@ class App extends React.Component {
         if (!no) return this.showToast('ยังออกใบเสร็จไม่ได้ครับ — ลองใหม่อีกครั้ง หรือทักแชทร้านได้เลย');
         const d = new Date(o.rc.at || o.ts || Date.now());
         this.setState({ rcView: { no, name: o.rc.name, addr: o.rc.addr, tax: o.rc.tax, phone: o.rc.phone, oid: o.id, amount: o.total || 0, cp: o.cp || null,
-          detail: (o.plabel || 'งานปริ้น') + (o.pages ? ' · ' + o.pages + ' หน้า' : '') + ((o.copies || 1) > 1 ? ' × ' + o.copies + ' ชุด' : ''),
+          detail: (o.plabel || 'งานพิมพ์') + (o.pages ? ' · ' + o.pages + ' หน้า' : '') + ((o.copies || 1) > 1 ? ' × ' + o.copies + ' ชุด' : ''),
           date: ('0' + d.getDate()).slice(-2) + '/' + ('0' + (d.getMonth() + 1)).slice(-2) + '/' + (d.getFullYear() + 543) } });
       },
       toDelivery: () => {
@@ -3635,7 +3635,7 @@ class App extends React.Component {
           const a4 = s.files.reduce((a, f, i) => { const sp = this.proSpecOf(i); return a + (sp.proType === 'poster' && sp.proSize === 'A4' ? (f.pages || 1) * Math.max(1, sp.copies || 1) : 0); }, 0);
           if (a4 > 0 && (a4 < 2 || a4 % 2 !== 0)) return this.showToast('🖼️ โปสเตอร์ A4 รับผลิตขั้นต่ำ 2 แผ่น และจำนวนรวมต้องเป็นเลขคู่ครับ (ตอนนี้รวม ' + a4 + ' แผ่น) — ปรับ "จำนวนชุด" ของไฟล์โปสเตอร์ได้เลย 🙏');
         }
-        // ปริ้นผสม: เลขหน้าสีต้องถูกต้อง/ไม่ว่างทุกไฟล์ก่อนไปต่อ (กันคิดเงินเพี้ยน — เจ้าของสั่ง 2026-10-08)
+        // พิมพ์ผสม: เลขหน้าสีต้องถูกต้อง/ไม่ว่างทุกไฟล์ก่อนไปต่อ (กันคิดเงินเพี้ยน — เจ้าของสั่ง 2026-10-08)
         if (s.tier !== 'pro' && s.ptype === 'mix') {
           const mi = this.mixInfo();
           const bad = mi.list.findIndex(x => x.err);
@@ -3988,7 +3988,7 @@ class App extends React.Component {
         if (pk && step === 3) return '📦 สินค้าเสร็จแล้ว — มารับที่' + PRO_PICKUP_NAME + ' ได้เลยครับ';
         // งานด่วน (Express — Standard): order.eta เป็นเวลาผลิตเร่งแล้ว (45 นาที/150 หน้า ไม่บวกคิว) + ช่วงเดินทางตามพาหนะ — คำนวณสดทุกครั้งที่นาฬิกา s.now เดิน (ทุก 30 วิ)
         if (s.order && s.order.express && !pk) {
-          const bx = (s.order && s.order.unsaved) ? '⏳ กำลังส่งออเดอร์ไปที่ร้าน…' : step === 3 ? '🛵 ไรเดอร์กำลังไปหาคุณ' : step === 2 ? '🖨️ กำลังปริ้นเอกสารของคุณ' : '✅ ร้านรับออเดอร์แล้ว';
+          const bx = (s.order && s.order.unsaved) ? '⏳ กำลังส่งออเดอร์ไปที่ร้าน…' : step === 3 ? '🛵 ไรเดอร์กำลังไปหาคุณ' : step === 2 ? '🖨️ กำลังพิมพ์เอกสารของคุณ' : '✅ ร้านรับออเดอร์แล้ว';
           const ex = s.order.eta;
           // ป้ายงานด่วนใช้ไอคอนรถส่งของ (FI.express) — etaLabel เลยคืนเป็น JSX เฉพาะ branch นี้ (branch อื่นยังเป็น string ใช้ร่วมกันได้)
           const exIco = <span style={{ display: 'inline-flex', verticalAlign: '-3px', margin: '0 4px' }}>{fi('express', 14)}</span>;
@@ -4015,7 +4015,7 @@ class App extends React.Component {
           }
           return '🛵 ไรเดอร์กำลังไปหาคุณ · 🕐 เวลาจัดส่งโดยประมาณ ' + lo + '-' + hi + ' นาที (' + vehName + ')';
         }
-        const base = (s.order && s.order.unsaved) ? '⏳ กำลังส่งออเดอร์ไปที่ร้าน (เน็ตสะดุด — ระบบส่งซ้ำให้อัตโนมัติ)' : step === 3 ? '🛵 ไรเดอร์กำลังไปหาคุณ' : step === 2 ? (isPro ? '🖨️ กำลังผลิตสินค้าของคุณ' : '🖨️ กำลังปริ้นเอกสารของคุณ') : '✅ ร้านรับออเดอร์แล้ว';
+        const base = (s.order && s.order.unsaved) ? '⏳ กำลังส่งออเดอร์ไปที่ร้าน (เน็ตสะดุด — ระบบส่งซ้ำให้อัตโนมัติ)' : step === 3 ? '🛵 ไรเดอร์กำลังไปหาคุณ' : step === 2 ? (isPro ? '🖨️ กำลังผลิตสินค้าของคุณ' : '🖨️ กำลังพิมพ์เอกสารของคุณ') : '✅ ร้านรับออเดอร์แล้ว';
         const eta = s.order && s.order.eta;
         if (!eta) return base;
         // ช่วงเวลาแบบ กี่โมง–กี่โมง: ผลิตเสร็จ (eta) + เวลาเดินทางตามพาหนะ (มอไซค์ 10-25 · รถยนต์ 25-45 · มารับเอง 0-15 นาที)
@@ -4069,14 +4069,14 @@ class App extends React.Component {
       // การ์ดสรุปออเดอร์ที่โชว์บนสุดของห้องแชท (ร้านจะได้รู้ว่าคุยเรื่องงานไหน)
       chatOrder: (() => { const co = s.chatFor || s.order; return co ? {
         id: co.id, total: co.total || 0,
-        job: co.plabel || 'งานปริ้น',
+        job: co.plabel || 'งานพิมพ์',
         qty: (co.pages ? co.pages + ' หน้า' : '') + (co.copies ? (co.pages ? ' · ' : '') + co.copies + ' ชุด' : ''),
         phone: co.phone || '', addr: pubAddr(co.addr),
         veh: co.veh || '', status: s.chatFor ? (co.pickup ? 'รับสินค้าแล้ว ✓' : 'ส่งสำเร็จ ✓') : (cancelled ? 'ยกเลิกแล้ว' : (stepsFor(s.order) || STEPS)[Math.min(step, 4) - 1])
       } : null; })(),
       // ข้อความสำเร็จรูป — ชิปฉลาด: เช็คสถานะงานก่อน (ผลิตแล้วแก้ไม่ได้ · ที่อยู่เปลี่ยนอัตโนมัติได้)
       chatQuick: [
-        { icon: '✏️', label: 'แก้ไขงานปริ้น', text: 'ขอแก้ไขรายละเอียดงานปริ้นครับ/ค่ะ', kind: 'edit' },
+        { icon: '✏️', label: 'แก้ไขงานพิมพ์', text: 'ขอแก้ไขรายละเอียดงานพิมพ์ครับ/ค่ะ', kind: 'edit' },
         { icon: '❌', label: 'สั่งผิด ขอคืนเงิน', text: 'สั่งผิดครับ/ค่ะ ขอยกเลิกและขอคืนเงินได้ไหมครับ/คะ', kind: 'edit' },
         { icon: '📍', label: 'แก้ที่อยู่จัดส่ง', text: '', kind: 'addr' },
         { icon: '⏰', label: 'สอบถามความคืบหน้า', text: 'ตอนนี้งานถึงไหนแล้วครับ/คะ' },
@@ -4303,7 +4303,7 @@ class App extends React.Component {
                 <div style={css("width:46px;height:46px;border-radius:50%;background:#fff;display:flex;align-items:center;justify-content:center;overflow:hidden;box-shadow:0 0 0 2px rgba(255,255,255,.15)")}><img src="assets/logo-icon-blue.png" alt="" style={css("width:36px;height:auto;display:block")}/></div>
                 <div>
                   <div style={css("font-family:'Montserrat',sans-serif;font-weight:800;font-size:20px;letter-spacing:1.5px;line-height:1")}><span style={css("color:var(--accBright)")}>MORE</span> PRINT</div>
-                  <div style={css("font-size:11px;color:rgba(255,255,255,.72);margin-top:4px")}>แพลตฟอร์มรับปริ้นงานออนไลน์ · ส่งถึงที่พักรอบ มข.</div>
+                  <div style={css("font-size:11px;color:rgba(255,255,255,.72);margin-top:4px")}>แพลตฟอร์มรับพิมพ์งานออนไลน์ · ส่งถึงที่พักรอบ มข.</div>
                 </div>
               </div>
               {!v.isLogin && !v.oaMode
@@ -4388,7 +4388,7 @@ class App extends React.Component {
           <div style={css("margin:14px 20px 0;background:#fff4e6;border:1.5px solid #ffa94d;border-radius:12px;padding:11px 14px;display:flex;gap:10px;align-items:center")}>
             <span style={css("flex:none;display:flex;color:#d9480f")}>{fi('alert', 17)}</span><div style={css("min-width:0")}>
               <div style={css("font-size:12.5px;color:#d9480f;font-weight:800;line-height:1.5")}>ขออภัยครับ ตอนนี้ปิดรับงาน PRO ชั่วคราว</div>
-              <div style={css("margin-top:2px;font-size:12.5px;color:#d9480f;font-weight:600;line-height:1.5")}>งาน Standard (ปริ้นเอกสาร A4) ยังสั่งได้ปกติ · งาน PRO เปิดรับอีกครั้งเร็ว ๆ นี้</div>
+              <div style={css("margin-top:2px;font-size:12.5px;color:#d9480f;font-weight:600;line-height:1.5")}>งาน Standard (พิมพ์เอกสาร A4) ยังสั่งได้ปกติ · งาน PRO เปิดรับอีกครั้งเร็ว ๆ นี้</div>
             </div>
           </div>
         )}
@@ -4519,7 +4519,7 @@ class App extends React.Component {
                     <h1 style={css("margin:20px 0 0;font-size:46px;line-height:1.22;font-weight:800;letter-spacing:-.3px")}>ส่งไฟล์ตอนนี้<br/><span style={css("color:var(--accBright)")}>เอกสารถึงมือ</span> ทุกที่รอบ มข.</h1>
                     <p style={css("margin:16px 0 0;font-size:17px;line-height:1.7;color:rgba(255,255,255,.86);max-width:620px")}>อัปโหลดไฟล์ PDF ระบบนับหน้าและคิดราคาให้อัตโนมัติ ชำระผ่านพร้อมเพย์<br/>แล้วรอรับงานถึงหน้าหอพัก หรือมารับเองที่ร้านได้ฟรี</p>
                     <div style={css("margin-top:20px;display:flex;gap:10px;flex-wrap:wrap")}>
-                      {[['ขาวดำ', '฿1 / หน้า'], ['ปริ้นสี', '฿5–7 / หน้า'], ['ค่าส่งเริ่มต้น', '฿' + v.deliveryBase]].map(([a, b]) => (
+                      {[['ขาวดำ', '฿1 / หน้า'], ['พิมพ์สี', '฿5–7 / หน้า'], ['ค่าส่งเริ่มต้น', '฿' + v.deliveryBase]].map(([a, b]) => (
                         <div key={a} style={css("background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);border-radius:12px;padding:9px 15px")}>
                           <div style={css("font-size:12px;color:rgba(255,255,255,.72)")}>{a}</div>
                           <div style={css("font-family:'IBM Plex Mono',monospace;font-size:17px;font-weight:700")}>{b}</div>
@@ -4630,7 +4630,7 @@ class App extends React.Component {
             )}
             {!v.desk && <div style={css("padding:20px 20px 0")}>
               <div style={css("font-size:23px;font-weight:700;line-height:1.35;text-wrap:pretty")}>ส่งไฟล์ตอนนี้<br/>เอกสารถึงมือ ทุกที่รอบ มข.</div>
-              <div style={css("margin-top:6px;font-size:13px;color:var(--sub)")}>ปริ้นขาวดำ 1 บาท · ปริ้นสี 5 บาท · ส่งเริ่มต้น {v.deliveryBase} บาท</div>
+              <div style={css("margin-top:6px;font-size:13px;color:var(--sub)")}>พิมพ์ขาวดำ 1 บาท · พิมพ์สี 5 บาท · ส่งเริ่มต้น {v.deliveryBase} บาท</div>
               <div onClick={v.startOrder} style={css("margin-top:16px;border:2px dashed var(--line);border-radius:16px;background:var(--card);padding:22px 16px;display:flex;flex-direction:column;align-items:center;gap:8px;cursor:pointer;box-shadow:var(--shadow)")}>
                 <div style={css("width:56px;height:56px;border-radius:14px;background:#fff;border:1px solid var(--line);display:flex;align-items:center;justify-content:center;overflow:hidden")}><img src="assets/logo-icon-blue.png" alt="MORE PRINT" style={css("width:46px;height:auto;display:block")}/></div>
                 <div style={css("font-weight:600;font-size:14px;color:var(--acc)")}>แตะเพื่ออัปโหลดไฟล์</div>
@@ -4854,12 +4854,12 @@ class App extends React.Component {
             ))}
             {/* เลือกระดับงาน: Standard (ของเดิม) / Pro (งานขั้นสูง A3-A1 ราคารอยืนยัน) */}
             <div style={css("background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px;display:flex;flex-direction:column;gap:8px;box-shadow:var(--shadow)")}>
-              <div style={css("font-size:13px;font-weight:600;color:var(--ink)")}>เลือกระดับงานปริ้น</div>
+              <div style={css("font-size:13px;font-weight:600;color:var(--ink)")}>เลือกระดับงานพิมพ์</div>
               <div onClick={v.pickStandard} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '11px 12px', borderRadius: '12px', cursor: 'pointer',
                 border: !v.isPro ? '1.5px solid var(--acc)' : '1px solid var(--line)', background: !v.isPro ? 'var(--accSoft)' : 'var(--soft)' }}>
                 <div style={{ flex: 'none', lineHeight: 0, color: !v.isPro ? 'var(--acc)' : 'var(--sub)' }}>{ICON_PRINTER}</div>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: '13.5px', fontWeight: 700, color: !v.isPro ? 'var(--acc)' : 'var(--ink)' }}>Standard — งานปริ้นเอกสารทั่วไป</div>
+                  <div style={{ fontSize: '13.5px', fontWeight: 700, color: !v.isPro ? 'var(--acc)' : 'var(--ink)' }}>Standard — งานพิมพ์เอกสารทั่วไป</div>
                   {v.stdOff && <div style={{ fontSize: '12px', color: '#c92a2a', fontWeight: 800, marginTop: '2px' }}>⛔ ปิดรับงาน Standard ชั่วคราว — เปิดรับอีกครั้งเร็ว ๆ นี้</div>}
                   <div style={{ fontSize: '12px', color: 'var(--sub)', marginTop: '1px' }}>ขาวดำ · สี · A4 ราคาปกติ</div>
                 </div>
@@ -4890,7 +4890,7 @@ class App extends React.Component {
                 </div>
               )}
               <div style={css("display:flex;flex-direction:column;gap:6px")}>
-                {!v.isPro && <div style={css("font-size:13px;font-weight:600;color:var(--ink)")}>ประเภทงานปริ้น</div>}
+                {!v.isPro && <div style={css("font-size:13px;font-weight:600;color:var(--ink)")}>ประเภทงานพิมพ์</div>}
                 {!v.isPro && v.typeOpts.map((t, i) => (
                   <div key={i} onClick={t.pick} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '10px 12px', borderRadius: '12px', cursor: 'pointer',
                     border: t.on ? '1.5px solid var(--acc)' : '1px solid var(--line)',
@@ -4943,7 +4943,7 @@ class App extends React.Component {
                 {/* คำกำกับกระดาษ (โปสเตอร์/เพลท) — ข้อความเขียวสด หลังกดเลือกประเภท ก่อนตัวเลือกขนาด (เจ้าของสั่ง 2026-09-11) */}
                 {v.isPro && v.proPaperNote && <div style={css("font-size:13.5px;font-weight:700;color:var(--acc);line-height:1.6")}>{v.proPaperNote}</div>}
                 {v.isPro && v.proSizeOpts.length > 0 && <div style={css("display:flex;flex-direction:column;gap:6px")}><div style={css("font-size:13px;font-weight:600;color:var(--ink)")}>ขนาด</div><div style={css("display:flex;gap:8px;flex-wrap:wrap")}>{v.proSizeOpts.map((o, i) => <button key={i} onClick={o.pick} style={o.st}>{o.label}</button>)}</div></div>}
-                {/* แนวกระดาษ (ปริ้นสีขาวดำขนาดใหญ่ — 2026-09-11) */}
+                {/* แนวกระดาษ (พิมพ์สีขาวดำขนาดใหญ่ — 2026-09-11) */}
                 {v.isPro && v.proOrientOpts.length > 0 && <div style={css("display:flex;flex-direction:column;gap:6px")}><div style={css("font-size:13px;font-weight:600;color:var(--ink)")}>แนวของกระดาษ</div><div style={css("display:flex;gap:8px;flex-wrap:wrap")}>{v.proOrientOpts.map((o, i) => <button key={i} onClick={o.pick} style={{...o.st, flex:'1 1 45%'}}>{o.label}</button>)}</div></div>}
                 {/* โปสเตอร์: ประเภทกระดาษ — วางก่อนหัวข้อด้านที่พิมพ์ (เจ้าของสั่ง 2026-09-15) */}
                 {v.isPro && v.proPoPaperOpts.length > 0 && <div style={css("display:flex;flex-direction:column;gap:6px")}><div style={css("font-size:13px;font-weight:600;color:var(--ink)")}>ประเภทกระดาษ</div><div style={css("display:flex;gap:7px")}>{v.proPoPaperOpts.map((o, i) => <button key={i} onClick={o.pick} style={{...o.st, flex:'1 1 0', minWidth:0, padding:'9px 6px', whiteSpace:'normal', lineHeight:1.35}}>{o.label}</button>)}</div></div>}
@@ -5049,7 +5049,7 @@ class App extends React.Component {
                           <button onClick={f.copyInc} style={css("width:30px;height:30px;border:1px solid var(--line);background:var(--soft);color:var(--ink);border-radius:9px;font-size:15px;cursor:pointer")}>+</button>
                         </div>
                       </div>
-                      {/* งานปริ้นผสม: เลือกรูปแบบการพิมพ์ของไฟล์นี้ — การ์ดประเภทงานย่อส่วน 3 ช่อง (อนุมัติ 2026-10-08 · ย้ายมาอยู่กล่องตั้งค่ารายไฟล์ 2026-10-12) */}
+                      {/* งานพิมพ์ผสม: เลือกรูปแบบการพิมพ์ของไฟล์นี้ — การ์ดประเภทงานย่อส่วน 3 ช่อง (อนุมัติ 2026-10-08 · ย้ายมาอยู่กล่องตั้งค่ารายไฟล์ 2026-10-12) */}
                       {v.isMix && f.mix && !f.counting && (
                         <div style={css("margin-top:9px;padding-top:9px;border-top:1px dashed var(--line)")}>
                           <div style={css("display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px")}>
@@ -5421,7 +5421,7 @@ class App extends React.Component {
             <div style={css("background:var(--accSoft);border:1px solid var(--acc);border-radius:12px;padding:10px 14px;font-size:12.5px;color:var(--acc);font-weight:600;line-height:1.5")}>🔎 เช็คให้ชัวร์ก่อนจ่ายเงิน — ถ้าไม่ตรงกดแก้ไขได้เลย ยังไม่เสียเงินนะครับ</div>
 
             <div style={css("background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px;box-shadow:var(--shadow)")}>
-              <div style={css("font-size:12px;font-weight:700;color:var(--sub);letter-spacing:.5px")}>📄 ไฟล์ที่จะปริ้น ({v.files.length})</div>
+              <div style={css("font-size:12px;font-weight:700;color:var(--sub);letter-spacing:.5px")}>📄 ไฟล์ที่จะพิมพ์ ({v.files.length})</div>
               {v.files.map((f, i) => (
                 <div key={i} style={css("display:flex;align-items:center;gap:12px;padding:10px 0" + (i < v.files.length - 1 ? ";border-bottom:1px dashed var(--line)" : ""))}>
                   {f.thumb
@@ -5437,7 +5437,7 @@ class App extends React.Component {
             </div>
 
             <div style={css("background:var(--accSoft);border:1.5px solid var(--acc);border-radius:14px;padding:14px 16px;box-shadow:var(--shadow)")}>
-              <div style={css("font-size:12px;font-weight:700;color:var(--acc);letter-spacing:.5px")}>🖨️ สเปกงานปริ้นที่คุณเลือก</div>
+              <div style={css("font-size:12px;font-weight:700;color:var(--acc);letter-spacing:.5px")}>🖨️ สเปกงานพิมพ์ที่คุณเลือก</div>
               <div style={css("margin-top:10px;display:flex;flex-direction:column;gap:9px")}>
                 {(v.proMulti ? [['ประเภทงาน', v.typeLabel], ['งานที่สั่ง', v.paperLabel], ['จำนวนไฟล์', v.files.length + ' ไฟล์ (สเปกตามแต่ละไฟล์ด้านล่าง)']] : [['ประเภทงาน', v.typeLabel], ['ขนาดกระดาษ', v.paperLabel], ...(v.isPro ? [['ด้านที่พิมพ์', v.sidesLabel], ['การเข้าเล่ม', v.bindLabel], ['จำนวน', v.copies + ' ชุด']] : [])]).map((p, i) => ( /* Standard: จำนวนชุดอยู่ในสเปกรายไฟล์ด้านล่าง */
                   <div key={i} style={css("display:flex;align-items:center;gap:10px")}>
@@ -5536,7 +5536,7 @@ class App extends React.Component {
                     </div>
                   </React.Fragment>}
             </div>
-            {/* ใบเสร็จรับเงิน (ออนไลน์ — ลูกค้าเปิดปริ้นเองได้จากหน้าติดตาม) */}
+            {/* ใบเสร็จรับเงิน (ออนไลน์ — ลูกค้าเปิดพิมพ์เองได้จากหน้าติดตาม) */}
             <div style={css("background:var(--card);border:1px solid var(--line);border-radius:14px;padding:13px 16px")}>
               <div style={css("font-size:13px;font-weight:700;display:flex;align-items:center;gap:6px")}><span style={css("display:flex;color:var(--acc)")}>{fi('receipt', 14)}</span>ใบเสร็จรับเงิน</div>
               <div style={css("margin-top:8px;display:flex;gap:8px")}>
@@ -5586,7 +5586,7 @@ class App extends React.Component {
                     <span style={css("font-size:18px;flex:none")}>{o.step === 0 ? '❌' : '🖨️'}</span>
                     <div style={css("flex:1;min-width:0")}>
                       <div style={css("font-family:'IBM Plex Mono',monospace;font-size:12.5px;font-weight:700")}>{o.id}</div>
-                      <div style={css("margin-top:2px;font-size:11.5px;color:var(--sub);overflow:hidden;text-overflow:ellipsis;white-space:nowrap")}>{o.plabel || 'งานปริ้น'} · แตะเพื่อดู</div>
+                      <div style={css("margin-top:2px;font-size:11.5px;color:var(--sub);overflow:hidden;text-overflow:ellipsis;white-space:nowrap")}>{o.plabel || 'งานพิมพ์'} · แตะเพื่อดู</div>
                     </div>
                     <span style={css("flex:none;font-size:11.5px;font-weight:700;padding:3px 9px;border-radius:99px;" + (o.step === 0 ? "color:#c92a2a;background:#ffe3e3" : "color:var(--acc);background:var(--accSoft)"))}>{o.statusLabel}</span>
                     {o.step === 0
@@ -5701,7 +5701,7 @@ class App extends React.Component {
                     {v.trackDelivered && <div onClick={v.trackToggle} style={css("text-align:center;font-size:13px;color:var(--acc);font-weight:700;cursor:pointer;padding:2px 0")}>▲ ย่อรายละเอียด</div>}
                   </React.Fragment>
                 )}
-                {/* ── ยกเลิกออเดอร์เอง: เห็นเฉพาะช่วงร้านยังไม่เริ่มปริ้น และไม่เกิน cancelWindowMin นาทีหลังชำระ ── */}
+                {/* ── ยกเลิกออเดอร์เอง: เห็นเฉพาะช่วงร้านยังไม่เริ่มพิมพ์ และไม่เกิน cancelWindowMin นาทีหลังชำระ ── */}
                 {v.canSelfCancel && (
                   <div style={css("background:var(--card);border:1px solid var(--line);border-radius:14px;padding:13px 16px;box-shadow:var(--shadow)")}>
                     {!v.selfCancelArm ? (
@@ -5899,12 +5899,12 @@ class App extends React.Component {
                       <div style={css("display:flex;flex-direction:column;gap:8px")}>
                         <div style={css("border:1px solid var(--line);border-radius:11px;padding:11px 13px;display:flex;align-items:center;gap:10px")}>
                           <span style={css("flex:none;display:flex;color:var(--acc)")}>{fi('printer', 18)}</span>
-                          <div style={css("flex:1;min-width:0")}><div style={css("font-size:12.5px;font-weight:700")}>MORE PRINT</div><div style={css("font-size:11.5px;color:var(--sub)")}>ปริ้นเอกสารพร้อมส่ง 24 ชม. รอบ มข.</div></div>
+                          <div style={css("flex:1;min-width:0")}><div style={css("font-size:12.5px;font-weight:700")}>MORE PRINT</div><div style={css("font-size:11.5px;color:var(--sub)")}>พิมพ์เอกสารพร้อมส่ง 24 ชม. รอบ มข.</div></div>
                           <a href={(window.MP_CONFIG || {}).LINE_OA_URL || 'https://line.me/R/ti/p/@346kifvy'} target="_blank" rel="noreferrer" style={css("flex:none;font-size:12px;font-weight:700;background:#06C755;color:#fff;padding:6px 11px;border-radius:9px;text-decoration:none")}>LINE</a>
                         </div>
                         <div style={css("border:1px solid var(--line);border-radius:11px;padding:11px 13px;display:flex;align-items:center;gap:10px")}>
                           <span style={css("flex:none;display:flex;color:var(--acc)")}>{fi('star', 18)}</span>
-                          <div style={css("flex:1;min-width:0")}><div style={css("font-size:12.5px;font-weight:700")}>{PRO_PICKUP_NAME}</div><div style={css("font-size:11.5px;color:var(--sub)")}>งานปริ้นพรีเมียม / งานใหญ่ (Pro)</div></div>
+                          <div style={css("flex:1;min-width:0")}><div style={css("font-size:12.5px;font-weight:700")}>{PRO_PICKUP_NAME}</div><div style={css("font-size:11.5px;color:var(--sub)")}>งานพิมพ์พรีเมียม / งานใหญ่ (Pro)</div></div>
                           <a href={PRO_PICKUP_MAP} target="_blank" rel="noreferrer" style={css("flex:none;font-size:12px;font-weight:700;background:var(--accSoft);color:var(--acc);border:1px solid var(--acc);padding:6px 11px;border-radius:9px;text-decoration:none;display:flex;align-items:center;gap:4px")}>{fi('nav', 12)} แผนที่</a>
                         </div>
                       </div>
@@ -5998,7 +5998,7 @@ class App extends React.Component {
             <div style={css("background:var(--card);border:1px solid var(--line);border-radius:16px;padding:24px 18px;text-align:center;box-shadow:var(--shadow)")}>
               <div style={css("width:66px;height:66px;border-radius:50%;background:#fff;margin:0 auto;display:flex;align-items:center;justify-content:center;box-shadow:0 0 0 3px var(--accSoft)")}><img src="assets/logo-icon-blue.png" alt="" style={css("width:46px;height:auto;display:block")}/></div>
               <div style={css("margin-top:12px;font-family:'Montserrat',sans-serif;font-weight:800;font-size:21px;letter-spacing:1.5px")}><span style={css("color:var(--acc)")}>MORE</span> <span>PRINT</span></div>
-              <div style={css("margin-top:6px;font-size:12.5px;color:var(--sub);line-height:1.65")}>เว็บปริ้นเอกสารออนไลน์ พร้อมส่งถึงที่ 24 ชม.<br/>รอบมหาวิทยาลัยขอนแก่น (มข.)</div>
+              <div style={css("margin-top:6px;font-size:12.5px;color:var(--sub);line-height:1.65")}>เว็บพิมพ์เอกสารออนไลน์ พร้อมส่งถึงที่ 24 ชม.<br/>รอบมหาวิทยาลัยขอนแก่น (มข.)</div>
               {v.revCount > 0 && <div style={css("margin-top:12px;display:inline-flex;align-items:center;gap:6px;background:var(--accSoft);border-radius:99px;padding:6px 15px;font-size:13px;font-weight:700;color:var(--acc)")}>⭐ {v.revAvg} · {v.revCount} รีวิวจากลูกค้าจริง</div>}
               <div style={css("margin-top:14px;display:flex;justify-content:center;gap:8px;flex-wrap:wrap;font-size:12px;color:var(--sub)")}>
                 <span style={css("background:var(--soft);border-radius:99px;padding:5px 11px")}>🕐 เปิด 24 ชม.</span>
@@ -6142,7 +6142,7 @@ class App extends React.Component {
           <div style={css("position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:1200;display:flex;align-items:center;justify-content:center;padding:22px")} onClick={v.revAskClose}>
             <div style={css("width:100%;max-width:360px;background:var(--card);border-radius:18px;padding:20px 18px;box-shadow:0 10px 40px rgba(0,0,0,.3)")} onClick={(e) => e.stopPropagation()}>
               <div style={css("font-size:16px;font-weight:800")}>⭐ รีวิวงานของคุณหน่อยครับ</div>
-              <div style={css("margin-top:6px;font-size:12.5px;color:var(--sub);line-height:1.6")}>งานส่งสำเร็จแล้ว: <b style={css("color:var(--ink)")}>{v.revAsk.plabel || 'งานปริ้น'}</b><span style={css("display:block;font-family:'IBM Plex Mono',monospace;font-size:12px")}>{v.revAsk.id}</span></div>
+              <div style={css("margin-top:6px;font-size:12.5px;color:var(--sub);line-height:1.6")}>งานส่งสำเร็จแล้ว: <b style={css("color:var(--ink)")}>{v.revAsk.plabel || 'งานพิมพ์'}</b><span style={css("display:block;font-family:'IBM Plex Mono',monospace;font-size:12px")}>{v.revAsk.id}</span></div>
               <div style={css("margin-top:10px;display:flex;gap:6px;justify-content:center")}>
                 {[1, 2, 3, 4, 5].map(n => <span key={n} onClick={v.setRevAskStars(n)} style={css("font-size:34px;line-height:1;cursor:pointer;color:" + (n <= v.revAskStars ? "#f5a623" : "var(--line)"))}>★</span>)}
               </div>
@@ -6196,7 +6196,7 @@ class App extends React.Component {
                   <div style={css("width:40px;height:40px;border-radius:50%;background:#fff;display:flex;align-items:center;justify-content:center;overflow:hidden")}><img src="assets/logo-icon-blue.png" alt="" style={css("width:31px;height:auto;display:block")}/></div>
                   <div style={css("font-family:'Montserrat',sans-serif;font-weight:800;font-size:18px;letter-spacing:1.5px;color:#fff")}><span style={css("color:var(--accBright)")}>MORE</span> PRINT</div>
                 </div>
-                <div style={css("margin-top:12px;white-space:nowrap")}>แพลตฟอร์มรับปริ้นงานออนไลน์สำหรับนักศึกษา<br/>มหาวิทยาลัยขอนแก่น สั่งได้ตลอด 24 ชั่วโมง<br/>ส่งถึงที่พักรอบ มข.</div>
+                <div style={css("margin-top:12px;white-space:nowrap")}>แพลตฟอร์มรับพิมพ์งานออนไลน์สำหรับนักศึกษา<br/>มหาวิทยาลัยขอนแก่น สั่งได้ตลอด 24 ชั่วโมง<br/>ส่งถึงที่พักรอบ มข.</div>
               </div>
               <div>
                 <div style={css("color:#fff;font-weight:800;font-size:15px;margin-bottom:8px")}>เมนู</div>
