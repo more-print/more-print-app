@@ -159,7 +159,7 @@ const NAV_ICON = {
 };
 
 
-// ── ไอคอนหน้าสั่งปริ้น (SVG ฝังในไฟล์ — คมทุกจอ ไม่ต้องโหลดรูปเพิ่ม) ──
+// ── ไอคอนหน้าสั่งพิมพ์ (SVG ฝังในไฟล์ — คมทุกจอ ไม่ต้องโหลดรูปเพิ่ม) ──
 const ICON_PDF = (
   <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" aria-hidden="true">
     <path d="M6.2 2.6h7.6L19 7.7v8.1"/>
@@ -469,7 +469,7 @@ const FILE_BASE = (window.MP_CONFIG || {}).SUPABASE_URL ? (window.MP_CONFIG.SUPA
 const R2_ON = !!(window.MP_CONFIG || {}).R2_UPLOADS && !!(window.MP_CONFIG || {}).SUPABASE_URL;
 const R2_FN = ((window.MP_CONFIG || {}).SUPABASE_URL || '') + '/functions/v1/r2-sign';
 
-// ── กล่องไฮไลต์ 3 ใบใต้ปุ่ม "เริ่มสั่งปริ้น" หน้าแรก ──
+// ── กล่องไฮไลต์ 3 ใบใต้ปุ่ม "เริ่มสั่งพิมพ์" หน้าแรก ──
 // ตอนนี้ซ่อนอยู่ (array ว่าง) — อยากให้กลับมาโชว์ ใส่ข้อความตามตัวอย่างนี้ได้เลย (กี่ใบก็ได้):
 // const HOME_CARDS = [
 //   { big: '฿1', sub: 'ขาวดำ / แผ่น' },
@@ -743,7 +743,7 @@ class App extends React.Component {
       this.syncNight();
       return;
     }
-    // นโยบายใหม่ (2026-09-02 จากรีวิวลูกค้า): ลูกค้าใหม่ชมหน้าเว็บได้เลยไม่ต้องล็อกอิน — ด่านล็อกอินอยู่ตอนกดสั่งปริ้น/ติดตาม
+    // นโยบายใหม่ (2026-09-02 จากรีวิวลูกค้า): ลูกค้าใหม่ชมหน้าเว็บได้เลยไม่ต้องล็อกอิน — ด่านล็อกอินอยู่ตอนกดสั่งพิมพ์/ติดตาม
     // LINE Login (LIFF) — เชื่อมกับ LINE OA ของร้าน
     // ถ้าเปิดจากเบราว์เซอร์ในแอป LINE (ไม่ใช่ LIFF) → เด้งไปเปิดแบบ LIFF จะได้ล็อกอินอัตโนมัติ
     // ⚠️ แอป LINE ไม่ได้นำทางจริง แต่ "เปิดหน้าต่าง LIFF ซ้อนทับ" — หน้าต่างเดิมยังค้างอยู่ข้างล่าง จึงห้าม return หยุดบูต:
@@ -845,7 +845,7 @@ class App extends React.Component {
     this.setState({ promoOpen: false });
   }
   componentDidUpdate(prevProps, prevState){
-    // เปลี่ยนหน้า = เริ่มที่บนสุดเสมอ (เจ้าของแจ้ง 2026-11-13: กดอัปโหลดจากหน้าแรกแล้วหน้าสั่งปริ้นค้างกลางจอ ไม่เห็นกล่องแนบไฟล์)
+    // เปลี่ยนหน้า = เริ่มที่บนสุดเสมอ (เจ้าของแจ้ง 2026-11-13: กดอัปโหลดจากหน้าแรกแล้วหน้าสั่งพิมพ์ค้างกลางจอ ไม่เห็นกล่องแนบไฟล์)
     // ยกเว้นห้องแชท — syncChatScroll เลื่อนไปข้อความล่าสุดเอง
     if (prevState && prevState.screen !== this.state.screen && this.state.screen !== 'chat') { try { window.scrollTo(0, 0); } catch (e) {} }
     this.syncNight(); this.syncMap(); this.syncChatScroll();
@@ -1649,7 +1649,7 @@ class App extends React.Component {
     this.setState({ ...d.data, files, screen: known ? resume : 'home' }, ready);
     setTimeout(() => this.showToast(lost.length
       ? '⚠️ กู้ข้อมูลออเดอร์ที่ทำค้างไว้ให้แล้ว แต่ไฟล์ "' + lost.join('", "') + '" ยังส่งเข้าระบบไม่ทัน — แนบไฟล์นั้นใหม่อีกครั้งนะครับ'
-      : known ? '✓ กู้ข้อมูลออเดอร์ที่ทำค้างไว้ให้แล้ว ทำต่อได้เลยครับ' : 'มีออเดอร์ที่ทำค้างไว้ — เข้าสู่ระบบแล้วกด "สั่งปริ้น" ทำต่อได้เลยครับ', lost.length ? 7000 : 4000), 400);
+      : known ? '✓ กู้ข้อมูลออเดอร์ที่ทำค้างไว้ให้แล้ว ทำต่อได้เลยครับ' : 'มีออเดอร์ที่ทำค้างไว้ — เข้าสู่ระบบแล้วกด "สั่งพิมพ์" ทำต่อได้เลยครับ', lost.length ? 7000 : 4000), 400);
   }
 
   // สำรองสลิปเข้าคลังทันทีที่แนบ (ผ่านตรวจ QR แล้ว) — ตอนกดยืนยันแค่หยิบ path ที่ขึ้นไปแล้วมาใช้
@@ -3200,7 +3200,7 @@ class App extends React.Component {
       startOrder: () => {
         if (s.shopOpen === false && s.shopProOpen === false) return this.showToast('ขออภัยครับ ตอนนี้ร้านปิดรับออเดอร์ชั่วคราว 🙏 เปิดรับอีกครั้งเร็ว ๆ นี้ครับ');
         if (s.shopOpen === false && s.tier === 'standard') this.setState({ tier: 'pro', recvSel: false }); // ปิดเฉพาะ Standard → เปิดหน้าสั่งที่ PRO ให้เลย
-        if (!this.ensureUser()) { this.setState({ screen: 'login' }); return this.showToast('เข้าสู่ระบบก่อนสั่งปริ้นนะครับ 🙏'); }
+        if (!this.ensureUser()) { this.setState({ screen: 'login' }); return this.showToast('เข้าสู่ระบบก่อนสั่งพิมพ์นะครับ 🙏'); }
         // มีประกาศแจ้งปัญหา/ล่าช้า → ถามลูกค้าก่อนหนึ่งครั้งว่ายังจะสั่งต่อไหม
         if (s.banners.some(b => b.color === 'alert') && !s.alertAck) return this.setState({ alertPrompt: true });
         this.setState({ screen: 'order' });
@@ -4259,7 +4259,7 @@ class App extends React.Component {
       // ── หน้า "เกี่ยวกับเรา": ช่องทางติดต่อ/ติดตามทุกช่องทาง (เพิ่มความน่าเชื่อถือ) ──
       // โลโก้วาดเป็น SVG ฝังในไฟล์ — คมทุกขนาด ไม่ต้องพึ่งรูปนอก/ลิงก์ไม่มีวันเสีย
       aboutLinks: [
-        { name: 'LINE OA', sub: '@346kifvy — แชทสั่งปริ้น/สอบถามได้ตลอด 24 ชม.', url: (window.MP_CONFIG || {}).LINE_OA_URL || 'https://line.me/R/ti/p/@346kifvy',
+        { name: 'LINE OA', sub: '@346kifvy — แชทสั่งพิมพ์/สอบถามได้ตลอด 24 ชม.', url: (window.MP_CONFIG || {}).LINE_OA_URL || 'https://line.me/R/ti/p/@346kifvy',
           logo: (<svg width="42" height="42" viewBox="0 0 42 42"><rect width="42" height="42" rx="12" fill="#06C755"/><path d="M21 9.5c-6.9 0-12.5 4.6-12.5 10.2 0 5 4.5 9.2 10.5 10 .4.1.97.28 1.1.65.13.33.09.85.04 1.2l-.17 1.05c-.05.33-.25 1.28 1.13.7 1.38-.58 7.45-4.4 10.16-7.53C33.1 23.7 33.5 21.8 33.5 19.7c0-5.6-5.6-10.2-12.5-10.2z" fill="#fff"/><text x="21" y="22.7" textAnchor="middle" fontFamily="Arial,Helvetica,sans-serif" fontWeight="bold" fontSize="7.2" fill="#06C755">LINE</text></svg>) },
         { name: 'TikTok', sub: '@moreprintservice — คลิปผลงานและโปรโมชั่น', url: 'https://www.tiktok.com/@moreprintservice',
           logo: (<svg width="42" height="42" viewBox="0 0 42 42"><rect width="42" height="42" rx="12" fill="#010101"/><g transform="translate(9.5,9)"><path d="M12.53.02C13.84 0 15.14.01 16.44 0c.08 1.53.63 3.09 1.75 4.17 1.12 1.11 2.7 1.62 4.24 1.79v4.03c-1.44-.05-2.89-.35-4.2-.97-.57-.26-1.1-.59-1.62-.93-.01 2.92.01 5.84-.02 8.75-.08 1.4-.54 2.79-1.35 3.94-1.31 1.92-3.58 3.17-5.91 3.21-1.43.08-2.86-.31-4.08-1.03-2.02-1.19-3.44-3.37-3.65-5.71-.02-.5-.03-1-.01-1.49.18-1.9 1.12-3.72 2.58-4.96 1.66-1.44 3.98-2.13 6.15-1.72.02 1.48-.04 2.96-.04 4.44-.99-.32-2.15-.23-3.02.37-.63.41-1.11 1.04-1.36 1.75-.21.51-.15 1.07-.14 1.61.24 1.64 1.82 3.02 3.5 2.87 1.12-.01 2.19-.66 2.77-1.61.19-.33.4-.67.41-1.06.1-1.79.06-3.57.07-5.36.01-4.03-.01-8.05.02-12.07z" transform="translate(-1,-0.6)" fill="#25F4EE"/><path d="M12.53.02C13.84 0 15.14.01 16.44 0c.08 1.53.63 3.09 1.75 4.17 1.12 1.11 2.7 1.62 4.24 1.79v4.03c-1.44-.05-2.89-.35-4.2-.97-.57-.26-1.1-.59-1.62-.93-.01 2.92.01 5.84-.02 8.75-.08 1.4-.54 2.79-1.35 3.94-1.31 1.92-3.58 3.17-5.91 3.21-1.43.08-2.86-.31-4.08-1.03-2.02-1.19-3.44-3.37-3.65-5.71-.02-.5-.03-1-.01-1.49.18-1.9 1.12-3.72 2.58-4.96 1.66-1.44 3.98-2.13 6.15-1.72.02 1.48-.04 2.96-.04 4.44-.99-.32-2.15-.23-3.02.37-.63.41-1.11 1.04-1.36 1.75-.21.51-.15 1.07-.14 1.61.24 1.64 1.82 3.02 3.5 2.87 1.12-.01 2.19-.66 2.77-1.61.19-.33.4-.67.41-1.06.1-1.79.06-3.57.07-5.36.01-4.03-.01-8.05.02-12.07z" transform="translate(1,.8)" fill="#FE2C55"/><path d="M12.53.02C13.84 0 15.14.01 16.44 0c.08 1.53.63 3.09 1.75 4.17 1.12 1.11 2.7 1.62 4.24 1.79v4.03c-1.44-.05-2.89-.35-4.2-.97-.57-.26-1.1-.59-1.62-.93-.01 2.92.01 5.84-.02 8.75-.08 1.4-.54 2.79-1.35 3.94-1.31 1.92-3.58 3.17-5.91 3.21-1.43.08-2.86-.31-4.08-1.03-2.02-1.19-3.44-3.37-3.65-5.71-.02-.5-.03-1-.01-1.49.18-1.9 1.12-3.72 2.58-4.96 1.66-1.44 3.98-2.13 6.15-1.72.02 1.48-.04 2.96-.04 4.44-.99-.32-2.15-.23-3.02.37-.63.41-1.11 1.04-1.36 1.75-.21.51-.15 1.07-.14 1.61.24 1.64 1.82 3.02 3.5 2.87 1.12-.01 2.19-.66 2.77-1.61.19-.33.4-.67.41-1.06.1-1.79.06-3.57.07-5.36.01-4.03-.01-8.05.02-12.07z" fill="#fff"/></g></svg>) },
@@ -4269,7 +4269,7 @@ class App extends React.Component {
           logo: (<svg width="42" height="42" viewBox="0 0 42 42"><defs><radialGradient id="igG" cx="30%" cy="107%" r="150%"><stop offset="0%" stopColor="#fdf497"/><stop offset="9%" stopColor="#fdf497"/><stop offset="45%" stopColor="#fd5949"/><stop offset="60%" stopColor="#d6249f"/><stop offset="90%" stopColor="#285AEB"/></radialGradient></defs><rect width="42" height="42" rx="12" fill="url(#igG)"/><rect x="11.5" y="11.5" width="19" height="19" rx="5.5" fill="none" stroke="#fff" strokeWidth="2.2"/><circle cx="21" cy="21" r="4.6" fill="none" stroke="#fff" strokeWidth="2.2"/><circle cx="26.8" cy="15.2" r="1.5" fill="#fff"/></svg>) }
       ].map(l => ({ ...l, go: () => window.open(l.url, '_blank') })),
       navItems: [
-        { label: 'หน้าแรก', k: 'home' }, { label: 'สั่งปริ้น', k: 'order' },
+        { label: 'หน้าแรก', k: 'home' }, { label: 'สั่งพิมพ์', k: 'order' },
         { label: 'ติดตาม', k: 'track' },
         { label: 'ประวัติ', k: 'history' }, { label: 'เกี่ยวกับเรา', k: 'about' }
       ].map(n => ({
@@ -4295,7 +4295,7 @@ class App extends React.Component {
     return (
       <div className={'mp-shell' + (v.desk ? ' mp-desk' : '')} style={v.rootSt}>
 
-        {/* ── Header ── โหมดคอม: แถบเมนูบนเต็มจอ (โลโก้ · เมนู · บัญชี · ปุ่มสั่งปริ้น) · มือถือ: แถบเดิม */}
+        {/* ── Header ── โหมดคอม: แถบเมนูบนเต็มจอ (โลโก้ · เมนู · บัญชี · ปุ่มสั่งพิมพ์) · มือถือ: แถบเดิม */}
         {v.desk ? (
           <div style={css("background:var(--head);color:#fff;position:sticky;top:0;z-index:30;box-shadow:0 2px 14px rgba(0,0,0,.18)")}>
             <div style={css("max-width:1200px;margin:0 auto;padding:0 28px;height:74px;display:flex;align-items:center;gap:30px;box-sizing:border-box")}>
@@ -4321,7 +4321,7 @@ class App extends React.Component {
                       <span style={css("width:8px;height:8px;border-radius:50%;background:#22C55E;flex:none")}></span>
                     </div>
                   : !v.oaMode && !v.isLogin && <button className="mp-dbtn" onClick={v.goLogin} style={css("height:42px;padding:0 18px;font-size:14px;background:transparent;color:#fff;border:1.5px solid rgba(255,255,255,.55)")}>เข้าสู่ระบบ</button>}
-                {/* ปุ่ม "ติดต่อเรา" → LINE OA (เจ้าของสั่ง 2026-11-17 แทนปุ่มสั่งปริ้นเลย) · ไอคอนพนักงานใส่หูฟัง วาดเป็น SVG ในไฟล์ */}
+                {/* ปุ่ม "ติดต่อเรา" → LINE OA (เจ้าของสั่ง 2026-11-17 แทนปุ่มสั่งพิมพ์เลย) · ไอคอนพนักงานใส่หูฟัง วาดเป็น SVG ในไฟล์ */}
                 {!v.oaMode && !v.isLogin && <a className="mp-dbtn" href={(window.MP_CONFIG || {}).LINE_OA_URL || 'https://line.me/R/ti/p/@346kifvy'} target="_blank" rel="noreferrer" style={css("height:42px;padding:0 18px 0 14px;font-size:14px;background:var(--accBright);color:#0B1E4A;text-decoration:none;box-sizing:border-box")}>
                   <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" style={css("display:block;flex:none")}>
                     <circle cx="12" cy="9.7" r="3.6" fill="currentColor"/>
@@ -4441,7 +4441,7 @@ class App extends React.Component {
 
         </div>
 
-        <div className={'mp-main' + (v.desk ? ' mp-dm-' + v.deskKind : '')}>{/* โหมดคอม: กล่องเนื้อหากว้างตามหน้า (หน้าแรกเต็มจอ · สั่งปริ้น 2 คอลัมน์ · หน้าอื่น 880px) */}
+        <div className={'mp-main' + (v.desk ? ' mp-dm-' + v.deskKind : '')}>{/* โหมดคอม: กล่องเนื้อหากว้างตามหน้า (หน้าแรกเต็มจอ · สั่งพิมพ์ 2 คอลัมน์ · หน้าอื่น 880px) */}
         {/* ── Login / Register ── */}
         {v.isLogin && (
           <div style={css("padding:28px 24px;display:flex;flex-direction:column;gap:14px;align-items:stretch")}>
@@ -4451,7 +4451,7 @@ class App extends React.Component {
                 <img src="assets/logo-icon-t-blue.png" alt="MORE PRINT" style={css("width:84px;height:auto;display:block")}/>
                 <div style={css("font-family:'Montserrat',sans-serif;font-weight:800;font-size:19px;letter-spacing:2px;line-height:1")}><span style={css("color:var(--acc)")}>MORE</span> <span>PRINT</span></div>
               </div></div>
-              <div style={css("font-size:14px;color:var(--sub);text-align:center")}>สมัครครั้งเดียว สั่งปริ้นส่งถึงที่ ทุกที่ใน มข.</div>
+              <div style={css("font-size:14px;color:var(--sub);text-align:center")}>สมัครครั้งเดียว สั่งพิมพ์ส่งถึงที่ ทุกที่ใน มข.</div>
             </div>
 
             <button onClick={v.lineLogin} style={css("height:50px;border:none;border-radius:14px;background:#06c755;color:#fff;font-size:15px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:10px")}>
@@ -4527,7 +4527,7 @@ class App extends React.Component {
                       ))}
                     </div>
                     <div style={css("margin-top:28px;display:flex;gap:12px;flex-wrap:wrap")}>
-                      <button className="mp-dbtn" onClick={v.startOrder} style={css("background:var(--accBright);color:#0B1E4A;height:54px;padding:0 30px;font-size:16.5px")}>เริ่มสั่งปริ้น →</button>
+                      <button className="mp-dbtn" onClick={v.startOrder} style={css("background:var(--accBright);color:#0B1E4A;height:54px;padding:0 30px;font-size:16.5px")}>เริ่มสั่งพิมพ์ →</button>
                       <button className="mp-dbtn" onClick={v.goTrack} style={css("background:transparent;color:#fff;border:1.5px solid rgba(255,255,255,.6);height:54px;padding:0 26px;font-size:16px")}>ติดตามออเดอร์</button>
                     </div>
                     <div style={css("margin-top:34px;display:flex;gap:34px;flex-wrap:wrap")}>
@@ -4538,7 +4538,7 @@ class App extends React.Component {
                   </div>
                   <div className="mp-dcard" style={css("color:var(--ink);padding:26px;box-shadow:0 18px 48px rgba(0,0,0,.28);border:none")}>
                     <div style={css("display:flex;justify-content:space-between;align-items:center;gap:10px")}>
-                      <div style={css("font-size:18px;font-weight:800")}>เริ่มสั่งปริ้นได้ทันที</div>
+                      <div style={css("font-size:18px;font-weight:800")}>เริ่มสั่งพิมพ์ได้ทันที</div>
                       {v.userName
                         ? <div style={css("font-size:13px;color:var(--sub);white-space:nowrap;overflow:hidden;text-overflow:ellipsis")}>สวัสดี คุณ<b style={css("color:var(--ink)")}>{v.userName}</b> 👋</div>
                         : <button onClick={v.goLogin} style={css("border:none;background:none;font-size:13px;font-weight:700;text-decoration:underline;cursor:pointer;color:var(--acc);font-family:inherit")}>เข้าสู่ระบบ</button>}
@@ -4565,7 +4565,7 @@ class App extends React.Component {
               <div style={css("max-width:1200px;margin:0 auto;padding:44px 28px 4px;box-sizing:border-box")}>
                 <div style={css("text-align:center")}>
                   <div style={css("font-size:13px;font-weight:800;letter-spacing:2px;color:var(--acc)")}>HOW IT WORKS</div>
-                  <div style={css("margin-top:6px;font-size:28px;font-weight:800")}>สั่งปริ้นง่าย ๆ ใน 4 ขั้นตอน</div>
+                  <div style={css("margin-top:6px;font-size:28px;font-weight:800")}>สั่งพิมพ์ง่าย ๆ ใน 4 ขั้นตอน</div>
                 </div>
                 <div style={css("margin-top:24px;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px")}>
                   {[['1', 'file', 'อัปโหลดไฟล์ PDF', 'ระบบนับหน้าและคำนวณราคาให้ทันที'],
@@ -4589,7 +4589,7 @@ class App extends React.Component {
                   <button onClick={v.doLogout} style={css("border:none;background:none;font-size:12px;text-decoration:underline;cursor:pointer;color:" + (v.logoutArm ? "#c92a2a" : "var(--sub)") + (v.logoutArm ? ";font-weight:700" : ""))}>{v.logoutArm ? 'แตะอีกครั้งเพื่อยืนยัน' : 'เปลี่ยนบัญชี'}</button>
                 </div>
               : <div style={css("margin:14px 20px 0;display:flex;justify-content:space-between;align-items:center")}>
-                  <div style={css("font-size:12.5px;color:var(--sub)")}>ชมเว็บได้เลยครับ · ล็อกอินตอนกดสั่งปริ้น</div>
+                  <div style={css("font-size:12.5px;color:var(--sub)")}>ชมเว็บได้เลยครับ · ล็อกอินตอนกดสั่งพิมพ์</div>
                   <button onClick={v.goLogin} style={css("border:none;background:none;font-size:12.5px;font-weight:700;text-decoration:underline;cursor:pointer;color:var(--acc)")}>เข้าสู่ระบบ / สมัคร</button>
                 </div>)}
             {v.banners.length > 0 && (
@@ -4636,7 +4636,7 @@ class App extends React.Component {
                 <div style={css("font-weight:600;font-size:14px;color:var(--acc)")}>แตะเพื่ออัปโหลดไฟล์</div>
                 <div style={css("font-size:12.5px;color:var(--sub)")}>ไฟล์ PDF · นับหน้าให้อัตโนมัติ</div>
               </div>
-              <button onClick={v.startOrder} style={css("margin-top:12px;width:100%;height:50px;border:none;border-radius:14px;background:var(--acc);color:#fff;font-size:16px;font-weight:700;cursor:pointer")}>เริ่มสั่งปริ้น · คำนวณราคาทันที</button>
+              <button onClick={v.startOrder} style={css("margin-top:12px;width:100%;height:50px;border:none;border-radius:14px;background:var(--acc);color:#fff;font-size:16px;font-weight:700;cursor:pointer")}>เริ่มสั่งพิมพ์ · คำนวณราคาทันที</button>
             </div>}
             {/* ── ตัวนับความน่าเชื่อถือ (เจ้าของสั่ง 2026-09-22): ตัวเลขจริงทั้งหมด — ออเดอร์ส่งสำเร็จจาก RPC public_stats (ต่ำกว่า 20 = ซ่อนการ์ดไว้ก่อน), ดาวจากตาราง reviews ── */}
             {!v.desk && <div style={css("padding:14px 20px 0;display:flex;gap:10px")}>
@@ -4689,9 +4689,9 @@ class App extends React.Component {
                 <div style={css("margin-top:6px;font-size:12px;color:var(--sub)")}>แตะเพื่อดูสถานะจัดส่ง →</div>
               </div>
             )}
-            {/* วิธีสั่งปริ้น 4 ขั้นตอน — ลูกค้าใหม่เห็นภาพรวมการใช้งานทันที (จากรีวิวลูกค้า 2026-09-02) */}
+            {/* วิธีสั่งพิมพ์ 4 ขั้นตอน — ลูกค้าใหม่เห็นภาพรวมการใช้งานทันที (จากรีวิวลูกค้า 2026-09-02) */}
             {!v.desk && <div style={css("padding:18px 20px 0")}>
-              <div style={css("font-size:13px;font-weight:700;margin-bottom:9px;display:flex;align-items:center;gap:6px")}><span style={css("display:flex;color:var(--acc)")}>{fi('compass', 15)}</span>สั่งปริ้นง่ายๆ ใน 4 ขั้นตอน</div>
+              <div style={css("font-size:13px;font-weight:700;margin-bottom:9px;display:flex;align-items:center;gap:6px")}><span style={css("display:flex;color:var(--acc)")}>{fi('compass', 15)}</span>สั่งพิมพ์ง่ายๆ ใน 4 ขั้นตอน</div>
               <div style={css("background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px;box-shadow:var(--shadow);display:flex;flex-direction:column;gap:11px")}>
                 {[['1', 'file', 'อัปโหลดไฟล์ PDF', 'ระบบนับหน้า คำนวณราคาให้ทันที'],
                   ['2', 'tool', 'เลือกแบบงาน', 'ขาวดำ/สี หน้าเดียว-หน้าหลัง หรืองาน Pro'],
@@ -5734,11 +5734,11 @@ class App extends React.Component {
                     </div>
                 )}
                 {v.curOrder && v.curOrder.rc && <button onClick={() => v.openReceipt(v.curOrder)} style={css("width:100%;height:46px;border:1.5px solid var(--acc);border-radius:14px;background:var(--accSoft);color:var(--acc);font-size:14px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:7px")}>{fi('receipt', 15)} เปิดใบเสร็จรับเงิน{v.curOrder.rc.no ? ' (เลขที่ ' + v.curOrder.rc.no + ')' : ''}</button>}
-                <button onClick={v.newOrder} style={css("width:100%;height:46px;border:1px solid var(--line);border-radius:14px;background:var(--card);color:var(--ink);font-size:14px;font-weight:600;cursor:pointer")}>+ สั่งปริ้นใหม่</button>
+                <button onClick={v.newOrder} style={css("width:100%;height:46px;border:1px solid var(--line);border-radius:14px;background:var(--card);color:var(--ink);font-size:14px;font-weight:600;cursor:pointer")}>+ สั่งพิมพ์ใหม่</button>
               </React.Fragment>
             )}
             {v.noOrder && v.otherOrders.length === 0 && (
-              <div style={css("text-align:center;padding:34px 20px;color:var(--sub)")}><div style={css("display:flex;justify-content:center;color:var(--line)")}>{fi('file', 40)}</div><div style={css("margin-top:10px;font-size:14px")}>ยังไม่มีออเดอร์ — เริ่มสั่งปริ้นได้เลย</div><button onClick={v.startOrder} style={css("margin-top:16px;height:44px;padding:0 22px;border:none;border-radius:12px;background:var(--acc);color:#fff;font-size:14px;font-weight:700;cursor:pointer")}>เริ่มสั่งปริ้น</button>
+              <div style={css("text-align:center;padding:34px 20px;color:var(--sub)")}><div style={css("display:flex;justify-content:center;color:var(--line)")}>{fi('file', 40)}</div><div style={css("margin-top:10px;font-size:14px")}>ยังไม่มีออเดอร์ — เริ่มสั่งพิมพ์ได้เลย</div><button onClick={v.startOrder} style={css("margin-top:16px;height:44px;padding:0 22px;border:none;border-radius:12px;background:var(--acc);color:#fff;font-size:14px;font-weight:700;cursor:pointer")}>เริ่มสั่งพิมพ์</button>
                 {/* กู้คืนการติดตามด้วยรหัสออเดอร์ — เคสสั่งในเบราว์เซอร์อื่น/เปิดผ่านแอป LINE แล้วออเดอร์ไม่ขึ้น (2026-09-17) */}
                 <div style={css("margin:22px auto 0;max-width:330px;text-align:left;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 14px")}>
                   <div style={css("font-size:12.5px;font-weight:700;color:var(--ink)")}>🔎 เคยสั่งไว้แต่ออเดอร์ไม่ขึ้นในเครื่องนี้?</div>
@@ -5912,7 +5912,7 @@ class App extends React.Component {
                     {k === 'addr' && (
                       <div style={css("display:flex;flex-direction:column;gap:8px")}>
                         <div style={css("font-size:12.5px;font-weight:700;color:var(--sub)")}>ที่อยู่จัดส่งประจำ (จำจากออเดอร์ที่เคยสั่ง)</div>
-                        {v.savedAddrs.length === 0 && <div style={css("font-size:13px;color:var(--sub)")}>ยังไม่มี — สั่งปริ้นครั้งแรกแล้วระบบจะจำให้อัตโนมัติ</div>}
+                        {v.savedAddrs.length === 0 && <div style={css("font-size:13px;color:var(--sub)")}>ยังไม่มี — สั่งพิมพ์ครั้งแรกแล้วระบบจะจำให้อัตโนมัติ</div>}
                         {v.savedAddrs.map((a, i) => (
                           <div key={i} style={css("border:1px solid var(--line);border-radius:11px;padding:10px 13px;display:flex;align-items:center;gap:10px")}>
                             <span style={css("flex:none;display:flex")}>{i === 0 ? fi('star', 16, 'var(--acc)') : fi('home', 16, 'var(--sub)')}</span>
@@ -5931,7 +5931,7 @@ class App extends React.Component {
                       </div>
                     )}
                     {k === 'coupon' && (
-                      <div style={css("font-size:13px;line-height:1.7;color:var(--sub);display:flex;align-items:flex-start;gap:6px")}><span style={css("flex:none;padding-top:3px")}>{fi('tag', 14)}</span><span>มีโค้ดส่วนลด? <b style={css("color:var(--ink)")}>ใส่ได้ที่หน้าชำระเงินตอนสั่งปริ้น</b><br/>ติดตามโค้ดแจกในกลุ่ม/เพจของร้าน — ระบบสะสมคะแนนกำลังจะตามมาเร็วๆ นี้ครับ</span></div>
+                      <div style={css("font-size:13px;line-height:1.7;color:var(--sub);display:flex;align-items:flex-start;gap:6px")}><span style={css("flex:none;padding-top:3px")}>{fi('tag', 14)}</span><span>มีโค้ดส่วนลด? <b style={css("color:var(--ink)")}>ใส่ได้ที่หน้าชำระเงินตอนสั่งพิมพ์</b><br/>ติดตามโค้ดแจกในกลุ่ม/เพจของร้าน — ระบบสะสมคะแนนกำลังจะตามมาเร็วๆ นี้ครับ</span></div>
                     )}
                   </div>
                 )}
@@ -6040,7 +6040,7 @@ class App extends React.Component {
               <div style={css("margin-top:8px;font-size:15px;font-weight:800;text-align:center")}>แจ้งจากทางร้าน</div>
               <div style={css("margin-top:8px;font-size:13.5px;font-weight:600;line-height:1.6;text-align:center;color:#c92a2a")}>{v.alertBn.title}</div>
               {v.alertBn.subtitle && <div style={css("margin-top:4px;font-size:13px;color:var(--sub);line-height:1.55;text-align:center")}>{v.alertBn.subtitle}</div>}
-              <div style={css("margin-top:10px;font-size:12.5px;color:var(--sub);text-align:center")}>ยังต้องการสั่งปริ้นต่อไหมครับ?</div>
+              <div style={css("margin-top:10px;font-size:12.5px;color:var(--sub);text-align:center")}>ยังต้องการสั่งพิมพ์ต่อไหมครับ?</div>
               <div style={css("margin-top:14px;display:flex;gap:10px")}>
                 <button onClick={v.alertStay} style={css("flex:1;height:44px;border:1px solid var(--line);border-radius:12px;background:var(--soft);color:var(--ink);font-size:13.5px;font-weight:700;cursor:pointer")}>ไว้ทีหลัง</button>
                 <button onClick={v.alertGo} style={css("flex:1;height:44px;border:none;border-radius:12px;background:var(--acc);color:#fff;font-size:13.5px;font-weight:700;cursor:pointer")}>รับทราบ สั่งต่อ</button>
