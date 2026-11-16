@@ -4345,6 +4345,19 @@ class App extends React.Component {
         </div>
         )}
 
+        {/* ── แถบช่วงกลางคืน (โหมดคอม — เจ้าของสั่ง 2026-11-16: กล่องเดิมดูแปลกบนจอคอม) — แถบบางเต็มความกว้างใต้แถบเมนู ข้อความบรรทัดเดียว ── */}
+        {v.desk && v.night && !v.oaMode && (v.isHome || v.isOrder || v.isDelivery || v.isReview || v.isPay) && (
+          <div style={css("background:var(--warnBg);border-bottom:1px solid var(--warnLine);color:var(--warnInk)")}>
+            <div style={css("max-width:1200px;margin:0 auto;padding:9px 28px;box-sizing:border-box;display:flex;align-items:center;justify-content:center;gap:12px;flex-wrap:wrap;font-size:13.5px;line-height:1.4")}>
+              <span style={css("display:flex;align-items:center;gap:7px;font-weight:800")}><span style={css("display:flex")}>{fi('moon', 16)}</span>ช่วงกลางคืน 22:00–06:00 น.<span style={css("font-weight:600;opacity:.8")}>(ตอนนี้ {v.clock} น.)</span></span>
+              <span style={css("width:4px;height:4px;border-radius:50%;background:currentColor;opacity:.5")}></span>
+              <span style={css("font-weight:600")}>งาน Standard มีค่าบริการกลางคืน <b style={css("font-family:'IBM Plex Mono',monospace;background:var(--accBright);color:#0B1E4A;border-radius:6px;padding:1px 7px;margin-left:2px")}>+฿{v.nightFee}</b></span>
+              <span style={css("width:4px;height:4px;border-radius:50%;background:currentColor;opacity:.5")}></span>
+              <span style={css("font-weight:600")}>งาน Pro ราคาปกติ ไม่บวกเพิ่ม</span>
+            </div>
+          </div>
+        )}
+
         <div className="mp-bnwrap">{/* โหมดคอม: ป้ายประกาศอยู่ในแนวกว้าง 1200px · มือถือ display:contents */}
         {/* ── ป้ายร้านปิดรับออเดอร์ชั่วคราว (ร้านกดปิดจากหลังบ้าน) ── */}
         {v.shopClosed && (
@@ -4402,7 +4415,7 @@ class App extends React.Component {
         )}
 
         {/* ── Night banner — เฉพาะหน้าที่เกี่ยวกับราคา ห้ามโผล่ในห้องแชท/ติดตาม/อื่น ๆ (เจ้าของแจ้งบั๊ค 2026-10-07: ไปค้างทับหัวห้องแชท) ── */}
-        {v.night && !v.oaMode && (v.isHome || v.isOrder || v.isDelivery || v.isReview || v.isPay) && (
+        {v.night && !v.oaMode && !v.desk && (v.isHome || v.isOrder || v.isDelivery || v.isReview || v.isPay) && (
           <div style={css("margin:14px 20px 0;background:var(--warnBg);border:1px solid var(--warnLine);border-radius:12px;padding:10px 14px;display:flex;gap:10px;align-items:center")}>
             <span style={css("flex:none;display:flex;color:var(--warnInk)")}>{fi('moon', 17)}</span><div style={css("min-width:0")}>
               <div style={css("font-size:12.5px;color:var(--warnInk);font-weight:800;line-height:1.5")}>ตอนนี้ {v.clock} เป็นช่วงกลางคืน (22:00–06:00)</div>
