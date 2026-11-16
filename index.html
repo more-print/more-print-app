@@ -6182,7 +6182,7 @@ class App extends React.Component {
                   <div style={css("width:40px;height:40px;border-radius:50%;background:#fff;display:flex;align-items:center;justify-content:center;overflow:hidden")}><img src="assets/logo-icon-blue.png" alt="" style={css("width:31px;height:auto;display:block")}/></div>
                   <div style={css("font-family:'Montserrat',sans-serif;font-weight:800;font-size:18px;letter-spacing:1.5px;color:#fff")}><span style={css("color:var(--accBright)")}>MORE</span> PRINT</div>
                 </div>
-                <div style={css("margin-top:12px;max-width:300px")}>แพลตฟอร์มรับปริ้นงานออนไลน์สำหรับนักศึกษา มหาวิทยาลัยขอนแก่น สั่งได้ตลอด 24 ชั่วโมง ส่งถึงที่พักรอบ มข.</div>
+                <div style={css("margin-top:12px;white-space:nowrap")}>แพลตฟอร์มรับปริ้นงานออนไลน์สำหรับนักศึกษา<br/>มหาวิทยาลัยขอนแก่น สั่งได้ตลอด 24 ชั่วโมง<br/>ส่งถึงที่พักรอบ มข.</div>
               </div>
               <div>
                 <div style={css("color:#fff;font-weight:800;font-size:15px;margin-bottom:8px")}>เมนู</div>
@@ -6191,14 +6191,16 @@ class App extends React.Component {
               <div>
                 <div style={css("color:#fff;font-weight:800;font-size:15px;margin-bottom:8px")}>ติดต่อเรา</div>
                 <a href={(window.MP_CONFIG || {}).LINE_OA_URL || 'https://line.me/R/ti/p/@346kifvy'} target="_blank" rel="noreferrer" style={css("display:inline-flex;align-items:center;gap:8px;color:#fff;text-decoration:none;font-weight:700")}><span style={css("background:#06C755;color:#fff;border-radius:6px;padding:1px 7px;font-size:12px;font-weight:800")}>LINE</span>{(window.MP_CONFIG || {}).LINE_OA_ID || '@346kifvy'}</a>
-                <div>สอบถาม แจ้งปัญหา หรือส่งไฟล์ที่ไม่ใช่ PDF</div>
-                <div style={css("margin-top:6px")}>พื้นที่บริการ: รอบมหาวิทยาลัยขอนแก่น</div>
+                <div style={css("white-space:nowrap")}>สอบถาม · แจ้งปัญหา</div>
+                <div style={css("white-space:nowrap")}>ส่งไฟล์ที่ไม่ใช่ PDF</div>
+                <div style={css("margin-top:6px;white-space:nowrap")}>พื้นที่บริการ: รอบ มข.</div>
               </div>
               <div>
                 <div style={css("color:#fff;font-weight:800;font-size:15px;margin-bottom:8px")}>เวลาให้บริการ</div>
-                <div>งาน Standard: สั่งได้ 24 ชั่วโมงทุกวัน</div>
-                <div>ช่วงกลางคืน 22:00–06:00 มีค่าบริการ +฿{v.nightFee}</div>
-                <div>งาน Pro: ผลิต 08:30–17:00 น. (หยุดวันอาทิตย์)</div>
+                <div style={css("white-space:nowrap")}>Standard: สั่งได้ 24 ชม. ทุกวัน</div>
+                <div style={css("white-space:nowrap")}>กลางคืน 22:00–06:00 +฿{v.nightFee}</div>
+                <div style={css("white-space:nowrap")}>Pro: ผลิต 08:30–17:00 น.</div>
+                <div style={css("white-space:nowrap")}>(หยุดวันอาทิตย์)</div>
               </div>
             </div>
             <div style={css("border-top:1px solid rgba(255,255,255,.12)")}>
