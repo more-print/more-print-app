@@ -63,6 +63,8 @@
   .mp-desk .mp-h-reviews .mp-revlist{display:grid !important;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px !important}
   .mp-desk .mp-h-reviews .mp-revlist > :first-child{grid-column:1 / -1}
   .mp-desk .mp-h-reviews .mp-revlist > button{grid-column:1 / -1}
+  /* จอคอมเล็ก (1024–1199px): แถบเมนูบนแน่นขึ้น — ซ่อนคำโปรยใต้โลโก้ + ลดช่องไฟ กันปุ่มขวาล้นจอ (พบ 2026-11-17) */
+  @media(max-width:1199px){ .mp-dhead-sub{display:none} .mp-dhead-in{gap:18px !important;padding:0 20px !important} .mp-dhead-nav{gap:18px !important} }
   .mp-dnav{position:relative;cursor:pointer;font-size:14.5px;font-weight:700;color:rgba(255,255,255,.78);padding:8px 2px;white-space:nowrap}
   .mp-dnav:hover{color:#fff}
   .mp-dnav.on{color:#fff}
@@ -4298,16 +4300,16 @@ class App extends React.Component {
         {/* ── Header ── โหมดคอม: แถบเมนูบนเต็มจอ (โลโก้ · เมนู · บัญชี · ปุ่มสั่งพิมพ์) · มือถือ: แถบเดิม */}
         {v.desk ? (
           <div style={css("background:var(--head);color:#fff;position:sticky;top:0;z-index:30;box-shadow:0 2px 14px rgba(0,0,0,.18)")}>
-            <div style={css("max-width:1200px;margin:0 auto;padding:0 28px;height:74px;display:flex;align-items:center;gap:30px;box-sizing:border-box")}>
+            <div className="mp-dhead-in" style={css("max-width:1200px;margin:0 auto;padding:0 28px;height:74px;display:flex;align-items:center;gap:30px;box-sizing:border-box")}>
               <div onClick={v.backToHome} style={css("display:flex;align-items:center;gap:11px;cursor:pointer;flex:none")}>
                 <div style={css("width:46px;height:46px;border-radius:50%;background:#fff;display:flex;align-items:center;justify-content:center;overflow:hidden;box-shadow:0 0 0 2px rgba(255,255,255,.15)")}><img src="assets/logo-icon-blue.png" alt="" style={css("width:36px;height:auto;display:block")}/></div>
                 <div>
                   <div style={css("font-family:'Montserrat',sans-serif;font-weight:800;font-size:20px;letter-spacing:1.5px;line-height:1")}><span style={css("color:var(--accBright)")}>MORE</span> PRINT</div>
-                  <div style={css("font-size:11px;color:rgba(255,255,255,.72);margin-top:4px")}>แพลตฟอร์มรับพิมพ์งานออนไลน์ · ส่งถึงที่พักรอบ มข.</div>
+                  <div className="mp-dhead-sub" style={css("font-size:11px;color:rgba(255,255,255,.72);margin-top:4px")}>แพลตฟอร์มรับพิมพ์งานออนไลน์ · ส่งถึงที่พักรอบ มข.</div>
                 </div>
               </div>
               {!v.isLogin && !v.oaMode
-                ? <nav style={css("display:flex;align-items:center;gap:28px;flex:1;justify-content:center")}>
+                ? <nav className="mp-dhead-nav" style={css("display:flex;align-items:center;gap:28px;flex:1;justify-content:center")}>
                     {v.navItems.map((n, i) => <div key={i} onClick={n.pick} className={'mp-dnav' + (n.on ? ' on' : '')}>{n.k === 'track' ? 'ติดตามออเดอร์' : n.label}</div>)}
                   </nav>
                 : <div style={css("flex:1")}></div>}
@@ -4359,6 +4361,27 @@ class App extends React.Component {
         </div>
         )}
 
+        {/* ── แถบประกาศร้าน (โหมดคอม — เจ้าของสั่ง 2026-11-17): ปิดรับทั้งร้าน (แดง) · ปิดรับเฉพาะ PRO/Standard (ส้ม) · ฝนตก (ฟ้า)
+             แถบบางเต็มความกว้างใต้แถบเมนู บรรทัดเดียว แบบเดียวกับแถบกลางคืน · สีปรับตามธีมกลางวัน/กลางคืน · มือถือใช้กล่องเดิม ── */}
+        {v.desk && !v.oaMode && [
+          v.shopClosed && ['red', 'alert', 'ขออภัยครับ ตอนนี้ร้านปิดรับออเดอร์ชั่วคราว', 'เปิดรับอีกครั้งเร็ว ๆ นี้ · ออเดอร์เดิมใช้ได้ปกติครับ'],
+          v.proClosed && ['orange', 'alert', 'ขออภัยครับ ตอนนี้ปิดรับงาน PRO ชั่วคราว', 'งาน Standard (พิมพ์เอกสาร A4) ยังสั่งได้ปกติ · งาน PRO เปิดรับอีกครั้งเร็ว ๆ นี้'],
+          v.stdClosed && ['orange', 'alert', 'ขออภัยครับ ตอนนี้ปิดรับงาน Standard ชั่วคราว', 'งาน PRO (โปสเตอร์ เพลท สติ๊กเกอร์ ฯลฯ) ยังสั่งได้ปกติ · งาน Standard เปิดรับอีกครั้งเร็ว ๆ นี้'],
+          v.rainMode && ['blue', 'rain', 'วันนี้ฝนตกหนัก — งานทุกรูปแบบจัดส่งด้วยรถยนต์เท่านั้นครับ', 'เพื่อป้องกันงานเปียกและเสียหาย ขออภัยจากใจจริงนะครับ'],
+        ].filter(Boolean).map(([tone, ic, title, detail]) => {
+          const T = { red: [['#fff0f0', '#c92a2a', '#ffc9c9'], ['#2a1414', '#ff8f8f', '#5c2323']],
+                      orange: [['#fff4e6', '#c2410c', '#ffd8a8'], ['#2b1d0e', '#ffb06b', '#5a3a14']],
+                      blue: [['#e7f5ff', '#1864ab', '#a5d8ff'], ['#0f2236', '#7cc4ff', '#1d4266']] }[tone][v.night ? 1 : 0];
+          return (
+            <div key={title} style={css("background:" + T[0] + ";border-bottom:1px solid " + T[2] + ";color:" + T[1])}>
+              <div style={css("max-width:1200px;margin:0 auto;padding:9px 28px;box-sizing:border-box;display:flex;align-items:center;justify-content:center;gap:10px 12px;flex-wrap:wrap;font-size:13.5px;line-height:1.4")}>
+                <span style={css("display:flex;align-items:center;gap:7px;font-weight:800;white-space:nowrap")}><span style={css("display:flex")}>{fi(ic, 16)}</span>{title}</span>
+                <span style={css("width:4px;height:4px;border-radius:50%;background:currentColor;opacity:.5")}></span>
+                <span style={css("font-weight:600")}>{detail}</span>
+              </div>
+            </div>
+          );
+        })}
         {/* ── แถบช่วงกลางคืน (โหมดคอม — เจ้าของสั่ง 2026-11-16: กล่องเดิมดูแปลกบนจอคอม) — แถบบางเต็มความกว้างใต้แถบเมนู ข้อความบรรทัดเดียว ── */}
         {v.desk && v.night && !v.oaMode && (v.isHome || v.isOrder || v.isDelivery || v.isReview || v.isPay) && (
           <div style={css("background:var(--warnBg);border-bottom:1px solid var(--warnLine);color:var(--warnInk)")}>
@@ -4374,7 +4397,7 @@ class App extends React.Component {
 
         <div className="mp-bnwrap">{/* โหมดคอม: ป้ายประกาศอยู่ในแนวกว้าง 1200px · มือถือ display:contents */}
         {/* ── ป้ายร้านปิดรับออเดอร์ชั่วคราว (ร้านกดปิดจากหลังบ้าน) ── */}
-        {v.shopClosed && (
+        {v.shopClosed && !v.desk && (
           <div style={css("margin:14px 20px 0;background:#ffe3e3;border:1.5px solid #ffa8a8;border-radius:12px;padding:11px 14px;display:flex;gap:10px;align-items:center")}>
             <span style={css("flex:none;display:flex;color:#c92a2a")}>{fi('alert', 17)}</span><div style={css("min-width:0")}>
               <div style={css("font-size:12.5px;color:#c92a2a;font-weight:800;line-height:1.5")}>ขออภัยครับ ตอนนี้ร้านปิดรับออเดอร์ชั่วคราว</div>
@@ -4384,7 +4407,7 @@ class App extends React.Component {
         )}
 
         {/* ── ป้ายปิดรับเฉพาะงาน PRO (สวิตช์แยกในหลังบ้าน 2026-10-17) ── */}
-        {v.proClosed && (
+        {v.proClosed && !v.desk && (
           <div style={css("margin:14px 20px 0;background:#fff4e6;border:1.5px solid #ffa94d;border-radius:12px;padding:11px 14px;display:flex;gap:10px;align-items:center")}>
             <span style={css("flex:none;display:flex;color:#d9480f")}>{fi('alert', 17)}</span><div style={css("min-width:0")}>
               <div style={css("font-size:12.5px;color:#d9480f;font-weight:800;line-height:1.5")}>ขออภัยครับ ตอนนี้ปิดรับงาน PRO ชั่วคราว</div>
@@ -4394,7 +4417,7 @@ class App extends React.Component {
         )}
 
         {/* ── ป้ายปิดรับเฉพาะงาน Standard (สวิตช์แยก 2026-10-17) ── */}
-        {v.stdClosed && (
+        {v.stdClosed && !v.desk && (
           <div style={css("margin:14px 20px 0;background:#fff4e6;border:1.5px solid #ffa94d;border-radius:12px;padding:11px 14px;display:flex;gap:10px;align-items:center")}>
             <span style={css("flex:none;display:flex;color:#d9480f")}>{fi('alert', 17)}</span><div style={css("min-width:0")}>
               <div style={css("font-size:12.5px;color:#d9480f;font-weight:800;line-height:1.5")}>ขออภัยครับ ตอนนี้ปิดรับงาน Standard ชั่วคราว</div>
@@ -4419,7 +4442,7 @@ class App extends React.Component {
         )}
 
         {/* ── ป้ายโหมดฝนตก (ร้านกดเปิดจากหลังบ้าน) ── */}
-        {v.rainMode && (
+        {v.rainMode && !v.desk && (
           <div style={css("margin:14px 20px 0;background:#e7f5ff;border:1.5px solid #74c0fc;border-radius:12px;padding:11px 14px;display:flex;gap:10px;align-items:center")}>
             <span style={css("flex:none;display:flex;color:#1971c2")}>{fi('rain', 17)}</span><div style={css("min-width:0")}>
               <div style={css("font-size:12.5px;color:#1971c2;font-weight:800;line-height:1.5")}>วันนี้ฝนตกหนัก — งานทุกรูปแบบจัดส่งด้วยรถยนต์เท่านั้นครับ</div>
