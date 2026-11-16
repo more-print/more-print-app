@@ -330,7 +330,7 @@ function ShopCard({ shop, stats, accounts, fnReady, onEdit, onToggle, onCreate, 
       <div style={css("font-size:12px;font-weight:800;color:var(--sub)")}>ยอดขาย{periodLabel}</div>
       <div className="pa-kpi">
         <Stat label="ออเดอร์" value={stats.n} sub="ไม่นับที่ยกเลิก"/>
-        <Stat label="ยอดงานปริ้น" value={baht(stats.job)} color="var(--acc)"/>
+        <Stat label="ยอดงานพิมพ์" value={baht(stats.job)} color="var(--acc)"/>
         <Stat label="คอมเรา" value={baht(stats.comm)} color="var(--green)" sub="งานที่เสร็จแล้ว"/>
         <Stat label="ส่วนของร้าน" value={baht(stats.share)} color="var(--gold)" sub="งานที่เสร็จแล้ว"/>
       </div>
@@ -460,7 +460,7 @@ function Dash(){
         </div>
         <div className="pa-kpi">
           <Stat label={'ออเดอร์ Pro รวม' + periodLabel} value={tot.n}/>
-          <Stat label={'ยอดงานปริ้นรวม' + periodLabel} value={baht(tot.job)} color="var(--acc)"/>
+          <Stat label={'ยอดงานพิมพ์รวม' + periodLabel} value={baht(tot.job)} color="var(--acc)"/>
           <Stat label={'คอมเรารวม' + periodLabel} value={baht(tot.comm)} color="var(--green)" sub="งานที่เสร็จแล้ว"/>
           <Stat label="ค้างโอนให้ทุกร้าน" value={baht(tot.unpaid)} color="var(--gold)" sub="งานเสร็จที่ยังไม่โอน"/>
         </div>

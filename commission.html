@@ -60,10 +60,10 @@ function css(str){
 }
 const baht = (n) => '฿' + (Math.round((n || 0) * 100) / 100).toLocaleString('th-TH');
 const jobValue = (o) => (o.print_cost || 0) + (o.bind_cost || 0); // ราคาเต็มก่อนส่วนลด
-// ส่วนลดที่กินค่างานปริ้น — โค้ดส่งฟรี (ยอดลดเท่าค่าส่งพอดี) ลดค่าส่งฝั่งเรา ไม่แตะส่วนแบ่งร้าน
+// ส่วนลดที่กินค่างานพิมพ์ — โค้ดส่งฟรี (ยอดลดเท่าค่าส่งพอดี) ลดค่าส่งฝั่งเรา ไม่แตะส่วนแบ่งร้าน
 const printDisc = (o) => { const d = o.discount || 0; if (d <= 0) return 0; if ((o.delivery_cost || 0) > 0 && d === o.delivery_cost) return 0; return Math.min(d, jobValue(o)); };
 // ฐานคิดส่วนแบ่ง/คอม 80/20 = ราคาหลังหักส่วนลด (เจ้าของเคาะ 2026-09-15) — ต้องตรงกับ pro.html
-// รายการปรับจากแผงแก้ไขออเดอร์ที่เป็น "เนื้องานปริ้น" เข้าฐานแบ่ง 80/20 ด้วย (เจ้าของแจ้ง 2026-09-15 ยอดการ์ดไม่อัปเดต)
+// รายการปรับจากแผงแก้ไขออเดอร์ที่เป็น "เนื้องานพิมพ์" เข้าฐานแบ่ง 80/20 ด้วย (เจ้าของแจ้ง 2026-09-15 ยอดการ์ดไม่อัปเดต)
 // ส่วนรายการฝั่งค่าส่ง/เปลี่ยนการรับงาน (kind:'ship' หรือ label ขึ้นต้นตามระบบ) ไม่เข้าฐาน — ค่าส่งเป็นของ MORE PRINT
 const shipAdj = (a) => a && (a.kind === 'ship' || /^(เปลี่ยนเป็นจัดส่งถึงที่|เปลี่ยนเป็นมารับเองที่ร้าน|แก้จุดส่ง)/.test(String(a.label || '')));
 const adjJob = (o) => (o.adjustments || []).reduce((sm, a) => sm + (shipAdj(a) ? 0 : (Number(a.amt) || 0)), 0);
@@ -298,7 +298,7 @@ const FI = {
 };
 // ขั้นสถานะตามวิธีรับงาน (มารับเอง = จบที่ร้านอุดมสุข)
 const stepsOf = (o) => o && o.pickup
-  ? ['รับออเดอร์', 'กำลังผลิตสินค้า', 'ปริ้นเสร็จสิ้น รอลูกค้ามารับงาน', 'ลูกค้ารับสินค้าแล้ว']
+  ? ['รับออเดอร์', 'กำลังผลิตสินค้า', 'พิมพ์เสร็จสิ้น รอลูกค้ามารับงาน', 'ลูกค้ารับสินค้าแล้ว']
   : ['รับออเดอร์', 'กำลังผลิตสินค้า', 'กำลังจัดส่ง', 'ส่งแล้ว'];
 
 const DEMO = [
@@ -461,7 +461,7 @@ function MpChat({ o, me, title }){
       {open && (
         <div style={css("padding:10px 13px")}>
           <div style={css("max-height:220px;overflow-y:auto;display:flex;flex-direction:column;gap:6px")}>
-            {msgs.length === 0 && <div style={css("font-size:11.5px;color:var(--sub);text-align:center;padding:8px 0")}>ยังไม่มีข้อความ — แจ้งปัญหาไฟล์ / การผลิต / การปริ้นของออเดอร์นี้ได้เลย</div>}
+            {msgs.length === 0 && <div style={css("font-size:11.5px;color:var(--sub);text-align:center;padding:8px 0")}>ยังไม่มีข้อความ — แจ้งปัญหาไฟล์ / การผลิต / การพิมพ์ของออเดอร์นี้ได้เลย</div>}
             {msgs.map(m => (
               <div key={m.id} style={{ display: 'flex', justifyContent: m.sender === me ? 'flex-end' : 'flex-start' }}>
                 <div style={{ maxWidth: '82%', borderRadius: '11px', padding: '7px 11px', fontSize: '12px', lineHeight: 1.5, whiteSpace: 'pre-wrap', wordBreak: 'break-word',
@@ -714,7 +714,7 @@ function Manage({ o, onPrice, onPayout, onAdvance, onRetreat, onApplyEdits, onCa
         <React.Fragment>
         {/* กล่องราคาแบบเดียวกับ admin (เจ้าของสั่ง 2026-10-01): กรอบเขียวพื้นขาว เลขดำใหญ่ · ราคาสุทธิ = บิลลูกค้าปัจจุบัน (o.total) อัปเดตเองไม่มีปุ่มแก้ */}
         <div style={css("border:1.5px solid #00b368;background:#fff;border-radius:12px;padding:9px 13px")}>
-          <div style={css("font-size:12.5px;color:var(--ink);font-weight:600")}>ค่าปริ้น <b style={css("font-family:'IBM Plex Mono',monospace;font-size:16px;color:var(--ink)")}>฿{o.print_cost || 0}</b>{(o.bind_cost || 0) > 0 ? <React.Fragment> · เข้าเล่ม <b style={css("font-family:'IBM Plex Mono',monospace;font-size:16px;color:var(--ink)")}>฿{o.bind_cost}</b></React.Fragment> : null} · ค่าส่ง <b style={css("font-family:'IBM Plex Mono',monospace;font-size:16px;color:var(--ink)")}>฿{o.delivery_cost || 0}</b>{o.night_fee ? <span style={css("color:#8a6d1a;font-weight:700")}> · 🌙 กลางคืน ฿{o.night_fee}</span> : null}</div>
+          <div style={css("font-size:12.5px;color:var(--ink);font-weight:600")}>ค่าพิมพ์ <b style={css("font-family:'IBM Plex Mono',monospace;font-size:16px;color:var(--ink)")}>฿{o.print_cost || 0}</b>{(o.bind_cost || 0) > 0 ? <React.Fragment> · เข้าเล่ม <b style={css("font-family:'IBM Plex Mono',monospace;font-size:16px;color:var(--ink)")}>฿{o.bind_cost}</b></React.Fragment> : null} · ค่าส่ง <b style={css("font-family:'IBM Plex Mono',monospace;font-size:16px;color:var(--ink)")}>฿{o.delivery_cost || 0}</b>{o.night_fee ? <span style={css("color:#8a6d1a;font-weight:700")}> · 🌙 กลางคืน ฿{o.night_fee}</span> : null}</div>
           <div style={css("margin-top:4px;font-size:13.5px;font-weight:800;color:#00b368")}>ราคาสุทธิ {baht(netBill(o))}</div>
         </div>
         <div style={css("display:flex;gap:10px;align-items:center;flex-wrap:wrap")}>
@@ -733,8 +733,8 @@ function Manage({ o, onPrice, onPayout, onAdvance, onRetreat, onApplyEdits, onCa
       )}
       {(o.discount || 0) > 0 && <div style={css("font-size:11px;font-weight:700;color:#c2255c")}>🎟️ ใช้โค้ดส่วนลด {o.coupon || ''} −฿{o.discount} (หาร 80/20 ตามสัดส่วน — คอมและส่วนแบ่งร้านคิดจากราคาหลังหักส่วนลด)</div>}
       {o.status === 0 && o.cancel_reason && <div style={css("font-size:11px;color:#c92a2a")}>เหตุผลที่ยกเลิก: {o.cancel_reason}</div>}
-      {/* แยกหมายเหตุชัดเจน (เจ้าของสั่ง 2026-10-07): การปริ้น = เหลือง · การส่ง = ฟ้า */}
-      {o.note && <div style={css("background:#fff7e0;border:1px solid #f0c36d;border-radius:10px;padding:8px 11px;font-size:12px;color:#8a6d1a;line-height:1.6")}><b>{FI.file(11)} หมายเหตุการปริ้น (จากลูกค้า):</b> {o.note}</div>}
+      {/* แยกหมายเหตุชัดเจน (เจ้าของสั่ง 2026-10-07): การพิมพ์ = เหลือง · การส่ง = ฟ้า */}
+      {o.note && <div style={css("background:#fff7e0;border:1px solid #f0c36d;border-radius:10px;padding:8px 11px;font-size:12px;color:#8a6d1a;line-height:1.6")}><b>{FI.file(11)} หมายเหตุการพิมพ์ (จากลูกค้า):</b> {o.note}</div>}
       {o.ship_note && <div style={css("background:#e7f5ff;border:1px solid #74c0fc;border-radius:10px;padding:8px 11px;font-size:12px;color:#1864ab;line-height:1.6")}><b>🚚 หมายเหตุการส่ง (จากลูกค้า):</b> {o.ship_note}</div>}
       {/* ที่อยู่จัดส่ง + นำทาง + สลิป (เท่าหลังบ้าน Standard) */}
       {!(o.pickup || (o.addr || '').indexOf('🏪') === 0) && (o.addr || o.point) && (
@@ -879,7 +879,7 @@ const proKindOf = (o) => {
     if (/^Postcard/.test(b)) return 'Postcard';
     if (/^พับครึ่ง/.test(b)) return 'พับครึ่ง (เข้าเล่ม/เมนู)';
     if (/^นามบัตร/.test(b)) return 'นามบัตร';
-    if (/^(?:ปริ้น|พิมพ์)สีขาวดำขนาดใหญ่/.test(b)) return 'ปริ้นสีขาวดำขนาดใหญ่';
+    if (/^(?:ปริ้น|พิมพ์)สีขาวดำขนาดใหญ่/.test(b)) return 'พิมพ์สีขาวดำขนาดใหญ่';
     if (/^สติ๊กเกอร์/.test(b)) return 'สติ๊กเกอร์';
     if (/^Portfolio/i.test(b)) return 'Portfolio';
     if (/Standy|สแตนดี้/.test(b)) return 'Standy';
@@ -1098,7 +1098,7 @@ function IncomeDashboard({ rows, loading, loadedAt, onReload }){
 
   const exportCsv = () => {
     const STAT = ['ยกเลิก', ...STEPS];
-    const head = ['รหัสออเดอร์', 'วันที่', 'เวลา', 'ลูกค้า', 'เบอร์โทร', 'งานที่สั่ง', 'ชนิดงาน', 'สถานะ', 'รับงาน', 'ยอดงานปริ้น (สุทธิ)', 'คอมเรา', 'ให้ร้านพาร์ทเนอร์', 'ค่าส่ง', 'ค่ากลางคืน', 'ลูกค้าจ่ายรวม', 'รายได้ของเรา (เมื่องานจบ)', 'โอนให้ร้านแล้ว'];
+    const head = ['รหัสออเดอร์', 'วันที่', 'เวลา', 'ลูกค้า', 'เบอร์โทร', 'งานที่สั่ง', 'ชนิดงาน', 'สถานะ', 'รับงาน', 'ยอดงานพิมพ์ (สุทธิ)', 'คอมเรา', 'ให้ร้านพาร์ทเนอร์', 'ค่าส่ง', 'ค่ากลางคืน', 'ลูกค้าจ่ายรวม', 'รายได้ของเรา (เมื่องานจบ)', 'โอนให้ร้านแล้ว'];
     const lines = [...d.cur.inR].sort((a, b) => (a.created_at > b.created_at ? 1 : -1)).map(o => {
       const t = new Date(o.created_at);
       return [o.id, ymd(t), t.toTimeString().slice(0, 5), ((o.customer_fname || '') + ' ' + (o.customer_lname || '')).trim(), custKey(o), o.paper || '', proKindOf(o),
@@ -1197,7 +1197,7 @@ function IncomeDashboard({ rows, loading, loadedAt, onReload }){
               </div>
             ))}
             <div style={css("display:flex;justify-content:space-between;border-top:1px dashed var(--line);padding-top:7px;font-weight:700")}><span>รวมรายได้ของเรา</span><span style={css(mono + "color:var(--green)")}>{baht(cur.revenue)}</span></div>
-            <div style={css("display:flex;justify-content:space-between;gap:8px;color:var(--sub);font-size:11.5px")}><span>ยอดงานปริ้นสุทธิ (งานที่จบ)</span><span style={css(mono)}>{baht(d.comp.job)}</span></div>
+            <div style={css("display:flex;justify-content:space-between;gap:8px;color:var(--sub);font-size:11.5px")}><span>ยอดงานพิมพ์สุทธิ (งานที่จบ)</span><span style={css(mono)}>{baht(d.comp.job)}</span></div>
             <div style={css("display:flex;justify-content:space-between;gap:8px;color:var(--purple);font-size:11.5px")}><span>ส่วนที่ให้{PARTNER_NAME}</span><span style={css(mono + "font-weight:600")}>{baht(d.comp.partner)}</span></div>
           </div>
           <div style={css("margin-top:10px;display:flex;flex-wrap:wrap;gap:6px")}>
@@ -1446,7 +1446,7 @@ function Dash(){
   // รับรู้รายได้เมื่องานจบ (ส่งถึงมือลูกค้า = สถานะ 4) — งานระหว่างทางแยกเป็น "คอมรอรับ"
   const done = orders.filter(o => o.status === 4 && jobValue(o) > 0);
   // ค่าส่ง = รายได้ของ MORE PRINT เต็มจำนวน (เราวิ่งส่งเอง) — ไม่เข้าสูตรหารคอมกับร้านพาร์ทเนอร์
-  // นับจากงานที่จบทุกใบ แม้ยังไม่ได้ตั้งราคาปริ้น เพราะค่าส่งลูกค้าจ่ายมาแล้วตั้งแต่ต้น
+  // นับจากงานที่จบทุกใบ แม้ยังไม่ได้ตั้งราคาพิมพ์ เพราะค่าส่งลูกค้าจ่ายมาแล้วตั้งแต่ต้น
   const doneAll = orders.filter(o => o.status === 4);
   const shipOf = (o) => (o.delivery_cost || 0) + (o.night_fee || 0);
   const pending = orders.filter(o => o.status > 0 && o.status < 4);
@@ -1527,7 +1527,7 @@ function Dash(){
   })();
 
   // ── ลูกค้าประจำงาน PRO (เห็นเฉพาะเจ้าของที่นี่ — pro.html ของพาร์ทเนอร์ไม่มีข้อมูลลูกค้า) ──
-  // จัดกลุ่มตามเบอร์โทร ไม่นับที่ยกเลิก · ยอด = ค่างานจริง (ปริ้น+เข้าเล่ม ไม่รวมค่าส่ง)
+  // จัดกลุ่มตามเบอร์โทร ไม่นับที่ยกเลิก · ยอด = ค่างานจริง (พิมพ์+เข้าเล่ม ไม่รวมค่าส่ง)
   const custMap = {};
   orders.forEach(o => {
     if (o.status === 0) return;
@@ -1569,7 +1569,7 @@ function Dash(){
           <div style={css("display:flex;justify-content:space-between;align-items:flex-start;gap:12px")}>
             <div>
               <div style={css("font-family:'Montserrat',sans-serif;font-weight:800;font-size:20px;letter-spacing:1px")}><span style={css("color:#00b368")}>MORE</span> PRINT</div>
-              <div style={css("font-size:11px;color:#888;margin-top:2px")}>บริการปริ้นเอกสารพร้อมส่ง 24 ชม. รอบ มข.</div>
+              <div style={css("font-size:11px;color:#888;margin-top:2px")}>บริการพิมพ์เอกสารพร้อมส่ง 24 ชม. รอบ มข.</div>
             </div>
             <div style={css("text-align:right")}>
               <div style={css("font-size:16px;font-weight:800")}>{forUs ? 'ใบสรุปรายได้ MORE PRINT' : 'ใบสรุปยอดงาน PRO'}</div>
@@ -1687,7 +1687,7 @@ function Dash(){
                 <div style={css("margin-top:2px;font-size:16px;font-weight:800;font-family:'IBM Plex Mono',monospace;color:var(--purple)")}>{baht(curAgg.ship)}</div>
               </div>
             </div>
-            <div style={css("margin-top:9px;font-size:10.5px;color:var(--sub);line-height:1.6")}>ยอดงานปริ้นรวม {baht(curAgg.job)} · ส่วนที่ให้{PARTNER_NAME} {baht(curAgg.partner)}</div>
+            <div style={css("margin-top:9px;font-size:10.5px;color:var(--sub);line-height:1.6")}>ยอดงานพิมพ์รวม {baht(curAgg.job)} · ส่วนที่ให้{PARTNER_NAME} {baht(curAgg.partner)}</div>
           </div>
         </div>
 
@@ -1711,7 +1711,7 @@ function Dash(){
           <div style={css("padding:12px 16px 0;font-size:12.5px;font-weight:700;color:var(--sub)")}>{FI.calendar(13)} สรุปรายเดือน (เฉพาะงานที่จบแล้ว)</div>
           <table style={css("margin-top:6px")}>
             <thead><tr>
-              {['เดือน', 'งาน', 'ยอดงานปริ้น', 'คอมเรา ' + Math.round(COMMISSION * 100) + '%', 'ให้' + PARTNER_NAME.replace('ร้าน', ''), 'ค่าส่ง (ของเรา)', ''].map((h, i) => (
+              {['เดือน', 'งาน', 'ยอดงานพิมพ์', 'คอมเรา ' + Math.round(COMMISSION * 100) + '%', 'ให้' + PARTNER_NAME.replace('ร้าน', ''), 'ค่าส่ง (ของเรา)', ''].map((h, i) => (
                 <th key={i} style={css("text-align:" + (i < 2 ? "left" : "right") + ";font-size:10.5px;color:var(--sub);font-weight:600;padding:6px 12px;border-bottom:1px solid var(--line);white-space:nowrap")}>{h}</th>
               ))}
             </tr></thead>
@@ -1898,7 +1898,7 @@ function Dash(){
             {/* แถว 3: ตัวเลขเงิน คั่นด้วยเส้น | อ่านกวาดตาง่าย */}
             <div style={css("margin-top:9px;display:flex;align-items:center;gap:0;flex-wrap:wrap;font-size:12px;font-weight:600")}>
               {jobValue(o) > 0 && <React.Fragment>
-                <span style={css("padding-right:12px")}>ค่างานปริ้น <b style={css("font-family:'IBM Plex Mono',monospace;color:var(--ink)")}>{baht(jobNet(o))}</b></span>
+                <span style={css("padding-right:12px")}>ค่างานพิมพ์ <b style={css("font-family:'IBM Plex Mono',monospace;color:var(--ink)")}>{baht(jobNet(o))}</b></span>
                 <span style={css("border-left:1.5px solid var(--line);padding:0 12px")}>คอมฯ{commRateOf(o) !== COMMISSION ? ' ' + (Math.round(commRateOf(o) * 1000) / 10) + '%' : ''} <b style={css("font-family:'IBM Plex Mono',monospace;color:var(--acc)")}>{baht(commOf(o))}</b></span>
                 <span style={css("border-left:1.5px solid var(--line);padding:0 12px")}>ร้านได้รับ <b style={css("font-family:'IBM Plex Mono',monospace;color:var(--purple)")}>{baht(partnerOf(o))}</b></span>
               </React.Fragment>}

@@ -49,10 +49,10 @@ const CFG = window.MP_CONFIG || {};
 const DB = (CFG.SUPABASE_URL && CFG.SUPABASE_ANON_KEY && window.supabase)
   ? window.supabase.createClient(CFG.SUPABASE_URL, CFG.SUPABASE_ANON_KEY, { auth: { storageKey: 'mp-admin' } }) : null;
 
-const STEPS = ['รับออเดอร์', 'กำลังปริ้น', 'กำลังจัดส่ง', 'ส่งแล้ว'];
+const STEPS = ['รับออเดอร์', 'กำลังพิมพ์', 'กำลังจัดส่ง', 'ส่งแล้ว'];
 const EXPRESS_FEE = 20; // ค่างานด่วน — ต้องตรงกับ CONFIG.expressFee ใน index.html (ฐานข้อมูลบวกรวมใน delivery_cost มา — จอแอดมินแตกให้เห็นแยก 2026-09-17)
 // มารับเองที่ร้าน: ขั้น 3 เปลี่ยนเป็น รอลูกค้ามารับ (เจ้าของสั่ง 2026-09-17 — ขั้นอื่นคงเดิม)
-const stepsOf = (o) => o && o.pickup ? ['รับออเดอร์', 'กำลังปริ้น', 'ปริ้นเสร็จสิ้น รอลูกค้ามารับงาน', 'ส่งแล้ว'] : STEPS;
+const stepsOf = (o) => o && o.pickup ? ['รับออเดอร์', 'กำลังพิมพ์', 'พิมพ์เสร็จสิ้น รอลูกค้ามารับงาน', 'ส่งแล้ว'] : STEPS;
 const BANNER_THEMES = {
   green: 'linear-gradient(135deg,#004FD6,#003DA8)', // คีย์ 'green' คงไว้ (ค่าที่บันทึกในตาราง banners) แต่แสดงเป็นน้ำเงินแบรนด์ตาม CI ใหม่ 2026-11-11
   dark: 'linear-gradient(135deg,#2b2b28,#000)',
@@ -71,7 +71,7 @@ const DEMO_ORDERS = [
     files: [{ name: 'รายงานสรุปวิชา.pdf', pages: 24, path: null }, { name: 'slides-present.pptx', pages: 12, path: null }],
     color: false, paper: 'A4', sides: 2, bind: 'corner', copies: 2,
     point: 'คณะวิศวกรรมฯ', addr: 'ตึก EN ชั้น 2 หน้าลิฟต์', phone: '081-234-5678', time: '14:30', express: true, night: false, lat: 16.4740, lng: 102.8230,
-    note: 'หน้าปกปริ้นสีด้วยครับ', ship_note: 'ฝากไว้ที่ป้อม รปภ. ตึก EN ได้เลยครับ',
+    note: 'หน้าปกพิมพ์สีด้วยครับ', ship_note: 'ฝากไว้ที่ป้อม รปภ. ตึก EN ได้เลยครับ',
     print_cost: 72, bind_cost: 10, delivery_cost: 30, night_fee: 0, total: 112, status: 2, times: ['13:02', '13:10', '', ''] },
   { id: '#MP-4511', created_at: new Date(Date.now() - 2*3600000).toISOString(),
     customer_fname: 'มินตรา', customer_lname: 'พาเพลิน', customer_phone: '095-888-1122', customer_email: 'mintra@kku.ac.th',
@@ -161,7 +161,7 @@ const IS_IOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platfo
 const IS_TOUCH = IS_IOS || IN_APP || /Android/i.test(navigator.userAgent);
 // ลิงก์สาธารณะ (ไฟล์ใหญ่บน B2/ไฟล์เก่าใน Supabase) ในแอป LINE: ให้ LINE เปิดด้วยเบราว์เซอร์ปกติแทน (พารามิเตอร์ openExternalBrowser=1 ของ LINE)
 const extUrl = (u) => (!u || !IN_APP) ? u : u + (u.indexOf('?') >= 0 ? '&' : '?') + 'openExternalBrowser=1';
-// ── ดาวน์โหลดเป็นไฟล์จริง (เจ้าของแจ้ง 2026-11-11: คอม/มือถือได้แค่เปิดดู-สั่งปริ้นในหน้าเว็บ เอาไฟล์ PDF ออกมาไม่ได้) ──
+// ── ดาวน์โหลดเป็นไฟล์จริง (เจ้าของแจ้ง 2026-11-11: คอม/มือถือได้แค่เปิดดู-สั่งพิมพ์ในหน้าเว็บ เอาไฟล์ PDF ออกมาไม่ได้) ──
 // ลิงก์คลัง (R2/Supabase) อยู่คนละโดเมนกับหลังบ้าน → เบราว์เซอร์เมินแอตทริบิวต์ download แล้วเปิดดูแทน
 // จึงโหลดไฟล์มาเป็น blob ก่อนแล้วสั่งบันทึกด้วยชื่อไฟล์เดิมของลูกค้า (คลังเปิด CORS ให้อ่านอยู่แล้ว — ตัวเปิดไฟล์ในหน้าก็โหลดทางนี้)
 const dlName = (o, f) => {
@@ -423,9 +423,9 @@ const FI = {
   bell: (z) => fi(<React.Fragment><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></React.Fragment>, z),
   bellOff: (z) => fi(<React.Fragment><path d="M13.73 21a2 2 0 0 1-3.46 0"/><path d="M18.63 13A17.89 17.89 0 0 1 18 8"/><path d="M6.26 6.26A5.86 5.86 0 0 0 6 8c0 7-3 9-3 9h14"/><path d="M18 8a6 6 0 0 0-9.33-5"/><line x1="1" y1="1" x2="23" y2="23"/></React.Fragment>, z)
 };
-// บั๊กบันทึกออเดอร์ (index.html แก้ 1bac151 ขึ้นเว็บ 2026-10-15 ~15:20) เคยบันทึกไฟล์สีของงานปริ้นผสมเป็นขาวดำ — ใช้เตือนบนการ์ดออเดอร์ก่อนหน้านั้น
+// บั๊กบันทึกออเดอร์ (index.html แก้ 1bac151 ขึ้นเว็บ 2026-10-15 ~15:20) เคยบันทึกไฟล์สีของงานพิมพ์ผสมเป็นขาวดำ — ใช้เตือนบนการ์ดออเดอร์ก่อนหน้านั้น
 const MIX_BUG_FIXED_AT = Date.parse('2026-10-15T15:20:00+07:00');
-const PTYPE_LABELS = { bw: 'ปริ้นขาวดำ', laser: 'ขาวดำเลเซอร์', color: 'ปริ้นสี', mix: 'ปริ้นผสม', portfolio: 'Portfolio', poster: 'โปสเตอร์', pro: 'PRO พรีเมียม' };
+const PTYPE_LABELS = { bw: 'พิมพ์ขาวดำ', laser: 'ขาวดำเลเซอร์', color: 'พิมพ์สี', mix: 'พิมพ์ผสม', portfolio: 'Portfolio', poster: 'โปสเตอร์', pro: 'PRO พรีเมียม' };
 
 // ── แบ่งโซนส่งของจากพิกัดหมุดลูกค้า (สำหรับจ่ายงานไรเดอร์) ──
 const ZONES = [
@@ -454,22 +454,22 @@ const zoneStyleByName = (n) => n === 'ในมอ' ? ZONE_IN_CAMPUS : n === '�
 const BIND_LABELS = { book: 'เข้าเล่ม', corner: 'เย็บมุม', landscape: 'เล่มแนวนอน', coil: 'เข้าเล่มสันห่วง/สันเกลียว', tape: 'เข้าเล่มเทปผ้า (แลคซีน)', glue: 'เข้าเล่มสันกาว' };
 // สเปกงาน Standard เป็นหัวข้อเรียงลงมา (เจ้าของสั่ง 2026-10-12 — แทนบรรทัดสเปกยาวต่อกัน)
 // เย็บมุมกับเข้าเล่มแยกกัน: ไม่ได้เลือกเข้าเล่ม = โชว์แค่สถานะเย็บมุม ไม่ขึ้นคำว่าไม่เข้าเล่ม (เจ้าของย้ำ 2026-09-27)
-// ประเภทรายไฟล์ของงานปริ้นผสม (files[].cmode/cpages จาก index.html): หน้าสีตามที่ลูกค้าระบุ ที่เหลือเป็นขาวดำ
+// ประเภทรายไฟล์ของงานพิมพ์ผสม (files[].cmode/cpages จาก index.html): หน้าสีตามที่ลูกค้าระบุ ที่เหลือเป็นขาวดำ
 const pagesToRanges = (arr) => {
   const a = [...arr].sort((x, y) => x - y), out = [];
   for (let i = 0; i < a.length; i++) { let j = i; while (j + 1 < a.length && a[j + 1] === a[j] + 1) j++; out.push(i === j ? '' + a[i] : a[i] + '-' + a[j]); i = j; }
   return out.join(', ');
 };
-// ออเดอร์ "ปริ้นผสม" ขึ้นคำว่าปริ้นผสมนำหน้าเสมอ แล้วตามด้วยสิ่งที่ลูกค้าเลือกของไฟล์นั้น (เจ้าของสั่ง 2026-10-15 — การ์ดต้องบอกชัดว่าเป็นงานผสม หน้าไหนสี)
+// ออเดอร์ "พิมพ์ผสม" ขึ้นคำว่าพิมพ์ผสมนำหน้าเสมอ แล้วตามด้วยสิ่งที่ลูกค้าเลือกของไฟล์นั้น (เจ้าของสั่ง 2026-10-15 — การ์ดต้องบอกชัดว่าเป็นงานผสม หน้าไหนสี)
 const fileTypeLabel = (o, f) => {
-  if (!f || !f.cmode) return o.ptype ? (PTYPE_LABELS[o.ptype] || o.ptype) : (o.color ? 'ปริ้นสี' : 'ปริ้นขาวดำ');
-  const mix = o.ptype === 'mix' ? 'ปริ้นผสม — ' : '';
-  if (f.cmode === 'color') return mix ? mix + 'ปริ้นสีทั้งไฟล์ (' + (f.pages || 0) + ' หน้า)' : 'ปริ้นสี';
-  if (f.cmode !== 'pages' || !f.cpages) return mix ? mix + 'ปริ้นขาวดำทั้งไฟล์ (' + (f.pages || 0) + ' หน้า)' : 'ปริ้นขาวดำ';
+  if (!f || !f.cmode) return o.ptype ? (PTYPE_LABELS[o.ptype] || o.ptype) : (o.color ? 'พิมพ์สี' : 'พิมพ์ขาวดำ');
+  const mix = o.ptype === 'mix' ? 'พิมพ์ผสม — ' : '';
+  if (f.cmode === 'color') return mix ? mix + 'พิมพ์สีทั้งไฟล์ (' + (f.pages || 0) + ' หน้า)' : 'พิมพ์สี';
+  if (f.cmode !== 'pages' || !f.cpages) return mix ? mix + 'พิมพ์ขาวดำทั้งไฟล์ (' + (f.pages || 0) + ' หน้า)' : 'พิมพ์ขาวดำ';
   const cs = new Set();
   String(f.cpages).split(',').forEach(part => { const m = part.trim().match(/^(\d+)(?:-(\d+))?$/); if (m) for (let p = +m[1]; p <= +(m[2] || m[1]) && p - m[1] < 5000; p++) cs.add(p); });
   const bw = []; for (let p = 1; p <= (f.pages || 0); p++) if (!cs.has(p)) bw.push(p);
-  return mix + 'ปริ้นสี หน้าที่ ' + f.cpages + (bw.length ? ' , ปริ้นขาวดำ หน้าที่ ' + pagesToRanges(bw) : '');
+  return mix + 'พิมพ์สี หน้าที่ ' + f.cpages + (bw.length ? ' , พิมพ์ขาวดำ หน้าที่ ' + pagesToRanges(bw) : '');
 };
 // f = ไฟล์ (สั่งหลายไฟล์ = กล่องละไฟล์) — ออเดอร์ที่ลูกค้าตั้งค่ารายไฟล์ใช้ files[].orient/nup/bind · ออเดอร์เก่าใช้ค่าทั้งออเดอร์
 // เย็บมุมขึ้นทุกครั้ง · เข้าเล่มขึ้นเป็นแถวสุดท้ายเฉพาะเมื่อลูกค้าเลือก (เจ้าของสั่ง 2026-10-12)
@@ -783,7 +783,7 @@ function Chat({ o, onSeen, tall }){
   );
 }
 const DEMO_MSGS = [
-  { id: 1, sender: 'customer', body: 'พี่ครับ ขอปริ้นหน้า-หลังนะครับ', created_at: new Date(Date.now() - 9*60000).toISOString() },
+  { id: 1, sender: 'customer', body: 'พี่ครับ ขอพิมพ์หน้า-หลังนะครับ', created_at: new Date(Date.now() - 9*60000).toISOString() },
   { id: 2, sender: 'shop', body: 'รับทราบครับ กำลังจัดให้เลย', created_at: new Date(Date.now() - 7*60000).toISOString() }
 ];
 
@@ -819,8 +819,8 @@ function ChatDock({ o, onSeen, unread }){
 
 // ═══ ออกใบเสร็จรับเงินโดยร้าน (เจ้าของสั่ง 2026-10-19): ร้านกรอกข้อมูลผู้ซื้อเอง เผื่อลูกค้าลืมกดขอใบเสร็จตอนสั่ง ═══
 // เลขที่ใบเสร็จขอจาก RPC issue_receipt (ชุดเดียวกับที่ลูกค้าขอเองหน้าเว็บ — ออเดอร์เดียวได้เลขเดียว ไม่ซ้ำ) · พิมพ์/บันทึก PDF ด้วยหน้าต่างพิมพ์ของเบราว์เซอร์
-// รายการสร้างอัตโนมัติจากออเดอร์ (ค่าปริ้นรายไฟล์ · เข้าเล่ม · ค่าส่ง · งานด่วน · กลางคืน · รายการปรับ) แก้ไขได้ทุกบรรทัดก่อนพิมพ์
-const RC_PTYPE = { bw: 'ปริ้นขาวดำ', laser: 'ขาวดำเลเซอร์', color: 'ปริ้นสี', mix: 'ปริ้นผสม', portfolio: 'Portfolio', poster: 'โปสเตอร์' };
+// รายการสร้างอัตโนมัติจากออเดอร์ (ค่าพิมพ์รายไฟล์ · เข้าเล่ม · ค่าส่ง · งานด่วน · กลางคืน · รายการปรับ) แก้ไขได้ทุกบรรทัดก่อนพิมพ์
+const RC_PTYPE = { bw: 'พิมพ์ขาวดำ', laser: 'ขาวดำเลเซอร์', color: 'พิมพ์สี', mix: 'พิมพ์ผสม', portfolio: 'Portfolio', poster: 'โปสเตอร์' };
 const rcMoney = (n) => (Math.round((Number(n) || 0) * 100) / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const rcToday = () => { const d = new Date(); return d.getDate() + '/' + (d.getMonth() + 1) + '/' + (d.getFullYear() + 543); };
 function rcLinesOf(o, isPro){
@@ -830,16 +830,16 @@ function rcLinesOf(o, isPro){
     const multi = files.length > 1 && files.some(f => f.paper);
     if (multi) {
       files.forEach((f, i) => push('ไฟล์ที่ ' + (i + 1) + ' ' + (f.paper || 'งาน PRO') + (f.protype === 'sticker' ? '' : ' × ' + (f.copies || 1) + ' ชุด'), f.pcost || 0));
-      const sum = L.reduce((a, x) => a + x.amt, 0), diff = (o.print_cost || 0) - sum; // ยอดรวมรายไฟล์ต้องเท่าค่าปริ้นที่ตั้งไว้ — ต่างกัน (เช่นเจ้าของตั้งราคาใหม่) ปรับที่บรรทัดสุดท้าย
+      const sum = L.reduce((a, x) => a + x.amt, 0), diff = (o.print_cost || 0) - sum; // ยอดรวมรายไฟล์ต้องเท่าค่าพิมพ์ที่ตั้งไว้ — ต่างกัน (เช่นเจ้าของตั้งราคาใหม่) ปรับที่บรรทัดสุดท้าย
       if (Math.abs(diff) >= 0.5 && L.length) L[L.length - 1].amt = Math.round((L[L.length - 1].amt + diff) * 100) / 100;
     } else push('งาน PRO: ' + (o.paper || '') + (cp > 1 ? ' × ' + cp + ' ชุด' : ''), o.print_cost || 0);
     if (o.bind_cost > 0) push('ค่าเข้าเล่ม', o.bind_cost);
   } else {
-    const typeOf = (f) => (o.ptype === 'mix' && f && f.cmode) ? (f.cmode === 'color' ? 'ปริ้นสี' : f.cmode === 'pages' ? 'ปริ้นผสม (สีหน้าที่ ' + (f.cpages || '-') + ')' : 'ปริ้นขาวดำ') : (RC_PTYPE[o.ptype] || (o.color ? 'ปริ้นสี' : 'ปริ้นขาวดำ'));
+    const typeOf = (f) => (o.ptype === 'mix' && f && f.cmode) ? (f.cmode === 'color' ? 'พิมพ์สี' : f.cmode === 'pages' ? 'พิมพ์ผสม (สีหน้าที่ ' + (f.cpages || '-') + ')' : 'พิมพ์ขาวดำ') : (RC_PTYPE[o.ptype] || (o.color ? 'พิมพ์สี' : 'พิมพ์ขาวดำ'));
     const descOf = (f) => { const sides = f.sides || o.sides, nup = f.nup || o.nup; return typeOf(f) + ' ' + (f.pages || 0) + ' หน้า' + (sides === 2 ? ' (หน้า-หลัง)' : '') + (nup > 1 ? ' ' + nup + ' หน้า/แผ่น' : '') + ' × ' + (f.copies || cp) + ' ชุด'; };
     const w = files.map(f => (Number(f.pages) || 0) * (f.copies || cp)), tot = w.reduce((a, x) => a + x, 0) || 1; let cum = 0, prev = 0; // สัดส่วน = หน้า × ชุดของไฟล์นั้น
-    files.forEach((f, i) => { cum += (o.print_cost || 0) * w[i] / tot; const amt = Math.round(cum) - Math.round(prev); prev = cum; push(descOf(f), amt); }); // แบ่งค่าปริ้นตามสัดส่วนหน้า รวมเท่าค่าปริ้นเป๊ะ
-    if (!files.length) push((RC_PTYPE[o.ptype] || 'งานปริ้น') + (cp > 1 ? ' × ' + cp + ' ชุด' : ''), o.print_cost || 0);
+    files.forEach((f, i) => { cum += (o.print_cost || 0) * w[i] / tot; const amt = Math.round(cum) - Math.round(prev); prev = cum; push(descOf(f), amt); }); // แบ่งค่าพิมพ์ตามสัดส่วนหน้า รวมเท่าค่าพิมพ์เป๊ะ
+    if (!files.length) push((RC_PTYPE[o.ptype] || 'งานพิมพ์') + (cp > 1 ? ' × ' + cp + ' ชุด' : ''), o.print_cost || 0);
     if (o.bind_cost > 0) push('ค่าเข้าเล่ม/เย็บ', o.bind_cost);
   }
   const ex = o.express ? 20 : 0, ship = Math.max(0, (Number(o.delivery_cost) || 0) - ex);
@@ -958,7 +958,7 @@ function ReceiptTool({ o, isPro, onClose }){
             </tbody>
           </table>
           <div style={{ marginTop: '34px', display: 'flex', alignItems: 'flex-end', gap: '20px', fontSize: '11.5px', color: '#333' }}>
-            <div style={{ flex: 1, lineHeight: 1.6 }}>หน่วยเงิน: บาท · MORE PRINT — เว็บปริ้นเอกสารพร้อมส่ง 24 ชม. รอบ มข.<br/>อ้างอิงออเดอร์ <span style={{ fontFamily: "'IBM Plex Mono',monospace" }}>{o.id}</span></div>
+            <div style={{ flex: 1, lineHeight: 1.6 }}>หน่วยเงิน: บาท · MORE PRINT — เว็บพิมพ์เอกสารพร้อมส่ง 24 ชม. รอบ มข.<br/>อ้างอิงออเดอร์ <span style={{ fontFamily: "'IBM Plex Mono',monospace" }}>{o.id}</span></div>
             <div style={{ flex: 'none', width: '220px', textAlign: 'center' }}>
               <div style={{ fontSize: '14px', borderBottom: '1px dotted #777', paddingBottom: '2px', minHeight: '20px' }}>{f.payee}</div>
               <div style={{ marginTop: '5px', fontSize: '12.5px' }}>ผู้รับเงิน (ลงชื่อ)</div>
@@ -975,8 +975,8 @@ function ReceiptTool({ o, isPro, onClose }){
 // บันทึกเป็นสถานะ "ส่งแล้ว" ทันที · source='line' (ฐานข้อมูลยอมเฉพาะแอดมิน) · ไม่แจ้งเตือนกลุ่ม LINE
 // งาน Pro = บันทึกยอดอย่างเดียว: ไม่ผูกร้านพาร์ทเนอร์ (partner ว่าง) → ร้านไม่เห็น · ไม่เข้าหน้าค่าคอม/ยอดค้างโอน
 const OA_GREEN = '#06C755';
-const OA_STD_TYPES = [['bw', 'ปริ้นขาวดำ'], ['color', 'ปริ้นสี'], ['mix', 'ปริ้นผสม']];
-const OA_PRO_TYPES = ['โปสเตอร์', 'เพลท', 'Postcard', 'พับครึ่ง (เข้าเล่ม/เมนู)', 'Portfolio', 'สติ๊กเกอร์', 'นามบัตร', 'Standy (สแตนดี้)', 'ปริ้นขนาดใหญ่ (แบบแปลน/เอกสาร)'];
+const OA_STD_TYPES = [['bw', 'พิมพ์ขาวดำ'], ['color', 'พิมพ์สี'], ['mix', 'พิมพ์ผสม']];
+const OA_PRO_TYPES = ['โปสเตอร์', 'เพลท', 'Postcard', 'พับครึ่ง (เข้าเล่ม/เมนู)', 'Portfolio', 'สติ๊กเกอร์', 'นามบัตร', 'Standy (สแตนดี้)', 'พิมพ์ขนาดใหญ่ (แบบแปลน/เอกสาร)'];
 const OA_ZONES = ['ในมอ', 'กังสดาล', 'หลังมอ', 'โคลัมโบ', 'นอกเขต'];
 const dtLocal = (d) => { const z = (n) => String(n).padStart(2, '0'); return d.getFullYear() + '-' + z(d.getMonth() + 1) + '-' + z(d.getDate()) + 'T' + z(d.getHours()) + ':' + z(d.getMinutes()); };
 const nightAt = (d) => { const h = d.getHours(); return h >= 22 || h < 6; };
@@ -1252,7 +1252,7 @@ function OrderCard({ o, idx, due, onAdvance, onRetreat, onApplyEdits, onCancel, 
                     {f.qty
                       ? <span style={css("flex:none;font-size:10.5px;font-weight:700;background:var(--accSoft);color:var(--acc);border:1px solid var(--acc);padding:3px 9px;border-radius:8px")}>ไฟล์ที่ {i + 1} · {f.stk ? f.stk.toUpperCase() + ' · ' : ''}{f.w && f.h ? f.w + '×' + f.h + ' ซม. · ' : ''}{f.qty} ชิ้น ({f.sh || Math.ceil(f.qty / 9)} {f.stk === 'pvc' ? 'ตร.ม.' : 'แผ่น'})</span>
                       : <span style={css("font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--sub);flex:none")}>{f.pages} หน้า</span>}
-                    {f.auto === false && <span title="เว็บนับหน้าไฟล์ชนิดนี้เองไม่ได้ ลูกค้าเป็นคนกรอกจำนวน — เปิดไฟล์เทียบจำนวนหน้าจริงก่อนปริ้น ถ้าไม่ตรงทักแชทเก็บเพิ่ม/คืนเงิน" style={css("flex:none;font-size:10.5px;font-weight:700;background:#fff7e0;color:#a16207;border:1px solid #f0c36d;padding:3px 8px;border-radius:8px")}>✏️ ลูกค้าระบุหน้าเอง — เช็คไฟล์ก่อนปริ้น</span>}
+                    {f.auto === false && <span title="เว็บนับหน้าไฟล์ชนิดนี้เองไม่ได้ ลูกค้าเป็นคนกรอกจำนวน — เปิดไฟล์เทียบจำนวนหน้าจริงก่อนพิมพ์ ถ้าไม่ตรงทักแชทเก็บเพิ่ม/คืนเงิน" style={css("flex:none;font-size:10.5px;font-weight:700;background:#fff7e0;color:#a16207;border:1px solid #f0c36d;padding:3px 8px;border-radius:8px")}>✏️ ลูกค้าระบุหน้าเอง — เช็คไฟล์ก่อนพิมพ์</span>}
                     {(o.ptype === 'color' || o.color) && f.scanned && <span style={css("flex:none;font-size:10.5px;font-weight:700;background:#e7f5ff;color:#1971c2;padding:3px 8px;border-radius:8px")}>{FI.drop(10)} สีเยอะ {f.heavy || 0}/{f.pages}</span>}
                     {f.drive_url
                       ? <a href={extUrl(f.drive_url)} target="_blank" rel="noreferrer" style={css("flex:none;font-size:11.5px;font-weight:700;background:#fff7e0;color:#a16207;border:1px solid #f0b429;padding:4px 10px;border-radius:8px;text-decoration:none")}>⬇ เปิดไฟล์ใหญ่</a>
@@ -1267,13 +1267,13 @@ function OrderCard({ o, idx, due, onAdvance, onRetreat, onApplyEdits, onCancel, 
                     <div style={css("margin-top:5px;font-size:10.5px;line-height:1.5;color:" + (f.auto ? "var(--sub)" : "#c92a2a") + ";font-weight:" + (f.auto ? "400" : "700"))}>
                       {f.auto
                         ? '✓ จำนวนหน้านับจากไฟล์จริงของลูกค้า — ไฟล์ใหญ่จากคลังไฟล์ภายนอก'
-                        : '⚠️ จำนวนหน้าลูกค้าแจ้งเอง — เปิดไฟล์ตรวจสอบก่อนปริ้น'}
+                        : '⚠️ จำนวนหน้าลูกค้าแจ้งเอง — เปิดไฟล์ตรวจสอบก่อนพิมพ์'}
                     </div>
                   )}
                   {(o.ptype === 'color' || o.ptype === 'mix' || o.color) && f.scanned === false && (
-                    <div style={css("margin-top:5px;font-size:10.5px;line-height:1.5;color:#c92a2a;font-weight:700")}>⚠️ ระบบสแกนปริมาณสีไม่ได้ — คิดเรทสีน้อยไว้ก่อน ตรวจไฟล์แล้วยืนยันราคาก่อนปริ้น</div>
+                    <div style={css("margin-top:5px;font-size:10.5px;line-height:1.5;color:#c92a2a;font-weight:700")}>⚠️ ระบบสแกนปริมาณสีไม่ได้ — คิดเรทสีน้อยไว้ก่อน ตรวจไฟล์แล้วยืนยันราคาก่อนพิมพ์</div>
                   )}
-                  {/* งานปริ้นผสม (เจ้าของสั่ง 2026-10-08): บอกชัดต่อไฟล์ว่าพิมพ์แบบไหน หน้าสีหน้าไหน — ทีมผลิตไม่ต้องเดา */}
+                  {/* งานพิมพ์ผสม (เจ้าของสั่ง 2026-10-08): บอกชัดต่อไฟล์ว่าพิมพ์แบบไหน หน้าสีหน้าไหน — ทีมผลิตไม่ต้องเดา */}
                   {f.cmode && (
                     <div style={css("margin-top:6px;font-size:11.5px;font-weight:700;line-height:1.6;border-radius:9px;padding:5px 10px;" + (f.cmode === 'bw' ? "background:var(--soft);color:var(--sub);border:1px solid var(--line)" : "background:var(--accSoft);color:var(--acc);border:1.5px solid var(--acc)"))}>
                       {f.cmode === 'bw' ? '📄 ขาวดำทั้งไฟล์ (' + f.pages + ' หน้า)'
@@ -1297,11 +1297,11 @@ function OrderCard({ o, idx, due, onAdvance, onRetreat, onApplyEdits, onCancel, 
                   </React.Fragment>
                 : <SpecBox rows={stdSpecRows(o, (o.files || [])[0])}/>}
               {o.ptype === 'mix' && new Date(o.created_at) < MIX_BUG_FIXED_AT && (o.files || []).length > 0 && (o.files || []).every(f => !f.cmode || f.cmode === 'bw') && (
-                <div style={css("margin-top:6px;background:#ffe3e3;border:1.5px solid #c92a2a;border-radius:10px;padding:7px 11px;font-size:11.5px;font-weight:700;color:#c92a2a;line-height:1.6")}>⚠️ ออเดอร์ปริ้นผสมก่อน 15 ต.ค. 69 — ระบบเคยบันทึกไฟล์ที่ลูกค้าเลือก "สี" เป็นขาวดำผิด (แก้แล้ว) ค่าปริ้น ฿{o.print_cost} คิดจากที่ลูกค้าเลือกจริง ถ้ามากกว่าจำนวนหน้าขาวดำแปลว่ามีไฟล์สี → เช็คกับลูกค้าก่อนปริ้นว่าไฟล์ไหน/หน้าไหนสี</div>
+                <div style={css("margin-top:6px;background:#ffe3e3;border:1.5px solid #c92a2a;border-radius:10px;padding:7px 11px;font-size:11.5px;font-weight:700;color:#c92a2a;line-height:1.6")}>⚠️ ออเดอร์พิมพ์ผสมก่อน 15 ต.ค. 69 — ระบบเคยบันทึกไฟล์ที่ลูกค้าเลือก "สี" เป็นขาวดำผิด (แก้แล้ว) ค่าพิมพ์ ฿{o.print_cost} คิดจากที่ลูกค้าเลือกจริง ถ้ามากกว่าจำนวนหน้าขาวดำแปลว่ามีไฟล์สี → เช็คกับลูกค้าก่อนพิมพ์ว่าไฟล์ไหน/หน้าไหนสี</div>
               )}
-              {o.ptype === 'pro' && !(Number(o.print_cost) > 0) && <div style={css("margin-top:4px;font-size:11px;font-weight:700;color:#c92a2a;line-height:1.5")}>งาน PRO ยังไม่มีเรทราคา — ตกลง/ยืนยันราคาปริ้นกับลูกค้าก่อนเริ่มงาน (ยอดที่ลูกค้าชำระแล้วคือค่าส่งเท่านั้น)</div>}
-              {/* หมายเหตุการปริ้นอยู่คู่ประเภทงาน · หมายเหตุการส่งอยู่คู่จุดส่ง — แยกชัดเจน (เจ้าของสั่ง 2026-10-07) */}
-              {o.note && <div style={css("margin-top:6px;background:#fff7e0;border:1px solid #f0c36d;border-radius:10px;padding:8px 11px;font-size:12.5px;color:#8a6d1a;line-height:1.6")}><b>📝 หมายเหตุการปริ้น (จากลูกค้า):</b> {o.note}</div>}
+              {o.ptype === 'pro' && !(Number(o.print_cost) > 0) && <div style={css("margin-top:4px;font-size:11px;font-weight:700;color:#c92a2a;line-height:1.5")}>งาน PRO ยังไม่มีเรทราคา — ตกลง/ยืนยันราคาพิมพ์กับลูกค้าก่อนเริ่มงาน (ยอดที่ลูกค้าชำระแล้วคือค่าส่งเท่านั้น)</div>}
+              {/* หมายเหตุการพิมพ์อยู่คู่ประเภทงาน · หมายเหตุการส่งอยู่คู่จุดส่ง — แยกชัดเจน (เจ้าของสั่ง 2026-10-07) */}
+              {o.note && <div style={css("margin-top:6px;background:#fff7e0;border:1px solid #f0c36d;border-radius:10px;padding:8px 11px;font-size:12.5px;color:#8a6d1a;line-height:1.6")}><b>📝 หมายเหตุการพิมพ์ (จากลูกค้า):</b> {o.note}</div>}
             </div>
           </div>
           <div style={css("display:flex;gap:10px;font-size:12px")}>
@@ -1321,7 +1321,7 @@ function OrderCard({ o, idx, due, onAdvance, onRetreat, onApplyEdits, onCancel, 
                     <div style={css("font-size:11px;color:var(--acc);margin-top:4px;font-weight:600")}>ลูกค้าส่งสลิปใหม่ (แนบครั้งแรกไม่สำเร็จ) · แตะดูรูปเต็ม</div>
                   </a>
                   {(o.status >= 1 && o.status < 4)
-                    ? <div className="slip-warn" style={css("margin-top:4px;font-size:12.5px;color:#c92a2a;font-weight:700")}>⚠️ ไม่มีสลิปแนบมา — โทรเช็คก่อนปริ้น</div>
+                    ? <div className="slip-warn" style={css("margin-top:4px;font-size:12.5px;color:#c92a2a;font-weight:700")}>⚠️ ไม่มีสลิปแนบมา — โทรเช็คก่อนพิมพ์</div>
                     : <div className="slip-warn" style={css("margin-top:4px;font-size:11.5px;color:var(--sub)")}>— ไม่มีสลิปในระบบ (ตอนสั่งแนบไม่สำเร็จจากเครื่องลูกค้า หรือออเดอร์ไม่มียอดโอน)</div>}
                 </div>}
             </div>
@@ -1331,7 +1331,7 @@ function OrderCard({ o, idx, due, onAdvance, onRetreat, onApplyEdits, onCancel, 
             <div style={css("flex:1;min-width:0")}>
             {/* งานด่วน: ฐานข้อมูลบวก ฿20 รวมใน delivery_cost — แตกโชว์แยกให้แอดมินเห็นชัดว่าใบนี้กดงานด่วน (เจ้าของสั่ง 2026-09-17) */}
             <div style={css("border:1.5px solid var(--acc);background:#fff;border-radius:12px;padding:9px 13px")}>{/* กรอบราคา (เจ้าของสั่ง 2026-10-01) */}
-            <div style={css("font-size:12.5px;color:var(--ink);font-weight:600")}>ค่าปริ้น <b style={css("font-family:'IBM Plex Mono',monospace;font-size:16px;color:var(--ink)")}>฿{o.print_cost}</b>{(o.bind_cost || 0) > 0 ? <React.Fragment> · เข้าเล่ม <b style={css("font-family:'IBM Plex Mono',monospace;font-size:16px;color:var(--ink)")}>฿{o.bind_cost}</b></React.Fragment> : null} · ค่าส่ง <b style={css("font-family:'IBM Plex Mono',monospace;font-size:16px;color:var(--ink)")}>฿{o.express ? Math.max(0, (o.delivery_cost || 0) - EXPRESS_FEE) : o.delivery_cost}</b>{o.express ? <span style={css("color:#c92a2a;font-weight:700")}> · ⚡ งานด่วน ฿{EXPRESS_FEE}</span> : null}{o.night_fee ? <span style={css("color:var(--warnInk);font-weight:700")}> · 🌙 กลางคืน ฿{o.night_fee}</span> : null}</div>
+            <div style={css("font-size:12.5px;color:var(--ink);font-weight:600")}>ค่าพิมพ์ <b style={css("font-family:'IBM Plex Mono',monospace;font-size:16px;color:var(--ink)")}>฿{o.print_cost}</b>{(o.bind_cost || 0) > 0 ? <React.Fragment> · เข้าเล่ม <b style={css("font-family:'IBM Plex Mono',monospace;font-size:16px;color:var(--ink)")}>฿{o.bind_cost}</b></React.Fragment> : null} · ค่าส่ง <b style={css("font-family:'IBM Plex Mono',monospace;font-size:16px;color:var(--ink)")}>฿{o.express ? Math.max(0, (o.delivery_cost || 0) - EXPRESS_FEE) : o.delivery_cost}</b>{o.express ? <span style={css("color:#c92a2a;font-weight:700")}> · ⚡ งานด่วน ฿{EXPRESS_FEE}</span> : null}{o.night_fee ? <span style={css("color:var(--warnInk);font-weight:700")}> · 🌙 กลางคืน ฿{o.night_fee}</span> : null}</div>
             {(o.discount || 0) > 0 && <div style={css("margin-top:4px;display:inline-block;font-size:11px;font-weight:700;background:#fff0f6;color:#c2255c;border:1px solid #faa2c1;padding:3px 10px;border-radius:8px")}>🎟️ ใช้โค้ดส่วนลด {o.coupon || ''} −฿{o.discount} (ยอดชำระหักส่วนลดแล้ว)</div>}
             {(o.adjustments || []).map((a, i) => (
               <div key={i} style={css("margin-top:2px;font-size:11.5px;color:var(--sub)")}>🛠️ {a.amt > 0 ? 'เพิ่ม' : 'ลด'} {a.label} <span style={css("font-family:'IBM Plex Mono',monospace;font-weight:700;color:" + (a.amt > 0 ? "#e8590c" : "#22c55e"))}>{a.amt > 0 ? '+' : '−'}฿{Math.abs(a.amt)}</span></div>
@@ -1542,7 +1542,7 @@ function OrderCard({ o, idx, due, onAdvance, onRetreat, onApplyEdits, onCancel, 
 }
 
 // ── แดชบอร์ดสรุปออเดอร์ (แท็บยอดขาย) — เลือกช่วงเวลา เทียบช่วงก่อนหน้า แยกสถานะ/ประเภทงาน/ช่องทางส่ง/ช่วงเวลาขายดี + ส่งออก CSV ──
-const jobLabelOf = (o) => o.ptype === 'pro' ? ((o.paper || 'PRO')) : (o.ptype ? (PTYPE_LABELS[o.ptype] || o.ptype) : (o.color ? 'ปริ้นสี' : 'ปริ้นขาวดำ'));
+const jobLabelOf = (o) => o.ptype === 'pro' ? ((o.paper || 'PRO')) : (o.ptype ? (PTYPE_LABELS[o.ptype] || o.ptype) : (o.color ? 'พิมพ์สี' : 'พิมพ์ขาวดำ'));
 const DASH_MONTHS = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
 const DASH_DAYS = ['อา', 'จ', 'อ', 'พ', 'พฤ', 'ศ', 'ส'];
 const DASH_PERIODS = [['today', 'วันนี้'], ['7d', '7 วัน'], ['30d', '30 วัน'], ['month', 'เดือนนี้'], ['year', 'ปีนี้'], ['custom', 'กำหนดเอง']];
@@ -1875,7 +1875,7 @@ function OrderDashboard({ rows, loading, loadedAt, onReload }){
 
   const exportCsv = () => {
     const STAT = ['ยกเลิก', ...STEPS];
-    const head = ['รหัสออเดอร์', 'วันที่', 'เวลา', 'ลูกค้า', 'เบอร์โทร', 'ประเภทงาน', 'จำนวนหน้า', 'สถานะ', 'รับงาน', 'ค่าปริ้น', 'ค่าเข้าเล่ม', 'ค่าส่ง(รวมด่วน)', 'ค่ากลางคืน', 'ยอดรวม'];
+    const head = ['รหัสออเดอร์', 'วันที่', 'เวลา', 'ลูกค้า', 'เบอร์โทร', 'ประเภทงาน', 'จำนวนหน้า', 'สถานะ', 'รับงาน', 'ค่าพิมพ์', 'ค่าเข้าเล่ม', 'ค่าส่ง(รวมด่วน)', 'ค่ากลางคืน', 'ยอดรวม'];
     const lines = [...d.cur.inR].sort((a, b) => (a.created_at > b.created_at ? 1 : -1)).map(o => {
       const t = new Date(o.created_at);
       return [o.id, ymd(t), t.toTimeString().slice(0, 5), ((o.customer_fname || '') + ' ' + (o.customer_lname || '')).trim(), custKey(o), jobLabelOf(o), pagesOf(o),
@@ -1892,7 +1892,7 @@ function OrderDashboard({ rows, loading, loadedAt, onReload }){
     [FI.receipt(11), 'ออเดอร์', cur.orders.toLocaleString(), cur.orders, prev.orders],
     [FI.chart(11), 'เฉลี่ย/ออเดอร์', baht(cur.avg), cur.avg, prev.avg],
     [FI.users(11), 'ลูกค้า (ไม่ซ้ำ)', cur.customers.toLocaleString(), cur.customers, prev.customers],
-    [FI.file(11), 'หน้าที่ปริ้น', cur.pages.toLocaleString(), cur.pages, prev.pages],
+    [FI.file(11), 'หน้าที่พิมพ์', cur.pages.toLocaleString(), cur.pages, prev.pages],
     [FI.x(11), 'ยกเลิก', cur.cancelled.length + ' (' + baht(cur.cancelValue) + ')', cur.cancelled.length, prev.cancelled.length, false, true]
   ];
   const jobsSorted = [...d.jobs].sort((a, b) => jobBy === 'revenue' ? b.rev - a.rev : b.n - a.n);
@@ -1966,7 +1966,7 @@ function OrderDashboard({ rows, loading, loadedAt, onReload }){
         {/* องค์ประกอบรายได้ */}
         <DashCard title={<React.Fragment>{FI.baht(13)} รายได้มาจากไหน</React.Fragment>}>
           <div style={css("display:flex;flex-direction:column;gap:7px;font-size:12.5px")}>
-            {[['ค่าปริ้น', d.comp.print], ['ค่าเข้าเล่ม/เย็บ', d.comp.bind], ['ค่าจัดส่ง', d.comp.ship], ['ค่างานด่วน', d.comp.express], ['ค่าบริการกลางคืน', d.comp.night], ...(Math.round(d.other) !== 0 ? [['ส่วนลด/ปรับราคา', d.other]] : [])].map(([l, v], i) => (
+            {[['ค่าพิมพ์', d.comp.print], ['ค่าเข้าเล่ม/เย็บ', d.comp.bind], ['ค่าจัดส่ง', d.comp.ship], ['ค่างานด่วน', d.comp.express], ['ค่าบริการกลางคืน', d.comp.night], ...(Math.round(d.other) !== 0 ? [['ส่วนลด/ปรับราคา', d.other]] : [])].map(([l, v], i) => (
               <div key={i} style={css("display:flex;justify-content:space-between;gap:8px")}>
                 <span style={css("color:var(--sub)")}>{l}</span>
                 <span style={css(mono + "font-weight:600")}>{v < 0 ? '−' + baht(-v) : baht(v)} <span style={css("color:var(--sub);font-weight:400;font-size:10.5px")}>{cur.revenue ? Math.round(v / cur.revenue * 100) : 0}%</span></span>
@@ -1975,7 +1975,7 @@ function OrderDashboard({ rows, loading, loadedAt, onReload }){
             <div style={css("display:flex;justify-content:space-between;border-top:1px dashed var(--line);padding-top:7px;font-weight:700")}><span>รวม</span><span style={css(mono + "color:var(--acc)")}>{baht(cur.revenue)}</span></div>
           </div>
           <div style={css("margin-top:10px;display:flex;flex-wrap:wrap;gap:6px")}>
-            {[[FI.drop(11), 'ปริ้นสี', d.color], [FI.zap(11), 'ส่งด่วน', d.express], [FI.moon(11), 'กลางคืน', d.night]].map(([ic, l, n], i) => (
+            {[[FI.drop(11), 'พิมพ์สี', d.color], [FI.zap(11), 'ส่งด่วน', d.express], [FI.moon(11), 'กลางคืน', d.night]].map(([ic, l, n], i) => (
               <span key={i} style={css("display:inline-flex;align-items:center;gap:4px;font-size:11px;background:var(--soft);border-radius:8px;padding:3px 9px")}>{ic} {l} <b style={css(mono)}>{n}</b></span>
             ))}
           </div>
@@ -2174,7 +2174,7 @@ function AlarmPopup({ list, line, onAck }){
 }
 
 // ── ส่วนแบ่งงาน Pro กับร้านพาร์ทเนอร์ — สูตรต้องตรงกับ pro.html / commission.html (แก้ต้องแก้ทั้ง 3 ไฟล์) ──
-const PRO_COMMISSION = 0.20; // เรา 20% / ร้าน 80% ของค่างานปริ้นหลังหักส่วนลด (ค่าส่งเป็นของ MORE PRINT)
+const PRO_COMMISSION = 0.20; // เรา 20% / ร้าน 80% ของค่างานพิมพ์หลังหักส่วนลด (ค่าส่งเป็นของ MORE PRINT)
 const proJobValue = (o) => (o.print_cost || 0) + (o.bind_cost || 0);
 const proPrintDisc = (o) => { const d = o.discount || 0; if (d <= 0) return 0; if ((o.delivery_cost || 0) > 0 && d === o.delivery_cost) return 0; return Math.min(d, proJobValue(o)); };
 const proShipAdj = (a) => a && (a.kind === 'ship' || /^(เปลี่ยนเป็นจัดส่งถึงที่|เปลี่ยนเป็นมารับเองที่ร้าน|แก้จุดส่ง)/.test(String(a.label || '')));
@@ -3076,13 +3076,13 @@ function AdminApp(){
   // ดาวน์โหลดข้อมูลออเดอร์ทั้งหมดเป็นไฟล์ CSV (เปิดใน Excel ได้ ภาษาไทยไม่เพี้ยน)
   const exportCsv = () => {
     const esc = (v) => { const s = v == null ? '' : String(v); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
-    const STL = ['ยกเลิก', 'รับออเดอร์', 'กำลังปริ้น', 'กำลังจัดส่ง', 'ส่งแล้ว'];
-    const head = ['รหัสออเดอร์', 'วันที่สั่ง', 'สถานะ', 'ชื่อลูกค้า', 'เบอร์ลูกค้า', 'อีเมล', 'ประเภทงาน', 'ขนาด', 'ด้านที่พิมพ์', 'ทิศทางกระดาษ', 'หน้าต่อแผ่น', 'เข้าเล่ม', 'จำนวนชุด', 'จำนวนหน้า', 'รายชื่อไฟล์', 'จุดส่ง', 'ที่อยู่', 'เบอร์ผู้รับ', 'เวลารับ', 'ส่งด่วน', 'กลางคืน', 'ค่าปริ้น', 'ค่าเข้าเล่ม', 'ค่าส่ง', 'ค่างานด่วน', 'ค่ากลางคืน', 'โค้ดส่วนลด', 'ส่วนลด', 'ยอดรวม', 'เหตุผลที่ยกเลิก',
-      'เวลารับออเดอร์', 'เวลาเริ่มปริ้น', 'เวลาออกส่ง/พร้อมรับ', 'เวลาส่งแล้ว', 'สั่ง→ส่งแล้ว (นาที)', 'ช่องทาง']; // เวลาตามที่กดปุ่มสถานะในหลังบ้าน (เก็บแค่ HH:MM)
+    const STL = ['ยกเลิก', 'รับออเดอร์', 'กำลังพิมพ์', 'กำลังจัดส่ง', 'ส่งแล้ว'];
+    const head = ['รหัสออเดอร์', 'วันที่สั่ง', 'สถานะ', 'ชื่อลูกค้า', 'เบอร์ลูกค้า', 'อีเมล', 'ประเภทงาน', 'ขนาด', 'ด้านที่พิมพ์', 'ทิศทางกระดาษ', 'หน้าต่อแผ่น', 'เข้าเล่ม', 'จำนวนชุด', 'จำนวนหน้า', 'รายชื่อไฟล์', 'จุดส่ง', 'ที่อยู่', 'เบอร์ผู้รับ', 'เวลารับ', 'ส่งด่วน', 'กลางคืน', 'ค่าพิมพ์', 'ค่าเข้าเล่ม', 'ค่าส่ง', 'ค่างานด่วน', 'ค่ากลางคืน', 'โค้ดส่วนลด', 'ส่วนลด', 'ยอดรวม', 'เหตุผลที่ยกเลิก',
+      'เวลารับออเดอร์', 'เวลาเริ่มพิมพ์', 'เวลาออกส่ง/พร้อมรับ', 'เวลาส่งแล้ว', 'สั่ง→ส่งแล้ว (นาที)', 'ช่องทาง']; // เวลาตามที่กดปุ่มสถานะในหลังบ้าน (เก็บแค่ HH:MM)
     const rows = orders.map(o => [
       o.id, new Date(o.created_at).toLocaleString('th-TH'), STL[o.status] != null ? STL[o.status] : o.status,
       ((o.customer_fname || '') + ' ' + (o.customer_lname || '')).trim(), o.customer_phone || '', o.customer_email || '',
-      o.ptype ? (PTYPE_LABELS[o.ptype] || o.ptype) : (o.color ? 'ปริ้นสี' : 'ปริ้นขาวดำ'), o.paper || '',
+      o.ptype ? (PTYPE_LABELS[o.ptype] || o.ptype) : (o.color ? 'พิมพ์สี' : 'พิมพ์ขาวดำ'), o.paper || '',
       o.sides === 2 ? 'หน้า-หลัง' : 'หน้าเดียว',
       o.orient ? (o.orient === 'landscape' ? 'แนวนอน' : 'แนวตั้ง') : '',
       o.nup ? o.nup + ' หน้า/แผ่น' : '',
@@ -3304,7 +3304,7 @@ function AdminApp(){
       {ringList.length > 0 && <AlarmPopup list={ringList} onAck={ackAlarm} line={(o) => (
         <React.Fragment>
           <div style={css("display:flex;justify-content:space-between;gap:8px;font-weight:800")}><span>{o.id}</span><span style={css("color:var(--acc)")}>{baht(o.total)}</span></div>
-          <div style={css("color:var(--sub)")}>คุณ{o.customer_fname || '-'} · {PTYPE_LABELS[o.ptype] || o.ptype || 'งานปริ้น'} · {(o.pickup || (o.addr || '').indexOf('🏪') === 0) ? 'มารับเองที่ร้าน' : 'จัดส่ง'}{o.express ? <b style={css("color:#c92a2a")}> · งานด่วน</b> : null}</div>
+          <div style={css("color:var(--sub)")}>คุณ{o.customer_fname || '-'} · {PTYPE_LABELS[o.ptype] || o.ptype || 'งานพิมพ์'} · {(o.pickup || (o.addr || '').indexOf('🏪') === 0) ? 'มารับเองที่ร้าน' : 'จัดส่ง'}{o.express ? <b style={css("color:#c92a2a")}> · งานด่วน</b> : null}</div>
         </React.Fragment>
       )}/>}
       {!DB && (
@@ -3325,7 +3325,7 @@ function AdminApp(){
             <div style={css("width:12px;height:12px;border-radius:50%;flex:none;background:" + (shopOpen === false ? "#e03131" : shopOpen ? "#2f9e44" : "var(--line)") + (shopOpen !== false ? ";animation:mpPulse 2s infinite" : ""))}></div>
             <div style={css("flex:1;min-width:0")}>
               <div style={css("font-size:13.5px;font-weight:800")}>งาน Standard: {shopOpen === false ? 'ปิดรับงาน Standard อยู่' : shopOpen ? 'เปิดรับปกติ' : 'กำลังเช็คสถานะ…'}</div>
-              <div style={css("margin-top:1px;font-size:10.5px;color:var(--sub)")}>{shopOpen === false ? 'ลูกค้าเลือกงาน Standard ไม่ได้ เห็นป้ายปิดรับงาน Standard ชั่วคราว — งาน PRO ยังสั่งได้ปกติ (ปิดทั้งร้าน = กดปิดทั้ง 2 ปุ่ม)' : 'ปิดเฉพาะงาน Standard (ปริ้นเอกสาร A4 ที่เราทำเอง) — งาน PRO ยังรับตามปกติ · ปิดทั้งร้าน = กดปิดทั้ง 2 ปุ่ม'}</div>
+              <div style={css("margin-top:1px;font-size:10.5px;color:var(--sub)")}>{shopOpen === false ? 'ลูกค้าเลือกงาน Standard ไม่ได้ เห็นป้ายปิดรับงาน Standard ชั่วคราว — งาน PRO ยังสั่งได้ปกติ (ปิดทั้งร้าน = กดปิดทั้ง 2 ปุ่ม)' : 'ปิดเฉพาะงาน Standard (พิมพ์เอกสาร A4 ที่เราทำเอง) — งาน PRO ยังรับตามปกติ · ปิดทั้งร้าน = กดปิดทั้ง 2 ปุ่ม'}</div>
             </div>
             <button onClick={toggleShop} disabled={shopBusy || shopOpen === null}
               style={css("flex:none;height:40px;padding:0 18px;border:none;border-radius:10px;font-size:13px;font-weight:800;cursor:pointer;font-family:inherit;color:#fff;background:" + (shopOpen === false ? "#2f9e44" : "#e03131") + ((shopBusy || shopOpen === null) ? ";opacity:.5" : ""))}>
@@ -3446,7 +3446,7 @@ function AdminApp(){
           <div style={css("font-size:13.5px;font-weight:700;margin-top:2px")}>จัดการร้านค้า</div>
           <div style={css("display:grid;grid-template-columns:1fr 1fr 1fr;gap:9px")}>
             {[
-              [FI.clipboard(19), 'ออเดอร์', 'จัดการงานปริ้น', () => setTab('orders'), 0],
+              [FI.clipboard(19), 'ออเดอร์', 'จัดการงานพิมพ์', () => setTab('orders'), 0],
               [FI.chat(19), 'ข้อความลูกค้า', 'คุยกับลูกค้า', () => setTab('chats'), Object.values(unreadMap).reduce((a, n) => a + n, 0)],
               [FI.users(19), 'ลูกค้าประจำ', 'ดูลูกค้าขาประจำ', () => setTab('customers'), 0],
               [FI.volume(19), 'โปรโมชั่น', 'แบนเนอร์/รีวิว', () => setTab('banners'), 0],
@@ -3757,7 +3757,7 @@ function AdminApp(){
             </div>
             <div>
               <div style={css("font-size:11px;font-weight:600;color:var(--sub)")}>ข้อความรอง (ไม่บังคับ)</div>
-              <input value={bnSub} onChange={e => setBnSub(e.target.value)} placeholder="เช่น เมื่อปริ้นครบ 100 หน้าขึ้นไป ถึงสิ้นเดือนนี้" style={css("margin-top:4px;width:100%;box-sizing:border-box;height:40px;border:1px solid var(--line);border-radius:10px;background:var(--soft);color:var(--ink);padding:0 12px;font-size:13px;outline:none")}/>
+              <input value={bnSub} onChange={e => setBnSub(e.target.value)} placeholder="เช่น เมื่อพิมพ์ครบ 100 หน้าขึ้นไป ถึงสิ้นเดือนนี้" style={css("margin-top:4px;width:100%;box-sizing:border-box;height:40px;border:1px solid var(--line);border-radius:10px;background:var(--soft);color:var(--ink);padding:0 12px;font-size:13px;outline:none")}/>
             </div>
             <div style={css("display:flex;gap:6px;align-items:center;flex-wrap:wrap")}>
               <span style={css("font-size:11px;font-weight:600;color:var(--sub)")}>สีพื้น:</span>
@@ -3809,9 +3809,9 @@ function AdminApp(){
             </div>
           ))}
 
-          {/* ── รูปงานจริง: อัปโหลดแล้วขึ้นแถบรูปใต้ปุ่ม "เริ่มสั่งปริ้น" หน้าแรกลูกค้าทันที ── */}
+          {/* ── รูปงานจริง: อัปโหลดแล้วขึ้นแถบรูปใต้ปุ่ม "เริ่มสั่งพิมพ์" หน้าแรกลูกค้าทันที ── */}
           <div style={css("background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px;box-shadow:var(--shadow);display:flex;flex-direction:column;gap:10px;margin-top:8px")}>
-            <div style={css("font-size:13px;font-weight:700")}>📸 รูปงานจริง (โชว์หน้าแรกลูกค้า ใต้ปุ่มเริ่มสั่งปริ้น)</div>
+            <div style={css("font-size:13px;font-weight:700")}>📸 รูปงานจริง (โชว์หน้าแรกลูกค้า ใต้ปุ่มเริ่มสั่งพิมพ์)</div>
             <div style={css("font-size:11px;color:var(--sub);line-height:1.6")}>ถ่ายรูปงานสวย ๆ จากร้านมาอัปโหลด ลูกค้าใหม่เห็นแล้วกล้าสั่งขึ้น · รูป<b>แนวตั้ง</b>สวยสุด · ⚠️ ระวังอย่าให้เห็นชื่อ/ข้อมูลส่วนตัวของลูกค้าในรูป</div>
             <input type="file" accept="image/*" onChange={e => setShFile((e.target.files || [])[0] || null)} style={css("font-size:12px;width:100%")}/>
             {shPreview && (
@@ -3847,7 +3847,7 @@ function AdminApp(){
             {clPreview && (
               <video src={clPreview} controls playsInline style={css("width:150px;aspect-ratio:9/16;border-radius:14px;background:#000;object-fit:contain")}/>
             )}
-            <input value={clCap} onChange={e => setClCap(e.target.value)} maxLength={80} placeholder="คำบรรยายใต้คลิป เช่น ปริ้นด่วนส่งไวใน 45 นาที (ไม่บังคับ)" style={css("width:100%;box-sizing:border-box;height:40px;border:1px solid var(--line);border-radius:10px;background:var(--soft);color:var(--ink);padding:0 12px;font-size:13px;outline:none;font-family:inherit")}/>
+            <input value={clCap} onChange={e => setClCap(e.target.value)} maxLength={80} placeholder="คำบรรยายใต้คลิป เช่น พิมพ์ด่วนส่งไวใน 45 นาที (ไม่บังคับ)" style={css("width:100%;box-sizing:border-box;height:40px;border:1px solid var(--line);border-radius:10px;background:var(--soft);color:var(--ink);padding:0 12px;font-size:13px;outline:none;font-family:inherit")}/>
             <button onClick={addClip} disabled={clBusy || !clFile}
               style={{ height: '44px', border: 'none', borderRadius: '12px', background: clFile ? 'var(--acc)' : '#A8C2F0', color: '#fff', fontSize: '14px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
               {clBusy ? 'กำลังอัปโหลดคลิป… (ไฟล์วิดีโอใช้เวลาหน่อยครับ)' : '＋ เพิ่มคลิป'}
