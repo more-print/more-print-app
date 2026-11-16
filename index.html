@@ -39,6 +39,36 @@
   /* จอกว้าง (คอม/แท็บเล็ตแนวนอน): ขยายคอลัมน์แอปให้ใช้พื้นที่มากขึ้น — มือถือคงเดิม (เจ้าของสั่ง 2026-09-15) */
   @media(min-width:900px){ .mp-shell{max-width:560px !important} }
   @media(min-width:1500px){ .mp-shell{max-width:640px !important} }
+  /* ── โหมดคอมพิวเตอร์ (เจ้าของสั่ง 2026-11-16): จอกว้าง ≥1024px = เว็บเต็มจอแบบเว็บทางการ — แถบเมนูบน · เนื้อหาหลายคอลัมน์ · ส่วนท้าย
+     มือถือไม่เปลี่ยน: กล่องห่อทั้งหมดเป็น display:contents (ไม่มีผลกับเลย์เอาต์เดิม) — สไตล์โหมดคอมทำงานเฉพาะใต้ .mp-desk ── */
+  .mp-main,.mp-bnwrap,.mp-homewrap,.mp-side,.mp-flowmain{display:contents}
+  .mp-shell.mp-desk{max-width:none !important}
+  .mp-desk .mp-bnwrap{display:block;width:100%;max-width:1200px;margin:0 auto;padding:0 12px;box-sizing:border-box}
+  .mp-desk .mp-main{display:block;width:100%;margin:0 auto;padding:12px 28px 40px;box-sizing:border-box;flex:1 0 auto}
+  .mp-desk .mp-dm-home{max-width:none;padding:0 0 40px}
+  .mp-desk .mp-dm-flow{max-width:1200px}
+  .mp-desk .mp-dm-page{max-width:880px}
+  .mp-desk .mp-dm-chat{max-width:880px;display:flex;flex-direction:column;padding:12px 28px 0;flex:1;min-height:0}
+  .mp-desk .mp-homewrap{display:block;max-width:1200px;margin:0 auto;padding:0 8px}
+  .mp-desk .mp-flowscr{display:grid !important;grid-template-columns:minmax(0,1fr) 380px;gap:28px !important;align-items:start;padding:22px 0 30px !important}
+  .mp-desk .mp-flowmain{display:flex;flex-direction:column;gap:14px;min-width:0}
+  .mp-desk .mp-side{display:flex;flex-direction:column;gap:14px;position:sticky;top:96px;min-width:0}
+  .mp-desk .mp-h-banners > div{width:calc(50% - 5px) !important}
+  .mp-desk .mp-h-reviews{display:grid;grid-template-columns:380px minmax(0,1fr);column-gap:24px;align-items:start;padding-top:40px !important}
+  .mp-desk .mp-h-reviews > :first-child{grid-column:1 / -1;font-size:22px !important;margin-bottom:16px !important}
+  .mp-desk .mp-h-reviews > .mp-rv-l{grid-column:1}
+  .mp-desk .mp-h-reviews > .mp-revlist{grid-column:2;grid-row:2 / span 2}
+  .mp-desk .mp-h-reviews .mp-revlist{display:grid !important;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px !important}
+  .mp-desk .mp-h-reviews .mp-revlist > :first-child{grid-column:1 / -1}
+  .mp-desk .mp-h-reviews .mp-revlist > button{grid-column:1 / -1}
+  .mp-dnav{position:relative;cursor:pointer;font-size:14.5px;font-weight:700;color:rgba(255,255,255,.78);padding:8px 2px;white-space:nowrap}
+  .mp-dnav:hover{color:#fff}
+  .mp-dnav.on{color:#fff}
+  .mp-dnav.on::after{content:'';position:absolute;left:0;right:0;bottom:-2px;height:3px;border-radius:3px;background:var(--accBright)}
+  .mp-dcard{background:var(--card);border:1px solid var(--line);border-radius:18px;box-shadow:var(--shadow)}
+  .mp-dbtn{display:inline-flex;align-items:center;justify-content:center;gap:8px;height:50px;padding:0 26px;border-radius:14px;font-size:15.5px;font-weight:800;cursor:pointer;border:none;font-family:inherit;transition:transform .12s ease,box-shadow .12s ease}
+  .mp-dbtn:hover{transform:translateY(-1px);box-shadow:0 6px 18px rgba(0,0,0,.18)}
+  .mp-dup:hover{border-color:var(--acc) !important;background:var(--accSoft) !important}
   img{max-width:100%}
 </style>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
@@ -593,6 +623,7 @@ class App extends React.Component {
     let rc0 = null; try { rc0 = JSON.parse(localStorage.getItem('mp_rc') || 'null'); } catch (e) {} // ข้อมูลผู้ซื้อในใบเสร็จที่เคยกรอก
     if (!rc0) try { const m = document.cookie.match(/(?:^|;\s*)mp_rc_bk=([^;]+)/); rc0 = m ? JSON.parse(decodeURIComponent(m[1])) : null; } catch (e) {} // สำรองในคุกกี้ — เครื่องล้าง storage เองก็ยังจำได้
     this.state = {
+      desk: !OA_MODE && typeof window !== 'undefined' && window.innerWidth >= 1024, // โหมดคอมพิวเตอร์ (จอกว้าง ≥1024px)
       screen: OA_MODE ? 'order' : 'home', files: [], proActive: 0, stepMax: 0, tier: 'standard', ptype: 'bw', paper: 'A4', sides: 1, orient: 'portrait', nup: 1, bind: 'none', copies: 1, note: '', shipNote: '',
       shopOpen: true, // สถานะรับออเดอร์จากหลังบ้าน (false = ร้านกดปิดรับชั่วคราว)
       shopProOpen: true, // ปิดรับเฉพาะงาน PRO จากหลังบ้าน (shop_status.pro_open — 2026-10-17) · Standard ยังสั่งได้
@@ -635,6 +666,9 @@ class App extends React.Component {
   }
 
   componentDidMount(){
+    // โหมดคอมพิวเตอร์: สลับเลย์เอาต์ตามความกว้างจอ (ย่อ/ขยายหน้าต่างก็เปลี่ยนตาม)
+    this._onResize = () => { const d = !OA_MODE && window.innerWidth >= 1024; if (d !== this.state.desk) this.setState({ desk: d }); };
+    window.addEventListener('resize', this._onResize);
     // เชื่อมฐานข้อมูลกลาง (Supabase) ถ้าตั้งค่าไว้ใน config.js
     // แยกเป็น 2 client: this.db ใช้กับข้อมูล/ไฟล์ (สิทธิ์ anon เสมอ), this.auth ใช้กับระบบสมาชิก
     const cfg = window.MP_CONFIG || {};
@@ -3022,8 +3056,10 @@ class App extends React.Component {
     const cancelled = !!s.order && s.trackStep === 0;
     return {
       night, clock: this.fmtTime(s.now),
+      desk: !!s.desk,
+      deskKind: s.screen === 'home' ? 'home' : (s.screen === 'order' || s.screen === 'delivery') ? 'flow' : s.screen === 'chat' ? 'chat' : 'page',
       rootSt: Object.assign(
-        { maxWidth: '430px', margin: '0 auto', minHeight: '100vh', background: 'var(--bg)', display: 'flex', flexDirection: 'column', color: 'var(--ink)' },
+        { maxWidth: s.desk ? 'none' : '430px', margin: '0 auto', minHeight: '100vh', background: 'var(--bg)', display: 'flex', flexDirection: 'column', color: 'var(--ink)' },
         night ? { '--bg': '#0B0F1A', '--card': '#141B2B', '--ink': '#EEF2FA', '--sub': '#93A0BC', '--line': '#26304A', '--soft': '#1B2438', '--acc': '#4D8DFF', '--accDark': '#2F6FE6', '--accBright': '#FADF29', '--accSoft': '#142A55', '--warnBg': '#26200e', '--warnLine': '#4a3d16', '--warnInk': '#f0cd6e', '--shadow': '0 2px 12px rgba(0,0,0,.5)' } : {}
       ),
       headStatus: night ? 'NIGHT MODE 22–06' : 'เปิด 24 ชม.',
@@ -4255,9 +4291,39 @@ class App extends React.Component {
   render(){
     const v = this.vals();
     return (
-      <div className="mp-shell" style={v.rootSt}>
+      <div className={'mp-shell' + (v.desk ? ' mp-desk' : '')} style={v.rootSt}>
 
-        {/* ── Header ── */}
+        {/* ── Header ── โหมดคอม: แถบเมนูบนเต็มจอ (โลโก้ · เมนู · บัญชี · ปุ่มสั่งปริ้น) · มือถือ: แถบเดิม */}
+        {v.desk ? (
+          <div style={css("background:var(--head);color:#fff;position:sticky;top:0;z-index:30;box-shadow:0 2px 14px rgba(0,0,0,.18)")}>
+            <div style={css("max-width:1200px;margin:0 auto;padding:0 28px;height:74px;display:flex;align-items:center;gap:30px;box-sizing:border-box")}>
+              <div onClick={v.backToHome} style={css("display:flex;align-items:center;gap:11px;cursor:pointer;flex:none")}>
+                <div style={css("width:46px;height:46px;border-radius:50%;background:#fff;display:flex;align-items:center;justify-content:center;overflow:hidden;box-shadow:0 0 0 2px rgba(255,255,255,.15)")}><img src="assets/logo-icon-blue.png" alt="" style={css("width:36px;height:auto;display:block")}/></div>
+                <div>
+                  <div style={css("font-family:'Montserrat',sans-serif;font-weight:800;font-size:20px;letter-spacing:1.5px;line-height:1")}><span style={css("color:var(--accBright)")}>MORE</span> PRINT</div>
+                  <div style={css("font-size:11px;color:rgba(255,255,255,.72);margin-top:4px")}>แพลตฟอร์มรับปริ้นงานออนไลน์ · ส่งถึงที่พักรอบ มข.</div>
+                </div>
+              </div>
+              {!v.isLogin && !v.oaMode
+                ? <nav style={css("display:flex;align-items:center;gap:28px;flex:1;justify-content:center")}>
+                    {v.navItems.map((n, i) => <div key={i} onClick={n.pick} className={'mp-dnav' + (n.on ? ' on' : '')}>{n.k === 'track' ? 'ติดตามออเดอร์' : n.label}</div>)}
+                  </nav>
+                : <div style={css("flex:1")}></div>}
+              <div style={css("display:flex;align-items:center;gap:12px;flex:none")}>
+                {v.userName
+                  ? <div onClick={v.openProfile} title="บัญชีของฉัน" style={css("display:flex;align-items:center;gap:8px;background:rgba(255,255,255,.12);padding:5px 13px 5px 5px;border-radius:99px;max-width:190px;cursor:pointer")}>
+                      {v.userPic
+                        ? <img src={v.userPic} alt="" referrerPolicy="no-referrer" style={css("width:30px;height:30px;border-radius:50%;object-fit:cover;display:block;flex:none;background:#444")}/>
+                        : <div style={css("width:30px;height:30px;border-radius:50%;background:var(--acc);color:#fff;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;flex:none")}>{v.userInitial}</div>}
+                      <span style={css("font-size:13.5px;font-weight:700;color:#fff;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0")}>{v.userFirst}</span>
+                      <span style={css("width:8px;height:8px;border-radius:50%;background:#22C55E;flex:none")}></span>
+                    </div>
+                  : !v.oaMode && !v.isLogin && <button className="mp-dbtn" onClick={v.goLogin} style={css("height:42px;padding:0 18px;font-size:14px;background:transparent;color:#fff;border:1.5px solid rgba(255,255,255,.55)")}>เข้าสู่ระบบ</button>}
+                {!v.oaMode && !v.isLogin && <button className="mp-dbtn" onClick={v.startOrder} style={css("height:42px;padding:0 20px;font-size:14px;background:var(--accBright);color:#0B1E4A")}>สั่งปริ้นเลย</button>}
+              </div>
+            </div>
+          </div>
+        ) : (
         <div style={css("background:var(--head);color:#fff;padding:14px 20px;display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;z-index:10")}>
           <div style={css("display:flex;align-items:center;gap:10px")}>
             {v.showBack && <button onClick={v.goBack} style={css("background:#2a2a2a;border:none;color:#fff;width:30px;height:30px;border-radius:8px;font-size:15px;cursor:pointer")}>‹</button>}
@@ -4275,7 +4341,9 @@ class App extends React.Component {
             : v.oaMode ? <div style={css("flex:none;background:#06C755;color:#fff;font-size:12px;font-weight:800;padding:6px 12px;border-radius:99px")}>ออเดอร์ LINE OA</div>
             : <div onClick={v.goLogin} style={css("flex:none;background:var(--acc);color:#fff;font-size:12.5px;font-weight:700;padding:7px 14px;border-radius:99px;cursor:pointer")}>เข้าสู่ระบบ</div>}
         </div>
+        )}
 
+        <div className="mp-bnwrap">{/* โหมดคอม: ป้ายประกาศอยู่ในแนวกว้าง 1200px · มือถือ display:contents */}
         {/* ── ป้ายร้านปิดรับออเดอร์ชั่วคราว (ร้านกดปิดจากหลังบ้าน) ── */}
         {v.shopClosed && (
           <div style={css("margin:14px 20px 0;background:#ffe3e3;border:1.5px solid #ffa8a8;border-radius:12px;padding:11px 14px;display:flex;gap:10px;align-items:center")}>
@@ -4342,6 +4410,9 @@ class App extends React.Component {
           </div>
         )}
 
+        </div>
+
+        <div className={'mp-main' + (v.desk ? ' mp-dm-' + v.deskKind : '')}>{/* โหมดคอม: กล่องเนื้อหากว้างตามหน้า (หน้าแรกเต็มจอ · สั่งปริ้น 2 คอลัมน์ · หน้าอื่น 880px) */}
         {/* ── Login / Register ── */}
         {v.isLogin && (
           <div style={css("padding:28px 24px;display:flex;flex-direction:column;gap:14px;align-items:stretch")}>
@@ -4410,7 +4481,80 @@ class App extends React.Component {
         {/* ── Home ── */}
         {v.isHome && (
           <React.Fragment>
-            {v.userName
+            {/* ── หน้าแรกโหมดคอม: แถบฮีโร่เต็มจอ (ข้อความหลัก + ปุ่ม + ตัวเลขความน่าเชื่อถือ | กล่องอัปโหลด) + ขั้นตอน 4 ขั้นแนวนอน ── */}
+            {v.desk && (
+              <div style={css("background:linear-gradient(135deg,var(--head) 0%,#0B3FA8 55%,#0B1E4A 100%);color:#fff")}>
+                <div style={css("max-width:1200px;margin:0 auto;padding:54px 36px 58px;box-sizing:border-box;display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,.85fr);gap:48px;align-items:center")}>
+                  <div>
+                    <div style={css("display:inline-flex;align-items:center;gap:8px;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.22);padding:6px 14px;border-radius:99px;font-size:13px;font-weight:700")}><span style={css("width:8px;height:8px;border-radius:50%;background:#22C55E")}></span>เปิดรับออเดอร์ 24 ชั่วโมง · ส่งถึงที่พักรอบ มข.</div>
+                    <h1 style={css("margin:20px 0 0;font-size:46px;line-height:1.22;font-weight:800;letter-spacing:-.3px")}>ส่งไฟล์ตอนนี้<br/><span style={css("color:var(--accBright)")}>เอกสารถึงมือ</span> ทุกที่รอบ มข.</h1>
+                    <p style={css("margin:16px 0 0;font-size:17px;line-height:1.7;color:rgba(255,255,255,.86);max-width:560px")}>อัปโหลดไฟล์ PDF ระบบนับหน้าและคิดราคาให้อัตโนมัติ ชำระผ่านพร้อมเพย์ แล้วรอรับงานถึงหน้าห้องพัก หรือมารับเองที่ร้านได้ฟรี</p>
+                    <div style={css("margin-top:20px;display:flex;gap:10px;flex-wrap:wrap")}>
+                      {[['ขาวดำ', '฿1 / หน้า'], ['ปริ้นสี', '฿5–7 / หน้า'], ['ค่าส่งเริ่มต้น', '฿' + v.deliveryBase]].map(([a, b]) => (
+                        <div key={a} style={css("background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);border-radius:12px;padding:9px 15px")}>
+                          <div style={css("font-size:12px;color:rgba(255,255,255,.72)")}>{a}</div>
+                          <div style={css("font-family:'IBM Plex Mono',monospace;font-size:17px;font-weight:700")}>{b}</div>
+                        </div>
+                      ))}
+                    </div>
+                    <div style={css("margin-top:28px;display:flex;gap:12px;flex-wrap:wrap")}>
+                      <button className="mp-dbtn" onClick={v.startOrder} style={css("background:var(--accBright);color:#0B1E4A;height:54px;padding:0 30px;font-size:16.5px")}>เริ่มสั่งปริ้น →</button>
+                      <button className="mp-dbtn" onClick={v.goTrack} style={css("background:transparent;color:#fff;border:1.5px solid rgba(255,255,255,.6);height:54px;padding:0 26px;font-size:16px")}>ติดตามออเดอร์</button>
+                    </div>
+                    <div style={css("margin-top:34px;display:flex;gap:34px;flex-wrap:wrap")}>
+                      {v.statDelivered >= 20 && <div><div style={css("font-family:'IBM Plex Mono',monospace;font-size:28px;font-weight:700;color:var(--accBright)")}>{v.statDelivered.toLocaleString()}+</div><div style={css("font-size:13px;color:rgba(255,255,255,.75)")}>ออเดอร์ส่งสำเร็จ</div></div>}
+                      {v.revCount > 0 && <div><div style={css("font-family:'IBM Plex Mono',monospace;font-size:28px;font-weight:700;color:var(--accBright)")}>★ {v.revAvg}</div><div style={css("font-size:13px;color:rgba(255,255,255,.75)")}>จาก {v.revCount} รีวิวจริง</div></div>}
+                      <div><div style={css("font-family:'IBM Plex Mono',monospace;font-size:28px;font-weight:700;color:var(--accBright)")}>24 ชม.</div><div style={css("font-size:13px;color:rgba(255,255,255,.75)")}>เปิดรับออเดอร์ทุกวัน</div></div>
+                    </div>
+                  </div>
+                  <div className="mp-dcard" style={css("color:var(--ink);padding:26px;box-shadow:0 18px 48px rgba(0,0,0,.28);border:none")}>
+                    <div style={css("display:flex;justify-content:space-between;align-items:center;gap:10px")}>
+                      <div style={css("font-size:18px;font-weight:800")}>เริ่มสั่งปริ้นได้ทันที</div>
+                      {v.userName
+                        ? <div style={css("font-size:13px;color:var(--sub);white-space:nowrap;overflow:hidden;text-overflow:ellipsis")}>สวัสดี คุณ<b style={css("color:var(--ink)")}>{v.userName}</b> 👋</div>
+                        : <button onClick={v.goLogin} style={css("border:none;background:none;font-size:13px;font-weight:700;text-decoration:underline;cursor:pointer;color:var(--acc);font-family:inherit")}>เข้าสู่ระบบ</button>}
+                    </div>
+                    <div className="mp-dup" onClick={v.startOrder} style={css("margin-top:16px;border:2px dashed var(--line);border-radius:16px;background:var(--soft);padding:34px 18px;display:flex;flex-direction:column;align-items:center;gap:10px;cursor:pointer;transition:all .15s ease")}>
+                      <div style={css("width:64px;height:64px;border-radius:16px;background:#fff;border:1px solid var(--line);display:flex;align-items:center;justify-content:center;overflow:hidden")}><img src="assets/logo-icon-blue.png" alt="" style={css("width:46px;height:auto;display:block")}/></div>
+                      <div style={css("font-weight:800;font-size:16px;color:var(--acc)")}>คลิกเพื่ออัปโหลดไฟล์ PDF</div>
+                      <div style={css("font-size:13px;color:var(--sub)")}>นับหน้า สแกนปริมาณสี และคิดราคาให้อัตโนมัติ</div>
+                    </div>
+                    {v.hasOrder
+                      ? <div onClick={v.goTrack} style={css("margin-top:14px;border:1px solid var(--line);border-radius:14px;padding:13px 15px;cursor:pointer")}>
+                          <div style={css("display:flex;justify-content:space-between;align-items:center;gap:8px")}><div style={css("font-size:13.5px;font-weight:700")}>ออเดอร์ล่าสุด {v.orderId}</div><div style={v.trackBadgeSt}>{v.trackLabel}</div></div>
+                          <div style={css("margin-top:8px;height:6px;background:var(--soft);border-radius:99px;overflow:hidden")}><div style={v.trackBarSt}></div></div>
+                          <div style={css("margin-top:6px;font-size:12.5px;color:var(--sub)")}>คลิกเพื่อดูสถานะจัดส่ง →</div>
+                        </div>
+                      : <div style={css("margin-top:14px;display:flex;gap:8px;flex-wrap:wrap;justify-content:center")}>
+                          {['📄 PDF เท่านั้น', '🔢 นับหน้าอัตโนมัติ', '🐘 ไฟล์ใหญ่ก็ส่งได้'].map(t => <span key={t} style={css("font-size:12px;font-weight:700;background:var(--soft);border-radius:99px;padding:5px 11px;color:var(--sub)")}>{t}</span>)}
+                        </div>}
+                  </div>
+                </div>
+              </div>
+            )}
+            {v.desk && (
+              <div style={css("max-width:1200px;margin:0 auto;padding:44px 28px 4px;box-sizing:border-box")}>
+                <div style={css("text-align:center")}>
+                  <div style={css("font-size:13px;font-weight:800;letter-spacing:2px;color:var(--acc)")}>HOW IT WORKS</div>
+                  <div style={css("margin-top:6px;font-size:28px;font-weight:800")}>สั่งปริ้นง่าย ๆ ใน 4 ขั้นตอน</div>
+                </div>
+                <div style={css("margin-top:24px;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px")}>
+                  {[['1', 'file', 'อัปโหลดไฟล์ PDF', 'ระบบนับหน้าและคำนวณราคาให้ทันที'],
+                    ['2', 'tool', 'เลือกแบบงาน', 'ขาวดำ/สี หน้าเดียว-หน้าหลัง หรืองานพิมพ์พิเศษ Pro'],
+                    ['3', 'pin', 'เลือกวิธีรับงาน', 'ปักหมุดให้ไปส่งถึงที่พัก หรือมารับเองที่ร้าน (ฟรี)'],
+                    ['4', 'card', 'ชำระเงิน แนบสลิป', 'สแกนพร้อมเพย์ แล้วติดตามสถานะสด ๆ จนงานถึงมือ']].map((st, i) => (
+                    <div key={i} className="mp-dcard" style={css("padding:22px 20px;position:relative")}>
+                      <div style={css("position:absolute;top:16px;right:18px;font-family:'IBM Plex Mono',monospace;font-size:30px;font-weight:700;color:var(--accSoft)")}>{st[0]}</div>
+                      <div style={css("width:46px;height:46px;border-radius:13px;background:var(--accSoft);color:var(--acc);display:flex;align-items:center;justify-content:center")}>{fi(st[1], 22)}</div>
+                      <div style={css("margin-top:14px;font-size:16px;font-weight:800")}>{st[2]}</div>
+                      <div style={css("margin-top:5px;font-size:13.5px;color:var(--sub);line-height:1.6")}>{st[3]}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            <div className="mp-homewrap">{/* โหมดคอม: เนื้อหาหน้าแรกส่วนที่เหลือกว้าง 1200px · มือถือ display:contents */}
+            {!v.desk && (v.userName
               ? <div style={css("margin:14px 20px 0;display:flex;justify-content:space-between;align-items:center")}>
                   <div style={css("font-size:13px;color:var(--sub)")}>สวัสดี, <b style={css("color:var(--ink)")}>คุณ {v.userName}</b> 👋</div>
                   <button onClick={v.doLogout} style={css("border:none;background:none;font-size:12px;text-decoration:underline;cursor:pointer;color:" + (v.logoutArm ? "#c92a2a" : "var(--sub)") + (v.logoutArm ? ";font-weight:700" : ""))}>{v.logoutArm ? 'แตะอีกครั้งเพื่อยืนยัน' : 'เปลี่ยนบัญชี'}</button>
@@ -4418,9 +4562,9 @@ class App extends React.Component {
               : <div style={css("margin:14px 20px 0;display:flex;justify-content:space-between;align-items:center")}>
                   <div style={css("font-size:12.5px;color:var(--sub)")}>ชมเว็บได้เลยครับ · ล็อกอินตอนกดสั่งปริ้น</div>
                   <button onClick={v.goLogin} style={css("border:none;background:none;font-size:12.5px;font-weight:700;text-decoration:underline;cursor:pointer;color:var(--acc)")}>เข้าสู่ระบบ / สมัคร</button>
-                </div>}
+                </div>)}
             {v.banners.length > 0 && (
-              <div style={css("margin-top:14px;display:flex;gap:10px;overflow-x:auto;padding:0 20px 4px;scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch")}>
+              <div className="mp-h-banners" style={css("margin-top:14px;display:flex;gap:10px;overflow-x:auto;padding:0 20px 4px;scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch")}>
                 {v.banners.map((b, i) => (
                   <div key={i} style={{ flex: 'none', width: v.banners.length > 1 ? '86%' : '100%', scrollSnapAlign: 'center', borderRadius: '16px', overflow: 'hidden', boxShadow: 'var(--shadow)' }}>
                     {b.image_path
@@ -4455,7 +4599,7 @@ class App extends React.Component {
                 </div>
               </React.Fragment>
             )}
-            <div style={css("padding:20px 20px 0")}>
+            {!v.desk && <div style={css("padding:20px 20px 0")}>
               <div style={css("font-size:23px;font-weight:700;line-height:1.35;text-wrap:pretty")}>ส่งไฟล์ตอนนี้<br/>เอกสารถึงมือ ทุกที่รอบ มข.</div>
               <div style={css("margin-top:6px;font-size:13px;color:var(--sub)")}>ปริ้นขาวดำ 1 บาท · ปริ้นสี 5 บาท · ส่งเริ่มต้น {v.deliveryBase} บาท</div>
               <div onClick={v.startOrder} style={css("margin-top:16px;border:2px dashed var(--line);border-radius:16px;background:var(--card);padding:22px 16px;display:flex;flex-direction:column;align-items:center;gap:8px;cursor:pointer;box-shadow:var(--shadow)")}>
@@ -4464,9 +4608,9 @@ class App extends React.Component {
                 <div style={css("font-size:12.5px;color:var(--sub)")}>ไฟล์ PDF · นับหน้าให้อัตโนมัติ</div>
               </div>
               <button onClick={v.startOrder} style={css("margin-top:12px;width:100%;height:50px;border:none;border-radius:14px;background:var(--acc);color:#fff;font-size:16px;font-weight:700;cursor:pointer")}>เริ่มสั่งปริ้น · คำนวณราคาทันที</button>
-            </div>
+            </div>}
             {/* ── ตัวนับความน่าเชื่อถือ (เจ้าของสั่ง 2026-09-22): ตัวเลขจริงทั้งหมด — ออเดอร์ส่งสำเร็จจาก RPC public_stats (ต่ำกว่า 20 = ซ่อนการ์ดไว้ก่อน), ดาวจากตาราง reviews ── */}
-            <div style={css("padding:14px 20px 0;display:flex;gap:10px")}>
+            {!v.desk && <div style={css("padding:14px 20px 0;display:flex;gap:10px")}>
               {v.statDelivered >= 20 && (
                 <div style={css("flex:1;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 8px;text-align:center;box-shadow:var(--shadow)")}>
                   <div style={css("font-family:'IBM Plex Mono',monospace;font-size:19px;font-weight:600;color:var(--acc);line-height:1.1")}>{v.statDelivered.toLocaleString()}+</div>
@@ -4483,7 +4627,7 @@ class App extends React.Component {
                 <div style={css("font-family:'IBM Plex Mono',monospace;font-size:19px;font-weight:600;color:var(--acc);line-height:1.1")}>24 ชม.</div>
                 <div style={css("font-size:11.5px;color:var(--sub);margin-top:4px;line-height:1.35")}>เปิดรับออเดอร์<br/>ทุกวัน</div>
               </div>
-            </div>
+            </div>}
             {/* ── รูปงานจริงจากร้าน: แถว banners ที่ color='showcase' — เจ้าของอัปโหลด/ลบเองจากแท็บโปรโมชั่นของ admin ── */}
             {v.shots.length > 0 && (
               <React.Fragment>
@@ -4509,7 +4653,7 @@ class App extends React.Component {
                 ))}
               </div>
             )}
-            {v.hasOrder && (
+            {v.hasOrder && !v.desk && (
               <div onClick={v.goTrack} style={css("margin:16px 20px 0;background:var(--card);border:1px solid var(--line);border-radius:16px;padding:14px 16px;cursor:pointer;box-shadow:var(--shadow)")}>
                 <div style={css("display:flex;justify-content:space-between;align-items:center")}><div style={css("font-size:13px;font-weight:700")}>ออเดอร์ล่าสุด {v.orderId}</div><div style={v.trackBadgeSt}>{v.trackLabel}</div></div>
                 <div style={css("margin-top:8px;height:6px;background:var(--soft);border-radius:99px;overflow:hidden")}><div style={v.trackBarSt}></div></div>
@@ -4517,7 +4661,7 @@ class App extends React.Component {
               </div>
             )}
             {/* วิธีสั่งปริ้น 4 ขั้นตอน — ลูกค้าใหม่เห็นภาพรวมการใช้งานทันที (จากรีวิวลูกค้า 2026-09-02) */}
-            <div style={css("padding:18px 20px 0")}>
+            {!v.desk && <div style={css("padding:18px 20px 0")}>
               <div style={css("font-size:13px;font-weight:700;margin-bottom:9px;display:flex;align-items:center;gap:6px")}><span style={css("display:flex;color:var(--acc)")}>{fi('compass', 15)}</span>สั่งปริ้นง่ายๆ ใน 4 ขั้นตอน</div>
               <div style={css("background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px;box-shadow:var(--shadow);display:flex;flex-direction:column;gap:11px")}>
                 {[['1', 'file', 'อัปโหลดไฟล์ PDF', 'ระบบนับหน้า คำนวณราคาให้ทันที'],
@@ -4533,12 +4677,12 @@ class App extends React.Component {
                   </div>
                 ))}
               </div>
-            </div>
+            </div>}
             {/* ── รีวิวจากลูกค้า: ให้ดาว+คอมเมนต์ได้ตรงนี้เลย (ซ่อนจนกว่าตาราง reviews พร้อม) ── */}
-            {v.revReady && <div style={css("padding:18px 20px 0")}>
+            {v.revReady && <div className="mp-h-reviews" style={css("padding:18px 20px 0")}>
               <div style={css("font-size:13px;font-weight:700;margin-bottom:9px;display:flex;align-items:center;gap:6px")}><span style={css("display:flex;color:#f5a623")}>{fi('star', 15)}</span>รีวิวจากลูกค้า</div>
               {v.revCount > 0 && (
-                <div style={css("background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px;margin-bottom:10px;display:flex;align-items:center;gap:16px;box-shadow:var(--shadow)")}>
+                <div className="mp-rv-l" style={css("background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px;margin-bottom:10px;display:flex;align-items:center;gap:16px;box-shadow:var(--shadow)")}>
                   <div style={css("text-align:center;flex:none")}>
                     <div style={css("font-size:36px;font-weight:800;line-height:1")}>{v.revAvg}</div>
                     <div style={css("font-size:11.5px;color:var(--sub);margin-top:3px")}>จาก 5</div>
@@ -4550,7 +4694,7 @@ class App extends React.Component {
                 </div>
               )}
               {!v.revDone ? (
-                <div style={css("background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 14px;margin-bottom:10px")}>
+                <div className="mp-rv-l" style={css("background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 14px;margin-bottom:10px")}>
                   <div style={css("font-size:13px;font-weight:600;color:var(--ink)")}>ให้คะแนนร้านเราหน่อยครับ</div>
                   <div style={css("margin-top:6px;display:flex;gap:4px")}>
                     {[1, 2, 3, 4, 5].map(n => <span key={n} onClick={v.setRevStars(n)} style={css("font-size:28px;line-height:1;cursor:pointer;color:" + (n <= v.revStars ? "#f5a623" : "var(--line)"))}>★</span>)}
@@ -4559,10 +4703,10 @@ class App extends React.Component {
                   <button onClick={v.sendHomeReview} style={css("margin-top:8px;width:100%;height:40px;border:none;border-radius:10px;background:var(--acc);color:#fff;font-size:13px;font-weight:700;cursor:pointer")}>ส่งรีวิว</button>
                 </div>
               ) : (
-                <div style={css("background:var(--accSoft);border:1px solid var(--acc);border-radius:12px;padding:10px 14px;margin-bottom:10px;font-size:12.5px;color:var(--acc);font-weight:600")}>🙏 ขอบคุณสำหรับรีวิวครับ</div>
+                <div className="mp-rv-l" style={css("background:var(--accSoft);border:1px solid var(--acc);border-radius:12px;padding:10px 14px;margin-bottom:10px;font-size:12.5px;color:var(--acc);font-weight:600")}>🙏 ขอบคุณสำหรับรีวิวครับ</div>
               )}
               {v.reviews.length > 0 && (
-                <div style={css("display:flex;flex-direction:column;gap:8px")}>
+                <div className="mp-revlist" style={css("display:flex;flex-direction:column;gap:8px")}>
                   {/* แท็บแยกหมวด: งานจริง (สั่งออเดอร์แล้วรีวิว — โชว์ประเภทงาน) vs ทั่วไป (ฟอร์มหน้าแรก) */}
                   <div style={css("display:flex;gap:7px")}>
                     <span onClick={v.setRevTab('real')} style={css("flex:1;text-align:center;padding:9px 8px;border-radius:99px;font-size:12.5px;font-weight:700;cursor:pointer;" + (v.revTab === 'real' ? "border:1.5px solid var(--acc);background:var(--accSoft);color:var(--acc)" : "border:1px solid var(--line);background:var(--card);color:var(--sub)"))}>✓ ออเดอร์รีวิว ({v.revReal.length})</span>
@@ -4589,17 +4733,19 @@ class App extends React.Component {
                 </div>
               )}
             </div>}
-            <div onClick={() => window.open((window.MP_CONFIG || {}).LINE_OA_URL || 'https://line.me/R/ti/p/@346kifvy', '_blank')} style={css("margin:18px 20px 20px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 16px;display:flex;align-items:center;gap:12px;cursor:pointer")}>
+            {!v.desk && <div onClick={() => window.open((window.MP_CONFIG || {}).LINE_OA_URL || 'https://line.me/R/ti/p/@346kifvy', '_blank')} style={css("margin:18px 20px 20px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 16px;display:flex;align-items:center;gap:12px;cursor:pointer")}>
               <div style={css("width:38px;height:38px;border-radius:10px;background:#06c755;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px")}>LINE</div>
               <div style={css("flex:1")}><div style={css("font-size:13px;font-weight:600")}>ติดต่อสอบถามทาง LINE</div><div style={css("font-size:12px;color:var(--sub)")}>LINE OA: @346kifvy — แตะเพื่อแชทกับร้าน</div></div>
               <div style={css("color:var(--sub)")}>›</div>
-            </div>
+            </div>}
+            </div>{/* /mp-homewrap */}
           </React.Fragment>
         )}
 
         {/* ── Order (Step 1) ── */}
         {v.isOrder && (
-          <div style={css("padding:18px 20px 110px;display:flex;flex-direction:column;gap:14px")}>
+          <div className="mp-flowscr" style={css("padding:18px 20px 110px;display:flex;flex-direction:column;gap:14px")}>
+            <div className="mp-flowmain">{/* โหมดคอม: คอลัมน์ซ้าย */}
             <MpStepper cur={1} max={v.stepMax} onJump={v.jumpStep}/>
             {v.alertBn && <div style={css("background:#fff0f0;border:1px solid #ffa8a8;border-radius:12px;padding:10px 14px;font-size:13px;color:#c92a2a;font-weight:700;line-height:1.5")}>⚠️ {v.alertBn.title}</div>}
             <input type="file" multiple accept=".pdf,application/pdf" ref={this.fileRef} onChange={v.onFiles} style={css("display:none")}/>
@@ -4963,6 +5109,8 @@ class App extends React.Component {
               <textarea value={v.noteText} onChange={v.setNote} rows={2} maxLength={300}
                 style={css("width:100%;box-sizing:border-box;border:1px solid var(--line);border-radius:10px;background:var(--soft);color:var(--ink);padding:10px 12px;font-size:13px;outline:none;resize:none;font-family:inherit;line-height:1.5")}></textarea>
             </div>
+            </div>{/* /mp-flowmain */}
+            <div className="mp-side">{/* โหมดคอม: คอลัมน์ขวา (สรุปราคา + ปุ่มไปต่อ) ติดตามเลื่อน */}
             <div style={css("background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px")}>
               <div style={css("font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:var(--sub);letter-spacing:1px")}>ราคาโดยประมาณ</div>
               <div style={css("margin-top:8px;display:flex;flex-direction:column;gap:5px;font-size:12.5px")}>
@@ -4984,12 +5132,14 @@ class App extends React.Component {
               </div>
             )}
             <button onClick={v.toDelivery} style={css("width:100%;height:50px;border:none;border-radius:14px;color:#fff;font-size:15px;font-weight:700;cursor:pointer;background:" + (v.bigUp ? "#b8b8ad" : "var(--acc)"))}>{v.bigUp ? '⏳ รอไฟล์ใหญ่อัปโหลด… ' + v.bigUp.pct + '%' : 'ต่อไป: จุดส่ง & เวลา →'}</button>
+            </div>{/* /mp-side */}
           </div>
         )}
 
         {/* ── Delivery (Step 2) ── */}
         {v.isDelivery && (
-          <div style={css("padding:18px 20px 110px;display:flex;flex-direction:column;gap:14px")}>
+          <div className="mp-flowscr" style={css("padding:18px 20px 110px;display:flex;flex-direction:column;gap:14px")}>
+            <div className="mp-flowmain">{/* โหมดคอม: คอลัมน์ซ้าย */}
             <MpStepper cur={2} max={v.stepMax} onJump={v.jumpStep}/>
             <div style={css("background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px;box-shadow:var(--shadow)")}>
               {/* ขั้นที่ 1 การรับงาน — ใช้ร่วมทั้ง Standard และ Pro (เจ้าของสั่ง 2026-10-09 ให้เหมือนกัน) */}
@@ -5220,6 +5370,8 @@ class App extends React.Component {
                 {v.express && <div style={css("margin-top:9px;background:var(--accSoft);border:1px solid var(--acc);border-radius:10px;padding:8px 11px;font-size:12.5px;color:var(--acc);font-weight:600;line-height:1.5")}><span style={css("display:inline-flex;vertical-align:-3px;margin-right:5px")}>{fi('express', 14)}</span>เปิดงานด่วนแล้ว — ร้านจะเร่งผลิตงานของคุณเป็นคิวแรก เสร็จไวกว่าปกติ ~{v.expressSaveMin} นาทีครับ</div>}
               </div>
             )}
+            </div>{/* /mp-flowmain */}
+            <div className="mp-side">{/* โหมดคอม: คอลัมน์ขวา (สรุปราคา + ปุ่มไปต่อ) ติดตามเลื่อน */}
             <div style={css("background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px")}>
               <div style={css("display:flex;flex-direction:column;gap:5px;font-size:12.5px")}>
                 <div style={css("display:flex;justify-content:space-between")}><span style={css("color:var(--sub)")}>ค่าส่ง{v.deliveryPending ? ' (เริ่มต้น — รอปักหมุด)' : ' (ตามระยะจริง)'}</span><span style={css("font-family:'IBM Plex Mono',monospace")}>฿{v.deliveryFee}</span></div>
@@ -5229,6 +5381,7 @@ class App extends React.Component {
             </div>
             {v.deliveryWarn && <div style={css("font-size:13px;color:#d9480f")}>{v.deliveryWarn}</div>}
             <button onClick={v.toPay} style={css("width:100%;height:50px;border:none;border-radius:14px;background:var(--acc);color:#fff;font-size:15px;font-weight:700;cursor:pointer" + (v.measuring ? ";opacity:.55" : ""))}>{v.measuring ? '⏳ กำลังวัดระยะทาง…' : 'ต่อไป: ตรวจสอบออเดอร์ →'}</button>
+            </div>{/* /mp-side */}
           </div>
         )}
 
@@ -5838,6 +5991,8 @@ class App extends React.Component {
           </div>
         )}
 
+        </div>{/* /mp-main */}
+
         {/* ── ป๊อปอัพประกาศแจ้งปัญหา/ล่าช้า — ถามลูกค้าก่อนเข้าหน้าสั่ง ── */}
         {/* ── ป๊อปอัพโปรโมชั่นตอนเปิดเว็บ: พื้นหลังเทามืด · แตะที่ไหนก็ปิด · ปุ่ม ✕ มุมขวาบน (เจ้าของสั่ง 2026-10-14) ── */}
         {v.promoOpen && (
@@ -6003,8 +6158,44 @@ class App extends React.Component {
           <div style={css("position:fixed;left:50%;bottom:96px;transform:translateX(-50%);background:#111;color:#fff;font-size:12.5px;padding:10px 18px;border-radius:18px;z-index:40;box-shadow:0 4px 14px rgba(0,0,0,.3);max-width:86vw;width:max-content;text-align:center;line-height:1.5")}>{v.toast}</div>
         )}
 
-        {/* ── Bottom nav ── */}
-        {v.notLogin && !v.oaMode && (
+        {/* ── ส่วนท้ายเว็บ (โหมดคอม): แบรนด์ · เมนู · ช่องทางติดต่อ · เวลาให้บริการ ── */}
+        {v.desk && !v.isChat && !v.oaMode && (
+          <footer style={css("background:#0B1E4A;color:rgba(255,255,255,.78);margin-top:auto")}>
+            <div style={css("max-width:1200px;margin:0 auto;padding:46px 28px 28px;box-sizing:border-box;display:grid;grid-template-columns:1.5fr 1fr 1.2fr 1.3fr;gap:36px;font-size:14px;line-height:1.75")}>
+              <div>
+                <div style={css("display:flex;align-items:center;gap:10px")}>
+                  <div style={css("width:40px;height:40px;border-radius:50%;background:#fff;display:flex;align-items:center;justify-content:center;overflow:hidden")}><img src="assets/logo-icon-blue.png" alt="" style={css("width:31px;height:auto;display:block")}/></div>
+                  <div style={css("font-family:'Montserrat',sans-serif;font-weight:800;font-size:18px;letter-spacing:1.5px;color:#fff")}><span style={css("color:var(--accBright)")}>MORE</span> PRINT</div>
+                </div>
+                <div style={css("margin-top:12px;max-width:300px")}>แพลตฟอร์มรับปริ้นงานออนไลน์สำหรับนักศึกษา มหาวิทยาลัยขอนแก่น สั่งได้ตลอด 24 ชั่วโมง ส่งถึงที่พักรอบ มข.</div>
+              </div>
+              <div>
+                <div style={css("color:#fff;font-weight:800;font-size:15px;margin-bottom:8px")}>เมนู</div>
+                {v.navItems.map((n, i) => <div key={i} onClick={n.pick} style={css("cursor:pointer;width:fit-content")}>{n.k === 'track' ? 'ติดตามออเดอร์' : n.label}</div>)}
+              </div>
+              <div>
+                <div style={css("color:#fff;font-weight:800;font-size:15px;margin-bottom:8px")}>ติดต่อเรา</div>
+                <a href={(window.MP_CONFIG || {}).LINE_OA_URL || 'https://line.me/R/ti/p/@346kifvy'} target="_blank" rel="noreferrer" style={css("display:inline-flex;align-items:center;gap:8px;color:#fff;text-decoration:none;font-weight:700")}><span style={css("background:#06C755;color:#fff;border-radius:6px;padding:1px 7px;font-size:12px;font-weight:800")}>LINE</span>{(window.MP_CONFIG || {}).LINE_OA_ID || '@346kifvy'}</a>
+                <div>สอบถาม แจ้งปัญหา หรือส่งไฟล์ที่ไม่ใช่ PDF</div>
+                <div style={css("margin-top:6px")}>พื้นที่บริการ: รอบมหาวิทยาลัยขอนแก่น</div>
+              </div>
+              <div>
+                <div style={css("color:#fff;font-weight:800;font-size:15px;margin-bottom:8px")}>เวลาให้บริการ</div>
+                <div>งาน Standard: สั่งได้ 24 ชั่วโมงทุกวัน</div>
+                <div>ช่วงกลางคืน 22:00–06:00 มีค่าบริการ +฿{v.nightFee}</div>
+                <div>งาน Pro: ผลิต 08:30–17:00 น. (หยุดวันอาทิตย์)</div>
+              </div>
+            </div>
+            <div style={css("border-top:1px solid rgba(255,255,255,.12)")}>
+              <div style={css("max-width:1200px;margin:0 auto;padding:16px 28px;box-sizing:border-box;font-size:12.5px;color:rgba(255,255,255,.55);display:flex;justify-content:space-between;gap:12px")}>
+                <span>© {new Date().getFullYear()} MORE PRINT · สงวนลิขสิทธิ์</span><span>ชำระเงินผ่านพร้อมเพย์ · ติดตามสถานะได้แบบเรียลไทม์</span>
+              </div>
+            </div>
+          </footer>
+        )}
+
+        {/* ── Bottom nav ── (โหมดคอมใช้แถบเมนูบนแทน) */}
+        {v.notLogin && !v.oaMode && !v.desk && (
           <div style={css("position:sticky;bottom:0;margin-top:auto;background:var(--card);border-top:1px solid var(--line);display:flex;justify-content:space-around;padding:10px 8px 14px;z-index:20")}>
             {v.navItems.map((n, i) => (
               <div key={i} onClick={n.pick} style={n.st}>
