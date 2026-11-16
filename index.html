@@ -4321,7 +4321,21 @@ class App extends React.Component {
                       <span style={css("width:8px;height:8px;border-radius:50%;background:#22C55E;flex:none")}></span>
                     </div>
                   : !v.oaMode && !v.isLogin && <button className="mp-dbtn" onClick={v.goLogin} style={css("height:42px;padding:0 18px;font-size:14px;background:transparent;color:#fff;border:1.5px solid rgba(255,255,255,.55)")}>เข้าสู่ระบบ</button>}
-                {!v.oaMode && !v.isLogin && <button className="mp-dbtn" onClick={v.startOrder} style={css("height:42px;padding:0 20px;font-size:14px;background:var(--accBright);color:#0B1E4A")}>สั่งปริ้นเลย</button>}
+                {/* ปุ่ม "ติดต่อเรา" → LINE OA (เจ้าของสั่ง 2026-11-17 แทนปุ่มสั่งปริ้นเลย) · ไอคอนพนักงานใส่หูฟัง วาดเป็น SVG ในไฟล์ */}
+                {!v.oaMode && !v.isLogin && <a className="mp-dbtn" href={(window.MP_CONFIG || {}).LINE_OA_URL || 'https://line.me/R/ti/p/@346kifvy'} target="_blank" rel="noreferrer" style={css("height:42px;padding:0 18px 0 14px;font-size:14px;background:var(--accBright);color:#0B1E4A;text-decoration:none;box-sizing:border-box")}>
+                  <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" style={css("display:block;flex:none")}>
+                    <circle cx="12" cy="9.7" r="3.6" fill="currentColor"/>
+                    <path d="M4.4 21.6c0-4.1 3.4-6.3 7.6-6.3s7.6 2.2 7.6 6.3z" fill="currentColor"/>
+                    <path d="M5.7 10.2v-.5a6.3 6.3 0 0 1 12.6 0v.5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/>
+                    <rect x="4.2" y="9.1" width="2.7" height="4.8" rx="1.3" fill="currentColor"/>
+                    <rect x="17.1" y="9.1" width="2.7" height="4.8" rx="1.3" fill="currentColor"/>
+                    <path d="M18.4 13.9c0 1.7-1.5 2.5-3.8 2.5" fill="none" stroke="var(--accBright)" strokeWidth="3.4" strokeLinecap="round"/>
+                    <path d="M18.4 13.9c0 1.7-1.5 2.5-3.8 2.5" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/>
+                    <circle cx="14.3" cy="16.4" r="1.9" fill="var(--accBright)"/>
+                    <circle cx="14.3" cy="16.4" r="1.1" fill="currentColor"/>
+                  </svg>
+                  ติดต่อเรา
+                </a>}
               </div>
             </div>
           </div>
