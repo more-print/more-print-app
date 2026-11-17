@@ -148,7 +148,7 @@ const CONFIG = { nightOverride: 'auto', nightFee: 19, expressFee: 20, expressEna
   etaStandardMin: 45, queuePerOrderMin: 15,
   cancelWindowMin: 10, // ลูกค้ายกเลิกเองได้ภายในกี่นาทีหลังชำระ (ต้องยังสถานะ "รับออเดอร์") — SQL customer_cancel ใช้เลขเดียวกัน แก้ต้องแก้คู่กัน
   // นาทีผลิตงาน Pro "ต่อแผ่น/ต่อหน่วย" ตามตารางเจ้าของ 2026-09-15 (เพลท/โปสเตอร์แยกตามขนาด · นามบัตรต่อ 100 ใบ · Standy ต่อชิ้น · พับครึ่ง 1 แผ่น = 4 หน้า) — เคลือบไม่ว่าหน้าเดียว/หน้า-หลัง +lamExtra นาทีอัตโนมัติ · คิวค้างบวกเพิ่ม queuePerOrderMin ต่อใบ
-  etaProMin: { plate: { A4: 60, A3: 60, A2: 90, A1: 120, A0: 180 }, poster: { A4: 45, A3: 45, A2: 60, A1: 45, A0: 45 }, postcard: 90, foldbook: 90, portfolio: 60, sticker: 90, namecard: 90, standee: 90, blueprint: 90, lamExtra: 15 } };
+  etaProMin: { plate: { A4: 60, A3: 60, A2: 90, A1: 120, A0: 180 }, poster: { A4: 45, A3: 45, A2: 60, A1: 45, A0: 45 }, postcard: 90, foldbook: 90, portfolio: 60, sticker: 90, namecard: 90, vinyl: 90, standee: 90, blueprint: 90, lamExtra: 15 } };
 
 
 // ── ไอคอนแถบเมนูล่าง (SVG ฝังในไฟล์ — คมทุกขนาด + เปลี่ยนสีตามแท็บที่เลือกอัตโนมัติ) ──
@@ -274,13 +274,14 @@ function proSpecRowsC(o){
   else if ((m = base.match(/^พับครึ่ง เล่ม (\S+) \(กระดาษ (\S+)\)$/))) rows.push(['ประเภทงาน', 'พับครึ่ง (เข้าเล่ม/เมนู)'], ['ขนาดเล่ม', m[1]], ['ขนาดกระดาษ', m[2]]);
   else if ((m = base.match(/^นามบัตร (\d+) ใบ ?(หน้า-หลัง|หน้าเดียว)?$/))) { rows.push(['ประเภทงาน', 'นามบัตร'], ['จำนวนใบ', m[1] + ' ใบ']); if (m[2]) rows.push(['ด้านที่พิมพ์', m[2]]); }
   else if ((m = base.match(/^((?:ปริ้น|พิมพ์)สีขาวดำขนาดใหญ่.*) (A\d)$/))) rows.push(['ประเภทงาน', m[1]], ['ขนาด', m[2]]);
+  else if ((m = base.match(/^ไวนิล (\d+) ตร\.ม\.$/))) rows.push(['ประเภทงาน', 'ไวนิล'], ['จำนวน', m[1] + ' ตร.ม.']); // ประเภทใหม่ 2026-11-17
   else if ((m = base.match(/^สติ๊กเกอร์ ?(.*)$/))) { rows.push(['ประเภทงาน', 'สติ๊กเกอร์']); if (m[1]) rows.push(['เนื้อสติ๊กเกอร์', m[1]]); }
   else if (/^A\d$/.test(base)) rows.push(['ขนาด', base]); // ออเดอร์รุ่นแรกเก็บแค่ขนาดกระดาษ
   else rows.push(['ประเภทงาน', base || 'งาน PRO']);
   parts.forEach(p => { const k = PRO_SPEC_RX.find(([re]) => re.test(p)); rows.push([k ? k[1] : 'รายละเอียด', p]); });
   if (!rows.some(r => r[0] === 'ด้านที่พิมพ์')) rows.push(['ด้านที่พิมพ์', o.sides === 2 ? 'หน้า-หลัง' : 'หน้าเดียว']); // เดิมเป็นชิปบนหัวการ์ด (ลบ 2026-10-12)
   if (o.bind && o.bind !== 'none') rows.push(['เข้าเล่ม', o.bind]);
-  rows.push(['จำนวนชุด', (o.copies || 1) + ' ชุด']);
+  if (!/^ไวนิล \d/.test(base)) rows.push(['จำนวนชุด', (o.copies || 1) + ' ชุด']); // ไวนิลไม่มีจำนวนชุด (นับเป็น ตร.ม.)
   return rows;
 }
 // แปลงข้อความเลขหน้า "1, 5, 10-12" → เซ็ตเลขหน้า (รูปแบบ/ช่วงเพี้ยน = err ห้ามคิดเงิน)
@@ -354,6 +355,15 @@ const ICON_PRO = {
     <rect x="53" y="27" width="12" height="8" rx="3" fill="currentColor" stroke="none"/>
     <path d="M36 50h26M36 64h17"/>
   </React.Fragment>),
+  // ไวนิล: ป้ายแขวน + รูปภูเขา + 3 บรรทัด (แบบที่เจ้าของส่งมา 2026-11-17) · วาดในกรอบ 512 เส้นบางกว่าชุดเล็กน้อยให้ 3 บรรทัดไม่ติดกันที่ 22px · currentColor = ตามธีมกลางวัน/กลางคืน
+  vinyl: (
+    <svg width="22" height="22" viewBox="0 0 512 512" fill="none" stroke="currentColor" strokeWidth="24" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M108 132v36M404 132v36"/>
+      <rect x="22" y="168" width="468" height="210" rx="8"/>
+      <path d="M84 300 117 258l15 18M124 300l47-60 48 60z"/>
+      <path d="M298 228h112M274 272h160M274 317h160"/>
+    </svg>
+  ),
   poster: proIcon(<React.Fragment>
     <rect x="28" y="14" width="44" height="72" rx="6"/>
     <path d="M39 28h22"/>
@@ -412,6 +422,7 @@ const PRO_TYPES = [
   // โปสเตอร์ขึ้นอันแรก (เจ้าของสั่ง 2026-09-09)
   { k: 'poster', icon: '🖼️', label: 'โปสเตอร์', sizes: ['A4', 'A3', 'A2', 'A1', 'A0'], sidesOpt: true }, // คำกำกับกระดาษอาร์ตมัน 250 แกรม อยู่เป็นข้อความเขียวหลังกดเลือก (เจ้าของแก้ 2026-09-11) ไม่ใช่บนการ์ด
   { k: 'plate', icon: '🪧', label: 'บอร์ด', sizes: ['A4', 'A3', 'A2', 'A1', 'A0'] },
+  { k: 'vinyl', icon: '🎌', label: 'ไวนิล' }, // เจ้าของสั่ง 2026-11-17: ประเภทงานใหม่ ฿150/ตร.ม. ลูกค้ากรอกจำนวน ตร.ม. (จำนวนเต็ม) · ไม่มีจำนวนชุด
   { k: 'postcard', icon: '💌', label: 'Postcard' },
   { k: 'foldbook', icon: '📖', label: 'พับครึ่ง (เข้าเล่ม/เมนู)', sizes: ['A4', 'A3', 'A2'], bindOpt: true },
   { k: 'portfolio', icon: '📁', label: 'Portfolio' },
@@ -422,7 +433,7 @@ const PRO_TYPES = [
 ];
 // สเปกงาน Pro รายไฟล์ (เจ้าของสั่ง 2026-10-12): สั่ง Pro หลายไฟล์ = แต่ละไฟล์เลือกประเภทงาน+สเปก+จำนวนชุดของตัวเอง
 // state ชุดนี้ = "ไฟล์ที่กำลังเลือก" (proActive) · ไฟล์อื่นเก็บไว้ใน files[i].pro · ยืนยันแล้ว = files[i].proOk
-const PRO_SPEC_KEYS = ['proType', 'proSize', 'proBind', 'proQty', 'proBoard', 'proGram', 'stkType', 'proFilm', 'proPoPaper', 'proLam', 'proSpecial', 'proStaple', 'proStand', 'sides', 'orient', 'copies'];
+const PRO_SPEC_KEYS = ['proType', 'proSize', 'proBind', 'proQty', 'proBoard', 'proGram', 'stkType', 'proFilm', 'proPoPaper', 'proLam', 'proSpecial', 'proStaple', 'proStand', 'proSqm', 'sides', 'orient', 'copies'];
 const pickProSpec = (st) => { const o = {}; PRO_SPEC_KEYS.forEach(k => { o[k] = st[k]; }); return o; };
 const PRO_BINDS = ['ไสกาว', 'ปกแข็ง', 'สันห่วงพลาสติก', 'ขาตะเกียบ', 'เย็บมุงหลังคา', 'ห่วงเกลียว', 'ห่วงคู่', 'เย็บเล่ม', 'เทปปิด', 'สันกาวปกแข็ง'];
 // เข้าเล่มงาน Standard 3 แบบ +฿20/ชุด (นโยบาย 2026-09-08): เลือกได้เฉพาะ 09:00-21:29 (bindHoursOpen — เจ้าของขยับปิดจาก 22:00 เป็น 21:30 เมื่อ 2026-09-22) นอกช่วง = ซ่อนตัวเลือก
@@ -475,6 +486,9 @@ function stickerPerSheet(w, h, t){
 const PRO_PORTFOLIO = { one: 50, two: 100, staple: 20 };  // A3 พับครึ่ง พิมพ์+เคลือบ /แผ่น · เย็บ +20/ชุด
 const PRO_FOLDBOOK_BIND = 20; // พับครึ่ง (เข้าเล่ม/เมนู): เข้าเล่ม +20/ชุด ทุกแบบ · ค่าแผ่นใช้ตาราง FOLDBOOK_SHEET (A2 100/A3 50/A4 25) หน้า-หลัง ×2
 const PRO_NAMECARD = { one: 250, two: 450 };              // ต่อ 100 ใบ (A3 4 แผ่น)
+const VINYL_SQM = 150; // ไวนิล ฿/ตร.ม. (เจ้าของสั่ง 2026-11-17) — ลูกค้ากรอกจำนวน ตร.ม. เป็นจำนวนเต็ม ขั้นต่ำ 1
+const vinylSqm = (st) => Math.max(1, Math.min(999, Math.ceil(parseFloat(st.proSqm) - 1e-9 || 0))); // พิมพ์ทศนิยม = ปัดขึ้น (1.5 → 2) · ช่องว่างระหว่างพิมพ์ = 1 · เพดาน 999
+const PRO_NO_COPIES = (k) => k === 'sticker' || k === 'vinyl'; // ประเภทที่ไม่มีจำนวนชุด (ล็อก 1)
 const PRO_STANDEE = { base: 380, stand: 480 };            // 60×120 ซม. / ใส่ขาตั้ง
 const BLUEPRINT_PRICE = { A1: 40, A2: 20, A3: 5 };        // แบบแปลนขาวดำ /แผ่น
 const POSTER_PRICE = { A5: 10, A4: 15, A3: 30, A2: 130, A1: 250, A0: 500 };
@@ -648,7 +662,7 @@ function BillPrint({ v }){
 // key ทุกตัวที่ใช้สั่งงาน+คิดราคา (ตรวจแล้ว: state ที่ไม่อยู่ในนี้ไม่เกี่ยวกับออเดอร์) — เพิ่ม state ใหม่ของขั้นสั่งงานเมื่อไหร่ต้องเพิ่มที่นี่ด้วย ไม่งั้นกู้คืนแล้วราคาเพี้ยน
 const DRAFT_KEYS = ['proActive', 'stepMax', 'tier', 'ptype', 'paper', 'sides', 'orient', 'nup', 'bind', 'copies', 'note', 'shipNote', 'recvSel', 'vehSel', 'vehicle',
   'rcOn', 'rcName', 'rcAddr', 'rcTax', 'rcPhone', 'proType', 'proSize', 'proBind', 'proQty', 'proPickup', 'stdPickup', 'proBoard', 'proGram', 'stkType',
-  'proFilm', 'proPoPaper', 'proLam', 'proSpecial', 'proStaple', 'proStand', 'distKm', 'distSrc', 'point', 'addr', 'phone', 'time', 'express', 'handoff',
+  'proFilm', 'proPoPaper', 'proLam', 'proSpecial', 'proStaple', 'proStand', 'proSqm', 'distKm', 'distSrc', 'point', 'addr', 'phone', 'time', 'express', 'handoff',
   'lat', 'lng', 'geoLabel', 'gmapLink', 'pinSrc', 'pinMode', 'mapLocked', 'gpsAcc', 'couponCode', 'couponOk'];
 const DRAFT_FLOW = ['order', 'delivery', 'review', 'pay'];
 const DRAFT_TTL = 6 * 3600 * 1000;
@@ -680,7 +694,7 @@ class App extends React.Component {
       alertPrompt: false, alertAck: false,
       proType: 'poster', proSize: 'A4', proBind: 'ไสกาว', proQty: 100, proPickup: false, stdPickup: false, // stdPickup = งาน Standard รับหน้าร้าน MORE PRINT
       proBoard: '', proGram: 80, stkType: '', proFilm: 'lam', proPoPaper: 'art', // เพลท: ประเภทบอร์ด (บังคับเลือก ไม่บวกราคา) · แบบแปลน: ความหนากระดาษ (แกรม) · สติ๊กเกอร์: เนื้อ pp/pvc (บังคับเลือก) · โปสเตอร์: ชนิดฟิล์มเคลือบ lam/hard + ประเภทกระดาษ (art พื้นฐาน ไม่บวกราคา)
-      proLam: 'none', proSpecial: false, proStaple: false, proStand: false, // ตัวเลือกเสริมงาน Pro (เคลือบ/กระดาษพิเศษ/เย็บ/ขาตั้ง)
+      proLam: 'none', proSpecial: false, proStaple: false, proStand: false, proSqm: 1, // proSqm = ไวนิล ตร.ม. · ตัวเลือกเสริมงาน Pro (เคลือบ/กระดาษพิเศษ/เย็บ/ขาตั้ง)
       distKm: null, distSrc: '', trackOpen: false, trackMin: false, trkCode: '',
       // ประวัติการสั่ง (เก็บในเครื่อง): ออเดอร์ที่ผลิต/ส่งสำเร็จแล้ว ทั้ง standard และ pro
       history: (() => { try { return JSON.parse(localStorage.getItem('mp_history') || '[]'); } catch (e) { return []; } })(),
@@ -1829,6 +1843,9 @@ class App extends React.Component {
       if (over >= 0) { const shp = STK_SHEET[si.list[over].t] || STK_SHEET.pp;
         return '🏷️ ไฟล์ที่ ' + (over + 1 + base) + ' ขนาดใหญ่เกิน' + (si.list[over].t === 'pvc' ? 'พื้นที่ 1 ตร.ม.' : 'แผ่น 13"×19"') + ' ครับ (พิมพ์ได้ไม่เกิน ' + (shp.w - STK_MARGIN * 2) + '×' + (shp.h - STK_MARGIN * 2) + ' ซม.) — ลดขนาดลงหรือทักไลน์ร้านได้เลย'; }
     }
+    // ไวนิล: ต้องกรอกจำนวน ตร.ม. (จำนวนเต็ม ≥1) — ช่องว่างค้างไว้ = เตือน
+    if (s.proType === 'vinyl' && !(parseFloat(s.proSqm) > 0))
+      return '🎌 กรอกจำนวนตารางเมตรของงานไวนิลก่อนนะครับ';
     // พับครึ่งโฉมใหม่ (2026-09-13): ขั้นต่ำต่อเล่ม — เล่ม A5 ≥8 หน้า + สั่ง ≥2 เล่ม · เล่ม A4 ≥4 หน้า
     if (s.tier === 'pro' && s.proType === 'foldbook') {
       const bk = FOLDBOOK_BOOK[s.proSize] || {};
@@ -2036,6 +2053,7 @@ class App extends React.Component {
         rate = 0; // เรทมีได้ 2 กลุ่ม (PP/PVC) — บรรทัดอธิบายใช้ rateHint สาขาสติ๊กเกอร์แทน
         pc = si.cost; // ข้อมูลยังไม่ครบ = 0 ไปก่อน (toDelivery บังคับกรอกครบก่อนไปต่ออยู่แล้ว)
       }
+      else if (s.proType === 'vinyl') { rate = VINYL_SQM; pc = VINYL_SQM * vinylSqm(s); } // ไวนิล ฿150 × ตร.ม. (ไม่คูณหน้า/ชุด)
       else if (s.proType === 'blueprint') { rate = BLUEPRINT_PRICE[s.proSize] ?? 0; pc = rate * shPro; }
       else if (s.proType === 'foldbook') {
         // พับครึ่งโฉมใหม่ (2026-09-13): ราคา = จำนวนหน้าเอกสาร × เรทต่อหน้า (ตามขนาดเล่ม) × จำนวนเล่ม
@@ -2110,6 +2128,7 @@ class App extends React.Component {
     else if (s.proType === 'namecard') { per = m.namecard ?? 90; units = Math.max(1, Math.ceil((s.proQty || 100) / 100)) * cp; } // ต่อ 100 ใบ
     else if (s.proType === 'standee') { per = m.standee ?? 90; units = cp; } // ต่อชิ้น
     else if (s.proType === 'blueprint') per = m.blueprint ?? 90;
+    else if (s.proType === 'vinyl') { per = m.vinyl ?? 90; units = 1; } // ไวนิล: ต่องาน (ไฟล์ละ 1 งาน)
     const lam = (s.proLam && s.proLam !== 'none') ? (m.lamExtra ?? 15) : 0; // เคลือบหน้าเดียว/หน้า-หลัง +15 นาทีอัตโนมัติ
     return per * units + lam;
   }
@@ -2173,7 +2192,7 @@ class App extends React.Component {
     if (!s.files || s.files.length < 2) return null;
     // Pro หลายไฟล์: บรรทัดละไฟล์ = ประเภท/สเปก/จำนวนชุดของไฟล์นั้น · ยอดเท่ากับที่ calc รวมไว้เป๊ะ (ใช้ proItems ชุดเดียวกัน)
     if (s.tier === 'pro' && !this._ov && this.proMulti())
-      return { lines: this.proItems().map(x => ({ name: 'ไฟล์ที่ ' + (x.i + 1) + ' · ' + x.f.name, desc: x.label + (x.spec.proType === 'sticker' ? '' : ' × ' + (x.spec.copies || 1) + ' ชุด'), amt: x.cost })), adjust: [] };
+      return { lines: this.proItems().map(x => ({ name: 'ไฟล์ที่ ' + (x.i + 1) + ' · ' + x.f.name, desc: x.label + (PRO_NO_COPIES(x.spec.proType) ? '' : ' × ' + (x.spec.copies || 1) + ' ชุด'), amt: x.cost })), adjust: [] };
     if (s.tier === 'pro' && (s.proType === 'namecard' || s.proType === 'standee')) return null;
     const lines = [], adjust = [];
     const alloc = (raws) => { let cum = 0, prev = 0; return raws.map(r => { cum += r; const v = Math.ceil(cum - 1e-9) - Math.ceil(prev - 1e-9); prev = cum; return v; }); };
@@ -2247,6 +2266,7 @@ class App extends React.Component {
       : t.k === 'postcard' ? 'Postcard A3 (9 ใบ/แผ่น)'
       : t.k === 'foldbook' ? 'พับครึ่ง เล่ม ' + ((FOLDBOOK_BOOK[s.proSize] || {}).book || s.proSize) + ' (กระดาษ ' + s.proSize + ')'
       : t.k === 'namecard' ? 'นามบัตร ' + s.proQty + ' ใบ' + (s.sides === 2 ? ' หน้า-หลัง' : ' หน้าเดียว')
+      : t.k === 'vinyl' ? 'ไวนิล ' + vinylSqm(s) + ' ตร.ม.' // parser ทุกไฟล์: /^ไวนิล (\d+) ตร\.ม\.$/
       : t.k === 'blueprint' ? 'พิมพ์สีขาวดำขนาดใหญ่ (แบบแปลน,เอกสาร) ' + s.proSize
       : t.k === 'sticker' ? (() => { // พ่วงเนื้อ (รายลาย/ผสม)+ขนาด+จำนวนชิ้น/แผ่นเข้าไปในป้าย — หลังบ้าน/ร้านพาร์ทเนอร์เห็นทันทีว่าต้องพิมพ์อะไร
           const si = this.stickerInfo();
@@ -2275,7 +2295,7 @@ class App extends React.Component {
       // เพลทบอกประเภทบอร์ดที่ลูกค้าเลือก (บังคับเลือก · ฟรี รวมในราคาแผ่นแล้ว — revert 2026-09-13)
       if (s.proType === 'plate') ex.push(s.proBoard === 'foam' ? 'ติดโฟมบอร์ด' : s.proBoard === 'future' ? 'ติดฟิวเจอร์บอร์ด' : 'ติดบอร์ด');
       // โปสเตอร์: ประเภทกระดาษพ่วงเข้าป้าย paper — หลังบ้าน/ร้านเห็นทันทีว่าพิมพ์ลงวัสดุอะไร (2026-09-15)
-      if (s.proType === 'poster') ex.push({ pp: 'พีพีฟิล์ม', vinyl: 'ไวนิล', photo: 'กระดาษโฟโต้' }[s.proPoPaper] || 'กระดาษอาร์ต');
+      if (s.proType === 'poster') ex.push({ pp: 'พีพีฟิล์ม', photo: 'กระดาษโฟโต้' }[s.proPoPaper] || 'กระดาษอาร์ต'); // ไวนิลแยกเป็นประเภทงานแล้ว (2026-11-17) — ค่าค้างเก่า = อาร์ต
       if (s.proSpecial) ex.push('กระดาษพิเศษ');
       if (s.proType === 'poster' && s.sides === 2) ex.push('หน้า-หลัง');
     }
@@ -2364,7 +2384,7 @@ class App extends React.Component {
         if (s.tier !== 'pro') { const fo = D.fos[i]; row.sides = fo.sides; row.orient = fo.orient; row.nup = fo.nup; row.bind = fo.bind; row.copies = fo.copies; if (fo.media === 'photo') { row.media = 'photo'; row.mprice = PHOTO_PRICE; } } // ตัวเลือกรายไฟล์ (2026-10-12) + จำนวนชุดรายไฟล์ (2026-11-02)
         // หน้าพื้นสีเต็ม (สไลด์) ที่คิด ฿slidePrice: slide = จำนวนหน้า (ก่อนรวมหน้า/ชุด) · spages = เลขหน้า · sprice = เรทตอนสั่ง (2026-11-01)
         if (s.tier !== 'pro' && (s.ptype === 'bw' || s.ptype === 'mix')) { const sl = D.mi ? D.mi.list[i].sBwList : this.slidePagesBw(f); if (sl.length) { row.slide = sl.length; row.spages = pagesToRanges(sl); row.sprice = SLIDE_PRICE; } }
-        if (pItems) { const it = pItems[i]; row.paper = it.label; row.protype = it.spec.proType; row.copies = it.spec.proType === 'sticker' ? 1 : Math.max(1, it.spec.copies || 1); /* สติ๊กเกอร์หลายไฟล์คิดเงินไฟล์ละ 1 ชุดเสมอ (proItems ล็อก copies=1) — ต้องบันทึก 1 ให้ตรงกับที่ลูกค้าเห็น/จ่าย ไม่งั้นหลังบ้านขึ้นจำนวนชุดเกินจริง (ตรวจพบ 2026-10-15) */ row.sides = it.spec.sides === 2 ? 2 : 1; row.bind = it.spec.proType === 'foldbook' ? it.spec.proBind : 'none'; row.pcost = it.cost; } // Pro รายไฟล์ (2026-10-12)
+        if (pItems) { const it = pItems[i]; row.paper = it.label; row.protype = it.spec.proType; row.copies = PRO_NO_COPIES(it.spec.proType) ? 1 : Math.max(1, it.spec.copies || 1); /* สติ๊กเกอร์หลายไฟล์คิดเงินไฟล์ละ 1 ชุดเสมอ (proItems ล็อก copies=1) — ต้องบันทึก 1 ให้ตรงกับที่ลูกค้าเห็น/จ่าย ไม่งั้นหลังบ้านขึ้นจำนวนชุดเกินจริง (ตรวจพบ 2026-10-15) */ row.sides = it.spec.sides === 2 ? 2 : 1; row.bind = it.spec.proType === 'foldbook' ? it.spec.proBind : 'none'; row.pcost = it.cost; } // Pro รายไฟล์ (2026-10-12)
         files.push(row);
       }
       // ── ขั้นที่ 2 (มี await): อัปโหลด/หา path ของแต่ละไฟล์ แล้วเติมลงแถวที่สร้างไว้ — ไม่แตะค่าอื่นอีก ──
@@ -3304,7 +3324,7 @@ class App extends React.Component {
         del: () => this.proRemoveFile(i),
         // ── งาน Pro หลายไฟล์: การ์ดไฟล์แตะเลือกได้ · กรอบเขียว = ไฟล์ที่กำลังเลือกสเปก · ✓ = ยืนยันแล้ว ──
         proOn: pMulti, proActive: pMulti && i === pAct, proOk: !!f.proOk,
-        proText: pItems ? pItems[i].label + (pItems[i].spec.proType === 'sticker' ? '' : ' × ' + (pItems[i].spec.copies || 1) + ' ชุด') : '',
+        proText: pItems ? pItems[i].label + (PRO_NO_COPIES(pItems[i].spec.proType) ? '' : ' × ' + (pItems[i].spec.copies || 1) + ' ชุด') : '',
         pickPro: () => this.proSelect(i),
         // ── งานพิมพ์ผสม: ตัวเลือกต่อไฟล์ + ช่องเลขหน้าสี (เจ้าของสั่ง 2026-10-08) ──
         mix: mi ? mi.list[i] : null,
@@ -3321,7 +3341,7 @@ class App extends React.Component {
             copyInc: () => setOpt({ copies: Math.min(999, o.copies + 1) }),
             copyDec: () => setOpt({ copies: Math.max(1, o.copies - 1) }),
             // แถวสเปกรายไฟล์บนหน้าตรวจสอบ (เจ้าของสั่ง 2026-10-12: สั่งหลายไฟล์ต้องเห็นชัดว่าไฟล์ไหนสเปกไหน)
-            reviewRows: pItems ? proSpecRowsC({ paper: pItems[i].label, copies: pItems[i].spec.proType === 'sticker' ? 1 : pItems[i].spec.copies, sides: pItems[i].spec.sides, bind: pItems[i].spec.proType === 'foldbook' ? pItems[i].spec.proBind : 'none' }) : [
+            reviewRows: pItems ? proSpecRowsC({ paper: pItems[i].label, copies: PRO_NO_COPIES(pItems[i].spec.proType) ? 1 : pItems[i].spec.copies, sides: pItems[i].spec.sides, bind: pItems[i].spec.proType === 'foldbook' ? pItems[i].spec.proBind : 'none' }) : [
               ['ประเภท', !mi ? ((PRINT_TYPES.find(t => t.k === s.ptype) || {}).label || '')
                 : (() => { const x = mi.list[i]; if (!x || x.set.size === 0) return 'พิมพ์ขาวดำทั้งไฟล์'; if (x.cBw === 0) return 'พิมพ์สีทั้งไฟล์';
                     const bw = []; for (let p = 1; p <= f.pages; p++) if (!x.set.has(p)) bw.push(p);
@@ -3396,7 +3416,7 @@ class App extends React.Component {
         ...this.seg(t.label, s.proType === t.k,
           () => this.setState(st => ({ proType: t.k, proSize: (t.sizes || [''])[0], proQty: (t.qty || [100])[0], sides: t.k === 'foldbook' ? 2 : 1,
             proLam: 'none', proSpecial: false, proStaple: false, proStand: false, proBoard: '', proGram: 80, stkType: '', proFilm: 'lam', proPoPaper: 'art', orient: 'portrait',
-            copies: t.k === 'sticker' ? 1 : st.copies }))), // สติ๊กเกอร์ไม่มีจำนวนชุด — ล็อก 1 (ช่องชุดถูกซ่อนด้วย) · orient รีเซ็ตแนวตั้ง (แบบแปลนใช้เลือกแนวกระดาษ)
+            proSqm: 1, copies: PRO_NO_COPIES(t.k) ? 1 : st.copies }))), // ไวนิลเหมือนสติ๊กเกอร์: ไม่มีจำนวนชุด // สติ๊กเกอร์ไม่มีจำนวนชุด — ล็อก 1 (ช่องชุดถูกซ่อนด้วย) · orient รีเซ็ตแนวตั้ง (แบบแปลนใช้เลือกแนวกระดาษ)
         svg: ICON_PRO[t.k]
       })),
       proPickupOn: c.proPickupOn,
@@ -3455,13 +3475,12 @@ class App extends React.Component {
       ] : [],
       proBoardPicked: !!s.proBoard,
       // โปสเตอร์: ประเภทกระดาษ (เจ้าของสั่ง 2026-09-15 — ไม่บวกราคา · กระดาษอาร์ต = ค่าพื้นฐาน เลือกให้อัตโนมัติ)
-      // 2026-11-17 เจ้าของสั่ง: เปิดกระดาษโฟโต้คืน (ไม่บวกราคา) + เรียง อาร์ต → โฟโต้ → พีพีฟิล์ม → ไวนิล · 4 ช่องแถวเดียวพอดีจอ
+      // 2026-11-17 เจ้าของสั่ง: เปิดกระดาษโฟโต้คืน (ไม่บวกราคา) เรียง อาร์ต → โฟโต้ → พีพีฟิล์ม · ไวนิลย้ายไปเป็นประเภทงานของตัวเอง
       // ป้ายห่อ nowrap เป็นคำ ๆ — จอแคบ "กระดาษอาร์ต / (พื้นฐาน)" ขึ้น 2 บรรทัดตรงวงเล็บ ไม่ตัดกลางคำ
       proPoPaperOpts: s.proType === 'poster' ? [
         ['art', <React.Fragment><span style={{ whiteSpace: 'nowrap' }}>กระดาษอาร์ต</span> <span style={{ whiteSpace: 'nowrap' }}>(พื้นฐาน)</span></React.Fragment>],
         ['photo', <span style={{ whiteSpace: 'nowrap' }}>กระดาษโฟโต้</span>],
-        ['pp', <span style={{ whiteSpace: 'nowrap' }}>พีพีฟิล์ม</span>],
-        ['vinyl', <span style={{ whiteSpace: 'nowrap' }}>ไวนิล</span>]
+        ['pp', <span style={{ whiteSpace: 'nowrap' }}>พีพีฟิล์ม</span>]
       ].map(([k, label]) =>
         this.seg(label, (s.proPoPaper || 'art') === k, () => this.setState({ proPoPaper: k }), true)) : [],
       // พิมพ์ขาวดำขนาดใหญ่: ความหนากระดาษ 80/100/120 แกรม (ไม่บวกราคา — 2026-09-09)
@@ -3479,7 +3498,8 @@ class App extends React.Component {
         : s.proType === 'foldbook' ? '📖 พับครึ่ง (กระดาษอาร์ตมัน 250 แกรม)'
         : s.proType === 'portfolio' ? '📁 Portfolio เข้าเล่มเย็บมุงหลังคา'
         : s.proType === 'namecard' ? <React.Fragment>💳 ขนาดนามบัตร ไซส์มาตรฐาน 5.5*8.8 ซม.<span style={{ display: 'block', fontSize: '12.5px', fontWeight: 600, marginTop: '2px' }}>(หากอยากได้ไซส์อื่นให้แจ้งในหมายเหตุครับ)</span></React.Fragment>
-        : s.proType === 'blueprint' ? '📐 กระดาษขนาด 80 แกรม' : '',
+        : s.proType === 'blueprint' ? '📐 กระดาษขนาด 80 แกรม'
+        : s.proType === 'vinyl' ? 'ไวนิล ตารางเมตรละ ฿' + VINYL_SQM : '',
       proLamHead: s.proType === 'foldbook' ? 'การเคลือบ (ฟิล์มลามิเนต)' : 'การเคลือบ', // พับครึ่งระบุชนิดฟิล์มที่หัวข้อ (เจ้าของสั่ง 2026-09-11)
       // เคลือบมีเฉพาะขนาดเล็ก A4/A3 (โปสเตอร์+เพลท — เจ้าของสั่ง 2026-09-13) ขนาดใหญ่กว่านั้นไม่มีบริการเคลือบ · พับครึ่งมีทุกขนาด
       proLamOpts: (s.proType === 'plate' ? ['A4', 'A3'].includes(s.proSize) : s.proType === 'poster' ? s.proSize === 'A4' : s.proType === 'foldbook') ? [
@@ -3559,6 +3579,13 @@ class App extends React.Component {
       copies: s.copies,
       copyInc: () => this.setState(st => ({ copies: st.copies + 1 })),
       copyDec: () => this.setState(st => ({ copies: Math.max(1, st.copies - 1) })),
+      // ไวนิล: จำนวน ตร.ม. (จำนวนเต็ม 1–999) แทนช่องจำนวนชุด — พิมพ์เองได้ ช่องว่างระหว่างพิมพ์ได้ ออกจากช่องแล้วเติม 1
+      vinylOn: s.tier === 'pro' && s.proType === 'vinyl',
+      sqm: s.proSqm, sqmN: vinylSqm(s), // sqm = ที่ลูกค้ากำลังพิมพ์ · sqmN = จำนวนเต็มที่คิดเงินจริง
+      sqmInc: () => this.setState(st => ({ proSqm: Math.min(999, vinylSqm(st) + 1) })),
+      sqmDec: () => this.setState(st => ({ proSqm: Math.max(1, vinylSqm(st) - 1) })),
+      sqmSet: (raw) => { const r = String(raw).replace(',', '.').replace(/[^\d.]/g, ''); if (/^\d{0,3}(\.\d{0,2})?$/.test(r)) this.setState({ proSqm: r }); }, // ทศนิยมพิมพ์ได้แต่คิดปัดขึ้น · ออกจากช่อง = จำนวนเต็ม
+      sqmFix: () => this.setState(st => ({ proSqm: vinylSqm(st) })),
       rateHint: s.tier === 'pro'
         ? (s.proType === 'foldbook'
             ? '✨ ' + this.proLabel() + ' หน้าละ ฿' + c.rate + (c.pages > 0 ? ' × ' + c.pages + ' หน้า × ' + s.copies + ' เล่ม + เข้าเล่ม ฿' + PRO_FOLDBOOK_BIND + '/เล่ม = ฿' + c.printCost : ' + เข้าเล่ม ฿' + PRO_FOLDBOOK_BIND + '/เล่ม — อัปโหลดไฟล์แล้วคำนวณให้ทันที')
@@ -3624,6 +3651,7 @@ class App extends React.Component {
           if (si.pvc.sheets > 0) parts.push('PVC ' + si.pvc.sheets + ' ตร.ม.');
           return 'สติ๊กเกอร์รวม ' + si.pcs + ' ชิ้น (' + parts.join(' + ') + (s.copies > 1 ? ' · ' + s.copies + ' ชุด' : '') + ')';
         })()
+        : (s.tier === 'pro' && s.proType === 'vinyl' && !this.proMulti()) ? 'ไวนิล ' + vinylSqm(s) + ' ตร.ม. × ฿' + VINYL_SQM
         : this.proMulti() ? 'PRO ' + s.files.length + ' ไฟล์ · ' + c.pages + ' หน้า (ประเภท/สเปก/จำนวนชุดตามแต่ละไฟล์)'
         : (s.tier === 'pro' ? c.pages + ' หน้า × ' + s.copies + ' ชุด' : this.stdCopies() ? c.pages + ' หน้า × ' + this.stdCopies() + ' ชุด' : 'รวม ' + c.totalPages + ' หน้า (จำนวนชุดตามแต่ละไฟล์)') + ' (' + (s.tier === 'pro' ? 'PRO ' + this.proLabel() : ((PRINT_TYPES.find(t => t.k === s.ptype) || {}).label || '') + ' ' + s.paper + (() => { const nps = [...new Set(s.files.map(f => this.fileOpt(f).nup))]; return nps.length > 1 ? ' · หน้า/แผ่นตามแต่ละไฟล์' : nps[0] > 1 ? ' · ' + nps[0] + ' หน้า/แผ่น' : ''; })()) + ')',
       // ค่าพิมพ์ที่โชว์ลูกค้ารวมค่าบริการกลางคืนแล้ว (เจ้าของสั่ง 2026-09-17: กลางคืนเป็นค่าพิมพ์งาน ไม่ใช่ค่าส่ง) — ยอดบันทึกลงฐานข้อมูล (print_cost/night_fee) แยกคอลัมน์เหมือนเดิม
@@ -3928,7 +3956,7 @@ class App extends React.Component {
           document.cookie = 'mp_rc_bk=' + encodeURIComponent(rcSave) + ';max-age=31536000;path=/;SameSite=Lax'; // สำรองคุกกี้ 1 ปี
         } catch (e) {}
         this.setState({ order: { id, total: c.grandTotal, times: [t0, '', '', ''], plabel, eta, pickup, ts, express: isExp, addr: oaddr, phone: s.phone, veh: oveh, copies: this.proMulti() ? 1 : s.tier === 'pro' ? s.copies : (this.stdCopies() || 1), pages: c.totalPages, dist: s.distKm, rc: rcReq, cp: cpUsed }, trackStep: 1, cancelReason: '', screen: 'track',
-          files: [], proActive: 0, stepMax: 0, slip: null, copies: 1, bind: 'none', express: false, handoff: '', tier: 'standard', ptype: 'bw', paper: 'A4', sides: 1, orient: 'portrait', nup: 1, note: '', shipNote: '', proPickup: false, stdPickup: false, recvSel: false, vehSel: false, proLam: 'none', proSpecial: false, proStaple: false, proStand: false, vehicle: 'bike', trackOpen: false, trackMin: false, histOpen: null, chatFor: null, chatFrom: 'track', selfCancelArm: false, couponCode: '', couponOk: null });
+          files: [], proActive: 0, stepMax: 0, slip: null, copies: 1, bind: 'none', express: false, handoff: '', tier: 'standard', ptype: 'bw', paper: 'A4', sides: 1, orient: 'portrait', nup: 1, note: '', shipNote: '', proPickup: false, stdPickup: false, recvSel: false, vehSel: false, proLam: 'none', proSpecial: false, proStaple: false, proStand: false, proSqm: 1, vehicle: 'bike', trackOpen: false, trackMin: false, histOpen: null, chatFor: null, chatFrom: 'track', selfCancelArm: false, couponCode: '', couponOk: null });
         // จำออเดอร์ไว้ในเครื่อง — ปิดเว็บแล้วกลับมา การติดตามยังอยู่
         try {
           const nod = { id, total: c.grandTotal, times: [t0, '', '', ''], step: 1, plabel, eta, pickup, ts, express: isExp, addr: oaddr, phone: s.phone, veh: oveh, copies: this.proMulti() ? 1 : s.tier === 'pro' ? s.copies : (this.stdCopies() || 1), pages: c.totalPages, dist: s.distKm, rc: rcReq, cp: cpUsed };
@@ -4994,7 +5022,7 @@ class App extends React.Component {
                   </button>
                 ))}
                 <button key="design" onClick={() => window.open((window.MP_CONFIG || {}).LINE_OA_URL || 'https://line.me/R/ti/p/@346kifvy', '_blank')}
-                  style={{ boxSizing: 'border-box', minHeight: '46px', border: '1px solid var(--line)', borderRadius: '12px', padding: '11px 13px', background: 'var(--card)', display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '6px', textAlign: 'left', cursor: 'pointer', fontFamily: 'inherit' }}>
+                  style={{ gridColumn: v.proTypeOpts.length % 2 === 0 ? '1 / -1' : 'auto', boxSizing: 'border-box', minHeight: '46px', border: '1px solid var(--line)', borderRadius: '12px', padding: '11px 13px', background: 'var(--card)', display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '6px', textAlign: 'left', cursor: 'pointer', fontFamily: 'inherit' }}>
                   {/* ไอคอนดินสอ+ไม้บรรทัด (เจ้าของเลือก 2026-10-09) — stroke currentColor ตาม --ink: กลางวันดำ กลางคืนขาวอัตโนมัติ */}
                   <span style={{ flex: 'none', lineHeight: 0, color: 'var(--ink)' }}>
                     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -5188,11 +5216,24 @@ class App extends React.Component {
               )}
               {/* สติ๊กเกอร์ไม่มีจำนวนชุด — ลูกค้ากำหนดขนาด+จำนวนชิ้นรายไฟล์เองอยู่แล้ว (เจ้าของสั่ง 2026-09-11, copies ถูกล็อก 1 ตอนเลือกประเภท) */}
               {/* งาน Standard เลือกจำนวนชุดในการ์ดของแต่ละไฟล์แล้ว (เจ้าของสั่ง 2026-11-02) — ช่องนี้เหลือเฉพาะงาน Pro */}
-              {!v.stkOn && v.isPro && <div style={css("display:flex;justify-content:space-between;align-items:center")}><div style={css("font-size:13px;font-weight:600;color:var(--ink)")}>จำนวนชุด (สำเนา)</div>
+              {!v.stkOn && !v.vinylOn && v.isPro && <div style={css("display:flex;justify-content:space-between;align-items:center")}><div style={css("font-size:13px;font-weight:600;color:var(--ink)")}>จำนวนชุด (สำเนา)</div>
                 <div style={css("display:flex;align-items:center;gap:10px")}>
                   <button onClick={v.copyDec} style={css("width:30px;height:30px;border:1px solid var(--line);background:var(--soft);color:var(--ink);border-radius:9px;font-size:15px;cursor:pointer")}>−</button>
                   <div style={css("font-family:'IBM Plex Mono',monospace;font-size:15px;font-weight:600;min-width:26px;text-align:center")}>{v.copies}</div>
                   <button onClick={v.copyInc} style={css("width:30px;height:30px;border:1px solid var(--line);background:var(--soft);color:var(--ink);border-radius:9px;font-size:15px;cursor:pointer")}>+</button>
+                </div>
+              </div>}
+              {/* ไวนิล: กรอกจำนวนตารางเมตร (จำนวนเต็ม) แทนจำนวนชุด — เจ้าของสั่ง 2026-11-17 ขอคำกำกับสั้นที่สุด */}
+              {v.vinylOn && <div style={css("display:flex;justify-content:space-between;align-items:center;gap:10px")}>
+                <div style={css("min-width:0")}>
+                  <div style={css("font-size:13px;font-weight:600;color:var(--ink)")}>จำนวนตารางเมตร</div>
+                  <div style={css("font-size:11.5px;color:var(--sub);margin-top:2px")}>กว้าง × ยาว (เมตร) มีเศษปัดขึ้น</div>
+                </div>
+                <div style={css("flex:none;display:flex;align-items:center;gap:8px")}>
+                  <button onClick={v.sqmDec} style={css("width:30px;height:30px;border:1px solid var(--line);background:var(--soft);color:var(--ink);border-radius:9px;font-size:15px;cursor:pointer")}>−</button>
+                  <input value={v.sqm} inputMode="numeric" pattern="[0-9]*" aria-label="จำนวนตารางเมตร" onChange={(e) => v.sqmSet(e.target.value)} onBlur={v.sqmFix}
+                    style={css("width:52px;height:30px;box-sizing:border-box;border:1px solid var(--line);border-radius:9px;background:var(--card);color:var(--ink);font-family:'IBM Plex Mono',monospace;font-size:16px;font-weight:600;text-align:center;padding:0 4px")}/>
+                  <button onClick={v.sqmInc} style={css("width:30px;height:30px;border:1px solid var(--line);background:var(--soft);color:var(--ink);border-radius:9px;font-size:15px;cursor:pointer")}>+</button>
                 </div>
               </div>}
               {v.isPro && v.proMulti && (
@@ -5508,7 +5549,7 @@ class App extends React.Component {
             <div style={css("background:var(--accSoft);border:1.5px solid var(--acc);border-radius:14px;padding:14px 16px;box-shadow:var(--shadow)")}>
               <div style={css("font-size:12px;font-weight:700;color:var(--acc);letter-spacing:.5px")}>🖨️ สเปกงานพิมพ์ที่คุณเลือก</div>
               <div style={css("margin-top:10px;display:flex;flex-direction:column;gap:9px")}>
-                {(v.proMulti ? [['ประเภทงาน', v.typeLabel], ['งานที่สั่ง', v.paperLabel], ['จำนวนไฟล์', v.files.length + ' ไฟล์ (สเปกตามแต่ละไฟล์ด้านล่าง)']] : [['ประเภทงาน', v.typeLabel], ['ขนาดกระดาษ', v.paperLabel], ...(v.isPro ? [['ด้านที่พิมพ์', v.sidesLabel], ['การเข้าเล่ม', v.bindLabel], ['จำนวน', v.copies + ' ชุด']] : [])]).map((p, i) => ( /* Standard: จำนวนชุดอยู่ในสเปกรายไฟล์ด้านล่าง */
+                {(v.proMulti ? [['ประเภทงาน', v.typeLabel], ['งานที่สั่ง', v.paperLabel], ['จำนวนไฟล์', v.files.length + ' ไฟล์ (สเปกตามแต่ละไฟล์ด้านล่าง)']] : [['ประเภทงาน', v.typeLabel], ['ขนาดกระดาษ', v.paperLabel], ...(v.isPro ? [['ด้านที่พิมพ์', v.sidesLabel], ['การเข้าเล่ม', v.bindLabel], ['จำนวน', v.vinylOn ? v.sqmN + ' ตร.ม.' : v.copies + ' ชุด']] : [])]).map((p, i) => ( /* Standard: จำนวนชุดอยู่ในสเปกรายไฟล์ด้านล่าง */
                   <div key={i} style={css("display:flex;align-items:center;gap:10px")}>
                     <div style={css("width:20px;height:20px;border-radius:50%;background:var(--acc);color:#fff;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;flex:none")}>✓</div>
                     <span style={css("font-size:12.5px;color:var(--sub);min-width:88px")}>{p[0]}</span>
