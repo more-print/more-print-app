@@ -3455,7 +3455,14 @@ class App extends React.Component {
       ] : [],
       proBoardPicked: !!s.proBoard,
       // โปสเตอร์: ประเภทกระดาษ (เจ้าของสั่ง 2026-09-15 — ไม่บวกราคา · กระดาษอาร์ต = ค่าพื้นฐาน เลือกให้อัตโนมัติ)
-      proPoPaperOpts: s.proType === 'poster' ? [['art', 'กระดาษอาร์ต (พื้นฐาน)'], ['pp', 'พีพีฟิล์ม'], ['vinyl', 'ไวนิล']].map(([k, label]) => // กระดาษโฟโต้ถอดออก (2026-10-05) · 3 ช่องแถวเดียว ป้ายเต็มคงเดิม (เจ้าของยืนยัน 2026-10-09)
+      // 2026-11-17 เจ้าของสั่ง: เปิดกระดาษโฟโต้คืน (ไม่บวกราคา) + เรียง อาร์ต → โฟโต้ → พีพีฟิล์ม → ไวนิล · 4 ช่องแถวเดียวพอดีจอ
+      // ป้ายห่อ nowrap เป็นคำ ๆ — จอแคบ "กระดาษอาร์ต / (พื้นฐาน)" ขึ้น 2 บรรทัดตรงวงเล็บ ไม่ตัดกลางคำ
+      proPoPaperOpts: s.proType === 'poster' ? [
+        ['art', <React.Fragment><span style={{ whiteSpace: 'nowrap' }}>กระดาษอาร์ต</span> <span style={{ whiteSpace: 'nowrap' }}>(พื้นฐาน)</span></React.Fragment>],
+        ['photo', <span style={{ whiteSpace: 'nowrap' }}>กระดาษโฟโต้</span>],
+        ['pp', <span style={{ whiteSpace: 'nowrap' }}>พีพีฟิล์ม</span>],
+        ['vinyl', <span style={{ whiteSpace: 'nowrap' }}>ไวนิล</span>]
+      ].map(([k, label]) =>
         this.seg(label, (s.proPoPaper || 'art') === k, () => this.setState({ proPoPaper: k }), true)) : [],
       // พิมพ์ขาวดำขนาดใหญ่: ความหนากระดาษ 80/100/120 แกรม (ไม่บวกราคา — 2026-09-09)
       // ความหนากระดาษแบบแปลน (80/100/120 แกรม) ซ่อนชั่วคราว — ยังไม่รู้ราคา (เจ้าของสั่ง 2026-09-12); เปิดคืน: เอา `false &&` ออก
@@ -5008,7 +5015,7 @@ class App extends React.Component {
                 {/* แนวกระดาษ (พิมพ์สีขาวดำขนาดใหญ่ — 2026-09-11) */}
                 {v.isPro && v.proOrientOpts.length > 0 && <div style={css("display:flex;flex-direction:column;gap:6px")}><div style={css("font-size:13px;font-weight:600;color:var(--ink)")}>แนวของกระดาษ</div><div style={css("display:flex;gap:8px;flex-wrap:wrap")}>{v.proOrientOpts.map((o, i) => <button key={i} onClick={o.pick} style={{...o.st, flex:'1 1 45%'}}>{o.label}</button>)}</div></div>}
                 {/* โปสเตอร์: ประเภทกระดาษ — วางก่อนหัวข้อด้านที่พิมพ์ (เจ้าของสั่ง 2026-09-15) */}
-                {v.isPro && v.proPoPaperOpts.length > 0 && <div style={css("display:flex;flex-direction:column;gap:6px")}><div style={css("font-size:13px;font-weight:600;color:var(--ink)")}>ประเภทกระดาษ</div><div style={css("display:flex;gap:7px")}>{v.proPoPaperOpts.map((o, i) => <button key={i} onClick={o.pick} style={{...o.st, flex:'1 1 0', minWidth:0, padding:'9px 6px', whiteSpace:'normal', lineHeight:1.35}}>{o.label}</button>)}</div></div>}
+                {v.isPro && v.proPoPaperOpts.length > 0 && <div style={css("display:flex;flex-direction:column;gap:6px")}><div style={css("font-size:13px;font-weight:600;color:var(--ink)")}>ประเภทกระดาษ</div><div style={css("display:flex;gap:5px")}>{v.proPoPaperOpts.map((o, i) => <button key={i} onClick={o.pick} style={{...o.st, flex:'1 1 0', minWidth:'auto', padding:'9px 5px', fontSize:'clamp(10.5px, 3.3vw, 12.5px)', whiteSpace:'normal', lineHeight:1.35}}>{o.label}</button>)}</div></div>}
                 {v.isPro && v.proShowSides && <div style={css("display:flex;flex-direction:column;gap:6px")}><div style={css("font-size:13px;font-weight:600;color:var(--ink)")}>ด้านที่พิมพ์</div><div style={css("display:flex;gap:8px;flex-wrap:wrap")}>{v.proSidesOpts.map((o, i) => <button key={i} onClick={o.pick} style={{...o.st, flex:'1 1 45%'}}>{o.label}</button>)}</div></div>}
                 {v.isPro && v.proExtraOpts.length > 0 && <div style={css("display:flex;flex-direction:column;gap:6px")}><div style={css("font-size:13px;font-weight:600;color:var(--ink)")}>ตัวเลือกเสริม</div><div style={css("display:flex;gap:8px;flex-wrap:wrap")}>{v.proExtraOpts.map((o, i) => <button key={i} onClick={o.pick} style={{...o.st, flex:'1 1 45%'}}>{o.label}</button>)}</div></div>}
                 {v.isPro && v.proBoardOpts.length > 0 && <div style={css("display:flex;flex-direction:column;gap:6px")}>
