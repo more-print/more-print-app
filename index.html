@@ -3,6 +3,41 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<script>
+// iPad ใช้หน้าเว็บโหมดคอมเสมอ รวมเบราว์เซอร์ในแอป LINE/Chrome บน iPad (เจ้าของสั่ง 2026-11-17)
+// iPad แนวตั้งจอกว้างไม่ถึง 1024 → วางหน้าเว็บกว้าง 1024 (ขนาดเดียวกับคอมที่ทดสอบแล้ว) แล้วย่อให้พอดีจอ
+// iPad แนวนอน (กว้าง ≥1024) ใช้ความกว้างจริง · แบ่งจอ (Split View) แคบกว่า 700 = กลับเป็นหน้ามือถือ
+// iPadOS 13+ ส่ง UA เป็น Mac → แยกด้วยจอสัมผัส (Mac จริงไม่มี maxTouchPoints)
+(function(){
+  var ua = navigator.userAgent || '';
+  var ipad = /iPad/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1);
+  window.MP_IPAD = ipad; window.MP_IPAD_DESK = false;
+  window.MP_FIT = function(){};
+  if (!ipad) return;
+  var meta = document.querySelector('meta[name="viewport"]'), lastW = 0;
+  window.MP_FIT = function(){
+    // ความกว้างหน้าต่างจริง (หน่วยจอ ไม่ขึ้นกับค่า viewport/การซูมนิ้ว) = กว้างที่มองเห็น × สเกล · แบ่งจอกับแอปอื่นก็ได้ค่าหน้าต่างจริง
+    var vv = window.visualViewport, w = vv && vv.width > 0 && vv.scale > 0 ? Math.round(vv.width * vv.scale) : 0;
+    var land = window.matchMedia ? window.matchMedia('(orientation: landscape)').matches : Math.abs(window.orientation || 0) === 90;
+    var sw = screen.width || 0, sh = screen.height || 0;
+    var sc = land ? Math.max(sw, sh) : Math.min(sw, sh); // สำรอง: iOS ให้ screen เป็นค่าแนวตั้งเสมอ — เลือกตามแนวจอเอง
+    if (!(w > 0) || (sc > 0 && w > sc)) w = sc;
+    if (lastW && Math.abs(w - lastW) < 8) return; // ค่าคลาดเล็กน้อยระหว่างซูมนิ้ว — ไม่แตะ (กันซูมถูกรีเซ็ต)
+    lastW = w;
+    var prev = window.MP_IPAD_DESK;
+    window.MP_IPAD_DESK = w >= 700;
+    if (prev !== window.MP_IPAD_DESK && window.MP_ON_DESK) setTimeout(window.MP_ON_DESK, 0); // แจ้งแอปให้สลับหน้าคอม/มือถือ
+    var c = (window.MP_IPAD_DESK && w < 1024) ? 'width=1024, initial-scale=' + (w / 1024).toFixed(4) : 'width=device-width, initial-scale=1';
+    if (meta && meta.getAttribute('content') !== c) meta.setAttribute('content', c); // เปลี่ยนเฉพาะเมื่อค่าต่าง — กันซูมนิ้วของลูกค้าถูกรีเซ็ต
+  };
+  window.MP_FIT();
+  // หมุนจอ/แบ่งจอ: ค่าขนาดบางตัวอัปเดตช้ากว่า event — เช็คซ้ำอีกรอบหลังจากนั้นเล็กน้อย
+  var refit = function(){ window.MP_FIT(); setTimeout(window.MP_FIT, 150); };
+  window.addEventListener('orientationchange', refit);
+  window.addEventListener('resize', refit);
+  if (window.visualViewport) window.visualViewport.addEventListener('resize', window.MP_FIT);
+})();
+</script>
 <title>MORE PRINT — เว็บพิมพ์เอกสาร มข.</title>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Montserrat:wght@700;800&display=swap" rel="stylesheet">
 <style>
@@ -125,6 +160,8 @@ const PRO_PICKUP_NAME = 'จุดรับงาน Pro (กังสดาล)
 // ใช้สูตรราคาชุดเดียวกับลูกค้าทุกอย่าง (ไฟล์/สแกนสี/ตัวเลือก/ค่าส่ง) — แต่ไม่สร้างออเดอร์ ไม่แตะบัญชี/ร่าง/ออเดอร์ของเครื่องนี้
 // กด "ส่งเข้าหลังบ้าน" → อัปไฟล์ + ส่งข้อมูลออเดอร์กลับไปให้หลังบ้าน (admin.html) เป็นคนบันทึก · เปิดตรง ๆ นอก iframe = เว็บปกติ
 const OA_MODE = (() => { try { return new URLSearchParams(location.search).get('oa') === '1' && window.parent !== window; } catch (e) { return false; } })();
+// โหมดคอม: จอคอมกว้าง ≥1024 หรือ iPad (สคริปต์ MP_FIT ใน <head> ตัดสินให้ — iPad ห้ามใช้ innerWidth เพราะซูมนิ้วแล้วค่าลด จะเด้งเป็นหน้ามือถือ)
+const deskNow = () => !OA_MODE && typeof window !== 'undefined' && (window.MP_IPAD ? !!window.MP_IPAD_DESK : window.innerWidth >= 1024);
 const PRO_PICKUP_MAP = 'https://www.google.com/maps/search/?api=1&query=' + CONFIG.shopLat + ',' + CONFIG.shopLng;
 const pubAddr = (a) => String(a || '').replace(/(?:โรงพิมพ์|ร้าน)?อุดมสุข(?:ปริ้นติ้ง)?(?:\s*\(กังสดาล\))?/g, PRO_PICKUP_NAME);
 const NAV_ICON = {
@@ -627,7 +664,7 @@ class App extends React.Component {
     let rc0 = null; try { rc0 = JSON.parse(localStorage.getItem('mp_rc') || 'null'); } catch (e) {} // ข้อมูลผู้ซื้อในใบเสร็จที่เคยกรอก
     if (!rc0) try { const m = document.cookie.match(/(?:^|;\s*)mp_rc_bk=([^;]+)/); rc0 = m ? JSON.parse(decodeURIComponent(m[1])) : null; } catch (e) {} // สำรองในคุกกี้ — เครื่องล้าง storage เองก็ยังจำได้
     this.state = {
-      desk: !OA_MODE && typeof window !== 'undefined' && window.innerWidth >= 1024, // โหมดคอมพิวเตอร์ (จอกว้าง ≥1024px)
+      desk: deskNow(), // โหมดคอมพิวเตอร์ (จอกว้าง ≥1024px หรือ iPad)
       screen: OA_MODE ? 'order' : 'home', files: [], proActive: 0, stepMax: 0, tier: 'standard', ptype: 'bw', paper: 'A4', sides: 1, orient: 'portrait', nup: 1, bind: 'none', copies: 1, note: '', shipNote: '',
       shopOpen: true, // สถานะรับออเดอร์จากหลังบ้าน (false = ร้านกดปิดรับชั่วคราว)
       shopProOpen: true, // ปิดรับเฉพาะงาน PRO จากหลังบ้าน (shop_status.pro_open — 2026-10-17) · Standard ยังสั่งได้
@@ -671,8 +708,10 @@ class App extends React.Component {
 
   componentDidMount(){
     // โหมดคอมพิวเตอร์: สลับเลย์เอาต์ตามความกว้างจอ (ย่อ/ขยายหน้าต่างก็เปลี่ยนตาม)
-    this._onResize = () => { const d = !OA_MODE && window.innerWidth >= 1024; if (d !== this.state.desk) this.setState({ desk: d }); };
+    this._onResize = () => { window.MP_FIT && window.MP_FIT(); const d = deskNow(); if (d !== this.state.desk) this.setState({ desk: d }); };
     window.addEventListener('resize', this._onResize);
+    window.MP_ON_DESK = this._onResize; // iPad: สคริปต์ MP_FIT เรียกเมื่อสลับหน้าคอม/มือถือ (หมุนจอ/แบ่งจอ)
+    this._onResize(); // เผื่อ MP_FIT ตัดสินเปลี่ยนระหว่างโหลดหน้า
     // เชื่อมฐานข้อมูลกลาง (Supabase) ถ้าตั้งค่าไว้ใน config.js
     // แยกเป็น 2 client: this.db ใช้กับข้อมูล/ไฟล์ (สิทธิ์ anon เสมอ), this.auth ใช้กับระบบสมาชิก
     const cfg = window.MP_CONFIG || {};
