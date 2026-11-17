@@ -530,7 +530,7 @@ function admProSpecRows(o){
   const base = parts.shift() || '';
   const rows = [];
   let m;
-  if ((m = base.match(/^(เพลท|โปสเตอร์) (\S+)$/))) rows.push(['ประเภทงาน', m[1]], ['ขนาด', m[2]]);
+  if ((m = base.match(/^(เพลท|บอร์ด|โปสเตอร์) (\S+)$/))) rows.push(['ประเภทงาน', m[1]], ['ขนาด', m[2]]); // เพลท = ป้ายเก่าก่อน 2026-11-17
   else if ((m = base.match(/^Postcard (\S+) \((.+)\)$/))) rows.push(['ประเภทงาน', 'Postcard'], ['ขนาด', m[1] + ' (' + m[2] + ')']);
   else if ((m = base.match(/^พับครึ่ง เล่ม (\S+) \(กระดาษ (\S+)\)$/))) rows.push(['ประเภทงาน', 'พับครึ่ง (เข้าเล่ม/เมนู)'], ['ขนาดเล่ม', m[1]], ['ขนาดกระดาษ', m[2]]);
   else if ((m = base.match(/^นามบัตร (\d+) ใบ ?(หน้า-หลัง|หน้าเดียว)?$/))) { rows.push(['ประเภทงาน', 'นามบัตร'], ['จำนวนใบ', m[1] + ' ใบ']); if (m[2]) rows.push(['ด้านที่พิมพ์', m[2]]); }
@@ -1616,7 +1616,7 @@ const ETA_PRO_MIN = { plate: { A4: 60, A3: 60, A2: 90, A1: 120, A0: 180 }, poste
 function proKindOfLabel(label){
   const b = String(label || '').split(' · ')[0].trim();
   let m;
-  if ((m = b.match(/^เพลท (A\d)/))) return { k: 'plate', size: m[1] };
+  if ((m = b.match(/^(?:เพลท|บอร์ด) (A\d)/))) return { k: 'plate', size: m[1] }; // เพลท = ป้ายเก่า
   if ((m = b.match(/^โปสเตอร์ (A\d)/))) return { k: 'poster', size: m[1] };
   if (/^Postcard/i.test(b)) return { k: 'postcard' };
   if (/^พับครึ่ง/.test(b)) return { k: 'foldbook' };

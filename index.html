@@ -269,7 +269,7 @@ function proSpecRowsC(o){
   const base = parts.shift() || '';
   const rows = [];
   let m;
-  if ((m = base.match(/^(เพลท|โปสเตอร์) (\S+)$/))) rows.push(['ประเภทงาน', m[1]], ['ขนาด', m[2]]);
+  if ((m = base.match(/^(เพลท|บอร์ด|โปสเตอร์) (\S+)$/))) rows.push(['ประเภทงาน', m[1]], ['ขนาด', m[2]]); // เพลท = ป้ายเก่าก่อน 2026-11-17
   else if ((m = base.match(/^Postcard (\S+) \((.+)\)$/))) rows.push(['ประเภทงาน', 'Postcard'], ['ขนาด', m[1] + ' (' + m[2] + ')']);
   else if ((m = base.match(/^พับครึ่ง เล่ม (\S+) \(กระดาษ (\S+)\)$/))) rows.push(['ประเภทงาน', 'พับครึ่ง (เข้าเล่ม/เมนู)'], ['ขนาดเล่ม', m[1]], ['ขนาดกระดาษ', m[2]]);
   else if ((m = base.match(/^นามบัตร (\d+) ใบ ?(หน้า-หลัง|หน้าเดียว)?$/))) { rows.push(['ประเภทงาน', 'นามบัตร'], ['จำนวนใบ', m[1] + ' ใบ']); if (m[2]) rows.push(['ด้านที่พิมพ์', m[2]]); }
@@ -411,7 +411,7 @@ const POP_SPOTS = [
 const PRO_TYPES = [
   // โปสเตอร์ขึ้นอันแรก (เจ้าของสั่ง 2026-09-09)
   { k: 'poster', icon: '🖼️', label: 'โปสเตอร์', sizes: ['A4', 'A3', 'A2', 'A1', 'A0'], sidesOpt: true }, // คำกำกับกระดาษอาร์ตมัน 250 แกรม อยู่เป็นข้อความเขียวหลังกดเลือก (เจ้าของแก้ 2026-09-11) ไม่ใช่บนการ์ด
-  { k: 'plate', icon: '🪧', label: 'เพลท', sizes: ['A4', 'A3', 'A2', 'A1', 'A0'] },
+  { k: 'plate', icon: '🪧', label: 'บอร์ด', sizes: ['A4', 'A3', 'A2', 'A1', 'A0'] },
   { k: 'postcard', icon: '💌', label: 'Postcard' },
   { k: 'foldbook', icon: '📖', label: 'พับครึ่ง (เข้าเล่ม/เมนู)', sizes: ['A4', 'A3', 'A2'], bindOpt: true },
   { k: 'portfolio', icon: '📁', label: 'Portfolio' },
@@ -2242,7 +2242,7 @@ class App extends React.Component {
   proLabel(){
     const s = this._ov || this.state;
     const t = PRO_TYPES.find(x => x.k === s.proType) || PRO_TYPES[0];
-    const base = t.k === 'plate' ? 'เพลท ' + s.proSize
+    const base = t.k === 'plate' ? 'บอร์ด ' + s.proSize // เดิม 'เพลท' — เจ้าของเปลี่ยนชื่อ 2026-11-17 (parser ทุกไฟล์รับทั้ง 2 คำ)
       : t.k === 'poster' ? 'โปสเตอร์ ' + s.proSize
       : t.k === 'postcard' ? 'Postcard A3 (9 ใบ/แผ่น)'
       : t.k === 'foldbook' ? 'พับครึ่ง เล่ม ' + ((FOLDBOOK_BOOK[s.proSize] || {}).book || s.proSize) + ' (กระดาษ ' + s.proSize + ')'
@@ -3475,7 +3475,7 @@ class App extends React.Component {
       ] : [],
       // ข้อความเขียวกำกับกระดาษ ใต้กริดประเภท ก่อนตัวเลือกขนาด — โปสเตอร์+เพลท ใช้อาร์ตมัน 250 แกรม (เพลทเพิ่ม 2026-09-11)
       proPaperNote: s.proType === 'poster' ? 'กระดาษขนาด A3 ขึ้นไป ไม่รับเคลือบครับ🙏🏻'
-        : s.proType === 'plate' ? '🪧 เพลท (กระดาษอาร์ตมัน 250 แกรม)'
+        : s.proType === 'plate' ? '🪧 บอร์ด (กระดาษอาร์ตมัน 250 แกรม)'
         : s.proType === 'foldbook' ? '📖 พับครึ่ง (กระดาษอาร์ตมัน 250 แกรม)'
         : s.proType === 'portfolio' ? '📁 Portfolio เข้าเล่มเย็บมุงหลังคา'
         : s.proType === 'namecard' ? <React.Fragment>💳 ขนาดนามบัตร ไซส์มาตรฐาน 5.5*8.8 ซม.<span style={{ display: 'block', fontSize: '12.5px', fontWeight: 600, marginTop: '2px' }}>(หากอยากได้ไซส์อื่นให้แจ้งในหมายเหตุครับ)</span></React.Fragment>
@@ -3498,7 +3498,7 @@ class App extends React.Component {
         this.seg('เคลือบฟิล์มลามิเนตหน้า-หลัง +฿' + PRO_LAM_TWO, true, () => this.setState({ proFilm: 'lam' }), true)
       ]) : [],
       proHint: s.proType === 'foldbook' ? '📖 เข้าเล่มทุกแบบ +฿' + PRO_FOLDBOOK_BIND + '/เล่ม · พิมพ์หน้า-หลังทั้งเล่ม'
-        : s.proType === 'plate' ? '🪧 เพลทรวมติดบอร์ดแล้ว · พิมพ์ด้านหน้าอย่างเดียว'
+        : s.proType === 'plate' ? '🪧 ราคารวมติดบอร์ดแล้ว · พิมพ์ด้านหน้าอย่างเดียว'
         : s.proType === 'postcard' ? <React.Fragment>ขนาด 4*6 นิ้ว (กว้าง * ยาว)<span style={{ display: 'block' }}>💌 1 แผ่น A3 = 9 ใบ · หน้าเดียว ฿{PRO_POSTCARD_SHEET}/แผ่น · หน้า-หลัง ฿{PRO_POSTCARD_SHEET * 2}/แผ่น</span></React.Fragment>
         : s.proType === 'sticker' ? '🏷️ 1 ไฟล์ = 1 ลาย (รูปเดียว)'
         : s.proType === 'namecard' ? '💳 ราคาต่อ 100 ใบ (A3 4 แผ่น)'
@@ -3763,9 +3763,9 @@ class App extends React.Component {
         const dis = this.forceCar() && o.k === 'bike'; // งานแข็ง หรือ โหมดฝนตก (ทุกงาน) — ห้ามมอไซค์
         return { ...o, on: s.vehSel && s.vehicle === o.k, dis,
           desc: dis ? (this.bigJob() ? 'งานแข็งแผ่นใหญ่ส่งมอเตอร์ไซค์ไม่ได้ครับ (หัก/เสียหาย)' : 'ช่วงฝนตก ทุกงานส่งรถยนต์เท่านั้นครับ (กันงานเปียก)') : o.desc,
-          pick: dis ? () => this.showToast(this.bigJob() ? 'เพลท A3 ขึ้นไป / Standy เป็นงานแข็ง ต้องส่งด้วยรถยนต์เท่านั้นครับ 🚗' : '🌧️ ช่วงฝนตก งานทุกรูปแบบจัดส่งด้วยรถยนต์เท่านั้นครับ กันงานเปียกเสียหาย') : () => this.setState({ vehicle: o.k, vehSel: true }) };
+          pick: dis ? () => this.showToast(this.bigJob() ? 'บอร์ด A3 ขึ้นไป / Standy เป็นงานแข็ง ต้องส่งด้วยรถยนต์เท่านั้นครับ 🚗' : '🌧️ ช่วงฝนตก งานทุกรูปแบบจัดส่งด้วยรถยนต์เท่านั้นครับ กันงานเปียกเสียหาย') : () => this.setState({ vehicle: o.k, vehSel: true }) };
       }),
-      vehicleHint: this.bigJob() ? '🚗 งานแข็งแผ่นใหญ่ (เพลท A3 ขึ้นไป / Standy) — ระบบเลือกส่งด้วยรถยนต์ให้อัตโนมัติ กันงานหัก/เสียหาย' : this.forceCar() ? '🌧️ ช่วงฝนตก — งานทุกรูปแบบจัดส่งด้วยรถยนต์เท่านั้น กันงานเปียก/เสียหาย' : '',
+      vehicleHint: this.bigJob() ? '🚗 งานแข็งแผ่นใหญ่ (บอร์ด A3 ขึ้นไป / Standy) — ระบบเลือกส่งด้วยรถยนต์ให้อัตโนมัติ กันงานหัก/เสียหาย' : this.forceCar() ? '🌧️ ช่วงฝนตก — งานทุกรูปแบบจัดส่งด้วยรถยนต์เท่านั้น กันงานเปียก/เสียหาย' : '',
       vehicleLabel: s.vehicle === 'car' ? '🚗 รถยนต์' : '🏍️ มอเตอร์ไซค์',
       // ระยะทาง + ค่าส่งสด แสดงใต้แผนที่
       distLine: c.proPickupOn ? '' : s.lat == null ? ''
@@ -4412,7 +4412,7 @@ class App extends React.Component {
         {v.desk && !v.oaMode && [
           v.shopClosed && ['red', 'alert', 'ขออภัยครับ ตอนนี้ร้านปิดรับออเดอร์ชั่วคราว', 'เปิดรับอีกครั้งเร็ว ๆ นี้ · ออเดอร์เดิมใช้ได้ปกติครับ'],
           v.proClosed && ['orange', 'alert', 'ขออภัยครับ ตอนนี้ปิดรับงาน PRO ชั่วคราว', 'งาน Standard (พิมพ์เอกสาร A4) ยังสั่งได้ปกติ · งาน PRO เปิดรับอีกครั้งเร็ว ๆ นี้'],
-          v.stdClosed && ['orange', 'alert', 'ขออภัยครับ ตอนนี้ปิดรับงาน Standard ชั่วคราว', 'งาน PRO (โปสเตอร์ เพลท สติ๊กเกอร์ ฯลฯ) ยังสั่งได้ปกติ · งาน Standard เปิดรับอีกครั้งเร็ว ๆ นี้'],
+          v.stdClosed && ['orange', 'alert', 'ขออภัยครับ ตอนนี้ปิดรับงาน Standard ชั่วคราว', 'งาน PRO (โปสเตอร์ บอร์ด สติ๊กเกอร์ ฯลฯ) ยังสั่งได้ปกติ · งาน Standard เปิดรับอีกครั้งเร็ว ๆ นี้'],
           v.rainMode && ['blue', 'rain', 'วันนี้ฝนตกหนัก — งานทุกรูปแบบจัดส่งด้วยรถยนต์เท่านั้นครับ', 'เพื่อป้องกันงานเปียกและเสียหาย ขออภัยจากใจจริงนะครับ'],
         ].filter(Boolean).map(([tone, ic, title, detail]) => {
           const T = { red: [['#fff0f0', '#c92a2a', '#ffc9c9'], ['#2a1414', '#ff8f8f', '#5c2323']],
@@ -4467,7 +4467,7 @@ class App extends React.Component {
           <div style={css("margin:14px 20px 0;background:#fff4e6;border:1.5px solid #ffa94d;border-radius:12px;padding:11px 14px;display:flex;gap:10px;align-items:center")}>
             <span style={css("flex:none;display:flex;color:#d9480f")}>{fi('alert', 17)}</span><div style={css("min-width:0")}>
               <div style={css("font-size:12.5px;color:#d9480f;font-weight:800;line-height:1.5")}>ขออภัยครับ ตอนนี้ปิดรับงาน Standard ชั่วคราว</div>
-              <div style={css("margin-top:2px;font-size:12.5px;color:#d9480f;font-weight:600;line-height:1.5")}>งาน PRO (โปสเตอร์ เพลท สติ๊กเกอร์ ฯลฯ) ยังสั่งได้ปกติ · งาน Standard เปิดรับอีกครั้งเร็ว ๆ นี้</div>
+              <div style={css("margin-top:2px;font-size:12.5px;color:#d9480f;font-weight:600;line-height:1.5")}>งาน PRO (โปสเตอร์ บอร์ด สติ๊กเกอร์ ฯลฯ) ยังสั่งได้ปกติ · งาน Standard เปิดรับอีกครั้งเร็ว ๆ นี้</div>
             </div>
           </div>
         )}

@@ -328,7 +328,7 @@ function proSpecRows(o){
   const base = parts.shift() || '';
   const rows = [];
   let m;
-  if ((m = base.match(/^(เพลท|โปสเตอร์) (\S+)$/))) rows.push(['ประเภทงาน', m[1]], ['ขนาด', m[2]]);
+  if ((m = base.match(/^(เพลท|บอร์ด|โปสเตอร์) (\S+)$/))) rows.push(['ประเภทงาน', m[1]], ['ขนาด', m[2]]); // เพลท = ป้ายเก่าก่อน 2026-11-17
   else if ((m = base.match(/^Postcard (\S+) \((.+)\)$/))) rows.push(['ประเภทงาน', 'Postcard'], ['ขนาด', m[1] + ' (' + m[2] + ')']);
   else if ((m = base.match(/^พับครึ่ง เล่ม (\S+) \(กระดาษ (\S+)\)$/))) rows.push(['ประเภทงาน', 'พับครึ่ง (เข้าเล่ม/เมนู)'], ['ขนาดเล่ม', m[1]], ['ขนาดกระดาษ', m[2]]);
   else if ((m = base.match(/^นามบัตร (\d+) ใบ ?(หน้า-หลัง|หน้าเดียว)?$/))) { rows.push(['ประเภทงาน', 'นามบัตร'], ['จำนวนใบ', m[1] + ' ใบ']); if (m[2]) rows.push(['ด้านที่พิมพ์', m[2]]); }
@@ -875,7 +875,7 @@ const proKindOf = (o) => {
   const one = (b) => {
     b = b.trim();
     let m;
-    if ((m = b.match(/^(เพลท|โปสเตอร์)/))) return m[1];
+    if ((m = b.match(/^(เพลท|บอร์ด|โปสเตอร์)/))) return m[1] === 'เพลท' ? 'บอร์ด' : m[1]; // ป้ายเก่า 'เพลท' รวมกลุ่มเดียวกับ 'บอร์ด'
     if (/^Postcard/.test(b)) return 'Postcard';
     if (/^พับครึ่ง/.test(b)) return 'พับครึ่ง (เข้าเล่ม/เมนู)';
     if (/^นามบัตร/.test(b)) return 'นามบัตร';
