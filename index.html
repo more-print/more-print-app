@@ -679,7 +679,7 @@ class App extends React.Component {
     if (!rc0) try { const m = document.cookie.match(/(?:^|;\s*)mp_rc_bk=([^;]+)/); rc0 = m ? JSON.parse(decodeURIComponent(m[1])) : null; } catch (e) {} // สำรองในคุกกี้ — เครื่องล้าง storage เองก็ยังจำได้
     this.state = {
       desk: deskNow(), // โหมดคอมพิวเตอร์ (จอกว้าง ≥1024px หรือ iPad)
-      screen: OA_MODE ? 'order' : 'home', files: [], optOpen: null, fileEdit: null, // optOpen = แถวตัวเลือกที่กางอยู่ · fileEdit = การ์ดไฟล์ที่กดแก้ไข (2026-11-24)
+      screen: OA_MODE ? 'order' : 'home', files: [], optOpen: null, // optOpen = แถวตัวเลือกที่กางอยู่ (2026-11-24) · การ์ดไฟล์พับ/กางเก็บที่ files[i].fold (UI ล้วน ไม่ลงฐานข้อมูล)
       proActive: 0, stepMax: 0, tier: 'standard', ptype: 'bw', paper: 'A4', sides: 1, orient: 'portrait', nup: 1, bind: 'none', copies: 1, note: '', shipNote: '',
       shopOpen: true, // สถานะรับออเดอร์จากหลังบ้าน (false = ร้านกดปิดรับชั่วคราว)
       shopProOpen: true, // ปิดรับเฉพาะงาน PRO จากหลังบ้าน (shop_status.pro_open — 2026-10-17) · Standard ยังสั่งได้
@@ -3362,9 +3362,11 @@ class App extends React.Component {
           const sm = (sg) => ({ ...sg, st: { ...sg.st, padding: '8px 6px', flex: '1 1 0', minWidth: 0 } });
           return {
             opt: o, nupLock: o.nupLock,
+            // การ์ดไฟล์กางตัวเลือกไว้ตั้งแต่แรก (เจ้าของสั่ง 2026-11-24 — ลูกค้างงถ้าต้องกดแก้ไขก่อน) · กด "เสร็จ" = พับเหลือบรรทัดสรุป
+            fold: !!f.fold, setFold: (b) => { setOpt({ fold: !!b }); this.setState({ optOpen: null }); },
             // บรรทัดสรุปบนการ์ดไฟล์ตอนพับอยู่ (2026-11-24) — ตัวเลือกที่ยังเป็นค่าปกติ (ไม่เย็บ/ไม่เข้าเล่ม/กระดาษปกติ) ไม่ต้องโชว์
-            summary: [o.copies + ' ชุด', o.sides === 2 ? 'หน้า-หลัง' : 'หน้าเดียว', o.orient === 'landscape' ? 'แนวนอน' : 'แนวตั้ง', o.nup + ' หน้า/แผ่น',
-              ...(o.media === 'photo' ? ['กระดาษโฟโต้'] : []), ...(o.bind === 'corner' ? ['เย็บมุม'] : isBook ? ['เข้าเล่ม' + STD_BIND_SHORT[o.bind]] : [])],
+            summary: [o.sides === 2 ? 'หน้า-หลัง' : 'หน้าเดียว', o.orient === 'landscape' ? 'แนวนอน' : 'แนวตั้ง', o.nup + ' หน้า/แผ่น',
+              ...(o.media === 'photo' ? ['กระดาษโฟโต้'] : []), ...(o.bind === 'corner' ? ['เย็บมุม'] : isBook ? ['เข้าเล่ม' + STD_BIND_SHORT[o.bind]] : []), o.copies + ' ชุด'], // จำนวนชุดไว้ท้ายสุด (เจ้าของสั่ง 2026-11-24)
             copyInc: () => setOpt({ copies: Math.min(999, o.copies + 1) }),
             copyDec: () => setOpt({ copies: Math.max(1, o.copies - 1) }),
             // แถวสเปกรายไฟล์บนหน้าตรวจสอบ (เจ้าของสั่ง 2026-10-12: สั่งหลายไฟล์ต้องเห็นชัดว่าไฟล์ไหนสเปกไหน)
@@ -3606,7 +3608,6 @@ class App extends React.Component {
       // เย็บมุม/เข้าเล่มย้ายไปเลือกรายไฟล์แล้ว (2026-10-12 — v.files[].cornerSegs/bookSegs) · ช่องเข้าเล่มโชว์เฉพาะ 09:00-21:30 นอกช่วงซ่อน (ค้างเลือกไว้ toPay บล็อก)
       bindOpen: this.bindHoursOpen(),
       copies: s.copies,
-      fileEdit: s.fileEdit, setFileEdit: (i) => this.setState({ fileEdit: i, optOpen: null }), // การ์ดไฟล์ที่กางตัวเลือกอยู่ (ทีละใบ)
       copyInc: () => this.setState(st => ({ copies: st.copies + 1 })),
       copyDec: () => this.setState(st => ({ copies: Math.max(1, st.copies - 1) })),
       // ไวนิล: จำนวน ตร.ม. (จำนวนเต็ม 1–999) แทนช่องจำนวนชุด — พิมพ์เองได้ ช่องว่างระหว่างพิมพ์ได้ ออกจากช่องแล้วเติม 1
@@ -5195,23 +5196,15 @@ class App extends React.Component {
                           )}
                         </div>
                       )}
-                      {/* ตัวเลือกรายไฟล์แบบย่อ (เจ้าของเลือกแบบ A 2026-11-24): ปกติเหลือบรรทัดสรุปเดียว · กด "แก้ไข" ถึงกางเป็นแถวพับได้ (เปิดได้ทีละไฟล์ — state fileEdit) */}
-                      {v.fileEdit !== i
-                        ? <button onClick={() => v.setFileEdit(i)} style={css("margin-top:9px;width:100%;box-sizing:border-box;display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid var(--line);border-radius:10px;background:var(--soft);cursor:pointer;font-family:inherit;text-align:left")}>
+                      {/* ตัวเลือกรายไฟล์ (เจ้าของเลือกแบบ A 2026-11-24): กางเป็นแถวพับได้ตั้งแต่แรก · กด "เสร็จ" พับเหลือบรรทัดสรุป · กด "แก้ไข" กางคืน (files[i].fold) */}
+                      {f.fold
+                        ? <button onClick={() => f.setFold(false)} style={css("margin-top:9px;width:100%;box-sizing:border-box;display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid var(--line);border-radius:10px;background:var(--soft);cursor:pointer;font-family:inherit;text-align:left")}>
                             <span style={css("flex:1;min-width:0;display:flex;flex-wrap:wrap;gap:5px")}>
                               {f.summary.map((x, j) => <span key={j} style={css("font-size:12px;font-weight:600;color:var(--ink);background:var(--card);border:1px solid var(--line);border-radius:7px;padding:2px 7px;white-space:nowrap")}>{x}</span>)}
                             </span>
                             <span style={css("flex:none;font-size:12.5px;font-weight:700;color:var(--acc);white-space:nowrap")}>แก้ไข ✎</span>
                           </button>
                         : <div style={css("margin-top:9px;display:flex;flex-direction:column;gap:7px")}>
-                            <div style={css("display:flex;justify-content:space-between;align-items:center;border:1px solid var(--line);border-radius:12px;background:var(--card);padding:5px 6px 5px 11px")}>
-                              <div style={css("font-size:12px;font-weight:700;color:var(--sub)")}>จำนวนชุด (สำเนา)</div>
-                              <div style={css("display:flex;align-items:center;gap:10px")}>
-                                <button onClick={f.copyDec} style={css("width:30px;height:30px;border:1px solid var(--line);background:var(--soft);color:var(--ink);border-radius:9px;font-size:15px;cursor:pointer")}>−</button>
-                                <div style={css("font-family:'IBM Plex Mono',monospace;font-size:15px;font-weight:600;min-width:26px;text-align:center")}>{f.opt.copies}</div>
-                                <button onClick={f.copyInc} style={css("width:30px;height:30px;border:1px solid var(--line);background:var(--soft);color:var(--ink);border-radius:9px;font-size:15px;cursor:pointer")}>+</button>
-                              </div>
-                            </div>
                             {f.showMedia && this.optRow('f' + i + '-media', 'กระดาษ', f.mediaSegs, { small: true })}
                             {f.isPhoto
                               ? <div style={css("border:1px solid var(--line);border-radius:12px;background:var(--card);padding:9px 11px;display:flex;justify-content:space-between;gap:10px;font-size:12px")}><span style={css("font-weight:700;color:var(--sub)")}>ด้านที่พิมพ์</span><span style={css("color:var(--sub);text-align:right")}>หน้าเดียว — กระดาษโฟโต้พิมพ์ได้ด้านเดียว</span></div>
@@ -5232,7 +5225,15 @@ class App extends React.Component {
                                   ))}
                                 </div>
                               </React.Fragment> })}
-                            <button onClick={() => v.setFileEdit(null)} style={css("align-self:center;padding:7px 22px;border:1px solid var(--acc);border-radius:99px;background:var(--accSoft);color:var(--acc);font-size:12.5px;font-weight:700;cursor:pointer;font-family:inherit")}>เสร็จ ✓</button>
+                            <div style={css("display:flex;justify-content:space-between;align-items:center;border:1px solid var(--line);border-radius:12px;background:var(--card);padding:5px 6px 5px 11px")}>
+                              <div style={css("font-size:12px;font-weight:700;color:var(--sub)")}>จำนวนชุด (สำเนา)</div>
+                              <div style={css("display:flex;align-items:center;gap:10px")}>
+                                <button onClick={f.copyDec} style={css("width:30px;height:30px;border:1px solid var(--line);background:var(--soft);color:var(--ink);border-radius:9px;font-size:15px;cursor:pointer")}>−</button>
+                                <div style={css("font-family:'IBM Plex Mono',monospace;font-size:15px;font-weight:600;min-width:26px;text-align:center")}>{f.opt.copies}</div>
+                                <button onClick={f.copyInc} style={css("width:30px;height:30px;border:1px solid var(--line);background:var(--soft);color:var(--ink);border-radius:9px;font-size:15px;cursor:pointer")}>+</button>
+                              </div>
+                            </div>
+                            <button onClick={() => f.setFold(true)} style={css("align-self:center;padding:7px 22px;border:1px solid var(--acc);border-radius:99px;background:var(--accSoft);color:var(--acc);font-size:12.5px;font-weight:700;cursor:pointer;font-family:inherit")}>เสร็จ ✓</button>
                           </div>}
                     </div>
                   ))}
