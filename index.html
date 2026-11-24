@@ -630,6 +630,146 @@ function MpStepper({ cur, max, onJump }){
 
 // แถวค่าพิมพ์ในบิลราคาโดยประมาณ — แตกราคารายไฟล์เมื่อ v.billLines มีค่า (ใช้ซ้ำ 3 จุด: หน้าสั่ง/ตรวจสอบ/ชำระเงิน)
 // ยอดทุกบรรทัด + บรรทัดปรับ = ฿printCost ของ calc() เสมอ (การันตีใน billLines ด้วยการปัดแบบสะสม)
+// ── คูปองวันนี้ + แต้มสะสม (หน้าแรก — เจ้าของสั่ง 2026-11-24 ตามตัวอย่างที่อนุมัติ) ──
+const cpHm = (t) => { const d = new Date(t); return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); };
+const cpLeft = (ms) => { const s = Math.max(0, Math.ceil(ms / 1000)), h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60), p2 = (n) => String(n).padStart(2, '0'); return (h ? p2(h) + ':' : '') + p2(m) + ':' + p2(s % 60); };
+const cpCond = (c) => [(+c.min_total > 0 ? 'ขั้นต่ำ ฿' + c.min_total : 'ไม่มีขั้นต่ำ'), (c.kind === 'percent' && +c.max_discount > 0 ? 'ลดสูงสุด ฿' + c.max_discount : ''),
+  (c.scope === 'pro' ? 'เฉพาะงาน Pro' : c.scope === 'std' ? 'เฉพาะงาน Standard' : 'ทุกงาน')].filter(Boolean);
+// ข้อความหลายหัวข้อคั่น " · " — แต่ละหัวข้อไม่ตัดกลางวลี (เจ้าของจับผิดเรื่องนี้บ่อย) ขึ้นบรรทัดใหม่ได้เฉพาะระหว่างหัวข้อ
+const CpParts = ({ items }) => <React.Fragment>{items.filter(Boolean).map((x, i) => <React.Fragment key={i}>{i ? ' · ' : ''}<span style={{ whiteSpace: 'nowrap' }}>{x}</span></React.Fragment>)}</React.Fragment>;
+function CpStub({ c }){
+  return (
+    <div style={css("flex:none;width:70px;background:var(--accSoft);color:var(--acc);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;border-right:2px dashed var(--line);padding:8px 4px;text-align:center")}>
+      {c.kind === 'freeship'
+        ? <React.Fragment><span style={css("display:flex")}>{fi('truck', 22)}</span><span style={css("font-size:12px;font-weight:800")}>ส่งฟรี</span></React.Fragment>
+        : <React.Fragment><span style={css("font-size:19px;font-weight:800;line-height:1.15;font-family:'IBM Plex Mono',monospace")}>{c.kind === 'percent' ? c.value + '%' : '฿' + c.value}</span><span style={css("font-size:11px;font-weight:700")}>ส่วนลด</span></React.Fragment>}
+    </div>
+  );
+}
+function MpPerks({ v }){
+  const [now, setNow] = React.useState(Date.now());
+  const waiting = v.cpBoard.some(c => c.starts_at && new Date(c.starts_at).getTime() > now);
+  React.useEffect(() => { if (!waiting) return; const id = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(id); }, [waiting]);
+  if (!v.perkOn) return null;
+  const bal = v.pts ? +v.pts.balance || 0 : 0;
+  const rewards = v.ptsRewards;
+  const next = rewards.filter(r => r.cost > bal).sort((a, b) => a.cost - b.cost)[0];
+  const canNow = rewards.filter(r => r.cost <= bal).length;
+  const card = css("border:1px solid var(--line);border-radius:16px;background:var(--card);padding:14px 16px;box-shadow:var(--shadow)");
+  const btn = (on) => css("flex:none;height:34px;padding:0 14px;border-radius:10px;font-size:12.5px;font-weight:700;cursor:pointer;font-family:inherit;" + (on ? "border:none;background:var(--acc);color:#fff" : "border:1px solid var(--line);background:var(--soft);color:var(--sub)"));
+  const sh = v.perkSheet;
+  return (
+    <div style={css("margin:14px 20px 0;display:grid;gap:12px;grid-template-columns:" + (v.desk ? "minmax(0,340px) minmax(0,1fr);align-items:start" : "minmax(0,1fr)"))}>
+      {/* แต้มสะสม */}
+      <div style={card}>
+        <div style={css("display:flex;align-items:center;gap:7px;font-size:13px;font-weight:700")}><span style={css("display:flex;color:#f5a623")}>{fi('star', 16)}</span>แต้มสะสม</div>
+        {v.perkLine
+          ? <React.Fragment>
+              <div style={css("margin-top:6px;display:flex;align-items:baseline;gap:6px")}><span style={css("font-size:30px;font-weight:800;font-family:'IBM Plex Mono',monospace;color:var(--acc)")}>{bal}</span><span style={css("font-size:13px;font-weight:700")}>แต้ม</span></div>
+              <div style={css("margin-top:2px;font-size:12px;color:var(--sub);line-height:1.6")}>
+                {canNow > 0 ? 'แลกรางวัลได้แล้ว ' + canNow + ' รายการ 🎉' : next ? 'อีก ' + (next.cost - bal) + ' แต้ม แลก' + next.title : 'ค่าพิมพ์ทุก ฿' + v.ptsRate + ' = 1 แต้ม'}
+              </div>
+              {next && <div style={css("margin-top:6px;height:6px;border-radius:3px;background:var(--soft);overflow:hidden")}><div style={{ width: Math.min(100, Math.round(bal / next.cost * 100)) + '%', height: '100%', background: 'var(--acc)' }}/></div>}
+              <div style={css("margin-top:10px;display:flex;gap:8px")}>
+                <button onClick={() => v.setPerkSheet({ k: 'rewards' })} style={btn(true)}>แลกแต้ม</button>
+                <button onClick={() => v.setPerkSheet({ k: 'hist' })} style={btn(false)}>ประวัติแต้ม</button>
+              </div>
+              <div style={css("margin-top:8px;font-size:11.5px;color:var(--sub)")}>ค่าพิมพ์ทุก ฿{v.ptsRate} = 1 แต้ม · ได้แต้มเมื่อส่งงานสำเร็จ</div>
+            </React.Fragment>
+          : <React.Fragment>
+              <div style={css("margin-top:6px;font-size:13px;line-height:1.6")}>ค่าพิมพ์ทุก ฿{v.ptsRate} = 1 แต้ม · แลกส่งฟรีหรือส่วนลดได้</div>
+              {!v.loggedIn
+                ? <button onClick={v.goLogin} style={{ ...btn(true), marginTop: '10px', background: '#06C755' }}>เข้าสู่ระบบด้วย LINE เพื่อสะสมแต้ม</button>
+                : <div style={css("margin-top:6px;font-size:12px;color:var(--sub)")}>สะสมแต้มได้เฉพาะบัญชีที่เข้าสู่ระบบด้วย LINE ครับ</div>}
+            </React.Fragment>}
+      </div>
+      {/* คูปองวันนี้ */}
+      {v.cpBoard.length > 0 && (
+        <div style={card}>
+          <div style={css("display:flex;align-items:center;gap:7px;font-size:13px;font-weight:700;flex-wrap:wrap")}><span style={css("display:flex;color:var(--acc)")}>{fi('tag', 15)}</span>คูปองวันนี้<span style={css("margin-left:auto;font-size:11.5px;font-weight:600;color:var(--sub)")}>เก็บด้วยบัญชี LINE · คนละ 1 สิทธิ์</span></div>
+          <div style={css("margin-top:10px;display:grid;gap:8px;grid-template-columns:" + (v.desk ? "repeat(auto-fill,minmax(300px,1fr))" : "minmax(0,1fr)"))}>
+            {v.cpBoard.map(c => {
+              const st = c.starts_at ? new Date(c.starts_at).getTime() : 0, en = c.expires_at ? new Date(c.expires_at).getTime() : 0;
+              const left = c.max_uses ? Math.max(0, c.max_uses - c.taken) : null;
+              const pct = c.max_uses ? Math.min(100, Math.round(c.taken / c.max_uses * 100)) : 0;
+              let note, act;
+              if (st > now) { note = ['เปิดเก็บ ' + cpHm(st), 'อีก ' + cpLeft(st - now)]; act = <span style={css("font-size:12px;font-weight:700;color:var(--sub);padding:6px 10px;border:1px solid var(--line);border-radius:10px")}>รอ</span>; }
+              else if (c.used) { note = ['ใช้ไปแล้ว']; act = <span style={css("font-size:12px;font-weight:700;color:var(--sub)")}>ใช้แล้ว</span>; }
+              else if (c.mine) { note = ['เก็บแล้ว', 'ใช้ตอนชำระเงิน' + (en ? ' (ถึง ' + cpHm(en) + ')' : '')]; act = <span style={css("font-size:12px;font-weight:700;color:#2b8a3e;background:#ebfbee;border-radius:10px;padding:6px 10px")}>✓ เก็บแล้ว</span>; }
+              else if (left === 0) { note = ['สิทธิ์หมดแล้ว']; act = <span style={css("font-size:12px;font-weight:700;color:var(--sub)")}>หมดแล้ว</span>; }
+              else { note = [left != null ? 'เหลือ ' + left + ' สิทธิ์' : 'เก็บได้เลย', en ? 'หมดเขต ' + cpHm(en) : '']; act = <button onClick={() => v.collectCoupon(c)} disabled={v.cpBusy === c.ref} style={{ ...btn(true), opacity: v.cpBusy === c.ref ? .6 : 1 }}>{v.cpBusy === c.ref ? '…' : 'เก็บ'}</button>; }
+              return (
+                <div key={c.ref} style={css("display:flex;align-items:stretch;border:1px solid var(--line);border-radius:12px;background:var(--card);overflow:hidden")}>
+                  <CpStub c={c}/>
+                  <div style={css("flex:1;min-width:0;padding:9px 11px")}>
+                    <div style={css("font-size:13.5px;font-weight:700;line-height:1.4")}>{c.title}</div>
+                    <div style={css("font-size:11.5px;color:var(--sub);line-height:1.5")}><CpParts items={cpCond(c)}/></div>
+                    <div style={css("font-size:11.5px;color:var(--sub);line-height:1.5")}><CpParts items={note}/></div>
+                    {c.max_uses ? <div style={css("margin-top:4px;height:4px;border-radius:2px;background:var(--soft);overflow:hidden")}><div style={{ width: pct + '%', height: '100%', background: 'var(--acc)' }}/></div> : null}
+                  </div>
+                  <div style={css("flex:none;display:flex;align-items:center;padding:0 10px")}>{act}</div>
+                </div>
+              );
+            })}
+          </div>
+          <div style={css("margin-top:8px;font-size:11.5px;color:var(--sub)")}>มีโค้ดลับ? กรอกที่หน้าชำระเงินได้เหมือนเดิม</div>
+        </div>
+      )}
+      {/* หน้าต่างแลกแต้ม / ยืนยัน / ประวัติ */}
+      {sh && (
+        <div onClick={() => v.setPerkSheet(null)} style={css("position:fixed;inset:0;z-index:1250;background:rgba(0,0,0,.45);display:flex;align-items:flex-end;justify-content:center")}>
+          <div onClick={e => e.stopPropagation()} style={css("width:100%;max-width:480px;max-height:85vh;overflow-y:auto;background:var(--card);border-radius:18px 18px 0 0;padding:18px 18px 26px;box-sizing:border-box")}>
+            <div style={css("display:flex;align-items:center;gap:8px")}>
+              <div style={css("font-size:16px;font-weight:800;flex:1")}>{sh.k === 'hist' ? 'ประวัติแต้ม' : sh.k === 'confirm' ? 'ยืนยันแลกแต้ม' : 'แลกแต้ม'}</div>
+              <span style={css("font-size:13px;font-weight:700;color:var(--acc)")}>มี {bal} แต้ม</span>
+              <button onClick={() => v.setPerkSheet(null)} aria-label="ปิด" style={css("border:none;background:var(--soft);color:var(--ink);width:30px;height:30px;border-radius:50%;font-size:15px;cursor:pointer")}>✕</button>
+            </div>
+            {sh.k === 'rewards' && <div style={css("margin-top:14px;display:flex;flex-direction:column;gap:9px")}>
+              {rewards.map(r => (
+                <div key={r.id} style={css("display:flex;align-items:center;gap:10px;border:1px solid var(--line);border-radius:12px;padding:11px 12px")}>
+                  <span style={css("flex:none;min-width:58px;text-align:center;font-size:12.5px;font-weight:800;color:var(--acc);background:var(--accSoft);border-radius:9px;padding:6px 6px")}>{r.cost} แต้ม</span>
+                  <span style={css("flex:1;min-width:0;font-size:14px;font-weight:700")}>{r.title}</span>
+                  <button onClick={() => v.setPerkSheet({ k: 'confirm', r })} style={btn(bal >= r.cost)}>{bal >= r.cost ? 'แลก' : 'แต้มไม่พอ'}</button>
+                </div>
+              ))}
+              <div style={css("font-size:11.5px;color:var(--sub);line-height:1.6")}>แลกแล้วได้คูปองเข้า "คูปองของฉัน" ใช้ตอนชำระเงินได้ทันที</div>
+            </div>}
+            {sh.k === 'confirm' && sh.r && <div style={css("margin-top:14px")}>
+              <div style={css("display:flex;align-items:stretch;border:1px solid var(--line);border-radius:12px;overflow:hidden")}>
+                <CpStub c={sh.r}/>
+                <div style={css("flex:1;min-width:0;padding:10px 12px")}>
+                  <div style={css("font-size:15px;font-weight:800")}>{sh.r.title}</div>
+                  <div style={css("font-size:12px;color:var(--sub);line-height:1.6")}>ใช้แต้ม {sh.r.cost} แต้ม</div>
+                </div>
+              </div>
+              <div style={css("margin-top:12px;font-size:13px;line-height:1.9")}>
+                {+sh.r.min_total > 0 && <div>• ใช้กับยอดสั่งพิมพ์ขั้นต่ำ ฿{sh.r.min_total}</div>}
+                <div>• ใช้ได้ 1 ครั้ง ไม่มีวันหมดอายุ</div>
+                {bal >= sh.r.cost ? <div>• แต้มคงเหลือหลังแลก <b>{bal - sh.r.cost}</b> แต้ม</div> : <div style={css("color:#c92a2a;font-weight:700")}>• ยังขาดอีก {sh.r.cost - bal} แต้ม</div>}
+              </div>
+              <div style={css("margin-top:14px;display:flex;gap:8px")}>
+                <button onClick={() => v.setPerkSheet({ k: 'rewards' })} style={{ ...btn(false), flex: 1, height: '42px' }}>ย้อนกลับ</button>
+                <button onClick={() => v.redeemReward(sh.r)} disabled={v.redeemBusy || bal < sh.r.cost} style={{ ...btn(bal >= sh.r.cost), flex: 2, height: '42px', opacity: v.redeemBusy ? .6 : 1 }}>{v.redeemBusy ? 'กำลังแลก…' : bal >= sh.r.cost ? 'ยืนยันแลก' : 'แต้มยังไม่พอ'}</button>
+              </div>
+            </div>}
+            {sh.k === 'hist' && <div style={css("margin-top:12px")}>
+              {(v.pts && v.pts.history && v.pts.history.length) ? v.pts.history.map((h, i) => (
+                <div key={i} style={css("display:flex;align-items:center;gap:10px;padding:9px 0;border-top:" + (i ? "1px solid var(--line)" : "none"))}>
+                  <div style={css("flex:1;min-width:0")}>
+                    <div style={css("font-size:13px;font-weight:600")}>{h.note || (h.reason === 'admin' ? 'ปรับแต้มโดยร้าน' : 'แต้ม')}</div>
+                    <div style={css("font-size:11.5px;color:var(--sub)")}>{new Date(h.created_at).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit' })}</div>
+                  </div>
+                  <span style={css("font-size:14px;font-weight:800;font-family:'IBM Plex Mono',monospace;color:" + (h.delta > 0 ? "#2b8a3e" : "#c92a2a"))}>{h.delta > 0 ? '+' : ''}{h.delta}</span>
+                </div>
+              )) : <div style={css("font-size:13px;color:var(--sub)")}>ยังไม่มีแต้ม — สั่งพิมพ์แล้วได้แต้มเมื่อส่งงานสำเร็จครับ</div>}
+            </div>}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function BillPrint({ v }){
   if (!v.billLines) return (
     <React.Fragment>
@@ -713,6 +853,7 @@ class App extends React.Component {
       selfCancelArm: false, selfCancelBusy: false,
       chat: null, chatText: '', chatBusy: false, chatOff: false, // แชทกับร้าน (ตาราง messages)
       profOpen: '', profFname: '', profLname: '', profPhone: '', // หน้า My Profile (หมวดที่กางอยู่ + ฟอร์มแก้ชื่อ/เบอร์)
+      cpBoard: [], cpMine: [], pts: null, ptsRewards: [], ptsRate: 50, perkSheet: null, cpBusy: null, redeemBusy: false, cpAuto: '', // คูปองให้กดเก็บ + สะสมแต้ม (2026-11-24)
       couponCode: '', couponOk: null, couponBusy: false, promoOpen: false, // โค้ดส่วนลดที่หน้าชำระเงิน (couponOk = {code,kind,value})
       user: null, authMode: 'login', authBusy: false,
       emailIn: '', passIn: '',
@@ -746,6 +887,7 @@ class App extends React.Component {
         }).catch(() => {});
       } catch (e) {}
       this.loadReviews();
+      this.loadPerks(); this._perkT = setInterval(() => { if (['home', 'pay'].includes(this.state.screen)) this.loadPerks(); }, 60000);
       // สถานะเปิด/ปิดรับออเดอร์ (ร้านกดจากหลังบ้าน) — เช็คตอนเปิดเว็บ + ทุก 60 วิ
       const chkShop = () => { try {
         this.db.from('shop_status').select('open,rain,night_off,pro_open').eq('id', 1).single().then(({ data: dp, error: ep }) => {
@@ -784,6 +926,7 @@ class App extends React.Component {
       } catch (e) {}
     }
     // โหมดตัวอย่าง (ยังไม่เชื่อมฐานข้อมูล): โชว์รีวิวตัวอย่างไว้ดูหน้าตา
+    if (!this.db) setTimeout(() => this.loadPerks(), 0); // โหมดตัวอย่าง: คูปอง/แต้มจำลอง
     if (!this.db) this.setState({ reviewsReady: true, reviews: [
       { id: 3, order_id: '#MP-DEMO0003', name: 'มินตรา', stars: 5, comment: 'ส่งไวมาก งานคมชัด แนะนำเลยค่ะ', ptype: 'พิมพ์สี', auto: false, created_at: new Date().toISOString() },
       { id: 2, order_id: '#MP-DEMO0002', name: 'ก้อง', stars: 5, comment: null, ptype: 'พิมพ์ขาวดำ', auto: true, created_at: new Date().toISOString() },
@@ -905,6 +1048,8 @@ class App extends React.Component {
     // ยกเว้นห้องแชท — syncChatScroll เลื่อนไปข้อความล่าสุดเอง
     if (prevState && prevState.screen !== this.state.screen && this.state.screen !== 'chat') { try { window.scrollTo(0, 0); } catch (e) {} }
     this.syncNight(); this.syncMap(); this.syncChatScroll();
+    if (prevState && ((prevState.user || {}).line_uid || '') !== ((this.state.user || {}).line_uid || '')) this.loadPerks();
+    if (prevState && prevState.screen !== 'pay' && this.state.screen === 'pay') this.loadPerks().then(() => this.autoPickCoupon());
     // จำขั้นไกลสุดที่ลูกค้าเคยไปถึง (แถบ step แตะไปกลับได้ถึงขั้นนี้)
     const si = ['order', 'delivery', 'review', 'pay'].indexOf(this.state.screen) + 1;
     if (si > (this.state.stepMax || 0)) this.setState({ stepMax: si });
@@ -1096,6 +1241,110 @@ class App extends React.Component {
     }
     return id;
   }
+  // ── คูปองให้กดเก็บ + สะสมแต้ม (เจ้าของสั่ง 2026-11-24) — สิทธิ์ทั้งหมดตัดสินที่ฐานข้อมูล (RPC) หน้าเว็บแค่แสดงผล ──
+  // เก็บคูปอง/สะสมแต้มได้เฉพาะบัญชี LINE (uid = LINE userId ตัวเล็ก — ตรงกับ orders.line_uid ที่ trigger ให้แต้ม)
+  perkUid(){ const u = this.state.user || {}; return u.line_uid ? String(u.line_uid).trim().toLowerCase() : ''; }
+  async loadPerks(){
+    if (OA_MODE) return;
+    const uid = this.perkUid();
+    if (!this.db) { // โหมดตัวอย่าง: ข้อมูลจำลอง (กดเก็บ/แลกได้ในเครื่อง)
+      if (!this._demoPerks) { const now = Date.now(), eod = new Date(); eod.setHours(23, 59, 0, 0);
+        this._demoPerks = { board: [
+          { ref: 'd1', title: 'ส่งฟรีทั้งวัน', kind: 'freeship', value: 0, max_discount: null, min_total: 60, scope: 'all', starts_at: null, expires_at: eod.toISOString(), max_uses: 50, taken: 32, mine: false, used: false },
+          { ref: 'd2', title: 'Flash ลด 10%', kind: 'percent', value: 10, max_discount: 30, min_total: 100, scope: 'all', starts_at: new Date(now - 6e5).toISOString(), expires_at: new Date(now + 72e5).toISOString(), max_uses: 20, taken: 13, mine: false, used: false },
+          { ref: 'd3', title: 'ลดงาน Pro', kind: 'fixed', value: 20, max_discount: null, min_total: 150, scope: 'pro', starts_at: new Date(now + 6e4).toISOString(), expires_at: eod.toISOString(), max_uses: 30, taken: 0, mine: false, used: false }],
+          mine: [], pts: { balance: 7, history: [{ delta: 3, reason: 'order', note: 'ออเดอร์ #MP-DEMO0002', created_at: new Date(now - 864e5).toISOString() }, { delta: 4, reason: 'order', note: 'ออเดอร์ #MP-DEMO0001', created_at: new Date(now - 3 * 864e5).toISOString() }] },
+          rewards: [{ id: 1, title: 'ส่งฟรี 1 ครั้ง', cost: 5, kind: 'freeship', value: 0, min_total: 0, max_discount: null }, { id: 2, title: 'ลด ฿50', cost: 10, kind: 'fixed', value: 50, min_total: 500, max_discount: null }] };
+      }
+      const D = this._demoPerks;
+      return this.setState({ cpBoard: D.board, ptsRewards: D.rewards, cpMine: uid ? D.mine : [], pts: uid ? D.pts : null });
+    }
+    try {
+      const st = {};
+      const [b, r, cfg] = await Promise.all([
+        this.db.rpc('coupon_board', { uid_in: uid || null }),
+        this.db.from('points_rewards').select('id,title,cost,kind,value,min_total,max_discount').eq('active', true).order('ord'),
+        this.db.from('points_config').select('baht_per_point').eq('id', 1).maybeSingle()]);
+      if (b && !b.error && Array.isArray(b.data)) st.cpBoard = b.data;
+      if (r && !r.error && Array.isArray(r.data)) st.ptsRewards = r.data;
+      if (cfg && !cfg.error && cfg.data && +cfg.data.baht_per_point > 0) st.ptsRate = +cfg.data.baht_per_point;
+      if (uid) {
+        const [m, p] = await Promise.all([this.db.rpc('my_coupons', { uid_in: uid }), this.db.rpc('my_points', { uid_in: uid })]);
+        if (m && !m.error && Array.isArray(m.data)) st.cpMine = m.data;
+        if (p && !p.error && p.data) st.pts = p.data;
+      } else { st.cpMine = []; st.pts = null; }
+      this.setState(st);
+    } catch (e) {}
+  }
+  // ส่วนลดที่คูปองใบนี้จะให้กับตะกร้าปัจจุบัน (null = ใช้ไม่ได้ + เหตุผล) — คิดด้วย calc() ตัวจริง
+  cpTry(c){
+    const s = this.state;
+    if (c.scope && c.scope !== 'all' && (c.scope === 'pro') !== (s.tier === 'pro')) return { ok: false, why: c.scope === 'pro' ? 'เฉพาะงาน Pro' : 'เฉพาะงาน Standard' };
+    const prev = this._ov; this._ov = { ...s, couponOk: { code: c.code, kind: c.kind, value: +c.value || 0, min_total: +c.min_total || 0, max_discount: c.max_discount, scope: c.scope } };
+    let r; try { r = this.calc(); } finally { this._ov = prev; }
+    const before = r.grandTotal + r.discount;
+    if (before < (+c.min_total || 0)) return { ok: false, why: 'ยอดขั้นต่ำ ฿' + c.min_total };
+    if (!(r.discount > 0)) return { ok: false, why: c.kind === 'freeship' ? 'ออเดอร์นี้ไม่มีค่าส่ง' : 'ใช้กับออเดอร์นี้ไม่ได้' };
+    return { ok: true, d: r.discount };
+  }
+  useMyCoupon(c){
+    const t = this.cpTry(c);
+    if (!t.ok) return this.showToast('ใช้คูปองนี้ไม่ได้: ' + t.why);
+    this.setState({ couponOk: { code: c.code, kind: c.kind, value: +c.value || 0, min_total: +c.min_total || 0, max_discount: c.max_discount, scope: c.scope || 'all', title: c.title }, couponCode: '' });
+  }
+  // เข้าหน้าชำระเงิน: ยังไม่ได้ใช้โค้ด = เลือกคูปองในกระเป๋าที่ลดได้มากสุดให้เอง (ครั้งเดียวต่อยอดเดิม — ลูกค้ากดยกเลิกแล้วไม่ยัดคืน)
+  autoPickCoupon(){
+    const s = this.state;
+    if (s.couponOk || !s.cpMine || !s.cpMine.length) return;
+    const key = s.files.length + '|' + this.calc().grandTotal;
+    if (s.cpAuto === key) return;
+    let best = null;
+    s.cpMine.forEach(c => { const t = this.cpTry(c); if (t.ok && (!best || t.d > best.d)) best = { c, d: t.d }; });
+    this.setState({ cpAuto: key });
+    if (best) { this.useMyCoupon(best.c); this.showToast('ใช้คูปองที่ลดได้มากสุดให้แล้ว ลด ฿' + best.d + ' 🎟️'); }
+  }
+  async collectCoupon(c){
+    const uid = this.perkUid();
+    if (!uid) {
+      if (this.state.user) return this.showToast('คูปองเก็บได้เฉพาะบัญชีที่เข้าสู่ระบบด้วย LINE ครับ');
+      this.showToast('เข้าสู่ระบบด้วย LINE ก่อนเก็บคูปองนะครับ 🎟️'); return this.setState({ screen: 'login', authMode: 'login' });
+    }
+    if (!this.db) { const D = this._demoPerks, x = D.board.find(b => b.ref === c.ref); if (x && !x.mine) { x.mine = true; x.taken++; D.mine = [{ code: 'DEMO' + c.ref.toUpperCase(), title: x.title, kind: x.kind, value: x.value, max_discount: x.max_discount, min_total: x.min_total, scope: x.scope, expires_at: x.expires_at, src: 'collect' }, ...D.mine]; } this.showToast('เก็บคูปองแล้ว! ใช้ได้ตอนชำระเงิน 🎉'); return this.loadPerks(); }
+    this.setState({ cpBusy: c.ref });
+    let r = null; try { r = await this.db.rpc('collect_coupon', { ref_in: c.ref, uid_in: uid }); } catch (e) {}
+    this.setState({ cpBusy: null });
+    this.showToast({ ok: 'เก็บคูปองแล้ว! ใช้ได้ตอนชำระเงิน 🎉', already: 'คุณเก็บคูปองนี้ไว้แล้วครับ', out: 'สิทธิ์หมดแล้ว ช้าไปนิดเดียว 🙏', 'not-started': 'ยังไม่ถึงเวลาเปิดเก็บครับ', expired: 'คูปองนี้หมดเขตแล้วครับ', login: 'เข้าสู่ระบบด้วย LINE ก่อนนะครับ', invalid: 'คูปองนี้ปิดไปแล้วครับ' }[r && r.data] || 'เก็บไม่สำเร็จ ลองใหม่อีกครั้งครับ');
+    this.loadPerks();
+  }
+  // แลกแต้ม → Edge Function points-redeem ยืนยันตัวตนกับ LINE (access token ของ LIFF) ก่อนตัดแต้มทุกครั้ง
+  async redeemReward(r){
+    const uid = this.perkUid(), bal = +((this.state.pts || {}).balance || 0);
+    if (!uid) return this.showToast('เข้าสู่ระบบด้วย LINE ก่อนนะครับ');
+    if (bal < r.cost) return this.showToast('แต้มยังไม่พอครับ (มี ' + bal + ' แต้ม)');
+    if (!this.db) { const D = this._demoPerks; D.pts = { ...D.pts, balance: D.pts.balance - r.cost, history: [{ delta: -r.cost, reason: 'redeem', note: 'แลก ' + r.title, created_at: new Date().toISOString() }, ...D.pts.history] };
+      D.mine = [{ code: 'PTDEMO' + Date.now().toString(36).toUpperCase().slice(-4), title: r.title, kind: r.kind, value: r.value, max_discount: r.max_discount, min_total: r.min_total, scope: 'all', expires_at: null, src: 'points' }, ...D.mine];
+      this.setState({ perkSheet: { k: 'rewards' } }); this.showToast('แลกแล้ว! คูปอง "' + r.title + '" อยู่ในคูปองของฉัน 🎉'); return this.loadPerks(); }
+    let token = '';
+    try { token = (window.liff && this._liffReady && window.liff.isLoggedIn()) ? (window.liff.getAccessToken() || '') : ''; } catch (e) {}
+    if (!token) { this.showToast('ขอยืนยันตัวตน LINE อีกครั้งนะครับ แล้วกดแลกใหม่'); try { window.liff.login(); } catch (e) {} return; }
+    this.setState({ redeemBusy: true });
+    let d = null;
+    try {
+      const cfg = window.MP_CONFIG || {};
+      const res = await fetch(cfg.SUPABASE_URL + '/functions/v1/points-redeem', { method: 'POST', headers: { 'Content-Type': 'application/json', apikey: cfg.SUPABASE_ANON_KEY || '', Authorization: 'Bearer ' + (cfg.SUPABASE_ANON_KEY || '') }, body: JSON.stringify({ access_token: token, reward: r.id }) });
+      d = await res.json().catch(() => null);
+    } catch (e) {}
+    this.setState({ redeemBusy: false });
+    if (d && d.ok) { this.setState({ perkSheet: { k: 'rewards' } }); this.showToast('แลกแล้ว! คูปอง "' + (d.title || r.title) + '" อยู่ในคูปองของฉัน 🎉'); return this.loadPerks(); }
+    this.showToast(d && d.error === 'not-enough' ? 'แต้มยังไม่พอครับ' : d && /line/.test(String(d.error)) ? 'ยืนยันตัวตน LINE ไม่ผ่าน ลองเข้าสู่ระบบใหม่ครับ' : 'แลกไม่สำเร็จ ลองใหม่อีกครั้งครับ 🙏');
+  }
+  // แต้มที่ออเดอร์นี้จะได้ (ได้จริงตอนร้านกด "ส่งแล้ว" — สูตรเดียวกับ trigger award_points: ยอดจ่ายจริงไม่รวมค่าส่ง ÷ ฿ต่อแต้ม ปัดลง)
+  ptsFor(c){
+    const rate = this.state.ptsRate || 50, cp = this.state.couponOk;
+    const shipDisc = cp && cp.kind === 'freeship' ? (c.discount || 0) : 0;
+    return Math.max(0, Math.floor((c.grandTotal - (c.deliveryCost - shipDisc)) / rate));
+  }
+
   async applyCoupon(){
     const s = this.state, code = (s.couponCode || '').trim().toUpperCase();
     if (!code) return this.showToast('พิมพ์โค้ดส่วนลดก่อนนะครับ 🎟️');
@@ -1126,7 +1375,11 @@ class App extends React.Component {
       return this.showToast('โค้ดไม่ถูกต้อง หมดอายุ หรือถูกใช้ครบแล้ว ❌');
     }
     if (c.kind === 'used') { this.setState({ couponOk: null }); return this.showToast(usedMsg); }
-    this.setState({ couponOk: { code: c.code, kind: c.kind, value: Number(c.value), min_total: Number(c.min_total || 0) } });
+    // ข้อมูลเสริม (2026-11-24): ลดสูงสุด + ใช้กับงานไหน — ฐานข้อมูลยังไม่มีฟังก์ชัน = ใช้แบบเดิม
+    let ex = {};
+    try { const e2 = await this.db.rpc('coupon_extra', { code_in: c.code }); const x = e2 && !e2.error ? (Array.isArray(e2.data) ? e2.data[0] : e2.data) : null; if (x) ex = x; } catch (e) {}
+    if (ex.scope && ex.scope !== 'all' && (ex.scope === 'pro') !== (this.state.tier === 'pro')) { this.setState({ couponOk: null }); return this.showToast('โค้ดนี้ใช้ได้เฉพาะงาน ' + (ex.scope === 'pro' ? 'Pro' : 'Standard') + ' ครับ 🙏'); }
+    this.setState({ couponOk: { code: c.code, kind: c.kind, value: Number(c.value), min_total: Number(c.min_total || 0), max_discount: ex.max_discount || null, scope: ex.scope || 'all' } });
     this.showToast('ใช้โค้ดสำเร็จ! 🎉 ' + (c.kind === 'percent' ? 'ลด ' + c.value + '%' : c.kind === 'freeship' ? 'ส่งฟรีออเดอร์นี้เลย' : 'ลด ฿' + c.value));
   }
 
@@ -2083,8 +2336,9 @@ class App extends React.Component {
     const beforeDiscount = printCost + bindCost + deliveryCost + nightFee2;
     let discount = 0;
     const cp = s.couponOk;
-    if (cp && beforeDiscount >= (cp.min_total || 0)) {
-      discount = cp.kind === 'percent' ? Math.floor((beforeDiscount - deliveryCost) * cp.value / 100) // ส่วนลด % ไม่รวมค่าส่ง
+    const cpScopeOk = !cp || !cp.scope || cp.scope === 'all' || (cp.scope === 'pro') === (s.tier === 'pro'); // คูปองเฉพาะงาน Pro / Standard (2026-11-24)
+    if (cp && cpScopeOk && beforeDiscount >= (cp.min_total || 0)) {
+      discount = cp.kind === 'percent' ? Math.min(Math.floor((beforeDiscount - deliveryCost) * cp.value / 100), cp.max_discount > 0 ? cp.max_discount : Infinity) // ส่วนลด % ไม่รวมค่าส่ง · มีเพดานลดสูงสุดได้
         : cp.kind === 'freeship' ? deliveryCost // โค้ดส่งฟรี — หักเท่าค่าส่งของออเดอร์นี้
         : Math.min(cp.value, beforeDiscount);
     }
@@ -2523,6 +2777,7 @@ class App extends React.Component {
     } catch (e) {} }
     this.clearPending(pend.id);
     this.markUnsaved(pend.id, false);
+    setTimeout(() => this.loadPerks(), 2500); // คูปองที่เพิ่งใช้หายจากกระเป๋า
   }
 
   clearPending(id){
@@ -3987,10 +4242,10 @@ class App extends React.Component {
           document.cookie = 'mp_rc_bk=' + encodeURIComponent(rcSave) + ';max-age=31536000;path=/;SameSite=Lax'; // สำรองคุกกี้ 1 ปี
         } catch (e) {}
         this.setState({ order: { id, total: c.grandTotal, times: [t0, '', '', ''], plabel, eta, pickup, ts, express: isExp, addr: oaddr, phone: s.phone, veh: oveh, copies: this.proMulti() ? 1 : s.tier === 'pro' ? s.copies : (this.stdCopies() || 1), pages: c.totalPages, dist: s.distKm, rc: rcReq, cp: cpUsed }, trackStep: 1, cancelReason: '', screen: 'track',
-          files: [], proActive: 0, stepMax: 0, slip: null, copies: 1, bind: 'none', express: false, handoff: '', tier: 'standard', ptype: 'bw', paper: 'A4', sides: 1, orient: 'portrait', nup: 1, note: '', shipNote: '', proPickup: false, stdPickup: false, recvSel: false, vehSel: false, proLam: 'none', proSpecial: false, proStaple: false, proStand: false, proSqm: 1, vehicle: 'bike', trackOpen: false, trackMin: false, histOpen: null, chatFor: null, chatFrom: 'track', selfCancelArm: false, couponCode: '', couponOk: null });
+          files: [], proActive: 0, stepMax: 0, slip: null, copies: 1, bind: 'none', express: false, handoff: '', tier: 'standard', ptype: 'bw', paper: 'A4', sides: 1, orient: 'portrait', nup: 1, note: '', shipNote: '', proPickup: false, stdPickup: false, recvSel: false, vehSel: false, proLam: 'none', proSpecial: false, proStaple: false, proStand: false, proSqm: 1, vehicle: 'bike', trackOpen: false, trackMin: false, histOpen: null, chatFor: null, chatFrom: 'track', selfCancelArm: false, couponCode: '', couponOk: null, cpAuto: '' });
         // จำออเดอร์ไว้ในเครื่อง — ปิดเว็บแล้วกลับมา การติดตามยังอยู่
         try {
-          const nod = { id, total: c.grandTotal, times: [t0, '', '', ''], step: 1, plabel, eta, pickup, ts, express: isExp, addr: oaddr, phone: s.phone, veh: oveh, copies: this.proMulti() ? 1 : s.tier === 'pro' ? s.copies : (this.stdCopies() || 1), pages: c.totalPages, dist: s.distKm, rc: rcReq, cp: cpUsed };
+          const nod = { id, total: c.grandTotal, times: [t0, '', '', ''], step: 1, plabel, eta, pickup, ts, express: isExp, addr: oaddr, phone: s.phone, veh: oveh, copies: this.proMulti() ? 1 : s.tier === 'pro' ? s.copies : (this.stdCopies() || 1), pages: c.totalPages, dist: s.distKm, rc: rcReq, cp: cpUsed, pts: this.perkUid() ? this.ptsFor(c) : 0 };
           localStorage.setItem('mp_order', JSON.stringify(nod));
           this.upsertOrderList(nod); // สั่งหลายใบไล่เลี่ยกัน — ทุกใบอยู่ในลิสต์ติดตาม
         } catch (e) {}
@@ -4327,6 +4582,12 @@ class App extends React.Component {
       toast: s.toast,
       // ── โค้ดส่วนลด (หน้าชำระเงิน) ──
       couponCode: s.couponCode, couponBusy: s.couponBusy, couponOk: s.couponOk,
+      // ── คูปองให้กดเก็บ + สะสมแต้ม (2026-11-24) ──
+      perkOn: !OA_MODE, perkLine: !!this.perkUid(), loggedIn: !!s.user,
+      cpBoard: s.cpBoard || [], cpMine: s.cpMine || [], cpBusy: s.cpBusy, pts: s.pts, ptsRewards: s.ptsRewards || [], ptsRate: s.ptsRate || 50,
+      perkSheet: s.perkSheet, setPerkSheet: (x) => this.setState({ perkSheet: x }), redeemBusy: s.redeemBusy,
+      collectCoupon: (x) => this.collectCoupon(x), redeemReward: (x) => this.redeemReward(x), useMyCoupon: (x) => this.useMyCoupon(x),
+      cpTry: (x) => this.cpTry(x), ptsOrder: this.perkUid() ? this.ptsFor(c) : 0,
       promoOpen: s.promoOpen, promoImg: PROMO_POPUP.img, promoAlt: PROMO_POPUP.alt, closePromo: () => this.closePromo(), // ป๊อปอัพโปรโมชั่น (2026-10-14)
       setCouponCode: (e) => this.setState({ couponCode: e.target.value.toUpperCase() }),
       applyCoupon: () => this.applyCoupon(),
@@ -4737,6 +4998,8 @@ class App extends React.Component {
                 ))}
               </div>
             )}
+            {/* ── แต้มสะสม + คูปองวันนี้ (เจ้าของสั่ง 2026-11-24) — ใต้แบนเนอร์ ก่อนคลิป ── */}
+            <MpPerks v={v}/>
             {/* ── คลิปจากร้าน (สไตล์ TikTok มินิ): อยู่ใต้แบนเนอร์ ก่อนหัวข้อใหญ่ (เจ้าของสั่งย้าย 2026-09-22) — การ์ดเล่นเองแบบไม่มีเสียงทุกใบเหมือนวิดีโอพื้นหลัง แตะแล้วเปิดเต็มจอเริ่มเล่นใหม่ตั้งแต่ต้น ── */}
             {v.clips.length > 0 && (
               <React.Fragment>
@@ -5646,7 +5909,7 @@ class App extends React.Component {
                 {v.proNote && <div style={css("font-size:12px;color:#a16207;font-weight:700;line-height:1.5;margin-top:-2px")}>{v.proNote}</div>}
                 <div style={css("display:flex;justify-content:space-between")}><span style={css("color:var(--sub)")}>เข้าเล่ม</span><span style={css("font-family:'IBM Plex Mono',monospace")}>฿{v.bindCost}</span></div>
                 <div style={css("display:flex;justify-content:space-between")}><span style={css("color:var(--sub)")}>ค่าส่ง {v.deliveryLabel}</span><span style={css("font-family:'IBM Plex Mono',monospace")}>฿{v.deliveryCost}</span></div>
-                {v.discount > 0 && <div style={css("display:flex;justify-content:space-between")}><span style={css("color:var(--acc);font-weight:700")}>🎟️ ส่วนลด ({v.couponOk.code})</span><span style={css("font-family:'IBM Plex Mono',monospace;color:var(--acc);font-weight:700")}>−฿{v.discount}</span></div>}
+                {v.discount > 0 && <div style={css("display:flex;justify-content:space-between")}><span style={css("color:var(--acc);font-weight:700")}>🎟️ ส่วนลด ({v.couponOk.title || v.couponOk.code})</span><span style={css("font-family:'IBM Plex Mono',monospace;color:var(--acc);font-weight:700")}>−฿{v.discount}</span></div>}
                 <div style={css("display:flex;justify-content:space-between;font-size:13px")}><span style={css("color:var(--sub)")}>ส่งที่</span><span style={css("text-align:right;max-width:60%")}>{v.destLabel}</span></div>
               </div>
               <div style={css("margin-top:12px;border-top:2px dashed var(--line);padding-top:10px;display:flex;justify-content:space-between;align-items:baseline")}><span style={css("font-weight:700;font-size:14px")}>ยอดชำระ</span><span style={css("font-family:'IBM Plex Mono',monospace;font-size:26px;font-weight:600;color:var(--acc)")}>฿{v.grandTotal}</span></div>
@@ -5658,12 +5921,26 @@ class App extends React.Component {
                 ? <div style={css("display:flex;align-items:center;gap:10px")}>
                     <span style={css("flex:none;display:flex;color:var(--acc)")}>{fi('tag', 17)}</span>
                     <div style={css("flex:1;min-width:0")}>
-                      <div style={css("font-size:12.5px;font-weight:700;color:var(--acc)")}>ใช้โค้ด {v.couponOk.code} แล้ว</div>
+                      <div style={css("font-size:12.5px;font-weight:700;color:var(--acc)")}>{v.couponOk.title ? 'ใช้คูปอง ' + v.couponOk.title + ' แล้ว' : 'ใช้โค้ด ' + v.couponOk.code + ' แล้ว'}</div>
                       <div style={css("font-size:12px;color:var(--sub)")}>{v.discount > 0 ? 'ลดไป ฿' + v.discount : (v.couponOk.kind === 'freeship' ? 'ออเดอร์นี้ไม่มีค่าส่ง (รับหน้าร้าน) — โค้ดส่งฟรีจึงไม่ลด และสิทธิ์ยังไม่ถูกนับครับ' : 'ยอดยังไม่ถึงขั้นต่ำของโค้ดนี้')}</div>
                     </div>
-                    <span onClick={v.clearCoupon} style={css("flex:none;font-size:12.5px;color:#c92a2a;font-weight:700;cursor:pointer")}>ยกเลิกโค้ด</span>
+                    <span onClick={v.clearCoupon} style={css("flex:none;font-size:12.5px;color:#c92a2a;font-weight:700;cursor:pointer")}>{v.couponOk.title ? 'ไม่ใช้' : 'ยกเลิกโค้ด'}</span>
                   </div>
                 : <React.Fragment>
+                    {/* คูปองของฉัน (เก็บจากหน้าแรก/แลกจากแต้ม — 2026-11-24): แตะ "ใช้" ได้เลย ใบที่ใช้ไม่ได้บอกเหตุผล */}
+                    {v.cpMine.length > 0 && <div style={css("margin-bottom:12px")}>
+                      <div style={css("font-size:13px;font-weight:700;display:flex;align-items:center;gap:6px")}><span style={css("display:flex;color:var(--acc)")}>{fi('tag', 14)}</span>คูปองของฉัน ({v.cpMine.length})</div>
+                      <div style={css("margin-top:8px;display:flex;flex-direction:column;gap:7px")}>
+                        {v.cpMine.map(c => { const t = v.cpTry(c); return (
+                          <div key={c.code} style={css("display:flex;align-items:center;gap:10px;border:1px solid var(--line);border-radius:11px;padding:9px 11px;background:var(--soft)")}>
+                            <div style={css("flex:1;min-width:0")}>
+                              <div style={css("font-size:13px;font-weight:700;color:" + (t.ok ? "var(--ink)" : "var(--sub)"))}>{c.title}{c.src === 'points' ? <span style={css("margin-left:6px;font-size:11px;font-weight:700;color:#b7791f")}>แลกจากแต้ม</span> : null}</div>
+                              <div style={css("font-size:11.5px;color:" + (t.ok ? "var(--acc)" : "var(--sub)"))}>{t.ok ? 'ใช้กับออเดอร์นี้ ลด ฿' + t.d : t.why}</div>
+                            </div>
+                            {t.ok && <button onClick={() => v.useMyCoupon(c)} style={css("flex:none;height:34px;padding:0 14px;border:none;border-radius:10px;background:var(--acc);color:#fff;font-size:12.5px;font-weight:700;cursor:pointer;font-family:inherit")}>ใช้</button>}
+                          </div>); })}
+                      </div>
+                    </div>}
                     <div style={css("font-size:13px;font-weight:700;display:flex;align-items:center;gap:6px")}><span style={css("display:flex;color:var(--acc)")}>{fi('tag', 14)}</span>มีโค้ดส่วนลด?</div>
                     <div style={css("margin-top:8px;display:flex;gap:8px")}>
                       <input value={v.couponCode} onChange={v.setCouponCode} placeholder="กรอกโค้ดส่วนลดตรงนี้เลย" maxLength={20}
@@ -5672,6 +5949,7 @@ class App extends React.Component {
                     </div>
                   </React.Fragment>}
             </div>
+            {v.perkLine && v.ptsOrder > 0 && <div style={css("background:var(--accSoft);border:1px solid var(--acc);border-radius:14px;padding:11px 16px;font-size:13px;font-weight:700;color:var(--acc);display:flex;align-items:center;gap:8px")}><span style={css("display:flex;color:#f5a623")}>{fi('star', 16)}</span>ออเดอร์นี้จะได้ +{v.ptsOrder} แต้ม <span style={css("font-weight:600;color:var(--sub);font-size:12px")}>(ได้เมื่อส่งงานสำเร็จ)</span></div>}
             {/* ใบเสร็จรับเงิน (ออนไลน์ — ลูกค้าเปิดพิมพ์เองได้จากหน้าติดตาม) */}
             <div style={css("background:var(--card);border:1px solid var(--line);border-radius:14px;padding:13px 16px")}>
               <div style={css("font-size:13px;font-weight:700;display:flex;align-items:center;gap:6px")}><span style={css("display:flex;color:var(--acc)")}>{fi('receipt', 14)}</span>ใบเสร็จรับเงิน</div>
