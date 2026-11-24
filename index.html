@@ -1284,7 +1284,11 @@ class App extends React.Component {
     let r; try { r = this.calc(); } finally { this._ov = prev; }
     const before = r.grandTotal + r.discount;
     if (before < (+c.min_total || 0)) return { ok: false, why: 'ยอดขั้นต่ำ ฿' + c.min_total };
-    if (!(r.discount > 0)) return { ok: false, why: c.kind === 'freeship' ? 'ออเดอร์นี้ไม่มีค่าส่ง' : 'ใช้กับออเดอร์นี้ไม่ได้' };
+    if (!(r.discount > 0)) { // คิดได้ ฿0 — บอกเหตุผลให้ชัด (เจ้าของงงกับข้อความกว้าง ๆ 2026-11-24)
+      if (c.kind === 'freeship') return { ok: false, why: 'ออเดอร์นี้ไม่มีค่าส่ง (มารับเอง)' };
+      if (c.kind === 'percent' && +c.value > 0) return { ok: false, why: 'ค่าพิมพ์ต้องถึง ฿' + Math.ceil(100 / +c.value) + ' ถึงจะลด ' + c.value + '% ได้ (ตอนนี้ได้ ฿0)' };
+      return { ok: false, why: 'ใช้กับออเดอร์นี้ไม่ได้' };
+    }
     return { ok: true, d: r.discount };
   }
   useMyCoupon(c){
