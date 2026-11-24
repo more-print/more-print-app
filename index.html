@@ -679,7 +679,8 @@ class App extends React.Component {
     if (!rc0) try { const m = document.cookie.match(/(?:^|;\s*)mp_rc_bk=([^;]+)/); rc0 = m ? JSON.parse(decodeURIComponent(m[1])) : null; } catch (e) {} // สำรองในคุกกี้ — เครื่องล้าง storage เองก็ยังจำได้
     this.state = {
       desk: deskNow(), // โหมดคอมพิวเตอร์ (จอกว้าง ≥1024px หรือ iPad)
-      screen: OA_MODE ? 'order' : 'home', files: [], proActive: 0, stepMax: 0, tier: 'standard', ptype: 'bw', paper: 'A4', sides: 1, orient: 'portrait', nup: 1, bind: 'none', copies: 1, note: '', shipNote: '',
+      screen: OA_MODE ? 'order' : 'home', files: [], optOpen: null, fileEdit: null, // optOpen = แถวตัวเลือกที่กางอยู่ · fileEdit = การ์ดไฟล์ที่กดแก้ไข (2026-11-24)
+      proActive: 0, stepMax: 0, tier: 'standard', ptype: 'bw', paper: 'A4', sides: 1, orient: 'portrait', nup: 1, bind: 'none', copies: 1, note: '', shipNote: '',
       shopOpen: true, // สถานะรับออเดอร์จากหลังบ้าน (false = ร้านกดปิดรับชั่วคราว)
       shopProOpen: true, // ปิดรับเฉพาะงาน PRO จากหลังบ้าน (shop_status.pro_open — 2026-10-17) · Standard ยังสั่งได้
       shopRain: false, // โหมดฝนตก (ร้านกดจากหลังบ้าน) — ทุกงานแบบจัดส่ง (Pro+Standard) บังคับรถยนต์
@@ -2312,12 +2313,35 @@ class App extends React.Component {
     return base + (ex.length ? ' · ' + ex.join(' · ') : '');
   }
 
-  seg(label, on, pick, grow){
-    return { label, pick, st: {
+  seg(label, on, pick, grow, short){
+    return { label, pick, on: !!on, short, st: {
       flex: grow ? '1' : 'none', padding: '9px 14px', borderRadius: '10px', fontSize: '12.5px', fontWeight: 600, cursor: 'pointer',
       border: on ? '1.5px solid var(--acc)' : '1px solid var(--line)',
       background: on ? 'var(--accSoft)' : 'var(--soft)', color: on ? 'var(--acc)' : 'var(--ink)'
     } };
+  }
+
+  // ── แถวตัวเลือกแบบพับได้ (เจ้าของเลือกแบบ A 2026-11-24 — ตัวเลือกเยอะเกิน): ปกติเป็นบรรทัดเดียว ชื่อซ้าย · ค่าที่เลือกขวา (สีน้ำเงิน)
+  //    แตะแถว = กางปุ่มตัวเลือกเดิมใต้แถว (เปิดได้ทีละแถวทั้งหน้า — state optOpen) · กดเลือกแล้วพับกลับเอง
+  //    k = คีย์ไม่ซ้ำ · opts = ปุ่มจาก seg() (ใช้ on/short) · x: { value, placeholder, body, wrap, btn, small }
+  optRow(k, title, opts, x = {}){
+    const open = this.state.optOpen === k;
+    const sel = (opts || []).find(o => o.on);
+    const val = x.value !== undefined ? x.value : sel ? (sel.short || sel.label) : null;
+    const toggle = () => this.setState(st => ({ optOpen: st.optOpen === k ? null : k }));
+    return (
+      <div key={k} style={{ border: open ? '1.5px solid var(--acc)' : '1px solid var(--line)', borderRadius: '12px', background: 'var(--card)' }}>
+        <button onClick={toggle} aria-expanded={open} style={{ width: '100%', boxSizing: 'border-box', display: 'flex', alignItems: 'center', gap: '10px', padding: x.small ? '9px 11px' : (open ? '10.5px 13.5px' : '11px 14px'), background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left', color: 'var(--ink)' }}>
+          <span style={{ flex: 'none', fontSize: x.small ? '12px' : '13px', fontWeight: x.small ? 700 : 600, color: x.small ? 'var(--sub)' : 'var(--ink)' }}>{title}</span>
+          <span style={{ flex: 1, minWidth: 0, textAlign: 'right', fontSize: x.small ? '12.5px' : '13px', fontWeight: 700, lineHeight: 1.4, color: val == null ? '#d9480f' : 'var(--acc)' }}>{val == null ? (x.placeholder || 'แตะเพื่อเลือก') : val}</span>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"
+            style={{ flex: 'none', color: 'var(--sub)', transform: open ? 'rotate(180deg)' : 'none', transition: 'transform .15s' }}><path d="m6 9 6 6 6-6"/></svg>
+        </button>
+        {open && <div style={{ padding: x.small ? '0 10px 10px' : '0 12px 12px', display: 'flex', flexWrap: 'wrap', gap: '8px', ...(x.wrap || {}) }}>
+          {x.body || (opts || []).map((o, j) => <button key={j} onClick={() => { o.pick(); this.setState({ optOpen: null }); }} style={{ ...o.st, ...(x.btn || {}) }}>{o.label}</button>)}
+        </div>}
+      </div>
+    );
   }
 
   fmtTime(d){ return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); }
@@ -3338,6 +3362,9 @@ class App extends React.Component {
           const sm = (sg) => ({ ...sg, st: { ...sg.st, padding: '8px 6px', flex: '1 1 0', minWidth: 0 } });
           return {
             opt: o, nupLock: o.nupLock,
+            // บรรทัดสรุปบนการ์ดไฟล์ตอนพับอยู่ (2026-11-24) — ตัวเลือกที่ยังเป็นค่าปกติ (ไม่เย็บ/ไม่เข้าเล่ม/กระดาษปกติ) ไม่ต้องโชว์
+            summary: [o.copies + ' ชุด', o.sides === 2 ? 'หน้า-หลัง' : 'หน้าเดียว', o.orient === 'landscape' ? 'แนวนอน' : 'แนวตั้ง', o.nup + ' หน้า/แผ่น',
+              ...(o.media === 'photo' ? ['กระดาษโฟโต้'] : []), ...(o.bind === 'corner' ? ['เย็บมุม'] : isBook ? ['เข้าเล่ม' + STD_BIND_SHORT[o.bind]] : [])],
             copyInc: () => setOpt({ copies: Math.min(999, o.copies + 1) }),
             copyDec: () => setOpt({ copies: Math.max(1, o.copies - 1) }),
             // แถวสเปกรายไฟล์บนหน้าตรวจสอบ (เจ้าของสั่ง 2026-10-12: สั่งหลายไฟล์ต้องเห็นชัดว่าไฟล์ไหนสเปกไหน)
@@ -3439,8 +3466,10 @@ class App extends React.Component {
           ? <span>{'เล่ม ' + ((FOLDBOOK_BOOK[sz] || {}).book || sz) + ' ฿' + ((FOLDBOOK_BOOK[sz] || {}).perPage || 0) + '/หน้า'}<span style={{ display: 'block', fontSize: '11.5px', fontWeight: 600, opacity: .8, marginTop: '2px' }}>{'พับจากกระดาษ ' + sz}</span></span>
           : sz + (p ? ' ฿' + p : '');
         // โปสเตอร์/เพลทขนาดใหญ่ (A2-A0) ไม่มีบริการเคลือบ — สลับไปขนาดใหญ่ต้องล้างค่าเคลือบทิ้ง กันค่าธรรมเนียมค้าง (2026-09-13)
+        const short = s.proType === 'foldbook' ? 'เล่ม ' + ((FOLDBOOK_BOOK[sz] || {}).book || sz) + ' · ฿' + ((FOLDBOOK_BOOK[sz] || {}).perPage || 0) + '/หน้า'
+          : sz + (p ? ' · ฿' + p : '') + (s.proType === 'blueprint' ? ' · 80 แกรม' : ''); // ค่าที่โชว์บนแถวพับได้
         return this.seg(lbl, s.proSize === sz, () => this.setState(st => ({ proSize: sz,
-          ...(((st.proType === 'plate' && !['A4', 'A3'].includes(sz)) || (st.proType === 'poster' && sz !== 'A4')) ? { proLam: 'none', proFilm: 'lam' } : {}) })), true);
+          ...(((st.proType === 'plate' && !['A4', 'A3'].includes(sz)) || (st.proType === 'poster' && sz !== 'A4')) ? { proLam: 'none', proFilm: 'lam' } : {}) })), true, short);
       }),
       proShowSides: s.proType === 'poster' || s.proType === 'portfolio' || s.proType === 'namecard' || s.proType === 'foldbook' || s.proType === 'postcard', // Postcard เลือกด้านได้ หน้า-หลัง ×2 (เจ้าของสั่ง 2026-10-15) // พับครึ่งเลือกด้านได้แล้ว (เจ้าของสั่ง 2026-10-09) — เรทต่อหน้าเท่ากันทั้งสองแบบ
       proSidesOpts: [
@@ -3482,7 +3511,7 @@ class App extends React.Component {
         ['photo', <span style={{ whiteSpace: 'nowrap' }}>กระดาษโฟโต้</span>],
         ['pp', <span style={{ whiteSpace: 'nowrap' }}>พีพีฟิล์ม</span>]
       ].map(([k, label]) =>
-        this.seg(label, (s.proPoPaper || 'art') === k, () => this.setState({ proPoPaper: k }), true)) : [],
+        this.seg(label, (s.proPoPaper || 'art') === k, () => this.setState({ proPoPaper: k }), true, { art: 'กระดาษอาร์ต (พื้นฐาน)', photo: 'กระดาษโฟโต้', pp: 'พีพีฟิล์ม' }[k])) : [],
       // พิมพ์ขาวดำขนาดใหญ่: ความหนากระดาษ 80/100/120 แกรม (ไม่บวกราคา — 2026-09-09)
       // ความหนากระดาษแบบแปลน (80/100/120 แกรม) ซ่อนชั่วคราว — ยังไม่รู้ราคา (เจ้าของสั่ง 2026-09-12); เปิดคืน: เอา `false &&` ออก
       proGramOpts: (false && s.proType === 'blueprint') ? [80, 100, 120].map(g =>
@@ -3577,6 +3606,7 @@ class App extends React.Component {
       // เย็บมุม/เข้าเล่มย้ายไปเลือกรายไฟล์แล้ว (2026-10-12 — v.files[].cornerSegs/bookSegs) · ช่องเข้าเล่มโชว์เฉพาะ 09:00-21:30 นอกช่วงซ่อน (ค้างเลือกไว้ toPay บล็อก)
       bindOpen: this.bindHoursOpen(),
       copies: s.copies,
+      fileEdit: s.fileEdit, setFileEdit: (i) => this.setState({ fileEdit: i, optOpen: null }), // การ์ดไฟล์ที่กางตัวเลือกอยู่ (ทีละใบ)
       copyInc: () => this.setState(st => ({ copies: st.copies + 1 })),
       copyDec: () => this.setState(st => ({ copies: Math.max(1, st.copies - 1) })),
       // ไวนิล: จำนวน ตร.ม. (จำนวนเต็ม 1–999) แทนช่องจำนวนชุด — พิมพ์เองได้ ช่องว่างระหว่างพิมพ์ได้ ออกจากช่องแล้วเติม 1
@@ -5039,22 +5069,19 @@ class App extends React.Component {
                 </button></div></div>}
                 {/* คำกำกับกระดาษ (โปสเตอร์/เพลท) — ข้อความเขียวสด หลังกดเลือกประเภท ก่อนตัวเลือกขนาด (เจ้าของสั่ง 2026-09-11) */}
                 {v.isPro && v.proPaperNote && <div style={css("font-size:13.5px;font-weight:700;color:var(--acc);line-height:1.6")}>{v.proPaperNote}</div>}
-                {v.isPro && v.proSizeOpts.length > 0 && <div style={css("display:flex;flex-direction:column;gap:6px")}><div style={css("font-size:13px;font-weight:600;color:var(--ink)")}>ขนาด</div><div style={css("display:flex;gap:8px;flex-wrap:wrap")}>{v.proSizeOpts.map((o, i) => <button key={i} onClick={o.pick} style={o.st}>{o.label}</button>)}</div></div>}
+                {v.isPro && v.proSizeOpts.length > 0 && this.optRow('pro-size', 'ขนาด', v.proSizeOpts)}
                 {/* แนวกระดาษ (พิมพ์สีขาวดำขนาดใหญ่ — 2026-09-11) */}
-                {v.isPro && v.proOrientOpts.length > 0 && <div style={css("display:flex;flex-direction:column;gap:6px")}><div style={css("font-size:13px;font-weight:600;color:var(--ink)")}>แนวของกระดาษ</div><div style={css("display:flex;gap:8px;flex-wrap:wrap")}>{v.proOrientOpts.map((o, i) => <button key={i} onClick={o.pick} style={{...o.st, flex:'1 1 45%'}}>{o.label}</button>)}</div></div>}
+                {v.isPro && v.proOrientOpts.length > 0 && this.optRow('pro-orient', 'แนวกระดาษ', v.proOrientOpts, { btn: { flex: '1 1 45%' } })}
                 {/* โปสเตอร์: ประเภทกระดาษ — วางก่อนหัวข้อด้านที่พิมพ์ (เจ้าของสั่ง 2026-09-15) */}
-                {v.isPro && v.proPoPaperOpts.length > 0 && <div style={css("display:flex;flex-direction:column;gap:6px")}><div style={css("font-size:13px;font-weight:600;color:var(--ink)")}>ประเภทกระดาษ</div><div style={css("display:flex;gap:5px")}>{v.proPoPaperOpts.map((o, i) => <button key={i} onClick={o.pick} style={{...o.st, flex:'1 1 0', minWidth:'auto', padding:'9px 5px', fontSize:'clamp(10.5px, 3.3vw, 12.5px)', whiteSpace:'normal', lineHeight:1.35}}>{o.label}</button>)}</div></div>}
-                {v.isPro && v.proShowSides && <div style={css("display:flex;flex-direction:column;gap:6px")}><div style={css("font-size:13px;font-weight:600;color:var(--ink)")}>ด้านที่พิมพ์</div><div style={css("display:flex;gap:8px;flex-wrap:wrap")}>{v.proSidesOpts.map((o, i) => <button key={i} onClick={o.pick} style={{...o.st, flex:'1 1 45%'}}>{o.label}</button>)}</div></div>}
-                {v.isPro && v.proExtraOpts.length > 0 && <div style={css("display:flex;flex-direction:column;gap:6px")}><div style={css("font-size:13px;font-weight:600;color:var(--ink)")}>ตัวเลือกเสริม</div><div style={css("display:flex;gap:8px;flex-wrap:wrap")}>{v.proExtraOpts.map((o, i) => <button key={i} onClick={o.pick} style={{...o.st, flex:'1 1 45%'}}>{o.label}</button>)}</div></div>}
-                {v.isPro && v.proBoardOpts.length > 0 && <div style={css("display:flex;flex-direction:column;gap:6px")}>
-                  <div style={css("font-size:13px;font-weight:600;color:var(--ink)")}>ประเภทบอร์ด (ไม่บวกราคาเพิ่ม)</div>
-                  <div style={css("display:flex;gap:8px;flex-wrap:wrap")}>{v.proBoardOpts.map((o, i) => <button key={i} onClick={o.pick} style={{...o.st, flex:'1 1 45%'}}>{o.label}</button>)}</div>
-                  {/* ข้อความเตือนแดง "เลือกบอร์ดก่อน" ถูกถอด (2026-09-11 เจ้าของบอกลูกค้ารำคาญ) — toDelivery ยังบล็อก+toast ถ้าไม่เลือกเหมือนเดิม */}
-                </div>}
-                {v.isPro && v.proGramOpts.length > 0 && <div style={css("display:flex;flex-direction:column;gap:6px")}><div style={css("font-size:13px;font-weight:600;color:var(--ink)")}>ความหนากระดาษ (ไม่บวกราคาเพิ่ม)</div><div style={css("display:flex;gap:8px;flex-wrap:wrap")}>{v.proGramOpts.map((o, i) => <button key={i} onClick={o.pick} style={{...o.st, flex:'1 1 30%'}}>{o.label}</button>)}</div></div>}
-                {v.isPro && v.proLamOpts.length > 0 && <div style={css("display:flex;flex-direction:column;gap:6px")}><div style={css("font-size:13px;font-weight:600;color:var(--ink)")}>{v.proLamHead}</div><div style={css("display:flex;gap:8px;flex-wrap:wrap")}>{v.proLamOpts.map((o, i) => <button key={i} onClick={o.pick} style={{...o.st, flex:'1 1 30%'}}>{o.label}</button>)}</div></div>}
+                {v.isPro && v.proPoPaperOpts.length > 0 && this.optRow('pro-paper', 'ประเภทกระดาษ', v.proPoPaperOpts, { wrap: { flexWrap: 'nowrap', gap: '5px' }, btn: { flex: '1 1 0', minWidth: 'auto', padding: '9px 5px', fontSize: 'clamp(10.5px, 3.3vw, 12.5px)', whiteSpace: 'normal', lineHeight: 1.35 } })}
+                {v.isPro && v.proShowSides && this.optRow('pro-sides', 'ด้านที่พิมพ์', v.proSidesOpts, { btn: { flex: '1 1 45%' } })}
+                {v.isPro && v.proExtraOpts.length > 0 && this.optRow('pro-extra', 'ตัวเลือกเสริม', v.proExtraOpts, { btn: { flex: '1 1 45%' } })}
+                {/* ประเภทบอร์ดบังคับเลือก — ยังไม่เลือกขึ้นสีส้ม 'เลือก (ไม่บวกราคาเพิ่ม)' · toDelivery ยังบล็อก+toast เหมือนเดิม */}
+                {v.isPro && v.proBoardOpts.length > 0 && this.optRow('pro-board', 'ประเภทบอร์ด', v.proBoardOpts, { placeholder: 'เลือก (ไม่บวกราคาเพิ่ม)', btn: { flex: '1 1 45%' } })}
+                {v.isPro && v.proGramOpts.length > 0 && this.optRow('pro-gram', 'ความหนากระดาษ', v.proGramOpts, { btn: { flex: '1 1 30%' } })}
+                {v.isPro && v.proLamOpts.length > 0 && this.optRow('pro-lam', v.proLamHead, v.proLamOpts, { btn: { flex: '1 1 30%' } })}
                 {/* ตัวเลือกเคลือบ (โปสเตอร์): เลือกชนิดฟิล์ม — โผล่เฉพาะตอนกดเคลือบ · ฟิล์มแข็งมีเฉพาะเคลือบหน้า-หลัง */}
-                {v.isPro && v.proFilmOpts.length > 0 && <div style={css("display:flex;flex-direction:column;gap:6px")}><div style={css("font-size:13px;font-weight:600;color:var(--ink)")}>ตัวเลือกเคลือบ</div><div style={css("display:flex;gap:8px;flex-wrap:wrap")}>{v.proFilmOpts.map((o, i) => <button key={i} onClick={o.pick} style={{...o.st, flex:'1 1 100%'}}>{o.label}</button>)}</div></div>}
+                {v.isPro && v.proFilmOpts.length > 0 && this.optRow('pro-film', 'ชนิดฟิล์ม', v.proFilmOpts, { btn: { flex: '1 1 100%' } })}
                 {v.isPro && v.proHint && <div style={css("font-size:12.5px;color:var(--acc);font-weight:600")}>{v.proHint}</div>}
                 {v.stkOn && <div style={css("font-size:12px;font-weight:700;color:var(--acc);line-height:1.6")}>💡 ทำไฟล์มาเป็น<b>ขนาดจริง</b> — งานเสร็จไวขึ้นมากครับ</div>}
                 {v.stkOn && <div style={css("display:flex;flex-direction:column;gap:6px")}>
@@ -5116,8 +5143,8 @@ class App extends React.Component {
                         </React.Fragment>}
                   </div>
                 </div>}
-                {v.isPro && v.proShowBind && <div style={css("display:flex;flex-direction:column;gap:6px")}><div style={css("font-size:13px;font-weight:600;color:var(--ink)")}>ตัวเลือกเข้าเล่ม</div><div style={css("display:flex;flex-direction:column;gap:8px")}>{v.proBindOpts.map((o, i) => <button key={i} onClick={o.pick} style={{ ...o.st, width: '100%', boxSizing: 'border-box', minHeight: '44px', display: 'flex', alignItems: 'center', textAlign: 'left', fontSize: '13px' }}>{o.label}</button>)}</div></div>}
-                {v.isPro && v.proShowQty && <div style={css("display:flex;flex-direction:column;gap:6px")}><div style={css("font-size:13px;font-weight:600;color:var(--ink)")}>จำนวน</div><div style={css("display:flex;flex-direction:column;gap:8px")}>{v.proQtyOpts.map((o, i) => <button key={i} onClick={o.pick} style={{ ...o.st, width: '100%', boxSizing: 'border-box', minHeight: '44px', display: 'flex', alignItems: 'center', textAlign: 'left', fontSize: '13px' }}>{o.label}</button>)}</div></div>}
+                {v.isPro && v.proShowBind && this.optRow('pro-bind', 'แบบเข้าเล่ม', v.proBindOpts, { wrap: { flexDirection: 'column' }, btn: { width: '100%', boxSizing: 'border-box', minHeight: '44px', display: 'flex', alignItems: 'center', textAlign: 'left', fontSize: '13px' } })}
+                {v.isPro && v.proShowQty && this.optRow('pro-qty', 'จำนวน', v.proQtyOpts, { wrap: { flexDirection: 'column' }, btn: { width: '100%', boxSizing: 'border-box', minHeight: '44px', display: 'flex', alignItems: 'center', textAlign: 'left', fontSize: '13px' } })}
                 {/* การรับงานของงาน Pro ย้ายไปอยู่ "ขั้นที่ 1" ของหน้าจุดส่ง เหมือนงาน Standard แล้ว (เจ้าของสั่ง 2026-10-09) */}
                 {/* งาน Pro ไม่โชว์บรรทัด "ที่เลือก"/💡 สรุปเรทแล้ว (เจ้าของสั่ง 2026-09-17 — บิลท้ายหน้าโชว์ครบ รกซ้ำซ้อน) · Standard คงเรทไว้ */}
                 {!v.isPro && <div style={css("font-size:12.5px;color:var(--acc);font-weight:600")}>💡 {v.rateHint}</div>}
@@ -5136,15 +5163,6 @@ class App extends React.Component {
                         <span style={css("flex:none;font-size:13px;font-weight:800;color:var(--acc)")}>ไฟล์ {i + 1}</span>
                         <span style={css("flex:1;min-width:0;font-size:12px;color:var(--sub);overflow:hidden;text-overflow:ellipsis;white-space:nowrap")}>{f.name}</span>
                         <span style={css("flex:none;font-size:11.5px;color:var(--sub);font-family:'IBM Plex Mono',monospace")}>{f.counting ? '…' : f.pages + ' หน้า'}</span>
-                      </div>
-                      {/* จำนวนชุดรายไฟล์ (เจ้าของสั่ง 2026-11-02): เช่น ไฟล์แรก 1 ชุด ไฟล์ที่ 2 สั่ง 4 ชุด */}
-                      <div style={css("margin-top:9px;display:flex;justify-content:space-between;align-items:center")}>
-                        <div style={css("font-size:11.5px;font-weight:700;color:var(--sub)")}>จำนวนชุด (สำเนา)</div>
-                        <div style={css("display:flex;align-items:center;gap:10px")}>
-                          <button onClick={f.copyDec} style={css("width:30px;height:30px;border:1px solid var(--line);background:var(--soft);color:var(--ink);border-radius:9px;font-size:15px;cursor:pointer")}>−</button>
-                          <div style={css("font-family:'IBM Plex Mono',monospace;font-size:15px;font-weight:600;min-width:26px;text-align:center")}>{f.opt.copies}</div>
-                          <button onClick={f.copyInc} style={css("width:30px;height:30px;border:1px solid var(--line);background:var(--soft);color:var(--ink);border-radius:9px;font-size:15px;cursor:pointer")}>+</button>
-                        </div>
                       </div>
                       {/* งานพิมพ์ผสม: เลือกรูปแบบการพิมพ์ของไฟล์นี้ — การ์ดประเภทงานย่อส่วน 3 ช่อง (อนุมัติ 2026-10-08 · ย้ายมาอยู่กล่องตั้งค่ารายไฟล์ 2026-10-12) */}
                       {v.isMix && f.mix && !f.counting && (
@@ -5177,38 +5195,45 @@ class App extends React.Component {
                           )}
                         </div>
                       )}
-                      {f.showMedia && <div style={css("margin-top:9px")}>
-                        <div style={css("font-size:11.5px;font-weight:700;color:var(--sub);margin-bottom:4px")}>ตัวเลือกกระดาษเสริม</div>
-                        <div style={css("display:flex;gap:6px")}>{f.mediaSegs.map((o, j) => <button key={j} onClick={o.pick} style={o.st}>{o.label}</button>)}</div>
-                      </div>}
-                      <div style={css("margin-top:9px")}>
-                        <div style={css("font-size:11.5px;font-weight:700;color:var(--sub);margin-bottom:4px")}>ด้านที่พิมพ์</div>
-                        {f.isPhoto
-                          ? <div style={css("font-size:12px;color:var(--sub);line-height:1.6")}>หน้าเดียว — กระดาษโฟโต้พิมพ์ได้ด้านเดียว</div>
-                          : <div style={css("display:flex;gap:6px")}>{f.sidesSegs.map((o, j) => <button key={j} onClick={o.pick} style={o.st}>{o.label}</button>)}</div>}
-                      </div>
-                      <div style={css("margin-top:9px")}>
-                        <div style={css("font-size:11.5px;font-weight:700;color:var(--sub);margin-bottom:4px")}>แนวกระดาษ</div>
-                        <div style={css("display:flex;gap:6px")}>{f.orientSegs.map((o, j) => <button key={j} onClick={o.pick} style={o.st}>{o.label}</button>)}</div>
-                      </div>
-                      <div style={css("margin-top:9px")}>
-                        <div style={css("font-size:11.5px;font-weight:700;color:var(--sub);margin-bottom:4px")}>จำนวนหน้าต่อแผ่น</div>
-                        {f.nupLock
-                          ? <div style={css("font-size:11.5px;color:var(--sub);line-height:1.6")}>ℹ️ ไฟล์ที่ระบุหน้าสีพิมพ์ 1 หน้า/แผ่นเท่านั้น (หน้าสีกับขาวดำจะอยู่บนแผ่นเดียวกัน)</div>
-                          : <div style={css("display:flex;gap:6px")}>{f.nupSegs.map((o, j) => <button key={j} onClick={o.pick} style={o.st}>{o.label}</button>)}</div>}
-                      </div>
-                      {v.showBind && !f.onePage && <div style={css("margin-top:9px")}>
-                        <div style={css("font-size:11.5px;font-weight:700;color:var(--sub);margin-bottom:4px")}>เย็บมุม</div>
-                        <div style={css("display:flex;gap:6px")}>{f.cornerSegs.map((o, j) => <button key={j} onClick={o.pick} style={o.st}>{o.label}</button>)}</div>
-                      </div>}
-                      {v.showBind && v.bindOpen && !f.onePage && <div style={css("margin-top:9px")}>
-                        <div style={css("font-size:11.5px;font-weight:700;color:var(--sub);margin-bottom:4px")}>เข้าเล่ม <span style={css("font-weight:400")}>(รับ 09:00–21:30 น. · ไฟล์นี้ {f.bindSheets} แผ่น = ฿{f.bindBook}/เล่ม)</span></div>
-                        <div style={css("display:grid;grid-template-columns:1fr 1fr;gap:6px")}>
-                          {f.bookSegs.map(o => (
-                            <button key={o.k} onClick={o.pick} style={css("padding:8px 6px;border-radius:10px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;border:" + (o.on ? "1.5px solid var(--acc)" : "1px solid var(--line)") + ";background:" + (o.on ? "var(--accSoft)" : "var(--soft)") + ";color:" + (o.on ? "var(--acc)" : "var(--ink)"))}>{o.label}{o.k !== 'nobook' ? <span style={css("font-family:'IBM Plex Mono',monospace;margin-left:4px")}>+฿{f.bindBook}</span> : null}</button>
-                          ))}
-                        </div>
-                      </div>}
+                      {/* ตัวเลือกรายไฟล์แบบย่อ (เจ้าของเลือกแบบ A 2026-11-24): ปกติเหลือบรรทัดสรุปเดียว · กด "แก้ไข" ถึงกางเป็นแถวพับได้ (เปิดได้ทีละไฟล์ — state fileEdit) */}
+                      {v.fileEdit !== i
+                        ? <button onClick={() => v.setFileEdit(i)} style={css("margin-top:9px;width:100%;box-sizing:border-box;display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid var(--line);border-radius:10px;background:var(--soft);cursor:pointer;font-family:inherit;text-align:left")}>
+                            <span style={css("flex:1;min-width:0;display:flex;flex-wrap:wrap;gap:5px")}>
+                              {f.summary.map((x, j) => <span key={j} style={css("font-size:12px;font-weight:600;color:var(--ink);background:var(--card);border:1px solid var(--line);border-radius:7px;padding:2px 7px;white-space:nowrap")}>{x}</span>)}
+                            </span>
+                            <span style={css("flex:none;font-size:12.5px;font-weight:700;color:var(--acc);white-space:nowrap")}>แก้ไข ✎</span>
+                          </button>
+                        : <div style={css("margin-top:9px;display:flex;flex-direction:column;gap:7px")}>
+                            <div style={css("display:flex;justify-content:space-between;align-items:center;border:1px solid var(--line);border-radius:12px;background:var(--card);padding:5px 6px 5px 11px")}>
+                              <div style={css("font-size:12px;font-weight:700;color:var(--sub)")}>จำนวนชุด (สำเนา)</div>
+                              <div style={css("display:flex;align-items:center;gap:10px")}>
+                                <button onClick={f.copyDec} style={css("width:30px;height:30px;border:1px solid var(--line);background:var(--soft);color:var(--ink);border-radius:9px;font-size:15px;cursor:pointer")}>−</button>
+                                <div style={css("font-family:'IBM Plex Mono',monospace;font-size:15px;font-weight:600;min-width:26px;text-align:center")}>{f.opt.copies}</div>
+                                <button onClick={f.copyInc} style={css("width:30px;height:30px;border:1px solid var(--line);background:var(--soft);color:var(--ink);border-radius:9px;font-size:15px;cursor:pointer")}>+</button>
+                              </div>
+                            </div>
+                            {f.showMedia && this.optRow('f' + i + '-media', 'กระดาษ', f.mediaSegs, { small: true })}
+                            {f.isPhoto
+                              ? <div style={css("border:1px solid var(--line);border-radius:12px;background:var(--card);padding:9px 11px;display:flex;justify-content:space-between;gap:10px;font-size:12px")}><span style={css("font-weight:700;color:var(--sub)")}>ด้านที่พิมพ์</span><span style={css("color:var(--sub);text-align:right")}>หน้าเดียว — กระดาษโฟโต้พิมพ์ได้ด้านเดียว</span></div>
+                              : this.optRow('f' + i + '-sides', 'ด้านที่พิมพ์', f.sidesSegs, { small: true })}
+                            {this.optRow('f' + i + '-orient', 'แนวกระดาษ', f.orientSegs, { small: true })}
+                            {f.nupLock
+                              ? <div style={css("border:1px solid var(--line);border-radius:12px;background:var(--card);padding:9px 11px;font-size:11.5px;color:var(--sub);line-height:1.6")}>ℹ️ ไฟล์ที่ระบุหน้าสีพิมพ์ 1 หน้า/แผ่นเท่านั้น (หน้าสีกับขาวดำจะอยู่บนแผ่นเดียวกัน)</div>
+                              : this.optRow('f' + i + '-nup', 'จำนวนหน้าต่อแผ่น', f.nupSegs, { small: true })}
+                            {v.showBind && !f.onePage && this.optRow('f' + i + '-corner', 'เย็บมุม', f.cornerSegs, { small: true })}
+                            {v.showBind && v.bindOpen && !f.onePage && this.optRow('f' + i + '-book', 'เข้าเล่ม', f.bookSegs, { small: true,
+                              value: (f.bookSegs.find(o => o.on) || {}).k === 'nobook' ? 'ไม่เข้าเล่ม' : (f.bookSegs.find(o => o.on) || {}).label + ' +฿' + f.bindBook,
+                              wrap: { display: 'block' },
+                              body: <React.Fragment>
+                                <div style={css("font-size:11.5px;color:var(--sub);margin-bottom:6px")}>รับ 09:00–21:30 น. · ไฟล์นี้ {f.bindSheets} แผ่น = ฿{f.bindBook}/เล่ม</div>
+                                <div style={css("display:grid;grid-template-columns:1fr 1fr;gap:6px")}>
+                                  {f.bookSegs.map(o => (
+                                    <button key={o.k} onClick={() => { o.pick(); this.setState({ optOpen: null }); }} style={css("padding:8px 6px;border-radius:10px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;border:" + (o.on ? "1.5px solid var(--acc)" : "1px solid var(--line)") + ";background:" + (o.on ? "var(--accSoft)" : "var(--soft)") + ";color:" + (o.on ? "var(--acc)" : "var(--ink)"))}>{o.label}{o.k !== 'nobook' ? <span style={css("display:block;white-space:nowrap;font-family:'IBM Plex Mono',monospace;margin-top:2px")}>+฿{f.bindBook}</span> : null}</button>
+                                  ))}
+                                </div>
+                              </React.Fragment> })}
+                            <button onClick={() => v.setFileEdit(null)} style={css("align-self:center;padding:7px 22px;border:1px solid var(--acc);border-radius:99px;background:var(--accSoft);color:var(--acc);font-size:12.5px;font-weight:700;cursor:pointer;font-family:inherit")}>เสร็จ ✓</button>
+                          </div>}
                     </div>
                   ))}
                   {v.showBind && !v.bindOpen && <div style={css("font-size:12px;color:var(--sub);line-height:1.5")}><span style={css("display:inline-flex;vertical-align:-2px;margin-right:5px")}>{fi('clock', 12)}</span>บริการเข้าเล่มเปิดรับเฉพาะ 09:00–21:30 น. ครับ</div>}
@@ -5216,7 +5241,7 @@ class App extends React.Component {
               )}
               {/* สติ๊กเกอร์ไม่มีจำนวนชุด — ลูกค้ากำหนดขนาด+จำนวนชิ้นรายไฟล์เองอยู่แล้ว (เจ้าของสั่ง 2026-09-11, copies ถูกล็อก 1 ตอนเลือกประเภท) */}
               {/* งาน Standard เลือกจำนวนชุดในการ์ดของแต่ละไฟล์แล้ว (เจ้าของสั่ง 2026-11-02) — ช่องนี้เหลือเฉพาะงาน Pro */}
-              {!v.stkOn && !v.vinylOn && v.isPro && <div style={css("display:flex;justify-content:space-between;align-items:center")}><div style={css("font-size:13px;font-weight:600;color:var(--ink)")}>จำนวนชุด (สำเนา)</div>
+              {!v.stkOn && !v.vinylOn && v.isPro && <div style={css("display:flex;justify-content:space-between;align-items:center;border:1px solid var(--line);border-radius:12px;background:var(--card);padding:7px 8px 7px 14px")}><div style={css("font-size:13px;font-weight:600;color:var(--ink)")}>จำนวนชุด (สำเนา)</div>
                 <div style={css("display:flex;align-items:center;gap:10px")}>
                   <button onClick={v.copyDec} style={css("width:30px;height:30px;border:1px solid var(--line);background:var(--soft);color:var(--ink);border-radius:9px;font-size:15px;cursor:pointer")}>−</button>
                   <div style={css("font-family:'IBM Plex Mono',monospace;font-size:15px;font-weight:600;min-width:26px;text-align:center")}>{v.copies}</div>
@@ -5224,7 +5249,7 @@ class App extends React.Component {
                 </div>
               </div>}
               {/* ไวนิล: กรอกจำนวนตารางเมตร (จำนวนเต็ม) แทนจำนวนชุด — เจ้าของสั่ง 2026-11-17 ขอคำกำกับสั้นที่สุด */}
-              {v.vinylOn && <div style={css("display:flex;justify-content:space-between;align-items:center;gap:10px")}>
+              {v.vinylOn && <div style={css("display:flex;justify-content:space-between;align-items:center;gap:10px;border:1px solid var(--line);border-radius:12px;background:var(--card);padding:7px 8px 7px 14px")}>
                 <div style={css("min-width:0")}>
                   <div style={css("font-size:13px;font-weight:600;color:var(--ink)")}>จำนวนตารางเมตร</div>
                   <div style={css("font-size:11.5px;color:var(--sub);margin-top:2px")}>กว้าง × ยาว (เมตร) มีเศษปัดขึ้น</div>
