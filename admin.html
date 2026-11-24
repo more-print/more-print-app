@@ -991,6 +991,229 @@ function OaChips({ items, value, onPick, color }){
     </div>
   );
 }
+// ═══ คูปอง + สะสมแต้ม (เจ้าของสั่ง 2026-11-24 ตามตัวอย่างที่อนุมัติ) ═══
+// คูปองสร้าง/ปิดที่นี่ (ตาราง coupons — policy admin manage) · ลูกค้ากดเก็บผ่าน RPC collect_coupon · ใช้ผ่าน check_coupon/use_coupon เดิม
+// แต้ม: trigger award_points ให้เองตอนสถานะ "ส่งแล้ว" (ทุก ฿points_config ไม่รวมค่าส่ง) · แลกผ่าน Edge Function points-redeem
+const PK_KIND = { percent: 'ลด %', fixed: 'ลดเป็นบาท', freeship: 'ส่งฟรี' };
+const pkLocal = (t) => { const d = new Date(t), p2 = (n) => String(n).padStart(2, '0'); return d.getFullYear() + '-' + p2(d.getMonth() + 1) + '-' + p2(d.getDate()) + 'T' + p2(d.getHours()) + ':' + p2(d.getMinutes()); };
+const pkWhen = (t) => t ? new Date(t).toLocaleString('th-TH', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '—';
+const pkCond = (c) => [(+c.min_total > 0 ? 'ขั้นต่ำ ฿' + c.min_total : 'ไม่มีขั้นต่ำ'), (c.kind === 'percent' && +c.max_discount > 0 ? 'ลดสูงสุด ฿' + c.max_discount : ''), (c.scope === 'pro' ? 'เฉพาะงาน Pro' : c.scope === 'std' ? 'เฉพาะงาน Standard' : 'ทุกงาน')].filter(Boolean);
+const pkCode = () => 'C' + Array.from(crypto.getRandomValues(new Uint8Array(8))).map(b => (b % 36).toString(36)).join('').toUpperCase();
+function PkTicket({ c, right }){
+  return (
+    <div style={css("display:flex;align-items:stretch;border:1px solid var(--line);border-radius:12px;background:var(--card);overflow:hidden")}>
+      <div style={css("flex:none;width:68px;background:var(--accSoft);color:var(--acc);display:flex;flex-direction:column;align-items:center;justify-content:center;border-right:2px dashed var(--line);padding:8px 4px;text-align:center")}>
+        <span style={css("font-size:" + (c.kind === 'freeship' ? "13px" : "18px") + ";font-weight:800;font-family:'IBM Plex Mono',monospace")}>{c.kind === 'freeship' ? 'ส่งฟรี' : c.kind === 'percent' ? (c.value || 0) + '%' : '฿' + (c.value || 0)}</span>
+        {c.kind !== 'freeship' && <span style={css("font-size:10.5px;font-weight:700")}>ส่วนลด</span>}
+      </div>
+      <div style={css("flex:1;min-width:0;padding:9px 11px")}>
+        <div style={css("font-size:13.5px;font-weight:700")}>{c.title || '(ยังไม่ตั้งชื่อ)'}</div>
+        <div style={css("font-size:11.5px;color:var(--sub);line-height:1.5")}>{pkCond(c).map((x, i) => <React.Fragment key={i}>{i ? ' · ' : ''}<span style={{ whiteSpace: 'nowrap' }}>{x}</span></React.Fragment>)}</div>
+        {right}
+      </div>
+    </div>
+  );
+}
+function PerksTab(){
+  const now = Date.now(), eod = new Date(); eod.setHours(23, 59, 0, 0);
+  const [f, setF] = React.useState({ title: '', kind: 'percent', value: 10, max_discount: 30, min_total: 100, starts: pkLocal(now), ends: pkLocal(+eod), qty: 30, scope: 'all', pub: true, code: '' });
+  const [err, setErr] = React.useState(''); const [busy, setBusy] = React.useState(false);
+  const [coupons, setCoupons] = React.useState(null); const [taken, setTaken] = React.useState({});
+  const [rate, setRate] = React.useState(50); const [rewards, setRewards] = React.useState([]);
+  const [members, setMembers] = React.useState(null); const [q, setQ] = React.useState('');
+  const set = (k) => (e) => { setErr(''); const val = e && e.target ? (e.target.type === 'number' ? e.target.value : e.target.value) : e; setF(x => ({ ...x, [k]: val })); };
+  const load = async () => {
+    if (!DB) { // โหมดเดโม่
+      setCoupons(c => c || [
+        { code: 'CDEMOFLASH1', title: 'Flash ลด 10%', kind: 'percent', value: 10, max_discount: 30, min_total: 100, scope: 'all', public: true, active: true, uses: 8, max_uses: 20, starts_at: new Date(now - 6e5).toISOString(), expires_at: new Date(now + 72e5).toISOString(), created_at: new Date().toISOString() },
+        { code: 'KKBS5555', title: null, kind: 'percent', value: 10, max_discount: null, min_total: 0, scope: 'all', public: false, active: true, uses: 88, max_uses: null, starts_at: null, expires_at: null, created_at: new Date(now - 9e9).toISOString() }]);
+      setTaken(t => Object.keys(t).length ? t : { CDEMOFLASH1: 13 });
+      setRewards(r => r.length ? r : [{ id: 1, title: 'ส่งฟรี 1 ครั้ง', cost: 5, kind: 'freeship', value: 0, min_total: 0, active: true, ord: 1 }, { id: 2, title: 'ลด ฿50', cost: 10, kind: 'fixed', value: 50, min_total: 500, active: true, ord: 2 }]);
+      setMembers(m => m || [{ uid: 'udemo1', name: 'สมชาย ใจดี', phone: '081-234-5678', bal: 7, earned: 12 }, { uid: 'udemo2', name: 'มินตรา พาเพลิน', phone: '095-888-1122', bal: 3, earned: 3 }]);
+      return;
+    }
+    try {
+      const [c, w, cfg, rw, led, od] = await Promise.all([
+        DB.from('coupons').select('*').is('owner_uid', null).order('created_at', { ascending: false }),
+        DB.from('coupon_wallet').select('code').limit(20000),
+        DB.from('points_config').select('baht_per_point').eq('id', 1).maybeSingle(),
+        DB.from('points_rewards').select('*').order('ord'),
+        DB.from('points_ledger').select('uid,delta').limit(50000),
+        DB.from('orders').select('line_uid,customer_fname,customer_lname,customer_phone,created_at').not('line_uid', 'is', null).order('created_at', { ascending: false }).limit(5000)]);
+      if (!c.error) setCoupons(c.data || []);
+      if (!w.error) { const m = {}; (w.data || []).forEach(r => { m[r.code] = (m[r.code] || 0) + 1; }); setTaken(m); }
+      if (!cfg.error && cfg.data) setRate(cfg.data.baht_per_point);
+      if (!rw.error) setRewards(rw.data || []);
+      if (!led.error) {
+        const who = {}; (od.data || []).forEach(o => { const k = String(o.line_uid || '').trim().toLowerCase(); if (k && !who[k]) who[k] = { name: ((o.customer_fname || '') + ' ' + (o.customer_lname || '')).trim(), phone: o.customer_phone || '' }; });
+        const agg = {}; (led.data || []).forEach(r => { const a = agg[r.uid] || (agg[r.uid] = { uid: r.uid, bal: 0, earned: 0 }); a.bal += r.delta; if (r.delta > 0) a.earned += r.delta; });
+        setMembers(Object.values(agg).map(a => ({ ...a, ...(who[a.uid] || { name: '(ไม่พบชื่อ)', phone: '' }) })).sort((a, b) => b.bal - a.bal));
+      }
+    } catch (e) {}
+  };
+  React.useEffect(() => { load(); }, []);
+  const create = async () => {
+    const v = +f.value, st = new Date(f.starts).getTime(), en = new Date(f.ends).getTime(), qty = Math.round(+f.qty), code = (f.pub ? pkCode() : String(f.code || '').trim().toUpperCase());
+    let m = '';
+    if (!f.title.trim()) m = 'ตั้งชื่อคูปองก่อน';
+    else if (f.kind !== 'freeship' && !(v > 0)) m = 'ใส่มูลค่าส่วนลดมากกว่า 0';
+    else if (f.kind === 'percent' && v > 100) m = 'ลด % ได้ไม่เกิน 100';
+    else if (isNaN(st) || isNaN(en)) m = 'เลือกเวลาเริ่มแจกและหมดเขต';
+    else if (en <= st) m = 'เวลาหมดเขตต้องหลังเวลาเริ่มแจก';
+    else if (!(qty >= 1)) m = 'จำนวนสิทธิ์ต้องอย่างน้อย 1';
+    else if (!f.pub && !/^[A-Z0-9]{4,20}$/.test(code)) m = 'โค้ดต้องเป็นอังกฤษหรือตัวเลข 4–20 ตัว';
+    if (m) return setErr(m);
+    const row = { code, title: f.title.trim(), kind: f.kind, value: f.kind === 'freeship' ? 0 : Math.round(v), min_total: Math.max(0, Math.round(+f.min_total || 0)),
+      max_discount: f.kind === 'percent' && +f.max_discount > 0 ? Math.round(+f.max_discount) : null, starts_at: new Date(st).toISOString(), expires_at: new Date(en).toISOString(),
+      max_uses: qty, scope: f.scope, public: !!f.pub, active: true, uses: 0 };
+    setBusy(true);
+    if (!DB) { setCoupons(l => [{ ...row, created_at: new Date().toISOString() }, ...(l || [])]); setBusy(false); setErr(''); return alert('✓ สร้างคูปองแล้ว (เดโม่)'); }
+    const { error } = await DB.from('coupons').insert(row);
+    setBusy(false);
+    if (error) return setErr(/duplicate|unique/i.test(error.message || '') ? 'โค้ดนี้มีอยู่แล้ว ตั้งโค้ดใหม่' : 'สร้างไม่สำเร็จ: ' + error.message);
+    alert(f.pub ? '✓ สร้างคูปองแล้ว — ขึ้น "คูปองวันนี้" หน้าเว็บ (ก่อนถึงเวลาเริ่ม 24 ชม. จะโชว์นับถอยหลัง)' : '✓ สร้างโค้ดลับ ' + code + ' แล้ว');
+    setF(x => ({ ...x, title: '', code: '' })); load();
+  };
+  const toggle = async (c) => {
+    if (!confirm((c.active ? 'ปิด' : 'เปิด') + 'คูปอง "' + (c.title || c.code) + '" ?')) return;
+    if (!DB) return setCoupons(l => l.map(x => x.code === c.code ? { ...x, active: !x.active } : x));
+    const { error } = await DB.from('coupons').update({ active: !c.active }).eq('code', c.code);
+    if (error) return alert('ไม่สำเร็จ: ' + error.message); load();
+  };
+  const saveRate = async () => {
+    const r = Math.round(+rate); if (!(r >= 1)) return alert('ต้องเป็นจำนวนเต็มอย่างน้อย 1');
+    if (!DB) return alert('✓ บันทึกแล้ว (เดโม่)');
+    const { error } = await DB.from('points_config').update({ baht_per_point: r }).eq('id', 1);
+    alert(error ? 'ไม่สำเร็จ: ' + error.message : '✓ ตั้งค่าแล้ว: ทุก ฿' + r + ' = 1 แต้ม (มีผลกับออเดอร์ที่ส่งสำเร็จหลังจากนี้)');
+  };
+  const saveReward = async (r) => {
+    const row = { title: String(r.title || '').trim(), cost: Math.round(+r.cost), kind: r.kind, value: r.kind === 'freeship' ? 0 : Math.round(+r.value || 0), min_total: Math.max(0, Math.round(+r.min_total || 0)), active: !!r.active, ord: r.ord || 0 };
+    if (!row.title || !(row.cost >= 1) || (row.kind !== 'freeship' && !(row.value > 0))) return alert('กรอกชื่อ แต้มที่ใช้ และมูลค่าให้ครบ');
+    if (!DB) { setRewards(l => r.id ? l.map(x => x.id === r.id ? { ...x, ...row } : x) : [...l, { ...row, id: Date.now() }]); return alert('✓ บันทึกแล้ว (เดโม่)'); }
+    const { error } = r.id ? await DB.from('points_rewards').update(row).eq('id', r.id) : await DB.from('points_rewards').insert(row);
+    if (error) return alert('ไม่สำเร็จ: ' + error.message); alert('✓ บันทึกรางวัลแล้ว'); load();
+  };
+  const adjust = async (m) => {
+    const n = Math.round(+prompt('เพิ่ม/หักแต้มของ ' + (m.name || 'ลูกค้า') + ' (ตอนนี้ ' + m.bal + ' แต้ม)\nใส่ตัวเลข เช่น 5 หรือ -3', '') || 0);
+    if (!n) return;
+    if (m.bal + n < 0) return alert('หักเกินแต้มที่มีไม่ได้');
+    const note = (prompt('เหตุผล (ลูกค้าเห็นในประวัติแต้ม)', n > 0 ? 'ร้านมอบแต้มพิเศษ' : 'ร้านปรับแต้ม') || '').trim() || 'ปรับแต้มโดยร้าน';
+    if (!DB) return setMembers(l => l.map(x => x.uid === m.uid ? { ...x, bal: x.bal + n, earned: x.earned + Math.max(0, n) } : x));
+    const { error } = await DB.from('points_ledger').insert({ uid: m.uid, delta: n, reason: 'admin', note });
+    if (error) return alert('ไม่สำเร็จ: ' + error.message); load();
+  };
+  const inp = css("width:100%;min-width:0;box-sizing:border-box;height:38px;border:1px solid var(--line);border-radius:10px;background:var(--soft);color:var(--ink);padding:0 10px;font-size:13px;font-family:inherit");
+  const lab = css("font-size:11.5px;font-weight:700;color:var(--sub);margin-bottom:4px");
+  const segb = (on) => css("flex:1;min-width:0;height:36px;border-radius:10px;font-size:12.5px;font-weight:700;cursor:pointer;font-family:inherit;" + (on ? "border:1.5px solid var(--acc);background:var(--accSoft);color:var(--acc)" : "border:1px solid var(--line);background:var(--soft);color:var(--ink)"));
+  const box = css("background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px");
+  const h = css("font-size:14px;font-weight:800;margin-bottom:10px;display:flex;align-items:center;gap:7px");
+  const preview = { title: f.title, kind: f.kind, value: +f.value || 0, max_discount: +f.max_discount || 0, min_total: +f.min_total || 0, scope: f.scope };
+  const memList = (members || []).filter(m => !q.trim() || (m.name + ' ' + m.phone).toLowerCase().includes(q.trim().toLowerCase()));
+  return (
+    <div style={css("padding:14px 16px 40px;display:flex;flex-direction:column;gap:12px;max-width:820px")}>
+      {/* สร้างคูปอง */}
+      <div style={box}>
+        <div style={h}>{FI.star(16)} สร้างคูปอง</div>
+        <div style={lab}>ชื่อคูปอง (ลูกค้าเห็น)</div>
+        <input value={f.title} onChange={set('title')} placeholder="เช่น ลดรับสอบปลายภาค" maxLength={40} style={inp}/>
+        <div style={{ ...lab, marginTop: '10px' }}>ประเภทส่วนลด</div>
+        <div style={css("display:flex;gap:6px")}>{Object.entries(PK_KIND).map(([k, l]) => <button key={k} onClick={() => { setErr(''); setF(x => ({ ...x, kind: k })); }} style={segb(f.kind === k)}>{l}</button>)}</div>
+        <div style={css("margin-top:10px;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:8px")}>
+          {f.kind === 'freeship'
+            ? <div style={css("grid-column:1/-1;font-size:12.5px;color:var(--sub)")}>ส่วนลดเท่าค่าส่งของออเดอร์นั้น (มารับเองไม่มีค่าส่ง = ใช้ไม่ได้)</div>
+            : <React.Fragment>
+                <div><div style={lab}>{f.kind === 'percent' ? 'ลดกี่ %' : 'ลดกี่บาท'}</div><input type="number" min="1" step="1" value={f.value} onChange={set('value')} style={inp}/></div>
+                {f.kind === 'percent' ? <div><div style={lab}>ลดสูงสุด (฿)</div><input type="number" min="0" step="1" value={f.max_discount} onChange={set('max_discount')} style={inp}/></div> : <div/>}
+              </React.Fragment>}
+          <div style={{ gridColumn: '1 / -1' }}><div style={lab}>เริ่มแจก</div><input type="datetime-local" value={f.starts} onChange={set('starts')} style={inp}/></div>
+          <div style={{ gridColumn: '1 / -1' }}><div style={lab}>หมดเขต</div><input type="datetime-local" value={f.ends} onChange={set('ends')} style={inp}/></div>
+          <div><div style={lab}>จำนวนสิทธิ์</div><input type="number" min="1" step="1" value={f.qty} onChange={set('qty')} style={inp}/></div>
+          <div><div style={lab}>ยอดขั้นต่ำ (฿)</div><input type="number" min="0" step="1" value={f.min_total} onChange={set('min_total')} style={inp}/></div>
+        </div>
+        <div style={{ ...lab, marginTop: '10px' }}>ใช้กับงาน</div>
+        <div style={css("display:flex;gap:6px")}>{[['all', 'ทุกงาน'], ['std', 'Standard'], ['pro', 'Pro']].map(([k, l]) => <button key={k} onClick={() => setF(x => ({ ...x, scope: k }))} style={segb(f.scope === k)}>{l}</button>)}</div>
+        <div style={{ ...lab, marginTop: '10px' }}>วิธีแจก</div>
+        <div style={css("display:flex;gap:6px")}>{[[true, 'โชว์หน้าเว็บให้กดเก็บ'], [false, 'โค้ดลับ (ลูกค้าพิมพ์เอง)']].map(([k, l]) => <button key={String(k)} onClick={() => { setErr(''); setF(x => ({ ...x, pub: k })); }} style={segb(f.pub === k)}>{l}</button>)}</div>
+        {!f.pub && <div style={css("margin-top:8px")}><div style={lab}>โค้ด (อังกฤษ/ตัวเลข)</div><input value={f.code} onChange={(e) => { setErr(''); setF(x => ({ ...x, code: e.target.value.toUpperCase() })); }} placeholder="เช่น FINAL10" maxLength={20} style={{ ...inp, textTransform: 'uppercase', fontFamily: "'IBM Plex Mono',monospace" }}/></div>}
+        <div style={{ ...lab, marginTop: '12px' }}>ตัวอย่างที่ลูกค้าเห็น</div>
+        <PkTicket c={preview} right={<div style={css("font-size:11.5px;color:var(--sub)")}>{f.pub ? 'เหลือ ' + (Math.round(+f.qty) || 0) + ' สิทธิ์ · หมดเขต ' + pkWhen(f.ends) : 'โค้ด ' + (f.code || '—')}</div>}/>
+        <button onClick={create} disabled={busy} style={css("margin-top:12px;width:100%;height:44px;border:none;border-radius:12px;background:var(--acc);color:#fff;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit" + (busy ? ";opacity:.6" : ""))}>{busy ? 'กำลังสร้าง…' : 'สร้างคูปอง'}</button>
+        {err && <div style={css("margin-top:7px;font-size:12.5px;font-weight:700;color:#c92a2a")}>{err}</div>}
+      </div>
+      {/* คูปองทั้งหมด */}
+      <div style={box}>
+        <div style={h}>คูปองทั้งหมด <button onClick={load} style={css("margin-left:auto;height:30px;padding:0 10px;border:1px solid var(--line);border-radius:8px;background:var(--soft);color:var(--ink);font-size:12px;cursor:pointer;font-family:inherit")}>รีเฟรช</button></div>
+        {coupons == null ? <div style={css("font-size:12.5px;color:var(--sub)")}>กำลังโหลด…</div>
+          : !coupons.length ? <div style={css("font-size:12.5px;color:var(--sub)")}>ยังไม่มีคูปอง</div>
+          : <div style={css("display:flex;flex-direction:column;gap:8px")}>{coupons.map(c => {
+              const st = c.starts_at ? new Date(c.starts_at).getTime() : 0, en = c.expires_at ? new Date(c.expires_at).getTime() : 0;
+              const status = !c.active ? ['ปิดอยู่', '#868e96'] : en && en <= now ? ['หมดเขต', '#868e96'] : st > now ? ['รอเปิด ' + pkWhen(st), '#b7791f'] : ['กำลังแจก', '#2b8a3e'];
+              const info = [c.public ? 'โชว์หน้าเว็บ' : 'โค้ดลับ ' + c.code, en ? 'หมดเขต ' + pkWhen(en) : ''].filter(Boolean);
+              return <PkTicket key={c.code} c={{ ...c, title: c.title || c.code }} right={<React.Fragment>
+                <div style={css("margin-top:3px;font-size:11.5px;line-height:1.6;color:var(--sub)")}>
+                  <span style={css("font-weight:700;white-space:nowrap;color:" + status[1])}>{status[0]}</span>
+                  {info.map((x, i) => <React.Fragment key={i}>{' · '}<span style={{ whiteSpace: 'nowrap' }}>{x}</span></React.Fragment>)}
+                </div>
+                <div style={css("margin-top:2px;font-size:11.5px;color:var(--sub)")}>{c.public ? 'เก็บ ' + (taken[c.code] || 0) + (c.max_uses ? '/' + c.max_uses : '') + ' · ' : ''}ใช้จริง {c.uses || 0}{!c.public && c.max_uses ? '/' + c.max_uses : ''} ครั้ง</div>
+                <button onClick={() => toggle(c)} style={css("margin-top:6px;height:28px;padding:0 12px;border-radius:8px;font-size:11.5px;font-weight:700;cursor:pointer;font-family:inherit;" + (c.active ? "border:1px solid #ffa8a8;background:#fff5f5;color:#c92a2a" : "border:1px solid var(--acc);background:var(--accSoft);color:var(--acc)"))}>{c.active ? 'ปิดคูปอง' : 'เปิดอีกครั้ง'}</button>
+              </React.Fragment>}/>;
+            })}</div>}
+      </div>
+      {/* สะสมแต้ม: อัตรา + รางวัล */}
+      <div style={box}>
+        <div style={h}>{FI.award(16)} สะสมแต้ม</div>
+        <div style={css("display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:13px")}>
+          <span>ค่าพิมพ์ทุก ฿</span><input type="number" min="1" step="1" value={rate} onChange={e => setRate(e.target.value)} style={{ ...inp, width: '80px' }}/><span>= 1 แต้ม (ไม่รวมค่าส่ง)</span>
+          <button onClick={saveRate} style={css("height:34px;padding:0 14px;border:none;border-radius:9px;background:var(--acc);color:#fff;font-size:12.5px;font-weight:700;cursor:pointer;font-family:inherit")}>บันทึก</button>
+        </div>
+        <div style={css("margin-top:6px;font-size:11.5px;color:var(--sub)")}>ระบบให้แต้มเองตอนกดสถานะ "ส่งแล้ว" · เฉพาะลูกค้าที่ล็อกอิน LINE · แต้มไม่หมดอายุ</div>
+        <div style={{ ...lab, marginTop: '12px' }}>รางวัลแลกแต้ม</div>
+        <div style={css("display:flex;flex-direction:column;gap:8px")}>
+          {[...rewards, { id: 0, title: '', cost: '', kind: 'fixed', value: '', min_total: 0, active: true, ord: rewards.length + 1 }].map((r, i) => (
+            <RewardRow key={r.id || 'new' + i} r={r} onSave={saveReward}/>
+          ))}
+        </div>
+      </div>
+      {/* สมาชิก + ปรับแต้ม */}
+      <div style={box}>
+        <div style={h}>{FI.users(16)} สมาชิกที่มีแต้ม {members ? '(' + members.length + ')' : ''}</div>
+        <input value={q} onChange={e => setQ(e.target.value)} placeholder="ค้นหาชื่อหรือเบอร์" style={inp}/>
+        <div style={css("margin-top:8px;display:flex;flex-direction:column")}>
+          {members == null ? <div style={css("font-size:12.5px;color:var(--sub)")}>กำลังโหลด…</div>
+            : !memList.length ? <div style={css("font-size:12.5px;color:var(--sub)")}>ยังไม่มีสมาชิกที่มีแต้ม — ได้แต้มเมื่อกด "ส่งแล้ว" ให้ออเดอร์ของลูกค้าที่ล็อกอิน LINE</div>
+            : memList.slice(0, 100).map((m, i) => (
+              <div key={m.uid} style={css("display:flex;align-items:center;gap:10px;padding:9px 0;border-top:" + (i ? "1px solid var(--line)" : "none"))}>
+                <div style={css("flex:1;min-width:0")}>
+                  <div style={css("font-size:13px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap")}>{m.name || '(ไม่พบชื่อ)'}</div>
+                  <div style={css("font-size:11.5px;color:var(--sub)")}>{m.phone || '—'} · สะสมทั้งหมด {m.earned} แต้ม</div>
+                </div>
+                <span style={css("font-size:15px;font-weight:800;font-family:'IBM Plex Mono',monospace;color:var(--acc)")}>{m.bal}</span>
+                <button onClick={() => adjust(m)} style={css("height:30px;padding:0 10px;border:1px solid var(--line);border-radius:8px;background:var(--soft);color:var(--ink);font-size:12px;font-weight:700;cursor:pointer;font-family:inherit")}>ปรับแต้ม</button>
+              </div>
+            ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+function RewardRow({ r, onSave }){
+  const [x, setX] = React.useState(r);
+  React.useEffect(() => { setX(r); }, [r.id, r.title, r.cost, r.value, r.min_total, r.active, r.kind]);
+  const inp = css("box-sizing:border-box;height:34px;border:1px solid var(--line);border-radius:8px;background:var(--soft);color:var(--ink);padding:0 8px;font-size:12.5px;font-family:inherit;min-width:0");
+  const s = (k) => (e) => setX(v => ({ ...v, [k]: e.target.type === 'checkbox' ? e.target.checked : e.target.value }));
+  return (
+    <div style={css("border:1px solid var(--line);border-radius:12px;padding:9px 10px;display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:6px;align-items:end;background:" + (r.id ? "var(--card)" : "var(--soft)"))}>
+      <div style={{ gridColumn: 'span 2' }}><div style={css("font-size:11px;color:var(--sub)")}>{r.id ? 'ชื่อรางวัล' : '+ เพิ่มรางวัลใหม่'}</div><input value={x.title} onChange={s('title')} placeholder="เช่น ลด ฿50" style={{ ...inp, width: '100%' }}/></div>
+      <div><div style={css("font-size:11px;color:var(--sub)")}>ใช้แต้ม</div><input type="number" min="1" value={x.cost} onChange={s('cost')} style={{ ...inp, width: '100%' }}/></div>
+      <div><div style={css("font-size:11px;color:var(--sub)")}>ประเภท</div><select value={x.kind} onChange={s('kind')} style={{ ...inp, width: '100%' }}>{Object.entries(PK_KIND).map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select></div>
+      {x.kind !== 'freeship' ? <div><div style={css("font-size:11px;color:var(--sub)")}>{x.kind === 'percent' ? 'ลด %' : 'ลด ฿'}</div><input type="number" min="1" value={x.value} onChange={s('value')} style={{ ...inp, width: '100%' }}/></div> : <div/>}
+      <div><div style={css("font-size:11px;color:var(--sub)")}>ยอดขั้นต่ำ ฿</div><input type="number" min="0" value={x.min_total || 0} onChange={s('min_total')} style={{ ...inp, width: '100%' }}/></div>
+      <label style={css("display:flex;align-items:center;gap:5px;font-size:12px;height:34px")}><input type="checkbox" checked={!!x.active} onChange={s('active')}/>เปิดให้แลก</label>
+      <button onClick={() => onSave(x)} style={css("height:34px;border:none;border-radius:8px;background:var(--acc);color:#fff;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit")}>{r.id ? 'บันทึก' : 'เพิ่ม'}</button>
+    </div>
+  );
+}
+
 function OaOrderModal({ onClose, onSaved }){
   const [name, setName] = React.useState('');
   const [tier, setTier] = React.useState('standard');
@@ -3234,7 +3457,7 @@ function AdminApp(){
 
   const NAV = [
     ['home', FI.home(17), 'ภาพรวม'], ['orders', FI.clipboard(17), 'ออเดอร์'], ['chats', FI.chat(17), 'ข้อความ'],
-    ['overview', FI.award(17), 'สรุปรวม'], ['stats', FI.chart(17), 'ยอดขาย'], ['customers', FI.users(17), 'ลูกค้า'], ['banners', FI.volume(17), 'โปรโมชั่น']
+    ['overview', FI.award(17), 'สรุปรวม'], ['stats', FI.chart(17), 'ยอดขาย'], ['customers', FI.users(17), 'ลูกค้า'], ['banners', FI.volume(17), 'โปรโมชั่น'], ['perks', FI.star(17), 'คูปอง/แต้ม']
   ];
   const unreadTotal = Object.values(unreadMap).reduce((a, n) => a + n, 0);
   return (
@@ -3888,6 +4111,7 @@ function AdminApp(){
         </div>
       )}
 
+      {tab === 'perks' && <PerksTab/>}
       {tab === 'customers' && (
         <div style={css("padding:14px 16px 40px;display:flex;flex-direction:column;gap:10px")}>
           {/* สรุปภาพรวม */}
