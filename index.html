@@ -66,6 +66,8 @@
   .mp-glass::after{content:'';position:absolute;top:0;left:-60%;width:45%;height:100%;background:linear-gradient(105deg,transparent,rgba(255,255,255,.16),transparent);transform:skewX(-18deg);animation:mpShine 4.5s ease-in-out infinite}
   @keyframes mpShine{0%,55%{left:-60%}85%,100%{left:130%}}
   @keyframes mpFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
+  @keyframes mpCpPulse{0%,100%{box-shadow:0 0 0 0 rgba(250,223,41,.75)}55%{box-shadow:0 0 0 7px rgba(250,223,41,0)}}
+  .mp-cp-go{animation:mpCpPulse 1.8s ease-in-out infinite}
   @media print{
     body *{visibility:hidden !important}
     #rcSheet,#rcSheet *{visibility:visible !important}
@@ -637,12 +639,19 @@ const cpCond = (c) => [(+c.min_total > 0 ? 'ขั้นต่ำ ฿' + c.min_t
   (c.scope === 'pro' ? 'เฉพาะงาน Pro' : c.scope === 'std' ? 'เฉพาะงาน Standard' : 'ทุกงาน')].filter(Boolean);
 // ข้อความหลายหัวข้อคั่น " · " — แต่ละหัวข้อไม่ตัดกลางวลี (เจ้าของจับผิดเรื่องนี้บ่อย) ขึ้นบรรทัดใหม่ได้เฉพาะระหว่างหัวข้อ
 const CpParts = ({ items }) => <React.Fragment>{items.filter(Boolean).map((x, i) => <React.Fragment key={i}>{i ? ' · ' : ''}<span style={{ whiteSpace: 'nowrap' }}>{x}</span></React.Fragment>)}</React.Fragment>;
-function CpStub({ c }){
+// สีคูปองตามประเภท (เจ้าของขอให้เด่น น่าดึงดูด 2026-11-24): ลด % = น้ำเงินแบรนด์ · ลดเป็นบาท = ส้ม · ส่งฟรี = เขียว
+const CP_COLOR = { percent: '#004FD6', fixed: '#E8590C', freeship: '#0CA678' };
+const cpColor = (c) => CP_COLOR[c.kind] || CP_COLOR.percent;
+// ส่วนหัวตั๋ว (มูลค่า) — สีทึบตามประเภท + รอยเว้าบน/ล่างตรงรอยปรุ (สีเดียวกับพื้นการ์ด = ดูเหมือนตั๋วจริง)
+function CpStub({ c, notch }){
+  const col = cpColor(c), cut = notch || 'var(--card)';
   return (
-    <div style={css("flex:none;width:70px;background:var(--accSoft);color:var(--acc);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;border-right:2px dashed var(--line);padding:8px 4px;text-align:center")}>
+    <div style={{ position: 'relative', flex: 'none', width: '78px', background: col, color: '#fff', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '2px', padding: '10px 4px', textAlign: 'center', borderRight: '2px dashed rgba(255,255,255,.6)' }}>
+      <span style={{ position: 'absolute', right: '-8px', top: '-8px', width: '14px', height: '14px', borderRadius: '50%', background: cut }}/>
+      <span style={{ position: 'absolute', right: '-8px', bottom: '-8px', width: '14px', height: '14px', borderRadius: '50%', background: cut }}/>
       {c.kind === 'freeship'
-        ? <React.Fragment><span style={css("display:flex")}>{fi('truck', 22)}</span><span style={css("font-size:12px;font-weight:800")}>ส่งฟรี</span></React.Fragment>
-        : <React.Fragment><span style={css("font-size:19px;font-weight:800;line-height:1.15;font-family:'IBM Plex Mono',monospace")}>{c.kind === 'percent' ? c.value + '%' : '฿' + c.value}</span><span style={css("font-size:11px;font-weight:700")}>ส่วนลด</span></React.Fragment>}
+        ? <React.Fragment><span style={css("display:flex")}>{fi('truck', 24, '#fff')}</span><span style={css("font-size:13px;font-weight:800;letter-spacing:.3px")}>ส่งฟรี</span></React.Fragment>
+        : <React.Fragment><span style={css("font-size:22px;font-weight:800;line-height:1.1;font-family:'IBM Plex Mono',monospace")}>{c.kind === 'percent' ? c.value + '%' : '฿' + c.value}</span><span style={css("font-size:11px;font-weight:800;color:#FADF29;letter-spacing:.5px")}>ส่วนลด</span></React.Fragment>}
     </div>
   );
 }
@@ -657,62 +666,80 @@ function MpPerks({ v }){
   const canNow = rewards.filter(r => r.cost <= bal).length;
   const card = css("border:1px solid var(--line);border-radius:16px;background:var(--card);padding:14px 16px;box-shadow:var(--shadow)");
   const btn = (on) => css("flex:none;height:34px;padding:0 14px;border-radius:10px;font-size:12.5px;font-weight:700;cursor:pointer;font-family:inherit;" + (on ? "border:none;background:var(--acc);color:#fff" : "border:1px solid var(--line);background:var(--soft);color:var(--sub)"));
+  const yel = css("flex:none;height:36px;padding:0 16px;border:none;border-radius:11px;background:#FADF29;color:#0B1E4A;font-size:13px;font-weight:800;cursor:pointer;font-family:inherit");
   const sh = v.perkSheet;
+  const endOfDay = new Date(now); endOfDay.setHours(23, 59, 59, 999);
   return (
     <div style={css("margin:14px 20px 0;display:grid;gap:12px;grid-template-columns:" + (v.desk ? "minmax(0,340px) minmax(0,1fr);align-items:start" : "minmax(0,1fr)"))}>
-      {/* แต้มสะสม */}
-      <div style={card}>
-        <div style={css("display:flex;align-items:center;gap:7px;font-size:13px;font-weight:700")}><span style={css("display:flex;color:#f5a623")}>{fi('star', 16)}</span>แต้มสะสม</div>
+      {/* แต้มสะสม — การ์ดสมาชิกสีแบรนด์ */}
+      <div style={css("position:relative;overflow:hidden;border-radius:18px;padding:16px 18px;color:#fff;background:linear-gradient(135deg,#004FD6 0%,#0B3FA8 55%,#0B1E4A 100%);box-shadow:0 6px 18px rgba(0,79,214,.28)")}>
+        <div style={css("position:absolute;right:-30px;top:-30px;width:120px;height:120px;border-radius:50%;background:rgba(250,223,41,.16)")}/>
+        <div style={css("position:absolute;right:30px;bottom:-40px;width:90px;height:90px;border-radius:50%;background:rgba(255,255,255,.07)")}/>
+        <div style={css("position:relative;display:flex;align-items:center;gap:7px;font-size:13px;font-weight:700;color:#FADF29")}><span style={css("display:flex")}>{fi('star', 16, '#FADF29')}</span>แต้มสะสม MORE PRINT</div>
         {v.perkLine
-          ? <React.Fragment>
-              <div style={css("margin-top:6px;display:flex;align-items:baseline;gap:6px")}><span style={css("font-size:30px;font-weight:800;font-family:'IBM Plex Mono',monospace;color:var(--acc)")}>{bal}</span><span style={css("font-size:13px;font-weight:700")}>แต้ม</span></div>
-              <div style={css("margin-top:2px;font-size:12px;color:var(--sub);line-height:1.6")}>
-                {canNow > 0 ? 'แลกรางวัลได้แล้ว ' + canNow + ' รายการ 🎉' : next ? 'อีก ' + (next.cost - bal) + ' แต้ม แลก' + next.title : 'ค่าพิมพ์ทุก ฿' + v.ptsRate + ' = 1 แต้ม'}
+          ? <div style={css("position:relative")}>
+              <div style={css("margin-top:4px;display:flex;align-items:baseline;gap:7px")}><span style={css("font-size:36px;font-weight:800;font-family:'IBM Plex Mono',monospace;line-height:1.1")}>{bal}</span><span style={css("font-size:14px;font-weight:700;opacity:.9")}>แต้ม</span></div>
+              <div style={css("margin-top:2px;font-size:12.5px;font-weight:600;opacity:.92;line-height:1.6")}>
+                {canNow > 0 ? '🎉 แลกรางวัลได้แล้ว ' + canNow + ' รายการ' : next ? 'อีก ' + (next.cost - bal) + ' แต้ม แลก' + next.title : 'ค่าพิมพ์ทุก ฿' + v.ptsRate + ' = 1 แต้ม'}
               </div>
-              {next && <div style={css("margin-top:6px;height:6px;border-radius:3px;background:var(--soft);overflow:hidden")}><div style={{ width: Math.min(100, Math.round(bal / next.cost * 100)) + '%', height: '100%', background: 'var(--acc)' }}/></div>}
-              <div style={css("margin-top:10px;display:flex;gap:8px")}>
-                <button onClick={() => v.setPerkSheet({ k: 'rewards' })} style={btn(true)}>แลกแต้ม</button>
-                <button onClick={() => v.setPerkSheet({ k: 'hist' })} style={btn(false)}>ประวัติแต้ม</button>
+              {next && <div style={css("margin-top:7px;height:7px;border-radius:4px;background:rgba(255,255,255,.22);overflow:hidden")}><div style={{ width: Math.min(100, Math.round(bal / next.cost * 100)) + '%', height: '100%', background: '#FADF29', borderRadius: '4px' }}/></div>}
+              <div style={css("margin-top:12px;display:flex;gap:8px")}>
+                <button onClick={() => v.setPerkSheet({ k: 'rewards' })} style={yel}>แลกแต้ม</button>
+                <button onClick={() => v.setPerkSheet({ k: 'hist' })} style={css("flex:none;height:36px;padding:0 14px;border:1px solid rgba(255,255,255,.45);border-radius:11px;background:transparent;color:#fff;font-size:12.5px;font-weight:700;cursor:pointer;font-family:inherit")}>ประวัติแต้ม</button>
               </div>
-              <div style={css("margin-top:8px;font-size:11.5px;color:var(--sub)")}>ค่าพิมพ์ทุก ฿{v.ptsRate} = 1 แต้ม · ได้แต้มเมื่อส่งงานสำเร็จ</div>
-            </React.Fragment>
-          : <React.Fragment>
-              <div style={css("margin-top:6px;font-size:13px;line-height:1.6")}>ค่าพิมพ์ทุก ฿{v.ptsRate} = 1 แต้ม · แลกส่งฟรีหรือส่วนลดได้</div>
+              <div style={css("margin-top:9px;font-size:11.5px;opacity:.8")}>ค่าพิมพ์ทุก ฿{v.ptsRate} = 1 แต้ม · ได้แต้มเมื่อส่งงานสำเร็จ</div>
+            </div>
+          : <div style={css("position:relative")}>
+              <div style={css("margin-top:6px;font-size:14px;font-weight:700;line-height:1.6")}>ค่าพิมพ์ทุก ฿{v.ptsRate} = 1 แต้ม</div>
+              <div style={css("font-size:12.5px;opacity:.88;line-height:1.6")}>สะสมแลกส่งฟรีหรือส่วนลดได้</div>
               {!v.loggedIn
-                ? <button onClick={v.goLogin} style={{ ...btn(true), marginTop: '10px', background: '#06C755' }}>เข้าสู่ระบบด้วย LINE เพื่อสะสมแต้ม</button>
-                : <div style={css("margin-top:6px;font-size:12px;color:var(--sub)")}>สะสมแต้มได้เฉพาะบัญชีที่เข้าสู่ระบบด้วย LINE ครับ</div>}
-            </React.Fragment>}
+                ? <button onClick={v.goLogin} style={css("margin-top:11px;height:38px;padding:0 16px;border:none;border-radius:11px;background:#06C755;color:#fff;font-size:13px;font-weight:800;cursor:pointer;font-family:inherit")}>เข้าสู่ระบบด้วย LINE เพื่อสะสมแต้ม</button>
+                : <div style={css("margin-top:6px;font-size:12px;opacity:.85")}>สะสมแต้มได้เฉพาะบัญชีที่เข้าสู่ระบบด้วย LINE ครับ</div>}
+            </div>}
       </div>
-      {/* คูปองวันนี้ */}
+      {/* คูปองวันนี้ — แถบหัวสีเหลือง + ตั๋วสีตามประเภท */}
       {v.cpBoard.length > 0 && (
-        <div style={card}>
-          <div style={css("display:flex;align-items:center;gap:7px;font-size:13px;font-weight:700;flex-wrap:wrap")}><span style={css("display:flex;color:var(--acc)")}>{fi('tag', 15)}</span>คูปองวันนี้<span style={css("margin-left:auto;font-size:11.5px;font-weight:600;color:var(--sub)")}>เก็บด้วยบัญชี LINE · คนละ 1 สิทธิ์</span></div>
-          <div style={css("margin-top:10px;display:grid;gap:8px;grid-template-columns:" + (v.desk ? "repeat(auto-fill,minmax(300px,1fr))" : "minmax(0,1fr)"))}>
+        <div style={css("border:1px solid var(--line);border-radius:18px;background:var(--card);overflow:hidden;box-shadow:var(--shadow)")}>
+          <div style={css("background:#FADF29;color:#0B1E4A;padding:10px 16px;display:flex;align-items:center;gap:7px;flex-wrap:wrap")}>
+            <span style={css("display:flex")}>{fi('tag', 17, '#0B1E4A')}</span>
+            <span style={css("font-size:15px;font-weight:800")}>คูปองวันนี้</span>
+            <span style={css("font-size:12px;font-weight:700")}>เก็บก่อนหมด!</span>
+            <span style={css("margin-left:auto;font-size:11.5px;font-weight:700;opacity:.75")}>เก็บด้วยบัญชี LINE · คนละ 1 สิทธิ์</span>
+          </div>
+          <div style={css("padding:12px 14px 14px;display:grid;gap:10px;grid-template-columns:" + (v.desk ? "repeat(auto-fill,minmax(300px,1fr))" : "minmax(0,1fr)"))}>
             {v.cpBoard.map(c => {
+              const col = cpColor(c);
               const st = c.starts_at ? new Date(c.starts_at).getTime() : 0, en = c.expires_at ? new Date(c.expires_at).getTime() : 0;
               const left = c.max_uses ? Math.max(0, c.max_uses - c.taken) : null;
               const pct = c.max_uses ? Math.min(100, Math.round(c.taken / c.max_uses * 100)) : 0;
+              const live = !(st > now) && !c.used && !c.mine && left !== 0;
+              const badges = [];
+              if (live && left != null && (left <= 5 || left <= c.max_uses * 0.2)) badges.push(['เหลือน้อย!', '#C92A2A']);
+              if (live && en && en <= +endOfDay && !badges.length) badges.push(['หมดเขตวันนี้', '#B7791F']); // ป้ายเดียวพอ — เหลือน้อยสำคัญกว่า
+              if (st > now) badges.push(['เร็ว ๆ นี้', '#7048E8']);
               let note, act;
-              if (st > now) { note = ['เปิดเก็บ ' + cpHm(st), 'อีก ' + cpLeft(st - now)]; act = <span style={css("font-size:12px;font-weight:700;color:var(--sub);padding:6px 10px;border:1px solid var(--line);border-radius:10px")}>รอ</span>; }
+              if (st > now) { note = ['เปิดเก็บ ' + cpHm(st), 'อีก ' + cpLeft(st - now)]; act = <span style={css("font-size:12px;font-weight:800;color:#7048E8;padding:7px 10px;border:1.5px dashed #7048E8;border-radius:10px;font-family:'IBM Plex Mono',monospace")}>{cpLeft(st - now)}</span>; }
               else if (c.used) { note = ['ใช้ไปแล้ว']; act = <span style={css("font-size:12px;font-weight:700;color:var(--sub)")}>ใช้แล้ว</span>; }
-              else if (c.mine) { note = ['เก็บแล้ว', 'ใช้ตอนชำระเงิน' + (en ? ' (ถึง ' + cpHm(en) + ')' : '')]; act = <span style={css("font-size:12px;font-weight:700;color:#2b8a3e;background:#ebfbee;border-radius:10px;padding:6px 10px")}>✓ เก็บแล้ว</span>; }
+              else if (c.mine) { note = ['ใช้ตอนชำระเงิน', en ? 'ถึง ' + cpHm(en) : '']; act = <span style={css("font-size:12.5px;font-weight:800;color:#fff;background:#2B8A3E;border-radius:10px;padding:7px 11px")}>✓ เก็บแล้ว</span>; }
               else if (left === 0) { note = ['สิทธิ์หมดแล้ว']; act = <span style={css("font-size:12px;font-weight:700;color:var(--sub)")}>หมดแล้ว</span>; }
-              else { note = [left != null ? 'เหลือ ' + left + ' สิทธิ์' : 'เก็บได้เลย', en ? 'หมดเขต ' + cpHm(en) : '']; act = <button onClick={() => v.collectCoupon(c)} disabled={v.cpBusy === c.ref} style={{ ...btn(true), opacity: v.cpBusy === c.ref ? .6 : 1 }}>{v.cpBusy === c.ref ? '…' : 'เก็บ'}</button>; }
+              else { note = [left != null ? 'เหลือ ' + left + ' สิทธิ์' : 'เก็บได้เลย', en ? 'หมดเขต ' + cpHm(en) : ''];
+                act = <button className={v.cpBusy === c.ref ? '' : 'mp-cp-go'} onClick={() => v.collectCoupon(c)} disabled={v.cpBusy === c.ref} style={{ ...css("height:38px;padding:0 18px;border:none;border-radius:11px;background:#FADF29;color:#0B1E4A;font-size:14px;font-weight:800;cursor:pointer;font-family:inherit"), opacity: v.cpBusy === c.ref ? .6 : 1 }}>{v.cpBusy === c.ref ? '…' : 'เก็บ'}</button>; }
               return (
-                <div key={c.ref} style={css("display:flex;align-items:stretch;border:1px solid var(--line);border-radius:12px;background:var(--card);overflow:hidden")}>
+                <div key={c.ref} style={{ display: 'flex', alignItems: 'stretch', border: '1.5px solid ' + col + '55', borderRadius: '14px', background: 'var(--card)', overflow: 'hidden', opacity: (c.used || left === 0) && !c.mine ? .6 : 1 }}>
                   <CpStub c={c}/>
                   <div style={css("flex:1;min-width:0;padding:9px 11px")}>
-                    <div style={css("font-size:13.5px;font-weight:700;line-height:1.4")}>{c.title}</div>
+                    {badges.length > 0 && <div style={css("display:flex;flex-wrap:wrap;gap:4px;margin-bottom:3px")}>{badges.map(([l, bc]) => <span key={l} style={{ fontSize: '10.5px', fontWeight: 800, color: '#fff', background: bc, borderRadius: '6px', padding: '1px 6px', whiteSpace: 'nowrap' }}>{l}</span>)}</div>}
+                    <div style={css("font-size:14px;font-weight:800;line-height:1.35;color:var(--ink)")}>{c.title}</div>
                     <div style={css("font-size:11.5px;color:var(--sub);line-height:1.5")}><CpParts items={cpCond(c)}/></div>
-                    <div style={css("font-size:11.5px;color:var(--sub);line-height:1.5")}><CpParts items={note}/></div>
-                    {c.max_uses ? <div style={css("margin-top:4px;height:4px;border-radius:2px;background:var(--soft);overflow:hidden")}><div style={{ width: pct + '%', height: '100%', background: 'var(--acc)' }}/></div> : null}
+                    <div style={css("font-size:11.5px;color:var(--ink);font-weight:600;line-height:1.5")}><CpParts items={note}/></div>
+                    {c.max_uses ? <div style={css("margin-top:5px;height:5px;border-radius:3px;background:var(--soft);overflow:hidden")}><div style={{ width: pct + '%', height: '100%', background: col }}/></div> : null}
                   </div>
                   <div style={css("flex:none;display:flex;align-items:center;padding:0 10px")}>{act}</div>
                 </div>
               );
             })}
+            <div style={css("font-size:11.5px;color:var(--sub)")}>มีโค้ดลับ? กรอกที่หน้าชำระเงินได้เหมือนเดิม</div>
           </div>
-          <div style={css("margin-top:8px;font-size:11.5px;color:var(--sub)")}>มีโค้ดลับ? กรอกที่หน้าชำระเงินได้เหมือนเดิม</div>
         </div>
       )}
       {/* หน้าต่างแลกแต้ม / ยืนยัน / ประวัติ */}
@@ -5922,11 +5949,11 @@ class App extends React.Component {
             {/* โค้ดส่วนลด */}
             <div style={css("background:var(--card);border:1px solid var(--line);border-radius:14px;padding:13px 16px")}>
               {v.couponOk
-                ? <div style={css("display:flex;align-items:center;gap:10px")}>
-                    <span style={css("flex:none;display:flex;color:var(--acc)")}>{fi('tag', 17)}</span>
+                ? <div style={css("display:flex;align-items:center;gap:10px;margin:-4px -7px;padding:11px 12px;border-radius:12px;background:#EBFBEE;border:1.5px solid #8CE99A")}>
+                    <span style={css("flex:none;width:36px;height:36px;border-radius:50%;background:#2B8A3E;display:flex;align-items:center;justify-content:center")}>{fi('tag', 18, '#fff')}</span>
                     <div style={css("flex:1;min-width:0")}>
-                      <div style={css("font-size:12.5px;font-weight:700;color:var(--acc)")}>{v.couponOk.title ? 'ใช้คูปอง ' + v.couponOk.title + ' แล้ว' : 'ใช้โค้ด ' + v.couponOk.code + ' แล้ว'}</div>
-                      <div style={css("font-size:12px;color:var(--sub)")}>{v.discount > 0 ? 'ลดไป ฿' + v.discount : (v.couponOk.kind === 'freeship' ? 'ออเดอร์นี้ไม่มีค่าส่ง (รับหน้าร้าน) — โค้ดส่งฟรีจึงไม่ลด และสิทธิ์ยังไม่ถูกนับครับ' : 'ยอดยังไม่ถึงขั้นต่ำของโค้ดนี้')}</div>
+                      <div style={css("font-size:13px;font-weight:800;color:#2B8A3E")}>🎉 {v.couponOk.title ? 'ใช้คูปอง ' + v.couponOk.title : 'ใช้โค้ด ' + v.couponOk.code}</div>
+                      <div style={css("font-size:13.5px;font-weight:800;color:#2B8A3E")}>{v.discount > 0 ? 'ประหยัดไป ฿' + v.discount : (v.couponOk.kind === 'freeship' ? 'ออเดอร์นี้ไม่มีค่าส่ง (รับหน้าร้าน)' : 'ยังไม่ถึงยอดขั้นต่ำ ฿' + (v.couponOk.min_total || 0))}</div>
                     </div>
                     <span onClick={v.clearCoupon} style={css("flex:none;font-size:12.5px;color:#c92a2a;font-weight:700;cursor:pointer")}>{v.couponOk.title ? 'ไม่ใช้' : 'ยกเลิกโค้ด'}</span>
                   </div>
@@ -5936,12 +5963,16 @@ class App extends React.Component {
                       <div style={css("font-size:13px;font-weight:700;display:flex;align-items:center;gap:6px")}><span style={css("display:flex;color:var(--acc)")}>{fi('tag', 14)}</span>คูปองของฉัน ({v.cpMine.length})</div>
                       <div style={css("margin-top:8px;display:flex;flex-direction:column;gap:7px")}>
                         {v.cpMine.map(c => { const t = v.cpTry(c); return (
-                          <div key={c.code} style={css("display:flex;align-items:center;gap:10px;border:1px solid var(--line);border-radius:11px;padding:9px 11px;background:var(--soft)")}>
-                            <div style={css("flex:1;min-width:0")}>
-                              <div style={css("font-size:13px;font-weight:700;color:" + (t.ok ? "var(--ink)" : "var(--sub)"))}>{c.title}{c.src === 'points' ? <span style={css("margin-left:6px;font-size:11px;font-weight:700;color:#b7791f")}>แลกจากแต้ม</span> : null}</div>
-                              <div style={css("font-size:11.5px;color:" + (t.ok ? "var(--acc)" : "var(--sub)"))}>{t.ok ? 'ใช้กับออเดอร์นี้ ลด ฿' + t.d : t.why}</div>
+                          <div key={c.code} style={{ display: 'flex', alignItems: 'stretch', border: '1.5px solid ' + (t.ok ? cpColor(c) + '55' : 'var(--line)'), borderRadius: '12px', background: 'var(--card)', overflow: 'hidden' }}>
+                            <div style={{ flex: 'none', width: '58px', background: t.ok ? cpColor(c) : '#ADB5BD', color: '#fff', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '8px 2px', textAlign: 'center', borderRight: '2px dashed rgba(255,255,255,.6)' }}>
+                              {c.kind === 'freeship' ? <React.Fragment>{fi('truck', 18, '#fff')}<span style={css("font-size:11px;font-weight:800")}>ส่งฟรี</span></React.Fragment>
+                                : <span style={css("font-size:16px;font-weight:800;font-family:'IBM Plex Mono',monospace")}>{c.kind === 'percent' ? c.value + '%' : '฿' + c.value}</span>}
                             </div>
-                            {t.ok && <button onClick={() => v.useMyCoupon(c)} style={css("flex:none;height:34px;padding:0 14px;border:none;border-radius:10px;background:var(--acc);color:#fff;font-size:12.5px;font-weight:700;cursor:pointer;font-family:inherit")}>ใช้</button>}
+                            <div style={css("flex:1;min-width:0;padding:9px 11px")}>
+                              <div style={css("font-size:13px;font-weight:700;color:" + (t.ok ? "var(--ink)" : "var(--sub)"))}>{c.title}{c.src === 'points' ? <span style={css("margin-left:6px;font-size:11px;font-weight:700;color:#b7791f")}>แลกจากแต้ม</span> : null}</div>
+                              <div style={css("font-size:11.5px;font-weight:" + (t.ok ? "700" : "400") + ";color:" + (t.ok ? "#2B8A3E" : "var(--sub)"))}>{t.ok ? 'ใช้กับออเดอร์นี้ ลด ฿' + t.d : t.why}</div>
+                            </div>
+                            {t.ok && <div style={css("flex:none;display:flex;align-items:center;padding:0 10px")}><button onClick={() => v.useMyCoupon(c)} style={css("height:34px;padding:0 16px;border:none;border-radius:10px;background:#FADF29;color:#0B1E4A;font-size:13px;font-weight:800;cursor:pointer;font-family:inherit")}>ใช้</button></div>}
                           </div>); })}
                       </div>
                     </div>}
